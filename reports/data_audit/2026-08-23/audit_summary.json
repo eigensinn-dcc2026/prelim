@@ -1,0 +1,498 @@
+{
+  "manifest_version": "1.0",
+  "snapshot_at": "2026-08-23T13:03:25+00:00",
+  "snapshot_note": "Current Google Drive state only; not a guaranteed historical snapshot of the 2026-08-23 download.",
+  "drive_url": "https://drive.google.com/drive/folders/1-OTkaH2s5m5qnXXfBoAnXcUKRJ-h6bFI?usp=sharing",
+  "drive_folder_id": "1-OTkaH2s5m5qnXXfBoAnXcUKRJ-h6bFI",
+  "remote_file_count": 18280,
+  "local_file_count": 65680,
+  "remote_counts": [
+    {
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 5500
+    },
+    {
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 5500
+    },
+    {
+      "split": "Validation",
+      "region": "서울",
+      "extension": ".json",
+      "count": 3640
+    },
+    {
+      "split": "Validation",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 3640
+    }
+  ],
+  "local_counts": [
+    {
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 29200
+    },
+    {
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 29200
+    },
+    {
+      "split": "Validation",
+      "region": "서울",
+      "extension": ".json",
+      "count": 3640
+    },
+    {
+      "split": "Validation",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 3640
+    }
+  ],
+  "local_counts_by_chunk": [
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-001",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 5083
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-001",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2222
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-001",
+      "split": "Validation",
+      "region": "서울",
+      "extension": ".json",
+      "count": 1882
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-001",
+      "split": "Validation",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 979
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-002",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 3801
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-002",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2311
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-002",
+      "split": "Validation",
+      "region": "서울",
+      "extension": ".json",
+      "count": 1106
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-002",
+      "split": "Validation",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 921
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-003",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 3354
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-003",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2220
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-003",
+      "split": "Validation",
+      "region": "서울",
+      "extension": ".json",
+      "count": 447
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-003",
+      "split": "Validation",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 909
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-004",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 3085
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-004",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2164
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-004",
+      "split": "Validation",
+      "region": "서울",
+      "extension": ".json",
+      "count": 205
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-004",
+      "split": "Validation",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 831
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-005",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 2853
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-005",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2930
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-006",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 2490
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-006",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 3075
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-007",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 2204
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-007",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 3068
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-008",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 1934
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-008",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2932
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-009",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 1687
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-009",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2867
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-010",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 465
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-010",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 1856
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-011",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 1239
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-011",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2723
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-012",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 1005
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-012",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 832
+    }
+  ],
+  "comparison_counts": {
+    "local_only": 47400,
+    "matched": 18280
+  },
+  "local_only_counts": [
+    {
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 23700
+    },
+    {
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 23700
+    }
+  ],
+  "local_only_by_chunk": [
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-001",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 4575
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-001",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 1909
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-002",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 3310
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-002",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 1871
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-003",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 2857
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-003",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 1755
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-004",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 2583
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-004",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 1703
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-005",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 2349
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-005",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2432
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-006",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 1988
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-006",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2556
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-007",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 1707
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-007",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2505
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-008",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 1433
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-008",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2378
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-009",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 1190
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-009",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2300
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-010",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 465
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-010",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 1856
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-011",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 738
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-011",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 2162
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-012",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".json",
+      "count": 505
+    },
+    {
+      "download_chunk": "대학부 데이터-20260823T080055Z-1-012",
+      "split": "Training",
+      "region": "서울",
+      "extension": ".wav",
+      "count": 273
+    }
+  ],
+  "pair_status_counts": {
+    "matched": 32840
+  },
+  "duplicate_group_counts": {},
+  "integrity_issue_counts": {},
+  "zero_byte_count": 0,
+  "json_parse_success_count": 32840,
+  "json_parse_failure_count": 0,
+  "wav_header_success_count": 32840,
+  "wav_header_failure_count": 0,
+  "sha256_missing_count": 0,
+  "official_distribution_status_counts": {
+    "current_remote_candidate": 18280,
+    "local_only_unverified": 47400
+  },
+  "training_eligibility_status_counts": {
+    "ineligible_validation_split": 7280,
+    "pending_official_distribution": 58400
+  },
+  "structure_change_gate": {
+    "passed": false,
+    "reason": "Organizer confirmation or an official manifest is still required."
+  }
+}
