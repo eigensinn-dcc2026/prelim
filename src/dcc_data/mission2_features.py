@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import random
 import re
+import unicodedata
 from dataclasses import dataclass
 from numbers import Real
 from pathlib import Path, PurePosixPath
@@ -48,14 +49,23 @@ from .manifest import ManifestRow
 # ---------------------------------------------------------------------------
 
 _REGION_DIR_RE = re.compile(r"^(TS|TL|VS|VL)_([^_]+)_구급$")
-SEOUL_REGION = "서울"
+SEOUL_REGION = unicodedata.normalize("NFC", "서울")
 
 
 def path_region(relative_path: str) -> str | None:
-    """Return the region token encoded in a manifest-relative path, if any."""
+    """Return the region token encoded in a manifest-relative path, if any.
+
+    Paths that started life as Korean-named folders inside a zip archive (as
+    this dataset's do) can arrive as NFD (decomposed jamo) instead of NFC
+    (precomposed) -- the two render identically but compare unequal, and NFD
+    also breaks a literal match against "_구급$" in the regex below. Every
+    path part is normalized to NFC before matching so this is independent of
+    whatever form the filesystem/zip handed us.
+    """
 
     for part in PurePosixPath(relative_path).parts:
-        match = _REGION_DIR_RE.fullmatch(part)
+        normalized_part = unicodedata.normalize("NFC", part)
+        match = _REGION_DIR_RE.fullmatch(normalized_part)
         if match:
             return match.group(2)
     return None

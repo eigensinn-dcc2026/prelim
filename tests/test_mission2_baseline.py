@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import unicodedata
 import wave
 from pathlib import Path
 
@@ -84,6 +85,17 @@ def test_is_seoul_path_matches_region_folder_convention() -> None:
     assert is_seoul_path("chunk/Training/1.원천데이터/TS_서울_구급/a.wav")
     assert is_seoul_path("chunk/Training/2.라벨링데이터/TL_서울_구급/a.json")
     assert not is_seoul_path("chunk/Training/1.원천데이터/TS_경기_구급/a.wav")
+
+
+def test_is_seoul_path_handles_nfd_encoded_korean_folder_names() -> None:
+    # The real dataset's Korean folder names arrived NFD-decomposed after
+    # passing through a zip archive / Drive sync -- this reproduces that
+    # exact bug (Seoul + Training rows: 0 despite paths looking identical
+    # on screen) rather than just asserting normalize() works in the abstract.
+    nfc_path = "chunk/Training/1.원천데이터/TS_서울_구급/a.wav"
+    nfd_path = unicodedata.normalize("NFD", nfc_path)
+    assert nfc_path != nfd_path  # sanity: the two forms really are distinct bytes
+    assert is_seoul_path(nfd_path)
 
 
 def test_feature_columns_never_include_order_or_identifier_fields() -> None:
