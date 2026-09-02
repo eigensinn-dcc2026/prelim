@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import csv
 import json
+import statistics
 import wave
 from datetime import datetime, timezone
 from pathlib import Path
@@ -71,13 +72,11 @@ def wav_duration_ms(path: Path) -> float:
 def stats(values: list[float]) -> dict:
     if not values:
         return {}
-    s = sorted(values)
-    n = len(s)
     return {
-        "n": n,
-        "min": round(s[0], 1),
-        "median": round(s[n // 2], 1),
-        "max": round(s[-1], 1),
+        "n": len(values),
+        "min": round(min(values), 1),
+        "median": round(statistics.median(values), 1),
+        "max": round(max(values), 1),
     }
 
 
@@ -85,20 +84,35 @@ def check_split(rows: list[dict], split_label: str) -> dict:
     diffs_call: list[float] = []
     diffs_utt: list[float] = []
     violations: list[dict] = []
-    read_failed = 0
+    fail_reasons = {
+        "json_read_error": 0,
+        "missing_call_endAt": 0,
+        "wav_read_error": 0,
+    }
 
     for row in rows:
         json_path = DATA_ROOT / row["json_path"]
         wav_path = DATA_ROOT / row["wav_path"]
+
         try:
             with open(json_path, encoding="utf-8") as f:
                 doc = json.load(f)
-            call_end = doc.get("endAt")
-            utterances = doc.get("utterances", [])
-            max_utt_end = max((u.get("endAt", 0) for u in utterances), default=0)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            fail_reasons["json_read_error"] += 1
+            continue
+
+        call_end = doc.get("endAt")
+        if call_end is None:
+            fail_reasons["missing_call_endAt"] += 1
+            continue
+
+        utterances = doc.get("utterances", [])
+        max_utt_end = max((u.get("endAt", 0) for u in utterances), default=0)
+
+        try:
             wav_dur = wav_duration_ms(wav_path)
-        except Exception:  # noqa: BLE001 - 검증 스크립트이므로 실패도 집계 대상
-            read_failed += 1
+        except (OSError, wave.Error):
+            fail_reasons["wav_read_error"] += 1
             continue
 
         diff_call = wav_dur - call_end
@@ -118,10 +132,12 @@ def check_split(rows: list[dict], split_label: str) -> dict:
                 }
             )
 
+    read_failed = sum(fail_reasons.values())
     return {
         "split": split_label,
         "n_checked": len(rows) - read_failed,
         "read_failed": read_failed,
+        "read_failed_reasons": fail_reasons,
         "violation_count": len(violations),
         "diff_call_vs_wav_ms": stats(diffs_call),
         "diff_utterance_end_vs_wav_ms": stats(diffs_utt),
