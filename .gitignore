@@ -1,9 +1,11 @@
 data/
 checkpoints/
+outputs/
 *.ipynb_checkpoints/
 __pycache__/
 .env
 *.pyc
+.pytest_cache/
 reports/data_audit/*/comparison.csv
 reports/data_audit/*/local_manifest.csv
 reports/data_audit/*/pair_audit.csv

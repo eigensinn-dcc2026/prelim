@@ -97,6 +97,8 @@ scripts/ = 부품을 사용해 실제 작업을 실행하는 프로그램
 | `guards.py` | 잘못된 데이터 구조나 허용되지 않은 입력 사용을 막기 위한 검증 기능 |
 | `manifest.py` | WAV·JSON 파일 목록과 매칭 정보를 관리 |
 | `mission2.py` | Mission 2용 데이터 처리 기능 |
+| `mission2_features.py` | Mission 2 baseline(L1)용 발화 단위 인덱스·53차원 음향 feature 추출 |
+| `mission2_train.py` | Mission 2 baseline(L1) 학습(GroupShuffleSplit)·모델 저장/로드 |
 | `mission3.py` | Mission 3용 데이터 처리 기능 |
 
 현재 `mission1.py`는 없습니다. Mission 1은 M2의 음성 처리 구조를 가능한 범위에서 재사용하면서 baseline 단계에서 필요한 전용 코드를 추가합니다.
@@ -109,6 +111,9 @@ scripts/ = 부품을 사용해 실제 작업을 실행하는 프로그램
 |---|---|
 | `audit_dcc_dataset.py` | 전체 데이터 구조·파일·JSON/WAV 무결성 감사 |
 | `build_manifest.py` | WAV와 JSON을 연결한 manifest 생성 |
+| `build_mission2_dataset.py` | Mission 2 baseline(L1): Seoul/Training 통화 샘플링 + 발화 인덱스 + feature 캐시 생성 |
+| `train_mission2_baseline.py` | Mission 2 baseline(L1) 학습 및 모델·실험 로그 저장 |
+| `mission2_inference.py` | Mission 2 추론 (대회 CLI 규격: `--audio_dir --label_dir --ckpt_path --output`) |
 
 EDA 관련 추가 스크립트는 현재 PR #2에서 리뷰 중입니다.
 
@@ -249,3 +254,62 @@ M3 baseline ─┘
 ```
 
 README는 저장소 구조와 현재 개발 상태를 설명하는 문서입니다. 세부 일정, 멘토링 준비, 팀 운영 현황은 팀 Notion에서 관리합니다.
+
+## 12. Mission 2 baseline (L1) 실행 방법
+
+L1 = 음향 통계 feature(53차원: duration + MFCC + RMS + ZCR + spectral 계열) + GBM.
+`startAt` 절대값·발화 순번 등 순서를 복원할 수 있는 값은 feature로 사용하지 않는다 (대회 규정).
+Train은 Seoul/Training 데이터만 사용하며, Validation 폴더는 이 파이프라인에 들어오지 않는다
+(`dcc_data.guards.ensure_training_rows`로 강제).
+
+Colab 셀 순서:
+
+```python
+# 1) 저장소 클론 + 패키지 설치
+!git clone https://github.com/eigensinn-dcc2026/prelim.git
+%cd prelim
+!pip install -r requirements.txt
+
+# 2) Google Drive 마운트, 데이터 경로 지정
+from google.colab import drive
+drive.mount('/content/drive')
+DATA_ROOT = "/content/drive/MyDrive/데이터 크리에이터 캠프/2026 DCC 대학부 데이터/대학부 데이터"
+```
+
+```bash
+# 3) wav<->json manifest 생성 (한 번만 하면 재사용 가능)
+!python scripts/build_manifest.py \
+    --data-root "$DATA_ROOT" \
+    --output data/manifests/dcc_manifest_v1.csv
+
+# 4) Mission 2 발화 인덱스 + 53차원 feature 캐시 생성 (통화 3,000건 샘플, seed=42)
+!python scripts/build_mission2_dataset.py \
+    --manifest data/manifests/dcc_manifest_v1.csv \
+    --data-root "$DATA_ROOT" \
+    --n-calls 3000 --seed 42
+
+# 5) baseline 학습 (call_id GroupShuffleSplit 8:2 + 비교용 random split)
+!python scripts/train_mission2_baseline.py
+
+# 6) 추론 (대회가 실제로 실행할 명령과 동일한 형태)
+!python scripts/mission2_inference.py \
+    --audio_dir {wav folder} --label_dir {json folder} \
+    --ckpt_path checkpoints/mission2/m2_baseline_lgbm.pkl \
+    --output ./outputs/mission2.csv
+```
+
+산출물:
+
+- `data/m2_utterances_train.parquet` — 발화 단위 인덱스 (Git 추적 제외)
+- `data/m2_features_train.parquet` — 53차원 feature 캐시 (Git 추적 제외)
+- `checkpoints/mission2/m2_baseline_lgbm.pkl` — 학습된 모델 (Git 추적 제외)
+- `reports/mission2/m2_exp_log.json` — GroupSplit/random split accuracy, feature importance top 20 등 실험 기록
+
+`reports/mission2/m2_exp_log.json`의 `verdict` 필드는 실제 데이터로 학습한 뒤 직접 채워 넣는다
+(`측정된 accuracy가 채택 기준 0.70 이상인지, 기각 기준 0.60 미만인지`).
+
+로컬 smoke test (실데이터 없이 합성 fixture로 파이프라인 전체를 검증):
+
+```bash
+pytest tests/test_mission2_baseline.py -v
+```
