@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "generated_at": "2026-08-29T15:32:32.653163+00:00",
+    "purpose": "startAt/endAt(ms) 라벨과 실제 WAV 재생 길이의 정합성 검증 (Phase 2A)",
+    "scope_note": "표본 검증 (전수 아님). eda_summary.json과 동일한 앞쪽 Training 800개 / Validation 250개. 무작위 표본이 아니라 매니페스트 파일 순서 기준 앞부분임에 유의.",
+    "tolerance_ms": 50
+  },
+  "training": {
+    "split": "Training",
+    "n_checked": 800,
+    "read_failed": 0,
+    "violation_count": 0,
+    "diff_call_vs_wav_ms": {
+      "n": 800,
+      "min": 0.0,
+      "median": 0.0,
+      "max": 0.0
+    },
+    "diff_utterance_end_vs_wav_ms": {
+      "n": 800,
+      "min": 0.0,
+      "median": 1338.0,
+      "max": 18234.0
+    },
+    "violations": []
+  },
+  "validation": {
+    "split": "Validation",
+    "n_checked": 250,
+    "read_failed": 0,
+    "violation_count": 0,
+    "diff_call_vs_wav_ms": {
+      "n": 250,
+      "min": 0.0,
+      "median": 0.0,
+      "max": 0.0
+    },
+    "diff_utterance_end_vs_wav_ms": {
+      "n": 250,
+      "min": 0.0,
+      "median": 1293.0,
+      "max": 13934.0
+    },
+    "violations": []
+  }
+}
