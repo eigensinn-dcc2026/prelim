@@ -262,41 +262,79 @@ L1 = 음향 통계 feature(53차원: duration + MFCC + RMS + ZCR + spectral 계�
 Train은 Seoul/Training 데이터만 사용하며, Validation 폴더는 이 파이프라인에 들어오지 않는다
 (`dcc_data.guards.ensure_training_rows`로 강제).
 
-Colab 셀 순서:
+Colab 셀 순서 (실제 검증된 버전 -- 전체 실행 가능한 정리본은 저장소 밖
+`M2_Colab_실행스크립트.py` 참고):
 
 ```python
-# 1) 저장소 클론 + 패키지 설치
-!git clone https://github.com/eigensinn-dcc2026/prelim.git
-%cd prelim
-!pip install -r requirements.txt
+# 1) 저장소 clone (private repo이므로 GitHub PAT 필요:
+#    https://github.com/settings/tokens/new -> scope "repo")
+from getpass import getpass
+token = getpass("GitHub PAT: ")
+!git clone https://{token}@github.com/eigensinn-dcc2026/prelim.git /content/prelim
 
-# 2) Google Drive 마운트, 데이터 경로 지정
+# 2) 이 baseline 브랜치로 전환 + 패키지 설치
+%cd /content/prelim
+!git checkout gwanghee/mission2-baseline
+!pip install -q -r requirements.txt
+
+# 3) Google Drive 마운트 + 데이터/결과 경로 지정
 from google.colab import drive
 drive.mount('/content/drive')
-DATA_ROOT = "/content/drive/MyDrive/데이터 크리에이터 캠프/2026 DCC 대학부 데이터/대학부 데이터"
+
+import os
+os.environ["DATA_ROOT"] = "/content/drive/MyDrive/데이터 크리에이터 캠프/2026 DCC 대학부 데이터/대학부 데이터"
+os.environ["M2_CACHE_DIR"] = "/content/drive/MyDrive/데이터 크리에이터 캠프/m2_cache"
+os.makedirs(os.environ["M2_CACHE_DIR"], exist_ok=True)
 ```
 
 ```bash
-# 3) wav<->json manifest 생성 (한 번만 하면 재사용 가능)
+# 4) wav<->json manifest 생성 (한 번만 하면 재사용 가능 -- 이미 있으면
+#    FileExistsError가 뜨는데 정상이니 다음 단계로 넘어가면 된다)
+%cd /content/prelim
 !python scripts/build_manifest.py \
     --data-root "$DATA_ROOT" \
     --output data/manifests/dcc_manifest_v1.csv
 
-# 4) Mission 2 발화 인덱스 + 53차원 feature 캐시 생성 (통화 3,000건 샘플, seed=42)
+# 5) Mission 2 발화 인덱스 + 53차원 feature 캐시 생성 (통화 3,000건 샘플,
+#    seed=42). 가장 오래 걸리는 단계(1.5~2시간대) -- 결과를 처음부터
+#    $M2_CACHE_DIR(Drive)에 저장해야 런타임이 끊겨도 안전하다.
+%cd /content/prelim
 !python scripts/build_mission2_dataset.py \
     --manifest data/manifests/dcc_manifest_v1.csv \
     --data-root "$DATA_ROOT" \
-    --n-calls 3000 --seed 42
+    --n-calls 3000 --seed 42 \
+    --index-output "$M2_CACHE_DIR/m2_utterances_train.parquet" \
+    --features-output "$M2_CACHE_DIR/m2_features_train.parquet" \
+    --failures-log "$M2_CACHE_DIR/m2_build_failures.jsonl"
 
-# 5) baseline 학습 (call_id GroupShuffleSplit 8:2 + 비교용 random split)
-!python scripts/train_mission2_baseline.py
+# 6) baseline 학습 (call_id GroupShuffleSplit 8:2 + 비교용 random split)
+%cd /content/prelim
+!python scripts/train_mission2_baseline.py \
+    --features "$M2_CACHE_DIR/m2_features_train.parquet" \
+    --model-output "$M2_CACHE_DIR/m2_baseline_lgbm.pkl" \
+    --log-output "$M2_CACHE_DIR/m2_exp_log.json"
 
-# 6) 추론 (대회가 실제로 실행할 명령과 동일한 형태)
+# 7) 추론 (대회가 실제로 실행할 명령과 동일한 형태)
+%cd /content/prelim
 !python scripts/mission2_inference.py \
     --audio_dir {wav folder} --label_dir {json folder} \
-    --ckpt_path checkpoints/mission2/m2_baseline_lgbm.pkl \
-    --output ./outputs/mission2.csv
+    --ckpt_path "$M2_CACHE_DIR/m2_baseline_lgbm.pkl" \
+    --output "$M2_CACHE_DIR/mission2.csv"
 ```
+
+Colab에서 겪었던 함정들:
+
+- Google Drive에 저장하지 않고 `/content/` 로컬 경로에만 결과를 쓰면, 런타임이
+  끊기는 순간 몇 시간짜리 5단계 결과가 통째로 사라진다. 항상 `$M2_CACHE_DIR`
+  (Drive)로 출력 경로를 지정할 것.
+- `!cmd "{python_변수}"` 형태의 IPython 문자열 치환은 이 환경에서 간헐적으로
+  실패했다(치환 안 되고 글자 그대로 들어감). `$ENV_VAR`(bash 환경변수, 위처럼
+  `os.environ[...]`으로 미리 설정) 방식은 매번 정상 동작했으니 그쪽을 쓸 것.
+- 런타임이 재시작되면 clone·마운트·환경변수가 전부 초기화된다. 스크립트 실행
+  셀 맨 앞에 항상 `%cd /content/prelim`을 넣어 cwd를 강제로 맞출 것.
+- 한글 폴더명(`TS_서울_구급` 등)이 zip 압축을 거치며 유니코드 NFD로 인코딩된
+  적이 있었다 (Seoul+Training 필터가 0건으로 잡히는 문제) --
+  `path_region()`에서 NFC로 정규화해서 수정됨 (커밋 `416e843`).
 
 산출물:
 
