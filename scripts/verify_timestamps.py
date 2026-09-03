@@ -87,6 +87,7 @@ def check_split(rows: list[dict], split_label: str) -> dict:
     fail_reasons = {
         "json_read_error": 0,
         "missing_call_endAt": 0,
+        "missing_utterance_endAt": 0,
         "wav_read_error": 0,
     }
 
@@ -107,7 +108,11 @@ def check_split(rows: list[dict], split_label: str) -> dict:
             continue
 
         utterances = doc.get("utterances", [])
-        max_utt_end = max((u.get("endAt", 0) for u in utterances), default=0)
+        utt_ends = [u.get("endAt") for u in utterances]
+        if any(end is None for end in utt_ends):
+            fail_reasons["missing_utterance_endAt"] += 1
+            continue
+        max_utt_end = max(utt_ends, default=0)
 
         try:
             wav_dur = wav_duration_ms(wav_path)
