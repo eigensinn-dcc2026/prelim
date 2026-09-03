@@ -1,0 +1,114 @@
+{
+  "실험 ID": "M2-EXP-001",
+  "가설": "발화 조각의 음향 통계 feature와 duration만으로 speaker를 유의미하게 분류할 수 있다",
+  "baseline": 0.52,
+  "변경 변수": "없음 (첫 baseline 수립)",
+  "고정 변수": "통화 3000건 샘플, seed=42, LightGBM(또는 HistGradientBoosting) 기본 파라미터",
+  "평가 지표": "Accuracy",
+  "validation": "call_id GroupShuffleSplit 8:2",
+  "채택 기준": "GroupSplit accuracy >= 0.70",
+  "기각 기준": "GroupSplit accuracy < 0.60 (-> L2 딥러닝 경로로 조기 전환)",
+  "verdict": "채택. GroupSplit accuracy 0.8378로 채택 기준(0.70)을 크게 상회. random split(0.8442) 대비 leakage gap이 0.0065로 매우 작아, 화자 암기로 인한 점수 부풀림이 아니라 실제로 처음 보는 통화에 일반화되는 음향 신호(MFCC·에너지·duration)에 기반한 결과로 판단됨. feature importance도 특정 변수 하나가 지배하지 않고 MFCC/RMS/spectral centroid에 고르게 분산되어 있어 신뢰도가 높음. Seoul Training 3,000통화 샘플(발화 91,508개: train 2,400통화/73,374발화, val 600통화/18,134발화) 기준. L2(Mel-spectrogram+CNN) 착수는 보류하고, 팀 리소스를 M1/M3 baseline에 우선 배분할 것을 제안. (실행: 2026-09-03, 김광희, Colab)",
+  "measured": {
+    "group_split_accuracy": 0.837763317525091,
+    "random_split_accuracy": 0.8442246748989182,
+    "leakage_gap_random_minus_group": 0.006461357373827137,
+    "majority_class_accuracy_this_sample": 0.5205446518337195,
+    "n_train_utterances": 73374,
+    "n_val_utterances": 18134,
+    "n_train_calls": 2400,
+    "n_val_calls": 600,
+    "confusion_matrix_val_group_split": [
+      [
+        6960,
+        1804
+      ],
+      [
+        1138,
+        8232
+      ]
+    ],
+    "feature_importance_top20": [
+      [
+        "mfcc_mean_2",
+        220.0
+      ],
+      [
+        "rms_std",
+        154.0
+      ],
+      [
+        "mfcc_mean_5",
+        146.0
+      ],
+      [
+        "duration_sec",
+        128.0
+      ],
+      [
+        "mfcc_mean_4",
+        127.0
+      ],
+      [
+        "mfcc_std_0",
+        125.0
+      ],
+      [
+        "mfcc_std_1",
+        112.0
+      ],
+      [
+        "mfcc_mean_6",
+        112.0
+      ],
+      [
+        "spectral_centroid_mean",
+        110.0
+      ],
+      [
+        "mfcc_std_2",
+        95.0
+      ],
+      [
+        "mfcc_mean_16",
+        85.0
+      ],
+      [
+        "zcr_mean",
+        82.0
+      ],
+      [
+        "mfcc_std_4",
+        78.0
+      ],
+      [
+        "spectral_bandwidth_std",
+        78.0
+      ],
+      [
+        "mfcc_mean_7",
+        74.0
+      ],
+      [
+        "mfcc_std_6",
+        72.0
+      ],
+      [
+        "mfcc_std_3",
+        72.0
+      ],
+      [
+        "spectral_centroid_std",
+        68.0
+      ],
+      [
+        "mfcc_mean_18",
+        67.0
+      ],
+      [
+        "spectral_rolloff_mean",
+        62.0
+      ]
+    ]
+  }
+}

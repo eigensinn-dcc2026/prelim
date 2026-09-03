@@ -1,0 +1,8 @@
+numpy
+pandas
+pyarrow
+librosa
+scikit-learn
+lightgbm
+tqdm
+pytest

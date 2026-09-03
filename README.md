@@ -97,6 +97,8 @@ scripts/ = 부품을 사용해 실제 작업을 실행하는 프로그램
 | `guards.py` | 잘못된 데이터 구조나 허용되지 않은 입력 사용을 막기 위한 검증 기능 |
 | `manifest.py` | WAV·JSON 파일 목록과 매칭 정보를 관리 |
 | `mission2.py` | Mission 2용 데이터 처리 기능 |
+| `mission2_features.py` | Mission 2 baseline(L1)용 발화 단위 인덱스·53차원 음향 feature 추출 |
+| `mission2_train.py` | Mission 2 baseline(L1) 학습(GroupShuffleSplit)·모델 저장/로드 |
 | `mission3.py` | Mission 3용 데이터 처리 기능 |
 
 현재 `mission1.py`는 없습니다. Mission 1은 M2의 음성 처리 구조를 가능한 범위에서 재사용하면서 baseline 단계에서 필요한 전용 코드를 추가합니다.
@@ -109,6 +111,9 @@ scripts/ = 부품을 사용해 실제 작업을 실행하는 프로그램
 |---|---|
 | `audit_dcc_dataset.py` | 전체 데이터 구조·파일·JSON/WAV 무결성 감사 |
 | `build_manifest.py` | WAV와 JSON을 연결한 manifest 생성 |
+| `build_mission2_dataset.py` | Mission 2 baseline(L1): Seoul/Training 통화 샘플링 + 발화 인덱스 + feature 캐시 생성 |
+| `train_mission2_baseline.py` | Mission 2 baseline(L1) 학습 및 모델·실험 로그 저장 |
+| `mission2_inference.py` | Mission 2 추론 (대회 CLI 규격: `--audio_dir --label_dir --ckpt_path --output`) |
 
 EDA 관련 추가 스크립트는 현재 PR #2에서 리뷰 중입니다.
 
@@ -249,3 +254,100 @@ M3 baseline ─┘
 ```
 
 README는 저장소 구조와 현재 개발 상태를 설명하는 문서입니다. 세부 일정, 멘토링 준비, 팀 운영 현황은 팀 Notion에서 관리합니다.
+
+## 12. Mission 2 baseline (L1) 실행 방법
+
+L1 = 음향 통계 feature(53차원: duration + MFCC + RMS + ZCR + spectral 계열) + GBM.
+`startAt` 절대값·발화 순번 등 순서를 복원할 수 있는 값은 feature로 사용하지 않는다 (대회 규정).
+Train은 Seoul/Training 데이터만 사용하며, Validation 폴더는 이 파이프라인에 들어오지 않는다
+(`dcc_data.guards.ensure_training_rows`로 강제).
+
+Colab 셀 순서 (실제 검증된 버전 -- 전체 실행 가능한 정리본은 저장소 밖
+`M2_Colab_실행스크립트.py` 참고):
+
+```python
+# 1) 저장소 clone (private repo이므로 GitHub PAT 필요:
+#    https://github.com/settings/tokens/new -> scope "repo")
+from getpass import getpass
+token = getpass("GitHub PAT: ")
+!git clone https://{token}@github.com/eigensinn-dcc2026/prelim.git /content/prelim
+
+# 2) 이 baseline 브랜치로 전환 + 패키지 설치
+%cd /content/prelim
+!git checkout gwanghee/mission2-baseline
+!pip install -q -r requirements.txt
+
+# 3) Google Drive 마운트 + 데이터/결과 경로 지정
+from google.colab import drive
+drive.mount('/content/drive')
+
+import os
+os.environ["DATA_ROOT"] = "/content/drive/MyDrive/데이터 크리에이터 캠프/2026 DCC 대학부 데이터/대학부 데이터"
+os.environ["M2_CACHE_DIR"] = "/content/drive/MyDrive/데이터 크리에이터 캠프/m2_cache"
+os.makedirs(os.environ["M2_CACHE_DIR"], exist_ok=True)
+```
+
+```bash
+# 4) wav<->json manifest 생성 (한 번만 하면 재사용 가능 -- 이미 있으면
+#    FileExistsError가 뜨는데 정상이니 다음 단계로 넘어가면 된다)
+%cd /content/prelim
+!python scripts/build_manifest.py \
+    --data-root "$DATA_ROOT" \
+    --output data/manifests/dcc_manifest_v1.csv
+
+# 5) Mission 2 발화 인덱스 + 53차원 feature 캐시 생성 (통화 3,000건 샘플,
+#    seed=42). 가장 오래 걸리는 단계(1.5~2시간대) -- 결과를 처음부터
+#    $M2_CACHE_DIR(Drive)에 저장해야 런타임이 끊겨도 안전하다.
+%cd /content/prelim
+!python scripts/build_mission2_dataset.py \
+    --manifest data/manifests/dcc_manifest_v1.csv \
+    --data-root "$DATA_ROOT" \
+    --n-calls 3000 --seed 42 \
+    --index-output "$M2_CACHE_DIR/m2_utterances_train.parquet" \
+    --features-output "$M2_CACHE_DIR/m2_features_train.parquet" \
+    --failures-log "$M2_CACHE_DIR/m2_build_failures.jsonl"
+
+# 6) baseline 학습 (call_id GroupShuffleSplit 8:2 + 비교용 random split)
+%cd /content/prelim
+!python scripts/train_mission2_baseline.py \
+    --features "$M2_CACHE_DIR/m2_features_train.parquet" \
+    --model-output "$M2_CACHE_DIR/m2_baseline_lgbm.pkl" \
+    --log-output "$M2_CACHE_DIR/m2_exp_log.json"
+
+# 7) 추론 (대회가 실제로 실행할 명령과 동일한 형태)
+%cd /content/prelim
+!python scripts/mission2_inference.py \
+    --audio_dir {wav folder} --label_dir {json folder} \
+    --ckpt_path "$M2_CACHE_DIR/m2_baseline_lgbm.pkl" \
+    --output "$M2_CACHE_DIR/mission2.csv"
+```
+
+Colab에서 겪었던 함정들:
+
+- Google Drive에 저장하지 않고 `/content/` 로컬 경로에만 결과를 쓰면, 런타임이
+  끊기는 순간 몇 시간짜리 5단계 결과가 통째로 사라진다. 항상 `$M2_CACHE_DIR`
+  (Drive)로 출력 경로를 지정할 것.
+- `!cmd "{python_변수}"` 형태의 IPython 문자열 치환은 이 환경에서 간헐적으로
+  실패했다(치환 안 되고 글자 그대로 들어감). `$ENV_VAR`(bash 환경변수, 위처럼
+  `os.environ[...]`으로 미리 설정) 방식은 매번 정상 동작했으니 그쪽을 쓸 것.
+- 런타임이 재시작되면 clone·마운트·환경변수가 전부 초기화된다. 스크립트 실행
+  셀 맨 앞에 항상 `%cd /content/prelim`을 넣어 cwd를 강제로 맞출 것.
+- 한글 폴더명(`TS_서울_구급` 등)이 zip 압축을 거치며 유니코드 NFD로 인코딩된
+  적이 있었다 (Seoul+Training 필터가 0건으로 잡히는 문제) --
+  `path_region()`에서 NFC로 정규화해서 수정됨 (커밋 `416e843`).
+
+산출물:
+
+- `data/m2_utterances_train.parquet` — 발화 단위 인덱스 (Git 추적 제외)
+- `data/m2_features_train.parquet` — 53차원 feature 캐시 (Git 추적 제외)
+- `checkpoints/mission2/m2_baseline_lgbm.pkl` — 학습된 모델 (Git 추적 제외)
+- `reports/mission2/m2_exp_log.json` — GroupSplit/random split accuracy, feature importance top 20 등 실험 기록
+
+`reports/mission2/m2_exp_log.json`의 `verdict` 필드는 실제 데이터로 학습한 뒤 직접 채워 넣는다
+(`측정된 accuracy가 채택 기준 0.70 이상인지, 기각 기준 0.60 미만인지`).
+
+로컬 smoke test (실데이터 없이 합성 fixture로 파이프라인 전체를 검증):
+
+```bash
+pytest tests/test_mission2_baseline.py -v
+```
