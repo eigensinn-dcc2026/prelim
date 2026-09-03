@@ -39,6 +39,7 @@ import librosa
 from .audio import read_wav_frames, read_wav_info
 from .guards import TRAINING, ensure_training_rows
 from .manifest import ManifestRow
+from .mission2 import milliseconds_to_frame
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +155,13 @@ def build_utterance_records(row: ManifestRow, data_root: Path) -> list[Utterance
             raise TypeError(f"startAt must be numeric: {json_path}[{idx}]")
         if not isinstance(end_at, Real) or isinstance(end_at, bool):
             raise TypeError(f"endAt must be numeric: {json_path}[{idx}]")
+        if start_at < 0:
+            raise ValueError(f"startAt must be non-negative: {json_path}[{idx}] got {start_at!r}")
+        if end_at <= start_at:
+            raise ValueError(
+                f"endAt must be greater than startAt: {json_path}[{idx}] "
+                f"got startAt={start_at!r} endAt={end_at!r}"
+            )
         if speaker not in (0, 1):
             raise ValueError(f"speaker must be 0 or 1: {json_path}[{idx}] got {speaker!r}")
         records.append(
@@ -187,15 +195,11 @@ def read_call_waveform(wav_path: Path) -> tuple[np.ndarray, int]:
     return segment.waveform[0], segment.sample_rate
 
 
-def ms_to_frame(ms: Real, sample_rate: int) -> int:
-    return round(float(ms) / 1000.0 * sample_rate)
-
-
 def utterance_frame_range(
     start_at_ms: Real, end_at_ms: Real, sample_rate: int, total_frames: int
 ) -> tuple[int, int]:
-    start_frame = max(0, min(ms_to_frame(start_at_ms, sample_rate), total_frames))
-    end_frame = max(0, min(ms_to_frame(end_at_ms, sample_rate), total_frames))
+    start_frame = max(0, min(milliseconds_to_frame(start_at_ms, sample_rate), total_frames))
+    end_frame = max(0, min(milliseconds_to_frame(end_at_ms, sample_rate), total_frames))
     if end_frame <= start_frame:
         raise ValueError(
             f"non-positive frame range after clamping: start={start_frame} end={end_frame} "

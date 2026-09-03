@@ -144,14 +144,49 @@ def test_group_shuffle_split_has_no_call_id_leakage(tmp_path: Path) -> None:
     assert len(result.confusion_matrix) == 2 and len(result.confusion_matrix[0]) == 2
 
 
-def test_feature_extraction_failure_is_logged_not_silently_dropped(tmp_path: Path) -> None:
+def test_invalid_timestamps_are_rejected_at_index_build_time(tmp_path: Path) -> None:
     root = tmp_path / "raw"
-    stem = "broken_000"
+    stem = "broken_index_000"
     wav_relative = f"chunk/Training/1.원천데이터/TS_서울_구급/{stem}.wav"
     json_relative = f"chunk/Training/2.라벨링데이터/TL_서울_구급/{stem}.json"
-    # Zero-length utterance (startAt == endAt) trips the frame-range guard,
-    # which must be caught and logged rather than raised or dropped.
+    # Zero-length utterance (startAt == endAt) is rejected by
+    # build_utterance_records() itself (same rule as Mission2Dataset), before
+    # any audio is touched -- the whole call is logged as one "index" stage
+    # failure rather than silently dropped.
     _write_call(root, wav_relative, json_relative, [(100, 100, 1)], seed=0)
+    row = ManifestRow("Training", stem, wav_relative, json_relative)
+
+    index_records, feature_rows, failures = build_seoul_training_dataset([row], root, n_calls=1, seed=42)
+
+    assert index_records == []
+    assert feature_rows == []
+    assert len(failures) == 1
+    assert failures[0]["call_id"] == stem
+    assert failures[0]["stage"] == "index"
+    assert failures[0]["error_type"]
+
+
+def test_feature_extraction_failure_is_logged_not_silently_dropped(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    stem = "broken_feature_000"
+    wav_relative = f"chunk/Training/1.원천데이터/TS_서울_구급/{stem}.wav"
+    json_relative = f"chunk/Training/2.라벨링데이터/TL_서울_구급/{stem}.json"
+    # Timestamps are individually valid (startAt >= 0, endAt > startAt) so
+    # index building succeeds, but both fall well beyond this WAV's actual
+    # length -- clamping collapses start/end to the same frame, which must
+    # be caught and logged at the audio/feature stage, not raised.
+    _write_wav(root / wav_relative, duration_s=0.01, seed=0)  # ~80 frames at 8kHz
+    (root / json_relative).parent.mkdir(parents=True, exist_ok=True)
+    (root / json_relative).write_text(
+        json.dumps(
+            {
+                "_id": stem,
+                "utterances": [{"id": "u0", "startAt": 5000, "endAt": 5100, "speaker": 1, "text": "secret"}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
     row = ManifestRow("Training", stem, wav_relative, json_relative)
 
     index_records, feature_rows, failures = build_seoul_training_dataset([row], root, n_calls=1, seed=42)
