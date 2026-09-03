@@ -6,14 +6,31 @@ import json
 from dataclasses import dataclass
 from numbers import Real
 from pathlib import Path
-from typing import Callable
 
 from .audio import read_wav_frames, read_wav_info
 from .guards import ensure_split
 from .manifest import ManifestRow
 
 
-TimeToFrame = Callable[[Real, int], int]
+SPEAKER_OPERATOR = 0
+SPEAKER_CALLER = 1
+VALID_SPEAKERS = frozenset({SPEAKER_OPERATOR, SPEAKER_CALLER})
+
+
+def milliseconds_to_frame(time_ms: Real, sample_rate: int) -> int:
+    """Convert milliseconds to a frame index with Python ties-to-even rounding.
+
+    ``round`` is used deliberately: exact half-frame values round to the nearest
+    even integer, which makes crop boundaries deterministic across all calls.
+    """
+
+    if not isinstance(time_ms, Real) or isinstance(time_ms, bool):
+        raise TypeError("time_ms must be numeric")
+    if not isinstance(sample_rate, int) or isinstance(sample_rate, bool):
+        raise TypeError("sample_rate must be an integer")
+    if sample_rate <= 0:
+        raise ValueError("sample_rate must be positive")
+    return int(round(time_ms / 1000.0 * sample_rate))
 
 
 @dataclass(frozen=True)
@@ -25,10 +42,10 @@ class _UtteranceSample:
 
 
 class Mission2Dataset:
-    """Return audio/time features and speaker targets at utterance granularity.
+    """Return waveform features and speaker targets at utterance granularity.
 
-    ``time_to_frame`` is mandatory because the unit of ``startAt``/``endAt``
-    has not yet been verified. No seconds/milliseconds conversion is assumed.
+    JSON ``startAt``/``endAt`` values are milliseconds. They define crop
+    boundaries and are returned only as metadata, never as model features.
     """
 
     def __init__(
@@ -36,13 +53,10 @@ class Mission2Dataset:
         rows: list[ManifestRow],
         data_root: str | Path,
         split: str,
-        *,
-        time_to_frame: TimeToFrame,
     ) -> None:
         self.rows = ensure_split(rows, split)
         self.data_root = Path(data_root)
         self.split = split
-        self.time_to_frame = time_to_frame
         self._samples: list[_UtteranceSample] = []
         for row in self.rows:
             json_path = self.data_root / row.json_path
@@ -63,6 +77,14 @@ class Mission2Dataset:
                     raise TypeError(f"endAt must be numeric: {json_path}")
                 if not isinstance(speaker, int) or isinstance(speaker, bool):
                     raise TypeError(f"speaker must be an integer: {json_path}")
+                if start_at < 0:
+                    raise ValueError(f"startAt must be non-negative: {json_path}")
+                if end_at <= start_at:
+                    raise ValueError(
+                        f"endAt must be greater than startAt: {json_path}"
+                    )
+                if speaker not in VALID_SPEAKERS:
+                    raise ValueError(f"speaker must be 0 or 1: {json_path}")
                 self._samples.append(
                     _UtteranceSample(row, start_at, end_at, speaker)
                 )
@@ -74,18 +96,16 @@ class Mission2Dataset:
         sample = self._samples[index]
         wav_path = self.data_root / sample.row.wav_path
         info = read_wav_info(wav_path)
-        start_frame = self.time_to_frame(sample.start_at, info.sample_rate)
-        end_frame = self.time_to_frame(sample.end_at, info.sample_rate)
-        if not isinstance(start_frame, int) or not isinstance(end_frame, int):
-            raise TypeError("time_to_frame must return integer frame indices")
+        start_frame = milliseconds_to_frame(sample.start_at, info.sample_rate)
+        end_frame = milliseconds_to_frame(sample.end_at, info.sample_rate)
         audio = read_wav_frames(wav_path, start_frame, end_frame)
         return {
-            "features": {
-                "waveform": audio.waveform,
+            "features": {"waveform": audio.waveform},
+            "target": sample.speaker,
+            "metadata": {
                 "start_at": sample.start_at,
                 "end_at": sample.end_at,
+                "split": sample.row.split,
+                "stem": sample.row.stem,
             },
-            "target": sample.speaker,
-            "split": sample.row.split,
-            "stem": sample.row.stem,
         }

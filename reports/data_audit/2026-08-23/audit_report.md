@@ -21,6 +21,17 @@
 - WAV header 성공/실패: 32,840 / 0
 - SHA-256 미생성: 0개
 
+### WAV 포맷 스펙 (전수 집계, 2026-08-27)
+
+위 "WAV header 성공/실패" 검사는 파일을 열 수 있었는지만 집계했고, 실제 채널·샘플레이트·비트뎁스 값은 여태 요약되지 않았다.
+이번에 `local_manifest.csv`에 이미 파일별로 기록되어 있던 `wav_channels`, `wav_sample_rate` 값을 전수 집계했다.
+
+- 전체 32,840개 WAV 전량에서 **1채널(mono), 8,000 Hz**로 통일됨 (예외 0건)
+- 비트 뎁스(bit depth)는 `wave` 표준 라이브러리로 8개 파일을 표본 확인한 결과 **16-bit(2 byte) PCM**로 확인됨 (전수는 아님)
+- 참고: `jangsoo/eda` 브랜치의 `scripts/eda_dcc_dataset.py` Phase 1이 파일별 `channels`/`sample_rate`/`sample_width`/`frame_count`/`duration_s`를 캐싱하는 `wav_header_cache.csv`를 새로 만들고 있으므로, 이 캐시를 전수로 돌리면 비트 뎁스도 전수 확인으로 승격할 수 있다.
+
+이 스펙은 Mission 1·2 전처리에서 `sample_rate` 통일(resampling) 단계를 생략해도 된다는 뜻이므로, baseline 구현 속도를 높이는 데 바로 쓸 수 있다.
+
 ### 원격 split·지역·형식별 수량
 
 | split | region | extension | count |

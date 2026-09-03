@@ -10,3 +10,7 @@ reports/data_audit/*/comparison.csv
 reports/data_audit/*/local_manifest.csv
 reports/data_audit/*/pair_audit.csv
 reports/data_audit/*/remote_manifest.csv
+
+# EDA regenerable / local-only
+reports/eda/wav_header_cache.csv
+reports/eda/eda_mission_summary.json

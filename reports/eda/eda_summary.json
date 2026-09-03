@@ -1,0 +1,214 @@
+{
+  "seed": 42,
+  "note": "무작위 표본 기반 EDA. 전체 모집단이 아니라 추정치입니다.",
+  "training_total_rows": 29200,
+  "validation_total_rows": 3640,
+  "training": {
+    "split": "Training(서울, 표본)",
+    "sampled": 800,
+    "read_failed": 0,
+    "gender_distribution": {
+      "F": {
+        "count": 425,
+        "pct": 53.1
+      },
+      "M": {
+        "count": 375,
+        "pct": 46.9
+      }
+    },
+    "call_duration_seconds": {
+      "n": 800,
+      "min_s": 30.12,
+      "median_s": 65.64,
+      "mean_s": 72.65,
+      "p90_s": 111.48,
+      "max_s": 179.52
+    },
+    "utterance_duration_seconds": {
+      "n": 24235,
+      "min_s": 0.13,
+      "median_s": 1.45,
+      "mean_s": 2.0,
+      "p90_s": 4.27,
+      "max_s": 17.33
+    },
+    "utterances_per_call": {
+      "n": 800,
+      "min_s": 7.0,
+      "median_s": 28.0,
+      "mean_s": 30.29,
+      "p90_s": 45.0,
+      "max_s": 84.0
+    },
+    "speaker_balance": {
+      "신고자(1)": 12581,
+      "119대원(0)": 11654
+    },
+    "symptom_frequency_top9": {
+      "고열": 154,
+      "구토": 132,
+      "두통": 85,
+      "복통": 182,
+      "어지러움": 172,
+      "열상": 81,
+      "오심": 88,
+      "전신쇠약": 158,
+      "호흡곤란": 96
+    },
+    "symptoms_per_call": {
+      "n": 800,
+      "min_s": 1.0,
+      "median_s": 1.0,
+      "mean_s": 1.44,
+      "p90_s": 2.0,
+      "max_s": 4.0
+    },
+    "zero_symptom_call_pct": 0.0,
+    "unknown_symptom_labels_seen": {
+      "기타": 98,
+      "기타통증": 75,
+      "설사": 47,
+      "기침": 31,
+      "찰과상": 27,
+      "의식장애": 20,
+      "흉통": 17,
+      "그 밖의출혈": 16,
+      "실신": 16,
+      "경련/발작": 15
+    },
+    "context_media_type": {
+      "Mobile": 800
+    },
+    "context_disaster_medium": {
+      "질병(중증 외)": 574,
+      "질병(중증)": 148,
+      "부상": 68,
+      "기타구급": 3,
+      "약물중독": 2,
+      "사고": 2,
+      "임산부": 2,
+      "심정지": 1
+    },
+    "context_urgency_level": {
+      "중": 336,
+      "하": 267,
+      "상": 197
+    },
+    "context_sentiment": {
+      "불안/걱정": 557,
+      "당황/난처": 206,
+      "중립": 28,
+      "기타부정": 9
+    },
+    "context_triage": {
+      "잠재응급증상": 444,
+      "준응급증상": 229,
+      "응급증상": 97,
+      "대상외": 19,
+      "": 11
+    }
+  },
+  "validation": {
+    "split": "Validation(서울, 표본)",
+    "sampled": 250,
+    "read_failed": 0,
+    "gender_distribution": {
+      "F": {
+        "count": 132,
+        "pct": 52.8
+      },
+      "M": {
+        "count": 118,
+        "pct": 47.2
+      }
+    },
+    "call_duration_seconds": {
+      "n": 250,
+      "min_s": 30.24,
+      "median_s": 63.54,
+      "mean_s": 70.4,
+      "p90_s": 115.92,
+      "max_s": 168.0
+    },
+    "utterance_duration_seconds": {
+      "n": 7491,
+      "min_s": 0.15,
+      "median_s": 1.41,
+      "mean_s": 1.94,
+      "p90_s": 4.14,
+      "max_s": 12.94
+    },
+    "utterances_per_call": {
+      "n": 250,
+      "min_s": 5.0,
+      "median_s": 28.0,
+      "mean_s": 29.96,
+      "p90_s": 45.0,
+      "max_s": 68.0
+    },
+    "speaker_balance": {
+      "신고자(1)": 3916,
+      "119대원(0)": 3575
+    },
+    "symptom_frequency_top9": {
+      "고열": 39,
+      "구토": 37,
+      "두통": 31,
+      "복통": 55,
+      "어지러움": 59,
+      "열상": 35,
+      "오심": 32,
+      "전신쇠약": 49,
+      "호흡곤란": 25
+    },
+    "symptoms_per_call": {
+      "n": 250,
+      "min_s": 1.0,
+      "median_s": 1.0,
+      "mean_s": 1.45,
+      "p90_s": 2.0,
+      "max_s": 5.0
+    },
+    "zero_symptom_call_pct": 0.0,
+    "unknown_symptom_labels_seen": {
+      "기타": 18,
+      "기타통증": 15,
+      "기침": 12,
+      "설사": 11,
+      "경련/발작": 7,
+      "의식장애": 6,
+      "흉통": 6,
+      "실신": 5,
+      "찰과상": 5,
+      "요통": 5
+    },
+    "context_media_type": {
+      "Mobile": 250
+    },
+    "context_disaster_medium": {
+      "질병(중증 외)": 166,
+      "질병(중증)": 48,
+      "부상": 35,
+      "약물중독": 1
+    },
+    "context_urgency_level": {
+      "중": 92,
+      "하": 90,
+      "상": 68
+    },
+    "context_sentiment": {
+      "불안/걱정": 170,
+      "당황/난처": 70,
+      "중립": 8,
+      "기타부정": 2
+    },
+    "context_triage": {
+      "잠재응급증상": 143,
+      "준응급증상": 71,
+      "응급증상": 31,
+      "대상외": 3,
+      "": 2
+    }
+  }
+}
