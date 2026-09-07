@@ -44,3 +44,35 @@ def compute_overlap_flags(index_df: pd.DataFrame) -> pd.DataFrame:
 
 def bucket_duration(duration_sec: pd.Series) -> pd.Series:
     return pd.cut(duration_sec, bins=DURATION_BUCKETS, labels=DURATION_LABELS, right=False)
+
+
+def select_listening_samples(
+    df: pd.DataFrame, *, n_per_group: int, seed: int
+) -> dict[str, pd.DataFrame]:
+    """Sample a few rows per (role, correctness) group for manual listening.
+
+    ``df`` must have ``speaker`` (0/1), ``correct`` (bool-like) and
+    ``overlaps_other`` (bool-like) columns -- the shape produced by
+    scripts/analyze_mission2_errors.py. The two "정답_안겹침" groups
+    deliberately exclude overlapping utterances so a listener hears each
+    role's typical sound uncontaminated by the other speaker's voice
+    bleeding into the crop; the "오답" groups are not filtered by overlap
+    since misclassified rows are scarcer.
+    """
+
+    clean = ~df["overlaps_other"].astype(bool)
+    correct = df["correct"].astype(bool)
+
+    definitions = {
+        "대원_정답_안겹침": (df["speaker"] == 0) & correct & clean,
+        "신고자_정답_안겹침": (df["speaker"] == 1) & correct & clean,
+        "대원_오답": (df["speaker"] == 0) & ~correct,
+        "신고자_오답": (df["speaker"] == 1) & ~correct,
+    }
+    groups: dict[str, pd.DataFrame] = {}
+    for name, mask in definitions.items():
+        pool = df[mask]
+        n = min(n_per_group, len(pool))
+        if n > 0:
+            groups[name] = pool.sample(n=n, random_state=seed)
+    return groups
