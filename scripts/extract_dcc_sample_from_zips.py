@@ -47,7 +47,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    zip_paths = sorted(args.zip_dir.glob("*.zip"))
+    # rglob (not glob): a Drive "download folder as zip" split often nests each
+    # real chunk one level deeper (e.g. "<part>/대학부 데이터/<chunk>.zip") instead
+    # of dropping all 12 zips flat under --zip-dir.
+    zip_paths = sorted(args.zip_dir.rglob("*.zip"))
     if not zip_paths:
         raise SystemExit(f"no .zip files found under {args.zip_dir}")
 

@@ -129,6 +129,26 @@ def test_build_seoul_training_dataset_excludes_validation_and_non_seoul(tmp_path
         assert row["speaker"] in (0, 1)
 
 
+def test_parallel_workers_produce_the_same_aggregate_results_as_sequential(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    rows = _build_manifest_rows(root, 8, region="서울", split="Training")
+
+    seq_index, seq_features, seq_failures = build_seoul_training_dataset(
+        rows, root, n_calls=100, seed=42, max_workers=1
+    )
+    par_index, par_features, par_failures = build_seoul_training_dataset(
+        rows, root, n_calls=100, seed=42, max_workers=4
+    )
+
+    assert seq_failures == par_failures == []
+    # Completion order can differ across processes, so compare as sets/sorted,
+    # not the raw (order-dependent) lists.
+    key = lambda r: (r.call_id, r.utt_idx)  # noqa: E731
+    assert sorted(seq_index, key=key) == sorted(par_index, key=key)
+    feature_key = lambda r: (r["call_id"], r["utt_idx"])  # noqa: E731
+    assert sorted(seq_features, key=feature_key) == sorted(par_features, key=feature_key)
+
+
 def test_group_shuffle_split_has_no_call_id_leakage(tmp_path: Path) -> None:
     root = tmp_path / "raw"
     rows = _build_manifest_rows(root, 20, region="서울", split="Training")

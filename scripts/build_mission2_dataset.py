@@ -69,6 +69,12 @@ def parse_args() -> argparse.Namespace:
         "--flush-every", type=int, default=200, help="write partial outputs every N calls processed (0 disables)"
     )
     parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="process calls in parallel across this many worker processes (1 = sequential, the default)",
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         help=(
@@ -195,6 +201,7 @@ def main() -> int:
         feature_sink=feature_rows,
         failure_sink=failures,
         on_call_done=on_call_done,
+        max_workers=args.workers,
     )
     if bar is not None:
         bar.close()

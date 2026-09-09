@@ -298,6 +298,91 @@ def utterance_feature_vector(segment: np.ndarray, sample_rate: int, duration_sec
 
 OnCallDone = Callable[[int, int], None]
 
+_CallResult = tuple[list[UtteranceRecord], list[dict], list[dict]]
+
+
+def _process_one_call(row: ManifestRow, data_root: Path) -> _CallResult:
+    """Process exactly one call end-to-end: index + feature extraction.
+
+    Pure function of ``(row, data_root)`` with no shared state -- this is the
+    unit of work ``build_seoul_training_dataset`` uses for both its
+    sequential loop and its process-pool path, and it must stay a top-level
+    function (not a closure) so it can be pickled and sent to worker
+    processes on Windows (spawn start method).
+    """
+
+    index_records: list[UtteranceRecord] = []
+    feature_rows: list[dict] = []
+    failures: list[dict] = []
+
+    wav_path = data_root / row.wav_path
+    try:
+        records = build_utterance_records(row, data_root)
+    except Exception as exc:  # noqa: BLE001 - see module docstring: logged, not swallowed
+        failures.append(
+            {
+                "stage": "index",
+                "call_id": row.stem,
+                "utt_idx": None,
+                "wav_path": row.wav_path,
+                "json_path": row.json_path,
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+            }
+        )
+        return index_records, feature_rows, failures
+
+    index_records.extend(records)
+
+    try:
+        waveform, sample_rate = read_call_waveform(wav_path)
+    except Exception as exc:  # noqa: BLE001 - see module docstring
+        for record in records:
+            failures.append(
+                {
+                    "stage": "audio_open",
+                    "call_id": record.call_id,
+                    "utt_idx": record.utt_idx,
+                    "wav_path": row.wav_path,
+                    "json_path": row.json_path,
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc),
+                }
+            )
+        return index_records, feature_rows, failures
+
+    total_frames = waveform.shape[0]
+    for record in records:
+        try:
+            start_frame, end_frame = utterance_frame_range(
+                record.start_at, record.end_at, sample_rate, total_frames
+            )
+            segment = slice_and_pad(waveform, start_frame, end_frame, N_FFT)
+            vector = utterance_feature_vector(segment, sample_rate, record.duration_sec)
+        except Exception as exc:  # noqa: BLE001 - see module docstring
+            failures.append(
+                {
+                    "stage": "feature",
+                    "call_id": record.call_id,
+                    "utt_idx": record.utt_idx,
+                    "wav_path": row.wav_path,
+                    "json_path": row.json_path,
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc),
+                }
+            )
+            continue
+        feature_rows.append(
+            {
+                "call_id": record.call_id,
+                "utt_idx": record.utt_idx,
+                "speaker": record.speaker,
+                **dict(zip(FEATURE_COLUMNS, vector.tolist())),
+            }
+        )
+
+    return index_records, feature_rows, failures
+
 
 def build_seoul_training_dataset(
     rows: Iterable[ManifestRow],
@@ -309,6 +394,7 @@ def build_seoul_training_dataset(
     feature_sink: list[dict] | None = None,
     failure_sink: list[dict] | None = None,
     on_call_done: OnCallDone | None = None,
+    max_workers: int = 1,
 ) -> tuple[list[UtteranceRecord], list[dict], list[dict]]:
     """Sample Seoul/Training calls and build the utterance index + feature cache.
 
@@ -322,6 +408,13 @@ def build_seoul_training_dataset(
     the "원인 로깅 없는 광범위한 except 금지" rule: broad catches are used
     here because audio/librosa failure modes are numerous, but every one is
     logged with enough detail to act on.
+
+    ``max_workers`` > 1 processes calls in parallel via a process pool -- each
+    call only touches its own wav file and has no shared state, so this is a
+    pure speed optimization: the aggregate contents of the three sinks are
+    identical to a ``max_workers=1`` run (just interleaved in a different,
+    completion-order-dependent sequence, which nothing downstream relies on --
+    utt_idx order *within* a call is unaffected either way).
     """
 
     index_sink = index_sink if index_sink is not None else []
@@ -330,80 +423,28 @@ def build_seoul_training_dataset(
 
     seoul_rows = select_seoul_training_rows(rows)
     sampled_rows = sample_calls(seoul_rows, n_calls, seed)
+    total = len(sampled_rows)
 
-    for call_number, row in enumerate(sampled_rows, start=1):
-        wav_path = data_root / row.wav_path
-        try:
-            records = build_utterance_records(row, data_root)
-        except Exception as exc:  # noqa: BLE001 - see docstring: logged, not swallowed
-            failure_sink.append(
-                {
-                    "stage": "index",
-                    "call_id": row.stem,
-                    "utt_idx": None,
-                    "wav_path": row.wav_path,
-                    "json_path": row.json_path,
-                    "error_type": type(exc).__name__,
-                    "error_message": str(exc),
-                }
-            )
+    if max_workers <= 1:
+        for call_number, row in enumerate(sampled_rows, start=1):
+            records, features, failures = _process_one_call(row, data_root)
+            index_sink.extend(records)
+            feature_sink.extend(features)
+            failure_sink.extend(failures)
             if on_call_done:
-                on_call_done(call_number, len(sampled_rows))
-            continue
+                on_call_done(call_number, total)
+    else:
+        from concurrent.futures import ProcessPoolExecutor, as_completed
 
-        index_sink.extend(records)
-
-        try:
-            waveform, sample_rate = read_call_waveform(wav_path)
-        except Exception as exc:  # noqa: BLE001 - see docstring
-            for record in records:
-                failure_sink.append(
-                    {
-                        "stage": "audio_open",
-                        "call_id": record.call_id,
-                        "utt_idx": record.utt_idx,
-                        "wav_path": row.wav_path,
-                        "json_path": row.json_path,
-                        "error_type": type(exc).__name__,
-                        "error_message": str(exc),
-                    }
-                )
-            if on_call_done:
-                on_call_done(call_number, len(sampled_rows))
-            continue
-
-        total_frames = waveform.shape[0]
-        for record in records:
-            try:
-                start_frame, end_frame = utterance_frame_range(
-                    record.start_at, record.end_at, sample_rate, total_frames
-                )
-                segment = slice_and_pad(waveform, start_frame, end_frame, N_FFT)
-                vector = utterance_feature_vector(segment, sample_rate, record.duration_sec)
-            except Exception as exc:  # noqa: BLE001 - see docstring
-                failure_sink.append(
-                    {
-                        "stage": "feature",
-                        "call_id": record.call_id,
-                        "utt_idx": record.utt_idx,
-                        "wav_path": row.wav_path,
-                        "json_path": row.json_path,
-                        "error_type": type(exc).__name__,
-                        "error_message": str(exc),
-                    }
-                )
-                continue
-            feature_sink.append(
-                {
-                    "call_id": record.call_id,
-                    "utt_idx": record.utt_idx,
-                    "speaker": record.speaker,
-                    **dict(zip(FEATURE_COLUMNS, vector.tolist())),
-                }
-            )
-
-        if on_call_done:
-            on_call_done(call_number, len(sampled_rows))
+        with ProcessPoolExecutor(max_workers=max_workers) as pool:
+            futures = [pool.submit(_process_one_call, row, data_root) for row in sampled_rows]
+            for call_number, future in enumerate(as_completed(futures), start=1):
+                records, features, failures = future.result()
+                index_sink.extend(records)
+                feature_sink.extend(features)
+                failure_sink.extend(failures)
+                if on_call_done:
+                    on_call_done(call_number, total)
 
     return index_sink, feature_sink, failure_sink
 
