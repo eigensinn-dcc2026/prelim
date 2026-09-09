@@ -25,6 +25,7 @@ explicitly forbids order-derived signals ("발화의 홀짝 등 순서 사용불
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
 import unicodedata
@@ -32,6 +33,21 @@ from dataclasses import dataclass
 from numbers import Real
 from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable
+
+# Must be set before numpy/librosa are imported (BLAS thread count is fixed
+# at library load time). build_seoul_training_dataset()'s max_workers > 1
+# path already parallelizes across OS processes; without this, each
+# process's own BLAS backend ALSO spawns one thread per CPU core on top of
+# that -- N worker processes x C BLAS threads each is pure oversubscription.
+# On a 12-core/16GB machine this reliably crashed every worker ("OpenBLAS
+# error: Memory allocation still failed after 10 retries" / Windows "paging
+# file too small") with as few as 4 workers. Every caller of this module
+# (the CLI script, tests, ad-hoc notebooks) benefits from pinning this here
+# rather than each having to remember to set it themselves.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
 import numpy as np
 import librosa
