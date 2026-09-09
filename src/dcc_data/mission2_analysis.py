@@ -13,6 +13,13 @@ import pandas as pd
 DURATION_BUCKETS = [0.0, 0.5, 1.0, 2.0, 4.0, float("inf")]
 DURATION_LABELS = ["<0.5s", "0.5-1s", "1-2s", "2-4s", ">=4s"]
 
+# The dispatcher's near-universal fixed opening line. Used only to *find*
+# candidate mislabeled calls for human review -- never fed to the model
+# (mission2_features never touches "text" as a feature; this is a one-time
+# data-quality audit, a text-based stand-in for actually listening to the
+# call, see reports/mission2/m2_label_swap_audit.md).
+DISPATCHER_GREETING_MARKERS = ("119입니다", "119 입니다", "119예요", "119 상황실")
+
 
 def compute_overlap_flags(index_df: pd.DataFrame) -> pd.DataFrame:
     """One row per (call_id, utt_idx) with an ``overlaps_other`` bool.
@@ -76,3 +83,49 @@ def select_listening_samples(
         if n > 0:
             groups[name] = pool.sample(n=n, random_state=seed)
     return groups
+
+
+def find_label_swap_candidates(
+    calls: list[tuple[str, list[dict]]], *, exclude_call_ids: frozenset[str] = frozenset()
+) -> list[dict]:
+    """Flag calls whose speaker labels look reversed for the *whole* call.
+
+    ``calls`` is (call_id, utterances) pairs, each utterances a list of the
+    JSON's own utterance dicts (needs "text" and "speaker"). Looks at the
+    first 3 utterances for a DISPATCHER_GREETING_MARKERS phrase and flags the
+    call if that utterance's speaker isn't 0 (the established convention:
+    대원=0) -- 대원's opening line is one of the few places in a call where
+    the *content* alone (not tone/audio) unambiguously identifies the role,
+    which is exactly why it works as a cheap, no-audio-needed first pass.
+
+    High precision on the calls it does flag, not full recall: it misses any
+    call whose dispatcher skipped this exact phrasing, and it will also flag
+    a small number of false positives (a 119-to-119 inter-region transfer
+    call, where the *other* party also introduces themselves with "119입니다"
+    while functionally acting as the reporter for this call) -- both classes
+    of error, plus the calls this already confirmed, are catalogued in
+    reports/mission2/m2_label_swap_audit.md. Every flagged call still needs a
+    human read/listen before any bulk relabeling; this only narrows a
+    dataset-wide search down to a short list.
+    """
+
+    candidates: list[dict] = []
+    for call_id, utterances in calls:
+        if call_id in exclude_call_ids:
+            continue
+        anchor = None
+        for utterance in utterances[:3]:
+            text = utterance.get("text", "")
+            if any(marker in text for marker in DISPATCHER_GREETING_MARKERS):
+                anchor = utterance
+                break
+        if anchor is not None and anchor.get("speaker") != 0:
+            candidates.append(
+                {
+                    "call_id": call_id,
+                    "anchor_speaker": anchor.get("speaker"),
+                    "anchor_text": anchor.get("text"),
+                    "n_utterances": len(utterances),
+                }
+            )
+    return candidates
