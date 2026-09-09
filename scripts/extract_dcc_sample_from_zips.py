@@ -32,7 +32,12 @@ if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
 
 from dcc_data.guards import TRAINING, VALIDATION  # noqa: E402
-from dcc_data.zip_manifest import extract_calls, index_zip_entries, select_calls  # noqa: E402
+from dcc_data.zip_manifest import (  # noqa: E402
+    extract_all_entries,
+    extract_calls,
+    index_zip_entries,
+    select_calls,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -54,31 +59,40 @@ def main() -> int:
     if not zip_paths:
         raise SystemExit(f"no .zip files found under {args.zip_dir}")
 
-    print(f"{len(zip_paths)}개 zip에서 항목 목록 스캔 중 (압축 해제 없음)...")
+    if args.n_train_calls <= 0:
+        # "Take everything" -- extract every matching entry independent of
+        # whether its wav<->json partner is visible from the zip set alone.
+        # index_zip_entries()+select_calls() require BOTH halves inside the
+        # scanned zips to recognize a call at all; that silently drops any
+        # call whose other half was already extracted separately outside a
+        # zip (real case: a Drive "download as zip" split put a call's wav in
+        # one numbered chunk and its json in a different one that a teammate
+        # had already unzipped by hand -- the wav was never extracted because
+        # index_zip_entries never saw both halves together). Pairing is left
+        # entirely to build_manifest.py, which sees the *combined* output_dir
+        # (these zips plus anything already there) and is the only place that
+        # can actually tell a call is complete.
+        print(f"{len(zip_paths)}개 zip에서 Seoul Training 전체 추출 중 (페어링 여부 무관, 이미 있는 파일은 건너뜀)...")
+        newly_extracted = extract_all_entries(zip_paths, args.output_dir, split=TRAINING, seoul_only=True)
+        print(f"Training 신규 추출 파일: {newly_extracted}개")
+    else:
+        print(f"{len(zip_paths)}개 zip에서 항목 목록 스캔 중 (압축 해제 없음)...")
+        entries = index_zip_entries(zip_paths)
+        print(f"wav/json 쌍을 찾은 통화: {len(entries)}개")
+        train_calls = select_calls(
+            entries, split=TRAINING, seoul_only=True, n_calls=args.n_train_calls, seed=args.seed
+        )
+        print(f"Seoul Training 선택: {len(train_calls)}개 통화 (신규 추출 {extract_calls(train_calls, args.output_dir)}개)")
+
     entries = index_zip_entries(zip_paths)
-    print(f"wav/json 쌍을 찾은 통화: {len(entries)}개")
-
-    train_calls = select_calls(entries, split=TRAINING, seoul_only=True, n_calls=args.n_train_calls, seed=args.seed)
     val_calls = select_calls(entries, split=VALIDATION, seoul_only=False, n_calls=args.n_val_calls, seed=args.seed)
-    print(f"Seoul Training 선택: {len(train_calls)}개 통화")
-    print(f"Validation 선택: {len(val_calls)}개 통화")
+    newly_extracted_val = extract_calls(val_calls, args.output_dir)
+    print(f"Validation 선택: {len(val_calls)}개 통화 (신규 추출 {newly_extracted_val}개)")
 
-    print(f"선택된 파일을 {args.output_dir}에 추출 중 (이미 있는 파일은 건너뜀)...")
-    selected = train_calls + val_calls
-    newly_extracted = extract_calls(selected, args.output_dir)
-    skipped = len(selected) - newly_extracted
-
-    total_bytes = sum(
-        (args.output_dir / location.entry_name).stat().st_size
-        for call in selected
-        for location in (call.wav, call.json)
-    )
     print(
-        f"추출 완료: 신규 {newly_extracted}개 / 이미 있어서 건너뜀 {skipped}개 "
-        f"/ 전체 {len(selected)}개 통화, 총 {total_bytes / 1e9:.2f} GB"
+        "-> 실제로 몇 개 통화가 완전한 쌍으로 잡혔는지는 다음 단계(build_manifest.py)의 "
+        "Training/Validation 행 수가 진짜 기준입니다 (여기 숫자는 파일 단위라 다를 수 있음)."
     )
-    if newly_extracted < len(selected):
-        print("-> 도중에 끊겼다가 재실행한 경우여도 정상입니다 (같은 명령을 그대로 다시 실행하면 이어서 받습니다).")
     print(f"이제 이 경로로 build_manifest.py를 실행하세요: {args.output_dir}")
     return 0
 

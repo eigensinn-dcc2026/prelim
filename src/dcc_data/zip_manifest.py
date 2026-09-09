@@ -92,6 +92,62 @@ def select_calls(
     return random.Random(seed).sample(pool, n_calls)
 
 
+def extract_all_entries(
+    zip_paths: list[Path],
+    output_dir: Path,
+    *,
+    split: str,
+    seoul_only: bool,
+    skip_existing: bool = True,
+) -> int:
+    """Extract every wav/json entry matching ``split``/``seoul_only`` from
+    every zip, independent of whether its wav<->json partner also lives
+    inside one of these same zips.
+
+    ``select_calls`` + ``extract_calls`` require both halves of a call to be
+    paired *within the scanned zip set itself* -- which silently drops a
+    call whenever one half was already extracted separately outside any zip
+    (e.g. a chunk a teammate unzipped by hand before this tool existed, or a
+    Drive "download folder as zip" split that put a call's audio and label
+    in different numbered chunks) while its other half still lives inside a
+    zip. Real-world example that surfaced this: a call's wav sat inside zip
+    chunk -012 while its json had already been extracted loose from a
+    different chunk -- ``index_zip_entries`` never saw both halves at once,
+    so the wav was silently never extracted.
+
+    Manifest-time pairing across the *final* combined output_dir (whatever
+    this extracts, plus anything already there from elsewhere) is what
+    actually determines completeness, so this function does not try to pair
+    anything itself -- it just extracts every entry whose path passes the
+    split/region filter, whether or not a partner is visible from the zip
+    set alone. Returns the number of files actually extracted (excludes
+    already-present ones when ``skip_existing``).
+    """
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    extracted_count = 0
+    for zip_path in zip_paths:
+        with zipfile.ZipFile(zip_path) as archive:
+            for entry_name in archive.namelist():
+                path = PurePosixPath(entry_name)
+                if path.suffix.lower() not in (".wav", ".json"):
+                    continue
+                try:
+                    entry_split = split_from_path(entry_name)
+                except UnknownSplitError:
+                    continue
+                if entry_split != split:
+                    continue
+                if seoul_only and not is_seoul_path(entry_name):
+                    continue
+                target = output_dir / entry_name
+                if skip_existing and target.is_file():
+                    continue
+                archive.extract(entry_name, path=output_dir)
+                extracted_count += 1
+    return extracted_count
+
+
 def _call_already_extracted(call: ZipCallEntry, output_dir: Path) -> bool:
     return (output_dir / call.wav.entry_name).is_file() and (output_dir / call.json.entry_name).is_file()
 
