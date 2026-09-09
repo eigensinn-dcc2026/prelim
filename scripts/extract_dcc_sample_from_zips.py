@@ -45,7 +45,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--zip-dir", type=Path, required=True, help="directory containing the *.zip download chunks")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--n-train-calls", type=int, default=3000)
-    parser.add_argument("--n-val-calls", type=int, default=50)
+    parser.add_argument(
+        "--n-val-calls",
+        type=int,
+        default=50,
+        help="ignored when --n-train-calls <= 0 (Validation is then extracted in full too)",
+    )
     parser.add_argument("--seed", type=int, default=42)
     return parser.parse_args()
 
@@ -75,6 +80,13 @@ def main() -> int:
         print(f"{len(zip_paths)}개 zip에서 Seoul Training 전체 추출 중 (페어링 여부 무관, 이미 있는 파일은 건너뜀)...")
         newly_extracted = extract_all_entries(zip_paths, args.output_dir, split=TRAINING, seoul_only=True)
         print(f"Training 신규 추출 파일: {newly_extracted}개")
+        # Same cross-chunk pairing bug applies to Validation (a call's label
+        # can sit in an already-extracted loose chunk while its audio is in
+        # one of these zips, or vice versa), and Validation total volume is
+        # small (~2,120 calls team-wide) -- so take all of it too rather than
+        # sampling --n-val-calls from a possibly-incomplete zip-only pairing.
+        newly_extracted_val = extract_all_entries(zip_paths, args.output_dir, split=VALIDATION, seoul_only=False)
+        print(f"Validation 신규 추출 파일: {newly_extracted_val}개 (전체, --n-val-calls 무시됨)")
     else:
         print(f"{len(zip_paths)}개 zip에서 항목 목록 스캔 중 (압축 해제 없음)...")
         entries = index_zip_entries(zip_paths)
@@ -83,11 +95,10 @@ def main() -> int:
             entries, split=TRAINING, seoul_only=True, n_calls=args.n_train_calls, seed=args.seed
         )
         print(f"Seoul Training 선택: {len(train_calls)}개 통화 (신규 추출 {extract_calls(train_calls, args.output_dir)}개)")
-
-    entries = index_zip_entries(zip_paths)
-    val_calls = select_calls(entries, split=VALIDATION, seoul_only=False, n_calls=args.n_val_calls, seed=args.seed)
-    newly_extracted_val = extract_calls(val_calls, args.output_dir)
-    print(f"Validation 선택: {len(val_calls)}개 통화 (신규 추출 {newly_extracted_val}개)")
+        val_calls = select_calls(
+            entries, split=VALIDATION, seoul_only=False, n_calls=args.n_val_calls, seed=args.seed
+        )
+        print(f"Validation 선택: {len(val_calls)}개 통화 (신규 추출 {extract_calls(val_calls, args.output_dir)}개)")
 
     print(
         "-> 실제로 몇 개 통화가 완전한 쌍으로 잡혔는지는 다음 단계(build_manifest.py)의 "

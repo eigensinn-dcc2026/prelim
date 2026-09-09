@@ -117,6 +117,32 @@ def test_extract_calls_skips_already_extracted_calls_and_reports_only_new_ones(t
     assert (output_dir / "Training/1.원천데이터/TS_서울_구급/b.wav").read_bytes() == b"wav-b"
 
 
+def test_extract_all_entries_strips_a_wrapper_folder_ahead_of_the_split_component(tmp_path: Path) -> None:
+    # Real bug: a Drive "download folder as zip" split wraps every entry in
+    # the source folder's own name (here "대학부 데이터/"), and different
+    # zips can use different wrapper names/depths. Without stripping this
+    # prefix, the same call already extracted (correctly, at the clean path)
+    # by another code path would look "missing" to skip_existing and get
+    # re-extracted a second time at the wrapper-prefixed path -- doubling
+    # disk usage and eventually causing build_manifest to see two wav files
+    # for one stem (DuplicateIdentifierError).
+    zip1 = tmp_path / "chunk.zip"
+    _make_zip(zip1, {"대학부 데이터/Training/1.원천데이터/TS_서울_구급/a.wav": b"wav-a"})
+    output_dir = tmp_path / "out"
+
+    extracted = extract_all_entries([zip1], output_dir, split=TRAINING, seoul_only=True)
+
+    assert extracted == 1
+    assert (output_dir / "Training/1.원천데이터/TS_서울_구급/a.wav").read_bytes() == b"wav-a"
+    assert not (output_dir / "대학부 데이터").exists()  # no leftover wrapper directory
+
+    # Re-running must recognize the file at its clean path and skip it, not
+    # write a second copy under the wrapper prefix.
+    second_pass = extract_all_entries([zip1], output_dir, split=TRAINING, seoul_only=True)
+    assert second_pass == 0
+    assert not (output_dir / "대학부 데이터").exists()
+
+
 def test_extract_all_entries_extracts_a_call_even_when_its_partner_is_outside_any_zip(tmp_path: Path) -> None:
     # Reproduces the real bug: call "a"'s wav lives in a zip, but its json
     # was already extracted loose (e.g. a chunk unzipped by hand before this

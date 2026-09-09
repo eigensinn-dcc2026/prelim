@@ -19,6 +19,7 @@ since both operate on path strings and need no real file on disk.
 from __future__ import annotations
 
 import random
+import shutil
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -140,10 +141,26 @@ def extract_all_entries(
                     continue
                 if seoul_only and not is_seoul_path(entry_name):
                     continue
-                target = output_dir / entry_name
+                # Drop everything before the Training/Validation component --
+                # a Drive "download folder as zip" split wraps entries in the
+                # source folder's own name (e.g. "대학부 데이터/Training/..."),
+                # and different zips can use different wrapper names. Without
+                # stripping it, the same call extracted via a different code
+                # path (e.g. the already-merged loose chunk) lands at a
+                # different depth than this one, so build_manifest's pairing
+                # still finds both eventually, but a second extraction run can
+                # end up writing the *same* entry a second time at the
+                # wrapper-prefixed path even though it already exists at the
+                # clean one -- silently doubling disk usage and risking a
+                # DuplicateIdentifierError once both copies are visible.
+                split_index = path.parts.index(entry_split)
+                relative = PurePosixPath(*path.parts[split_index:])
+                target = output_dir / relative
                 if skip_existing and target.is_file():
                     continue
-                archive.extract(entry_name, path=output_dir)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with archive.open(entry_name) as source, target.open("wb") as dest:
+                    shutil.copyfileobj(source, dest)
                 extracted_count += 1
     return extracted_count
 
