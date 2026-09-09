@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pandas as pd
 
-from dcc_data.mission2_analysis import bucket_duration, compute_overlap_flags, select_listening_samples
+from dcc_data.mission2_analysis import (
+    bucket_duration,
+    compute_overlap_flags,
+    find_label_swap_candidates,
+    select_listening_samples,
+)
 
 
 def test_compute_overlap_flags_detects_intersecting_ranges_within_a_call() -> None:
@@ -67,3 +72,46 @@ def test_select_listening_samples_omits_empty_groups_instead_of_erroring() -> No
 
     assert set(groups) == {"대원_정답_안겹침"}
     assert len(groups["대원_정답_안겹침"]) == 2
+
+
+def _utterances(*speakers_and_texts: tuple[int, str]) -> list[dict]:
+    return [{"speaker": speaker, "text": text} for speaker, text in speakers_and_texts]
+
+
+def test_find_label_swap_candidates_flags_greeting_attributed_to_speaker_one() -> None:
+    calls = [
+        ("swapped", _utterances((1, "네, 119입니다."), (0, "사람이 쓰러졌어요."))),
+    ]
+    candidates = find_label_swap_candidates(calls)
+    assert [c["call_id"] for c in candidates] == ["swapped"]
+    assert candidates[0]["anchor_speaker"] == 1
+    assert candidates[0]["n_utterances"] == 2
+
+
+def test_find_label_swap_candidates_does_not_flag_correctly_labeled_calls() -> None:
+    calls = [
+        ("normal", _utterances((0, "네, 119입니다."), (1, "사람이 쓰러졌어요."))),
+    ]
+    assert find_label_swap_candidates(calls) == []
+
+
+def test_find_label_swap_candidates_skips_calls_with_no_greeting_in_first_three() -> None:
+    calls = [
+        ("unknown", _utterances((1, "여보세요"), (0, "네"), (1, "무슨 일이세요"), (0, "119입니다 뒤늦게 언급"))),
+    ]
+    assert find_label_swap_candidates(calls) == []
+
+
+def test_find_label_swap_candidates_excludes_already_fixed_call_ids() -> None:
+    calls = [
+        ("already_fixed", _utterances((1, "네, 119입니다."), (0, "사람이 쓰러졌어요."))),
+    ]
+    assert find_label_swap_candidates(calls, exclude_call_ids=frozenset({"already_fixed"})) == []
+
+
+def test_find_label_swap_candidates_finds_greeting_within_first_three_utterances() -> None:
+    calls = [
+        ("late_greeting", _utterances((1, "여보세요"), (0, "네"), (1, "119입니다"))),
+    ]
+    candidates = find_label_swap_candidates(calls)
+    assert [c["call_id"] for c in candidates] == ["late_greeting"]
