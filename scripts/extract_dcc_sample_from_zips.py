@@ -60,16 +60,22 @@ def main() -> int:
     print(f"Seoul Training 선택: {len(train_calls)}개 통화")
     print(f"Validation 선택: {len(val_calls)}개 통화")
 
-    print(f"선택된 파일을 {args.output_dir}에 추출 중...")
+    print(f"선택된 파일을 {args.output_dir}에 추출 중 (이미 있는 파일은 건너뜀)...")
     selected = train_calls + val_calls
-    extract_calls(selected, args.output_dir)
+    newly_extracted = extract_calls(selected, args.output_dir)
+    skipped = len(selected) - newly_extracted
 
     total_bytes = sum(
         (args.output_dir / location.entry_name).stat().st_size
         for call in selected
         for location in (call.wav, call.json)
     )
-    print(f"추출 완료: {len(selected)}개 통화, 총 {total_bytes / 1e9:.2f} GB")
+    print(
+        f"추출 완료: 신규 {newly_extracted}개 / 이미 있어서 건너뜀 {skipped}개 "
+        f"/ 전체 {len(selected)}개 통화, 총 {total_bytes / 1e9:.2f} GB"
+    )
+    if newly_extracted < len(selected):
+        print("-> 도중에 끊겼다가 재실행한 경우여도 정상입니다 (같은 명령을 그대로 다시 실행하면 이어서 받습니다).")
     print(f"이제 이 경로로 build_manifest.py를 실행하세요: {args.output_dir}")
     return 0
 

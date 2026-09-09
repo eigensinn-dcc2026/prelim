@@ -88,3 +88,48 @@ def test_extract_calls_writes_exactly_the_selected_files_at_their_zip_relative_p
         "Training/2.라벨링데이터/TL_서울_구급/a.json",
     ]
     assert (output_dir / "Training/1.원천데이터/TS_서울_구급/a.wav").read_bytes() == b"wav-a"
+
+
+def test_extract_calls_skips_already_extracted_calls_and_reports_only_new_ones(tmp_path: Path) -> None:
+    # Reproduces resuming after an interrupted (e.g. Colab-disconnected)
+    # extraction: re-running the same selection must not re-extract "a" and
+    # must report only "b" as newly extracted.
+    zip1 = tmp_path / "chunk.zip"
+    _make_zip(
+        zip1,
+        {
+            "Training/1.원천데이터/TS_서울_구급/a.wav": b"wav-a",
+            "Training/2.라벨링데이터/TL_서울_구급/a.json": b"{}",
+            "Training/1.원천데이터/TS_서울_구급/b.wav": b"wav-b",
+            "Training/2.라벨링데이터/TL_서울_구급/b.json": b"{}",
+        },
+    )
+    entries = index_zip_entries([zip1])
+    output_dir = tmp_path / "out"
+
+    first_pass = extract_calls([e for e in entries if e.stem == "a"], output_dir)
+    assert first_pass == 1
+
+    second_pass = extract_calls(entries, output_dir)  # both "a" and "b" requested this time
+
+    assert second_pass == 1  # only "b" was actually extracted
+    assert (output_dir / "Training/1.원천데이터/TS_서울_구급/a.wav").read_bytes() == b"wav-a"
+    assert (output_dir / "Training/1.원천데이터/TS_서울_구급/b.wav").read_bytes() == b"wav-b"
+
+
+def test_extract_calls_skip_existing_false_forces_re_extraction(tmp_path: Path) -> None:
+    zip1 = tmp_path / "chunk.zip"
+    _make_zip(
+        zip1,
+        {
+            "Training/1.원천데이터/TS_서울_구급/a.wav": b"wav-a",
+            "Training/2.라벨링데이터/TL_서울_구급/a.json": b"{}",
+        },
+    )
+    entries = index_zip_entries([zip1])
+    output_dir = tmp_path / "out"
+
+    extract_calls(entries, output_dir)
+    second_pass = extract_calls(entries, output_dir, skip_existing=False)
+
+    assert second_pass == 1

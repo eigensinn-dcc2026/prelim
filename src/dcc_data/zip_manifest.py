@@ -92,25 +92,42 @@ def select_calls(
     return random.Random(seed).sample(pool, n_calls)
 
 
-def extract_calls(entries: list[ZipCallEntry], output_dir: Path) -> None:
+def _call_already_extracted(call: ZipCallEntry, output_dir: Path) -> bool:
+    return (output_dir / call.wav.entry_name).is_file() and (output_dir / call.json.entry_name).is_file()
+
+
+def extract_calls(entries: list[ZipCallEntry], output_dir: Path, *, skip_existing: bool = True) -> int:
     """Extract exactly the wav+json entries for ``entries``.
 
     Each file lands at its own entry name's relative path under
     ``output_dir`` -- i.e. whatever Training/Validation/region structure
     the zip itself used -- so the result is a normal (just much smaller)
     data root that build_manifest.py can scan afterward.
+
+    ``skip_existing`` (default True) makes this resumable: a call whose wav
+    AND json are both already present at their target path is left alone
+    instead of re-extracted. Re-running the exact same selection after an
+    interrupted run (e.g. a Colab disconnect partway through a multi-GB
+    extraction) then only fetches whatever is still missing, rather than
+    starting over from zero. Returns the number of calls actually extracted
+    (excludes skipped ones).
     """
 
     output_dir.mkdir(parents=True, exist_ok=True)
     opened: dict[Path, zipfile.ZipFile] = {}
+    extracted_count = 0
     try:
         for call in entries:
+            if skip_existing and _call_already_extracted(call, output_dir):
+                continue
             for location in (call.wav, call.json):
                 archive = opened.get(location.zip_path)
                 if archive is None:
                     archive = zipfile.ZipFile(location.zip_path)
                     opened[location.zip_path] = archive
                 archive.extract(location.entry_name, path=output_dir)
+            extracted_count += 1
     finally:
         for archive in opened.values():
             archive.close()
+    return extracted_count
