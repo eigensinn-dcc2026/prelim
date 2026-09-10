@@ -126,3 +126,72 @@ def evaluate(model: nn.Module, loader, device: str) -> tuple[float, np.ndarray, 
     labels_arr = np.concatenate(all_labels)
     accuracy = float((preds == labels_arr).mean())
     return accuracy, preds, labels_arr
+
+
+def train_with_best_checkpoint(
+    model: nn.Module,
+    train_loader,
+    val_loader,
+    optimizer,
+    *,
+    epochs: int,
+    device: str,
+    scheduler=None,
+    on_epoch_end=None,
+) -> dict:
+    """Train for ``epochs`` epochs, tracking whichever epoch had the best
+    val accuracy -- not just the last one.
+
+    A real run (see reports/mission2/, the Colab smoke test that motivated
+    this) can be unstable late in training (val_acc swinging 20+ points
+    between adjacent epochs while train_loss keeps falling smoothly -- a
+    classic "learning rate too high" symptom) without ``epochs`` being
+    tuned to stop exactly at the peak. Reporting metrics from whatever
+    epoch happened to run last is actively misleading when that epoch is
+    mid-oscillation and much worse than the best one already reached and
+    saved.
+
+    ``scheduler`` (e.g. ReduceLROnPlateau), if given, is stepped once per
+    epoch with that epoch's val accuracy. ``on_epoch_end``, if given, is
+    called once per epoch with that epoch's history dict (for a caller that
+    wants to print live progress -- this function stays pure/side-effect
+    free otherwise, for testability).
+
+    Returns a dict: best_val_acc, best_val_preds, best_val_labels,
+    best_epoch, best_model_state (state_dict, CPU tensors), history (list
+    of {epoch, train_loss, val_acc}).
+    """
+
+    best_val_acc = -1.0
+    best_val_preds: np.ndarray | None = None
+    best_val_labels: np.ndarray | None = None
+    best_epoch = 0
+    best_model_state: dict | None = None
+    history: list[dict] = []
+
+    for epoch in range(1, epochs + 1):
+        train_loss = train_one_epoch(model, train_loader, optimizer, device=device)
+        val_acc, val_preds, val_labels = evaluate(model, val_loader, device=device)
+        epoch_record = {"epoch": epoch, "train_loss": train_loss, "val_acc": val_acc}
+        history.append(epoch_record)
+
+        if scheduler is not None:
+            scheduler.step(val_acc)
+        if on_epoch_end is not None:
+            on_epoch_end(epoch_record)
+
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            best_val_preds = val_preds
+            best_val_labels = val_labels
+            best_epoch = epoch
+            best_model_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+
+    return {
+        "best_val_acc": best_val_acc,
+        "best_val_preds": best_val_preds,
+        "best_val_labels": best_val_labels,
+        "best_epoch": best_epoch,
+        "best_model_state": best_model_state,
+        "history": history,
+    }
