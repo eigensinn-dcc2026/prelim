@@ -8,7 +8,14 @@ import numpy as np
 import pandas as pd
 import torch
 
-from dcc_data.mission2_cnn import SpeakerCNN, SpectrogramDataset, collate_batch, evaluate, train_one_epoch
+from dcc_data.mission2_cnn import (
+    SpeakerCNN,
+    SpectrogramDataset,
+    collate_batch,
+    evaluate,
+    train_one_epoch,
+    train_with_best_checkpoint,
+)
 from dcc_data.mission2_spectrogram import N_MELS, SPEC_FLOOR_DB
 
 
@@ -86,3 +93,35 @@ def test_train_one_epoch_and_evaluate_run_without_crashing(tmp_path) -> None:
     acc, preds, labels = evaluate(model, loader, device="cpu")
     assert 0.0 <= acc <= 1.0
     assert preds.shape == labels.shape == (3,)
+
+
+def _make_larger_index_and_specs(tmp_path, n_items=12, n_mels=N_MELS):
+    rows = []
+    for i in range(n_items):
+        n_frames = 3 + (i % 5) * 4
+        spec = np.random.default_rng(i).uniform(-40, 0, size=(n_mels, n_frames)).astype(np.float32)
+        npy_path = f"call{i}/0.npy"
+        full_path = tmp_path / npy_path
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        np.save(full_path, spec)
+        rows.append({"call_id": f"call{i}", "utt_idx": 0, "speaker": i % 2, "n_frames": n_frames, "npy_path": npy_path})
+    return pd.DataFrame(rows)
+
+
+def test_train_with_best_checkpoint_reports_the_best_epoch_not_the_last(tmp_path) -> None:
+    index_df = _make_larger_index_and_specs(tmp_path)
+    dataset = SpectrogramDataset(index_df, tmp_path)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=4, shuffle=True, collate_fn=collate_batch)
+
+    torch.manual_seed(0)
+    model = SpeakerCNN()
+    optimizer = torch.optim.Adam(model.parameters(), lr=5e-2)  # deliberately unstable, like the real bug report
+
+    result = train_with_best_checkpoint(model, loader, loader, optimizer, epochs=6, device="cpu")
+
+    assert result["best_val_acc"] == max(h["val_acc"] for h in result["history"])
+    # The stored predictions must actually *be* the best epoch's -- recomputing
+    # accuracy from them must reproduce the reported best_val_acc, not just
+    # happen to carry some other (e.g. the last, possibly worse) epoch's numbers.
+    recomputed_acc = float((result["best_val_preds"] == result["best_val_labels"]).mean())
+    assert recomputed_acc == result["best_val_acc"]
