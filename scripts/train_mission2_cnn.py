@@ -14,6 +14,15 @@ still falling smoothly the whole time, the classic "LR too high" symptom),
 and the final epoch can land mid-oscillation, far worse than the peak
 already reached.
 
+--resume continues from --model-output instead of starting over: a second
+Colab run (same 3,000-call sample) hit its best (86.11%) on the very last
+of 20 epochs, meaning it likely hadn't converged -- re-running 20 fresh
+epochs to get back to where training already was would waste ~20 minutes
+on GPU. The checkpoint carries the *last* epoch's model/optimizer/scheduler
+state (to resume the LR schedule and Adam's momentum exactly where they
+were) separately from the *best* epoch's model state (for inference), so a
+resumed run that doesn't beat the standing best still doesn't overwrite it.
+
 CPU works for a small smoke run; for anything close to the full dataset,
 run this on Colab GPU (pass --device cuda) the same way the team already
 runs scripts/build_mission2_dataset.py there.
@@ -24,6 +33,9 @@ Usage:
         --spectrogram-dir data/m2_spectrograms \\
         --epochs 20 --device cuda \\
         --model-output checkpoints/mission2/m2_cnn.pt
+
+    # continue training the same checkpoint for 20 more epochs:
+    python scripts/train_mission2_cnn.py ... --epochs 20 --resume
 """
 
 from __future__ import annotations
@@ -42,7 +54,13 @@ import pandas as pd  # noqa: E402
 import torch  # noqa: E402
 from sklearn.metrics import confusion_matrix, recall_score  # noqa: E402
 
-from dcc_data.mission2_cnn import SpeakerCNN, SpectrogramDataset, collate_batch, train_with_best_checkpoint  # noqa: E402
+from dcc_data.mission2_cnn import (  # noqa: E402
+    SpeakerCNN,
+    SpectrogramDataset,
+    collate_batch,
+    evaluate,
+    train_with_best_checkpoint,
+)
 from dcc_data.mission2_train import make_group_split  # noqa: E402
 
 
@@ -52,13 +70,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--spectrogram-dir", type=Path, default=Path("data/m2_spectrograms"))
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--test-size", type=float, default=0.2)
-    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--epochs", type=int, default=20, help="how many MORE epochs to run this invocation")
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--lr-patience", type=int, default=2, help="epochs with no val_acc improvement before halving lr")
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--model-output", type=Path, default=Path("checkpoints/mission2/m2_cnn.pt"))
+    parser.add_argument("--resume", action="store_true", help="continue from --model-output instead of a fresh model")
     return parser.parse_args()
 
 
@@ -86,9 +105,44 @@ def main() -> int:
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=args.lr_patience)
 
+    prev_best_val_acc = -1.0
+    prev_best_model_state = None
+    prev_best_epoch = 0
+    epochs_already_trained = 0
+
+    if args.resume:
+        if not args.model_output.exists():
+            raise SystemExit(f"--resume given but {args.model_output} does not exist")
+        checkpoint = torch.load(args.model_output, map_location="cpu")
+        if "last_model_state_dict" in checkpoint:
+            model.load_state_dict(checkpoint["last_model_state_dict"])
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+            prev_best_val_acc = checkpoint["best_val_acc"]
+            prev_best_model_state = checkpoint["best_model_state_dict"]
+            prev_best_epoch = checkpoint["best_epoch"]
+            epochs_already_trained = checkpoint["total_epochs_trained"]
+        else:
+            # Pre-resume-support checkpoint (only "model_state_dict"/"val_acc"/
+            # "epoch"): weights are usable, optimizer/scheduler state is not,
+            # so Adam/the LR schedule restart fresh -- pass a lower --lr than
+            # the default for this one run to avoid a fresh high-LR optimizer
+            # kicking already-good weights out of their minimum.
+            model.load_state_dict(checkpoint["model_state_dict"])
+            prev_best_val_acc = checkpoint["val_acc"]
+            prev_best_model_state = checkpoint["model_state_dict"]
+            prev_best_epoch = checkpoint["epoch"]
+            epochs_already_trained = checkpoint["epoch"]
+            print(f"NOTE: {args.model_output} predates --resume support -- weights loaded, optimizer/LR-schedule state could not be (restarting fresh).")
+        print(
+            f"Resumed from {args.model_output}: {epochs_already_trained} epochs already trained, "
+            f"standing best val_acc={prev_best_val_acc:.4f} (epoch {prev_best_epoch})"
+        )
+
     def on_epoch_end(record: dict) -> None:
         lr = optimizer.param_groups[0]["lr"]
-        print(f"epoch {record['epoch']:3d}  train_loss={record['train_loss']:.4f}  val_acc={record['val_acc']:.4f}  lr={lr:.2e}")
+        absolute_epoch = epochs_already_trained + record["epoch"]
+        print(f"epoch {absolute_epoch:3d}  train_loss={record['train_loss']:.4f}  val_acc={record['val_acc']:.4f}  lr={lr:.2e}")
 
     start = time.time()
     result = train_with_best_checkpoint(
@@ -96,17 +150,42 @@ def main() -> int:
         epochs=args.epochs, device=args.device, scheduler=scheduler, on_epoch_end=on_epoch_end,
     )
     elapsed = time.time() - start
+    total_epochs_trained = epochs_already_trained + args.epochs
+
+    improved = result["best_val_acc"] > prev_best_val_acc
+    if improved:
+        best_val_acc = result["best_val_acc"]
+        best_model_state = result["best_model_state"]
+        best_epoch = epochs_already_trained + result["best_epoch"]
+        best_preds, best_labels = result["best_val_preds"], result["best_val_labels"]
+    else:
+        best_val_acc = prev_best_val_acc
+        best_model_state = prev_best_model_state
+        best_epoch = prev_best_epoch
+        best_preds = best_labels = None
 
     args.model_output.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
-        {"model_state_dict": result["best_model_state"], "val_acc": result["best_val_acc"], "epoch": result["best_epoch"]},
+        {
+            "best_model_state_dict": best_model_state,
+            "best_val_acc": best_val_acc,
+            "best_epoch": best_epoch,
+            "last_model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
+            "total_epochs_trained": total_epochs_trained,
+        },
         args.model_output,
     )
 
-    best_preds, best_labels = result["best_val_preds"], result["best_val_labels"]
+    print(f"\nBest epoch so far: {best_epoch}/{total_epochs_trained}  val_acc={best_val_acc:.4f}  (this run: {elapsed:.1f}s)")
+    if not improved:
+        print("(this run did not beat the standing best -- checkpoint's best/resume state both updated, recall/confusion matrix below are the standing best's)")
+        eval_model = SpeakerCNN()
+        eval_model.load_state_dict(best_model_state)
+        _, best_preds, best_labels = evaluate(eval_model, val_loader, device=args.device)
     recall_0 = recall_score(best_labels, best_preds, pos_label=0)
     recall_1 = recall_score(best_labels, best_preds, pos_label=1)
-    print(f"\nBest epoch: {result['best_epoch']}/{args.epochs}  val_acc={result['best_val_acc']:.4f}  ({elapsed:.1f}s total)")
     print(f"Recall 대원(0)={recall_0:.4f} 신고자(1)={recall_1:.4f}")
     print(f"Confusion matrix: {confusion_matrix(best_labels, best_preds, labels=[0, 1]).tolist()}")
     print(f"Model saved: {args.model_output}")
