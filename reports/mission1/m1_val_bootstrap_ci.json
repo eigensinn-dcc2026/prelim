@@ -1,0 +1,49 @@
+{
+  "source_log": "reports\\mission1\\m1_val_eval.json",
+  "n_validation": 3640,
+  "n_boot": 10000,
+  "seed": 42,
+  "alpha": 0.05,
+  "gbm": {
+    "accuracy_point_estimate": 0.9491758241758241,
+    "accuracy_bootstrap_mean": 0.9491410989010989,
+    "accuracy_bootstrap_std": 0.0036059450301466935,
+    "accuracy_ci_95": [
+      0.942032967032967,
+      0.9560439560439561
+    ],
+    "recall_F_point_estimate": 0.9561000510464522,
+    "recall_F_bootstrap_mean": 0.956160995409678,
+    "recall_F_ci_95": [
+      0.9469961909449541,
+      0.9650609390810221
+    ],
+    "recall_M_point_estimate": 0.9411064842355741,
+    "recall_M_bootstrap_mean": 0.9411459030917416,
+    "recall_M_ci_95": [
+      0.9296026726863859,
+      0.9521792400741589
+    ]
+  },
+  "lr": {
+    "accuracy_point_estimate": 0.951098901098901,
+    "accuracy_bootstrap_mean": 0.9511464285714284,
+    "accuracy_bootstrap_std": 0.0035629916300426966,
+    "accuracy_ci_95": [
+      0.9439560439560439,
+      0.9582417582417583
+    ],
+    "recall_F_point_estimate": 0.9586523736600306,
+    "recall_F_bootstrap_mean": 0.9585629456572767,
+    "recall_F_ci_95": [
+      0.9493927125506073,
+      0.9670218163368848
+    ],
+    "recall_M_point_estimate": 0.942296252230815,
+    "recall_M_bootstrap_mean": 0.9422124183453674,
+    "recall_M_ci_95": [
+      0.9305549474605955,
+      0.9532934131736527
+    ]
+  }
+}
