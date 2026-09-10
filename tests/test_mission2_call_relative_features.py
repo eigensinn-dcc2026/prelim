@@ -35,8 +35,8 @@ SAMPLE_RATE = 8000
 
 
 def test_feature_columns_grew_by_three_call_relative_dims() -> None:
-    assert N_UTTERANCE_FEATURES == 58
-    assert N_FEATURES == 61
+    assert N_UTTERANCE_FEATURES == 61
+    assert N_FEATURES == 64
     assert len(FEATURE_COLUMNS) == N_FEATURES
     assert FEATURE_COLUMNS == UTTERANCE_FEATURE_COLUMNS + CALL_RELATIVE_FEATURE_COLUMNS
     assert CALL_RELATIVE_FEATURE_COLUMNS == (
@@ -46,7 +46,7 @@ def test_feature_columns_grew_by_three_call_relative_dims() -> None:
     )
 
 
-def test_utterance_feature_vector_still_returns_only_the_context_free_58() -> None:
+def test_utterance_feature_vector_still_returns_only_the_context_free_dims() -> None:
     segment = np.random.default_rng(0).standard_normal(SAMPLE_RATE).astype(np.float32)
     vector = utterance_feature_vector(segment, SAMPLE_RATE, duration_sec=1.0)
     assert vector.shape == (N_UTTERANCE_FEATURES,)

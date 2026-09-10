@@ -269,7 +269,7 @@ N_FFT = 512
 HOP_LENGTH = 160
 N_MFCC = 20
 N_ACOUSTIC_FEATURES = 52  # MFCC/RMS/ZCR/spectral only -- acoustic_feature_vector()'s own contract
-N_UTTERANCE_FEATURES = 58  # duration_sec + 52 original acoustic stats + 5 pitch/energy dims
+N_UTTERANCE_FEATURES = 61  # duration_sec + 52 acoustic + 5 pitch/energy + 3 harmonicity dims
 
 # Human speech F0 range over an 8kHz phone channel -- wide enough to cover
 # both the 대원/신고자 speakers without a per-call calibration step.
@@ -301,6 +301,9 @@ UTTERANCE_FEATURE_COLUMNS: tuple[str, ...] = (
     "voiced_ratio",
     "rms_p10",
     "rms_p90",
+    "harmonicity_mean",
+    "harmonicity_min",
+    "harmonicity_std",
 )
 assert len(UTTERANCE_FEATURE_COLUMNS) == N_UTTERANCE_FEATURES
 
@@ -388,8 +391,78 @@ def pitch_energy_feature_vector(segment: np.ndarray, sample_rate: int) -> np.nda
     return np.nan_to_num(vector, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
 
 
+def _frame_periodicity_strengths(
+    segment: np.ndarray, *, frame_length: int, hop_length: int, sample_rate: int, fmin: float, fmax: float
+) -> np.ndarray:
+    """Per-frame periodicity strength in [0, 1]: the normalized autocorrelation
+    peak within the [fmin, fmax] lag range (1.0 = perfectly periodic).
+
+    Vectorized (Wiener-Khinchin: autocorrelation via |FFT|^2 then inverse FFT)
+    across every frame of the segment at once -- a per-frame Python loop over
+    ~800k utterances' worth of frames would dominate build time.
+    """
+
+    frames = librosa.util.frame(segment, frame_length=frame_length, hop_length=hop_length).T.astype(np.float64)
+    frames = frames - frames.mean(axis=1, keepdims=True)
+    n_fft = 2 * frame_length
+    spectrum = np.fft.rfft(frames, n=n_fft, axis=1)
+    power = spectrum.real**2 + spectrum.imag**2
+    autocorr = np.fft.irfft(power, n=n_fft, axis=1)[:, :frame_length]
+
+    min_lag = max(1, int(sample_rate / fmax))
+    max_lag = min(frame_length - 1, int(sample_rate / fmin))
+    if max_lag <= min_lag:
+        return np.zeros(frames.shape[0])
+    peak = autocorr[:, min_lag : max_lag + 1].max(axis=1)
+    zero_lag = autocorr[:, 0]
+    strength = np.divide(peak, zero_lag, out=np.zeros_like(peak), where=zero_lag > 0)
+    return np.clip(strength, 0.0, 1.0)
+
+
+def harmonicity_feature_vector(segment: np.ndarray, sample_rate: int) -> np.ndarray:
+    """3-dim: harmonicity_mean, harmonicity_min, harmonicity_std.
+
+    Targets the overlap-driven accuracy gap (see m2_error_analysis.md 1-1:
+    overlapping utterances are 43.9% of val but 57.3% of errors). Two
+    speakers' voices overlapping in one segment have two independent,
+    generally unrelated F0s, which degrades a single frame's autocorrelation
+    peak relative to one clean periodic voice -- computed entirely from this
+    segment's own samples, so it never needs another utterance's timestamp
+    (the contest's "no order-derived features" rule is about exactly that).
+    Not a clean detector (voices whose F0s land near a harmonic ratio of each
+    other only show a small drop), just a soft signal for the model to use
+    alongside everything else.
+    """
+
+    if len(segment) < N_FFT:
+        segment = np.pad(segment, (0, N_FFT - len(segment)))
+    segment = segment.astype(np.float32, copy=False)
+
+    rms = librosa.feature.rms(y=segment, frame_length=N_FFT, hop_length=HOP_LENGTH)[0]
+    peak_rms = float(rms.max())
+    voiced_mask = rms > (VOICED_RMS_RATIO * peak_rms) if peak_rms > 0 else np.zeros_like(rms, dtype=bool)
+
+    if voiced_mask.any():
+        strengths = _frame_periodicity_strengths(
+            segment, frame_length=N_FFT, hop_length=HOP_LENGTH, sample_rate=sample_rate,
+            fmin=F0_MIN_HZ, fmax=F0_MAX_HZ,
+        )
+        n = min(len(strengths), len(voiced_mask))
+        voiced_strengths = strengths[:n][voiced_mask[:n]]
+        harmonicity_mean = float(voiced_strengths.mean()) if voiced_strengths.size > 0 else 0.0
+        harmonicity_min = float(voiced_strengths.min()) if voiced_strengths.size > 0 else 0.0
+        harmonicity_std = float(voiced_strengths.std()) if voiced_strengths.size > 1 else 0.0
+    else:
+        harmonicity_mean = 0.0
+        harmonicity_min = 0.0
+        harmonicity_std = 0.0
+
+    vector = np.array([harmonicity_mean, harmonicity_min, harmonicity_std], dtype=np.float64)
+    return np.nan_to_num(vector, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
+
+
 def utterance_feature_vector(segment: np.ndarray, sample_rate: int, duration_sec: float) -> np.ndarray:
-    """The context-free 58-dim vector for one utterance in isolation.
+    """The context-free 61-dim vector for one utterance in isolation.
 
     Call-relative features (CALL_RELATIVE_FEATURE_COLUMNS) are *not* part of
     this vector -- they need every utterance in the same call at once, so
@@ -399,7 +472,8 @@ def utterance_feature_vector(segment: np.ndarray, sample_rate: int, duration_sec
 
     acoustic = acoustic_feature_vector(segment, sample_rate)
     pitch_energy = pitch_energy_feature_vector(segment, sample_rate)
-    vector = np.concatenate([np.array([duration_sec], dtype=np.float32), acoustic, pitch_energy])
+    harmonicity = harmonicity_feature_vector(segment, sample_rate)
+    vector = np.concatenate([np.array([duration_sec], dtype=np.float32), acoustic, pitch_energy, harmonicity])
     if vector.shape[0] != N_UTTERANCE_FEATURES:
         raise ValueError(f"feature vector has {vector.shape[0]} dims, expected {N_UTTERANCE_FEATURES}")
     return vector
