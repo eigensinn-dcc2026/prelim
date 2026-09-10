@@ -110,7 +110,7 @@
 - 오분류 vs 정답 샘플의 Cohen's d(동일 실제 성별 내부 비교)를 계산한 결과, 다음과 같이 |d| > 1인 축이 다수 관찰됨.
   - F 오류(n=81): `mfcc_std_19` d=−1.24, `mfcc_std_17` d=−1.15, `mfcc_std_16` d=−1.10
   - M 오류(n=97): `mfcc_std_17` d=+1.83, `mfcc_std_16` d=+1.69, `mfcc_std_19` d=+1.65, `mfcc_std_18` d=+1.37, `mfcc_std_13` d=+1.34
-- "피치 관련 지표 6개(zcr_mean, spectral_centroid_mean, mfcc_mean_0~3)" 기준으로, 오분류 샘플의 평균이 반대 성별 평균에 더 가까운 지표 개수는 F 오류에서 6개 중 2개, M 오류에서 6개 중 3개.
+- "간접 spectral 지표 6개(zcr_mean, spectral_centroid_mean, mfcc_mean_0~3)" 기준으로, 오분류 샘플의 평균이 반대 성별 평균에 더 가까운 지표 개수는 F 오류에서 6개 중 2개, M 오류에서 6개 중 3개.
 
 **[탐색적 해석 — 확정적 표현 금지]**
 
