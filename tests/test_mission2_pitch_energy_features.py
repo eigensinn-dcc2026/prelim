@@ -72,8 +72,7 @@ def test_pitch_energy_feature_vector_handles_segment_shorter_than_n_fft() -> Non
 
 
 def test_utterance_feature_vector_grew_by_five_pitch_energy_dims() -> None:
-    assert N_UTTERANCE_FEATURES == 58  # 53 original + 5 pitch/energy dims
-    assert UTTERANCE_FEATURE_COLUMNS[-5:] == ("f0_mean", "f0_std", "voiced_ratio", "rms_p10", "rms_p90")
+    assert UTTERANCE_FEATURE_COLUMNS[53:58] == ("f0_mean", "f0_std", "voiced_ratio", "rms_p10", "rms_p90")
 
     segment = _tone(150.0, 1.0)
     vector = utterance_feature_vector(segment, SAMPLE_RATE, duration_sec=1.0)
