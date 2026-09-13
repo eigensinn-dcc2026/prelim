@@ -93,6 +93,25 @@ class SpeakerCNN(nn.Module):
         return self.classifier(x)
 
 
+def move_optimizer_state_to_device(optimizer: torch.optim.Optimizer, device: str) -> None:
+    """Move every tensor in ``optimizer.state`` (e.g. Adam's exp_avg/
+    exp_avg_sq momentum buffers) to ``device``, in place.
+
+    Needed after ``optimizer.load_state_dict()`` from a checkpoint loaded
+    with ``map_location="cpu"``: the optimizer's internal state tensors are
+    separate from the model's parameters, so moving the model with
+    ``model.to(device)`` does *not* touch them -- the first ``step()`` after
+    a resume then fails with "Expected all tensors to be on the same
+    device" once the model's params are on cuda but the loaded momentum
+    buffers are still on cpu.
+    """
+
+    for state in optimizer.state.values():
+        for key, value in state.items():
+            if torch.is_tensor(value):
+                state[key] = value.to(device)
+
+
 def train_one_epoch(model: nn.Module, loader, optimizer, device: str) -> float:
     model.to(device)
     model.train()

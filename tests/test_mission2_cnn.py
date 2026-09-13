@@ -13,6 +13,7 @@ from dcc_data.mission2_cnn import (
     SpectrogramDataset,
     collate_batch,
     evaluate,
+    move_optimizer_state_to_device,
     train_one_epoch,
     train_with_best_checkpoint,
 )
@@ -93,6 +94,30 @@ def test_train_one_epoch_and_evaluate_run_without_crashing(tmp_path) -> None:
     acc, preds, labels = evaluate(model, loader, device="cpu")
     assert 0.0 <= acc <= 1.0
     assert preds.shape == labels.shape == (3,)
+
+
+def test_move_optimizer_state_to_device_moves_every_tensor_and_keeps_values(tmp_path) -> None:
+    index_df, _ = _make_index_and_specs(tmp_path)
+    dataset = SpectrogramDataset(index_df, tmp_path)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=False, collate_fn=collate_batch)
+
+    model = SpeakerCNN()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    train_one_epoch(model, loader, optimizer, device="cpu")  # populates Adam's exp_avg/exp_avg_sq state
+
+    before = {
+        id(p): {k: v.clone() for k, v in state.items() if torch.is_tensor(v)}
+        for p, state in optimizer.state.items()
+    }
+    assert before  # sanity: Adam actually created state to move
+
+    move_optimizer_state_to_device(optimizer, "cpu")
+
+    for p, state in optimizer.state.items():
+        for key, value in state.items():
+            if torch.is_tensor(value):
+                assert value.device.type == "cpu"
+                assert torch.equal(value, before[id(p)][key])
 
 
 def _make_larger_index_and_specs(tmp_path, n_items=12, n_mels=N_MELS):
