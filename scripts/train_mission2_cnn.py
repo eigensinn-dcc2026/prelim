@@ -59,6 +59,7 @@ from dcc_data.mission2_cnn import (  # noqa: E402
     SpectrogramDataset,
     collate_batch,
     evaluate,
+    move_optimizer_state_to_device,
     train_with_best_checkpoint,
 )
 from dcc_data.mission2_train import make_group_split  # noqa: E402
@@ -116,7 +117,9 @@ def main() -> int:
         checkpoint = torch.load(args.model_output, map_location="cpu")
         if "last_model_state_dict" in checkpoint:
             model.load_state_dict(checkpoint["last_model_state_dict"])
+            model.to(args.device)
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            move_optimizer_state_to_device(optimizer, args.device)
             scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
             prev_best_val_acc = checkpoint["best_val_acc"]
             prev_best_model_state = checkpoint["best_model_state_dict"]
