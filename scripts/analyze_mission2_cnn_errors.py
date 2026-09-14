@@ -47,8 +47,10 @@ import pandas as pd  # noqa: E402
 import torch  # noqa: E402
 
 from dcc_data.mission2_analysis import DURATION_LABELS, bucket_duration, compute_overlap_flags  # noqa: E402
-from dcc_data.mission2_cnn import SpeakerCNN, SpectrogramDataset, collate_batch, predict_with_confidence  # noqa: E402
+from dcc_data.mission2_cnn import SpeakerCNN, SpeakerCNNLarge, SpectrogramDataset, collate_batch, predict_with_confidence  # noqa: E402
 from dcc_data.mission2_train import make_group_split  # noqa: E402
+
+MODEL_CLASSES = {"small": SpeakerCNN, "large": SpeakerCNNLarge}
 
 
 def parse_args() -> argparse.Namespace:
@@ -62,6 +64,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
     parser.add_argument("--num-workers", type=int, default=0)
+    parser.add_argument("--model", type=str, default="small", choices=list(MODEL_CLASSES), help="must match the --model the checkpoint was trained with")
     parser.add_argument("--output", type=Path, default=Path("reports/mission2/m2_cnn_error_analysis.csv"))
     parser.add_argument("--summary-output", type=Path, default=Path("reports/mission2/m2_cnn_error_summary.json"))
     return parser.parse_args()
@@ -82,7 +85,7 @@ def main() -> int:
     )
 
     checkpoint = torch.load(args.ckpt_path, map_location="cpu")
-    model = SpeakerCNN()
+    model = MODEL_CLASSES[args.model]()
     model.load_state_dict(checkpoint["best_model_state_dict"])
     print(f"Loaded checkpoint: best_epoch={checkpoint.get('best_epoch')} best_val_acc={checkpoint.get('best_val_acc'):.4f}")
 

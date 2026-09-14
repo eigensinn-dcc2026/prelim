@@ -93,6 +93,52 @@ class SpeakerCNN(nn.Module):
         return self.classifier(x)
 
 
+class SpeakerCNNLarge(nn.Module):
+    """4 conv blocks, 32->64->128->256 channels (SpeakerCNN's 3 blocks,
+    16->32->64, plateaued at 89.6-89.7% val accuracy on the full 29,200-
+    call dataset -- LR decayed to 6.25e-05, val_acc pinned in an ~0.3pp
+    band for 10 straight epochs, i.e. converged for that capacity, not for
+    lack of training). A separate class, not a resize of SpeakerCNN, so an
+    existing SpeakerCNN checkpoint still loads/resumes untouched; pass
+    --model large to scripts/train_mission2_cnn.py to use this one (with a
+    fresh --model-output, since its state_dict shape doesn't match
+    SpeakerCNN's).
+    """
+
+    def __init__(self, n_mels: int = N_MELS) -> None:
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2, ceil_mode=True),
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2, ceil_mode=True),
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2, ceil_mode=True),
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+        )
+        self.pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 2),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.features(x)
+        x = self.pool(x)
+        return self.classifier(x)
+
+
 def move_optimizer_state_to_device(optimizer: torch.optim.Optimizer, device: str) -> None:
     """Move every tensor in ``optimizer.state`` (e.g. Adam's exp_avg/
     exp_avg_sq momentum buffers) to ``device``, in place.

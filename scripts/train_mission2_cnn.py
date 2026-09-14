@@ -56,6 +56,7 @@ from sklearn.metrics import confusion_matrix, recall_score  # noqa: E402
 
 from dcc_data.mission2_cnn import (  # noqa: E402
     SpeakerCNN,
+    SpeakerCNNLarge,
     SpectrogramDataset,
     collate_batch,
     evaluate,
@@ -63,6 +64,8 @@ from dcc_data.mission2_cnn import (  # noqa: E402
     train_with_best_checkpoint,
 )
 from dcc_data.mission2_train import make_group_split  # noqa: E402
+
+MODEL_CLASSES = {"small": SpeakerCNN, "large": SpeakerCNNLarge}
 
 
 def parse_args() -> argparse.Namespace:
@@ -77,6 +80,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lr-patience", type=int, default=2, help="epochs with no val_acc improvement before halving lr")
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
     parser.add_argument("--num-workers", type=int, default=0)
+    parser.add_argument("--model", type=str, default="small", choices=list(MODEL_CLASSES), help="small=SpeakerCNN (25.7k params), large=SpeakerCNNLarge (422k params)")
     parser.add_argument("--model-output", type=Path, default=Path("checkpoints/mission2/m2_cnn.pt"))
     parser.add_argument("--resume", action="store_true", help="continue from --model-output instead of a fresh model")
     return parser.parse_args()
@@ -102,7 +106,8 @@ def main() -> int:
         batch_size=args.batch_size, shuffle=False, collate_fn=collate_batch, num_workers=args.num_workers,
     )
 
-    model = SpeakerCNN()
+    model_cls = MODEL_CLASSES[args.model]
+    model = model_cls()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=args.lr_patience)
 
@@ -184,7 +189,7 @@ def main() -> int:
     print(f"\nBest epoch so far: {best_epoch}/{total_epochs_trained}  val_acc={best_val_acc:.4f}  (this run: {elapsed:.1f}s)")
     if not improved:
         print("(this run did not beat the standing best -- checkpoint's best/resume state both updated, recall/confusion matrix below are the standing best's)")
-        eval_model = SpeakerCNN()
+        eval_model = model_cls()
         eval_model.load_state_dict(best_model_state)
         _, best_preds, best_labels = evaluate(eval_model, val_loader, device=args.device)
     recall_0 = recall_score(best_labels, best_preds, pos_label=0)
