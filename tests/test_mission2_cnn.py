@@ -10,6 +10,7 @@ import torch
 
 from dcc_data.mission2_cnn import (
     SpeakerCNN,
+    SpeakerCNNLarge,
     SpectrogramDataset,
     collate_batch,
     evaluate,
@@ -79,6 +80,33 @@ def test_speaker_cnn_handles_a_very_short_single_frame_spectrogram() -> None:
     logits = model(spec)
     assert logits.shape == (1, 2)
     assert torch.isfinite(logits).all()
+
+
+def test_speaker_cnn_large_forward_pass_shape_for_variable_length_batch(tmp_path) -> None:
+    index_df, _ = _make_index_and_specs(tmp_path)
+    dataset = SpectrogramDataset(index_df, tmp_path)
+    batch = [dataset[i] for i in range(3)]
+    specs, _ = collate_batch(batch)
+
+    model = SpeakerCNNLarge()
+    logits = model(specs)
+
+    assert logits.shape == (3, 2)
+    assert torch.isfinite(logits).all()
+
+
+def test_speaker_cnn_large_handles_a_very_short_single_frame_spectrogram() -> None:
+    model = SpeakerCNNLarge()
+    spec = torch.zeros(1, 1, N_MELS, 1)
+    logits = model(spec)
+    assert logits.shape == (1, 2)
+    assert torch.isfinite(logits).all()
+
+
+def test_speaker_cnn_large_has_more_parameters_than_the_small_model() -> None:
+    small_params = sum(p.numel() for p in SpeakerCNN().parameters())
+    large_params = sum(p.numel() for p in SpeakerCNNLarge().parameters())
+    assert large_params > small_params * 4
 
 
 def test_train_one_epoch_and_evaluate_run_without_crashing(tmp_path) -> None:
