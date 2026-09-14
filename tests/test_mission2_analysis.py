@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from dcc_data.mission2_analysis import (
+    best_flip_point,
     bucket_duration,
     compute_overlap_flags,
+    find_label_discontinuity_candidates,
     find_label_swap_candidates,
     select_listening_samples,
 )
@@ -115,3 +118,64 @@ def test_find_label_swap_candidates_finds_greeting_within_first_three_utterances
     ]
     candidates = find_label_swap_candidates(calls)
     assert [c["call_id"] for c in candidates] == ["late_greeting"]
+
+
+def test_best_flip_point_finds_a_clean_mid_sequence_discontinuity() -> None:
+    # Mirrors the real 651e4c754428de718c773b56 finding: correct for the
+    # first 6 utterances, then confidently wrong for the rest -- flipping
+    # every label from index 6 onward should reproduce perfect agreement.
+    match = np.array([True] * 6 + [False] * 15)
+
+    flip_at, corrected_accuracy = best_flip_point(match)
+
+    assert flip_at == 6
+    assert corrected_accuracy == 1.0
+
+
+def test_best_flip_point_reports_full_accuracy_when_already_perfect() -> None:
+    match = np.array([True] * 10)
+    _, corrected_accuracy = best_flip_point(match)
+    assert corrected_accuracy == 1.0
+
+
+def test_best_flip_point_finds_no_good_split_for_a_genuinely_hard_call() -> None:
+    # No single flip point helps a call whose errors are just scattered
+    # (mirrors the messy, moderate-confidence real "hard call" cases) --
+    # the best any split point can do here is well short of "near-perfect".
+    match = np.array([True, False] * 10)
+    _, corrected_accuracy = best_flip_point(match)
+    assert corrected_accuracy < 0.7
+
+
+def test_find_label_discontinuity_candidates_flags_only_the_clean_discontinuity() -> None:
+    rows = []
+    # "swapped_midway": correct 0-5, then a clean flip from utt_idx 6 --
+    # raw accuracy is low but a real discontinuity explains all of it.
+    for utt_idx in range(20):
+        speaker = utt_idx % 2
+        predicted = speaker if utt_idx < 6 else 1 - speaker
+        rows.append({"call_id": "swapped_midway", "utt_idx": utt_idx, "speaker": speaker, "predicted": predicted})
+    # "hard_call": errors alternate every other utterance (same scattered
+    # shape verified in test_best_flip_point_finds_no_good_split_for_a_
+    # genuinely_hard_call, best possible corrected accuracy 0.55) -- no
+    # split point explains it, so it must NOT be flagged.
+    for utt_idx in range(20):
+        speaker = 0
+        predicted = utt_idx % 2
+        rows.append({"call_id": "hard_call", "utt_idx": utt_idx, "speaker": speaker, "predicted": predicted})
+    df = pd.DataFrame(rows)
+
+    candidates = find_label_discontinuity_candidates(df, min_utterances=5)
+
+    assert [c["call_id"] for c in candidates] == ["swapped_midway"]
+    assert candidates[0]["flip_from_utt_idx"] == 6
+    assert candidates[0]["corrected_accuracy"] == 1.0
+
+
+def test_find_label_discontinuity_candidates_skips_calls_below_min_utterances() -> None:
+    rows = [
+        {"call_id": "too_short", "utt_idx": 0, "speaker": 0, "predicted": 1},
+        {"call_id": "too_short", "utt_idx": 1, "speaker": 1, "predicted": 0},
+    ]
+    df = pd.DataFrame(rows)
+    assert find_label_discontinuity_candidates(df, min_utterances=5) == []
