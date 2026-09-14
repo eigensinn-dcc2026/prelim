@@ -177,6 +177,26 @@ PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX: dict[str, int] = {
 }
 
 
+def corrected_speaker(call_id: str, utt_idx: int, speaker: int) -> int:
+    """Apply CONFIRMED_LABEL_SWAPPED_CALL_IDS/PARTIAL_LABEL_SWAP_FLIP_FROM_
+    UTT_IDX to one utterance's raw speaker value.
+
+    Pulled out of build_utterance_records() so an already-built index
+    (e.g. the L2 spectrogram index, which stores speaker as a plain column
+    rather than re-deriving it from source JSON) can be patched in place --
+    see scripts/apply_mission2_label_fixes.py -- without re-reading audio
+    or the source JSON, which for the L2 index would mean re-running the
+    ~80-minute full spectrogram build for a fix that only changes a
+    handful of calls' speaker labels.
+    """
+
+    if call_id in CONFIRMED_LABEL_SWAPPED_CALL_IDS:
+        return 1 - speaker
+    if utt_idx >= PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX.get(call_id, float("inf")):
+        return 1 - speaker
+    return speaker
+
+
 def _load_call_utterances(json_path: Path) -> tuple[str, list[dict]]:
     with json_path.open("r", encoding="utf-8") as stream:
         document = json.load(stream)
@@ -216,11 +236,7 @@ def build_utterance_records(row: ManifestRow, data_root: Path) -> list[Utterance
             )
         if speaker not in (0, 1):
             raise ValueError(f"speaker must be 0 or 1: {json_path}[{idx}] got {speaker!r}")
-        speaker = int(speaker)
-        if call_id in CONFIRMED_LABEL_SWAPPED_CALL_IDS:
-            speaker = 1 - speaker
-        elif idx >= PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX.get(call_id, float("inf")):
-            speaker = 1 - speaker
+        speaker = corrected_speaker(call_id, idx, int(speaker))
         records.append(
             UtteranceRecord(
                 call_id=call_id,
