@@ -14,6 +14,7 @@ from dcc_data.mission2_cnn import (
     collate_batch,
     evaluate,
     move_optimizer_state_to_device,
+    predict_with_confidence,
     train_one_epoch,
     train_with_best_checkpoint,
 )
@@ -118,6 +119,25 @@ def test_move_optimizer_state_to_device_moves_every_tensor_and_keeps_values(tmp_
             if torch.is_tensor(value):
                 assert value.device.type == "cpu"
                 assert torch.equal(value, before[id(p)][key])
+
+
+def test_predict_with_confidence_matches_evaluate_and_is_bounded(tmp_path) -> None:
+    index_df, _ = _make_index_and_specs(tmp_path)
+    dataset = SpectrogramDataset(index_df, tmp_path)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=False, collate_fn=collate_batch)
+
+    model = SpeakerCNN()
+    acc, eval_preds, eval_labels = evaluate(model, loader, device="cpu")
+
+    preds, labels, confidence = predict_with_confidence(model, loader, device="cpu")
+
+    # Same model, same (unshuffled) loader -- predictions must agree with evaluate().
+    assert np.array_equal(preds, eval_preds)
+    assert np.array_equal(labels, eval_labels)
+    assert float((preds == labels).mean()) == acc
+    # A softmax probability for a binary (argmax of 2) classification is
+    # always >= 0.5 for the class it picked.
+    assert ((confidence >= 0.5) & (confidence <= 1.0)).all()
 
 
 def _make_larger_index_and_specs(tmp_path, n_items=12, n_mels=N_MELS):

@@ -147,6 +147,31 @@ def evaluate(model: nn.Module, loader, device: str) -> tuple[float, np.ndarray, 
     return accuracy, preds, labels_arr
 
 
+@torch.no_grad()
+def predict_with_confidence(model: nn.Module, loader, device: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Like evaluate(), plus a confidence score per prediction: the softmax
+    probability the model assigned to the class it actually predicted --
+    mirrors L1's predict_proba-based confidence column in
+    scripts/analyze_mission2_errors.py, for the same error-analysis use
+    (are wrong predictions confidently wrong, or borderline?). Always in
+    [0.5, 1.0] for a 2-class argmax.
+    """
+
+    model.to(device)
+    model.eval()
+    all_preds, all_labels, all_confidence = [], [], []
+    for specs, labels in loader:
+        specs = specs.to(device)
+        logits = model(specs)
+        probs = torch.softmax(logits, dim=1)
+        preds = probs.argmax(dim=1)
+        confidence = probs.gather(1, preds.unsqueeze(1)).squeeze(1)
+        all_preds.append(preds.cpu().numpy())
+        all_labels.append(labels.numpy())
+        all_confidence.append(confidence.cpu().numpy())
+    return np.concatenate(all_preds), np.concatenate(all_labels), np.concatenate(all_confidence)
+
+
 def train_with_best_checkpoint(
     model: nn.Module,
     train_loader,
