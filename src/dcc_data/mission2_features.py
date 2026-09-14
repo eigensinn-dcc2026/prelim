@@ -156,9 +156,25 @@ CONFIRMED_LABEL_SWAPPED_CALL_IDS: frozenset[str] = frozenset(
         "651e4b1829d82455557a23b2",
         "651e50c72f06ed4a6e31e3d4",
         "651e4c754428de718c773dab",
-        "651e4c754428de718c773b56",
     }
 )
+
+# Calls where only *part* of the call is mislabeled -- every utterance from
+# the given utt_idx onward needs its speaker flipped, not the whole call.
+# Found by dcc_data.mission2_analysis.find_label_discontinuity_candidates()
+# against the L2 CNN's held-out val predictions: for these calls, no single
+# whole-call flip explains the errors, but a flip starting partway through
+# does, at ~100% corrected accuracy -- the model confidently agrees with
+# the label up to that utt_idx and confidently disagrees from it on, with a
+# single clean boundary (see reports/mission2/m2_label_swap_audit.md).
+# 651e4c754428de718c773b56 was originally in CONFIRMED_LABEL_SWAPPED_CALL_IDS
+# as a whole-call swap; that fixed utt_idx 0-5 (which weren't broken) and
+# left 6+ (the actually-mislabeled ones) untouched -- moved here once the
+# CNN's predictions made the real boundary visible.
+PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX: dict[str, int] = {
+    "651e4c754428de718c773b56": 6,
+    "651e4e712e98ee712096903c": 5,
+}
 
 
 def _load_call_utterances(json_path: Path) -> tuple[str, list[dict]]:
@@ -202,6 +218,8 @@ def build_utterance_records(row: ManifestRow, data_root: Path) -> list[Utterance
             raise ValueError(f"speaker must be 0 or 1: {json_path}[{idx}] got {speaker!r}")
         speaker = int(speaker)
         if call_id in CONFIRMED_LABEL_SWAPPED_CALL_IDS:
+            speaker = 1 - speaker
+        elif idx >= PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX.get(call_id, float("inf")):
             speaker = 1 - speaker
         records.append(
             UtteranceRecord(
