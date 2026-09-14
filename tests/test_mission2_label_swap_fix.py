@@ -23,6 +23,7 @@ from dcc_data.mission2_features import (
     CONFIRMED_LABEL_SWAPPED_CALL_IDS,
     PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX,
     build_utterance_records,
+    corrected_speaker,
 )
 
 
@@ -78,3 +79,23 @@ def test_partially_swapped_call_flips_only_from_its_recorded_utt_idx_onward_buil
 
     expected = [s if i < flip_from else 1 - s for i, s in enumerate(speakers)]
     assert [r.speaker for r in records] == expected
+
+
+def test_corrected_speaker_matches_build_utterance_records_for_every_rule() -> None:
+    """corrected_speaker() is build_utterance_records()'s correction logic,
+    pulled out so an already-built index (e.g. the L2 spectrogram index)
+    can be patched in place without re-reading audio or source JSON -- see
+    scripts/apply_mission2_label_fixes.py. It must agree with
+    build_utterance_records() exactly, for all three cases.
+    """
+    whole_call_id = next(iter(CONFIRMED_LABEL_SWAPPED_CALL_IDS))
+    assert corrected_speaker(whole_call_id, 0, 0) == 1
+    assert corrected_speaker(whole_call_id, 5, 1) == 0
+
+    partial_call_id, flip_from = next(iter(PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX.items()))
+    assert corrected_speaker(partial_call_id, flip_from - 1, 0) == 0  # before the boundary: unchanged
+    assert corrected_speaker(partial_call_id, flip_from, 0) == 1  # at/after: flipped
+    assert corrected_speaker(partial_call_id, flip_from + 1, 1) == 0
+
+    assert corrected_speaker("not_in_any_list", 0, 0) == 0
+    assert corrected_speaker("not_in_any_list", 0, 1) == 1
