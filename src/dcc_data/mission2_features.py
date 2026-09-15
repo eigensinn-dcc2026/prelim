@@ -156,9 +156,45 @@ CONFIRMED_LABEL_SWAPPED_CALL_IDS: frozenset[str] = frozenset(
         "651e4b1829d82455557a23b2",
         "651e50c72f06ed4a6e31e3d4",
         "651e4c754428de718c773dab",
-        "651e4c754428de718c773b56",
     }
 )
+
+# Calls where only *part* of the call is mislabeled -- every utterance from
+# the given utt_idx onward needs its speaker flipped, not the whole call.
+# Found by dcc_data.mission2_analysis.find_label_discontinuity_candidates()
+# against the L2 CNN's held-out val predictions: for these calls, no single
+# whole-call flip explains the errors, but a flip starting partway through
+# does, at ~100% corrected accuracy -- the model confidently agrees with
+# the label up to that utt_idx and confidently disagrees from it on, with a
+# single clean boundary (see reports/mission2/m2_label_swap_audit.md).
+# 651e4c754428de718c773b56 was originally in CONFIRMED_LABEL_SWAPPED_CALL_IDS
+# as a whole-call swap; that fixed utt_idx 0-5 (which weren't broken) and
+# left 6+ (the actually-mislabeled ones) untouched -- moved here once the
+# CNN's predictions made the real boundary visible.
+PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX: dict[str, int] = {
+    "651e4c754428de718c773b56": 6,
+    "651e4e712e98ee712096903c": 5,
+}
+
+
+def corrected_speaker(call_id: str, utt_idx: int, speaker: int) -> int:
+    """Apply CONFIRMED_LABEL_SWAPPED_CALL_IDS/PARTIAL_LABEL_SWAP_FLIP_FROM_
+    UTT_IDX to one utterance's raw speaker value.
+
+    Pulled out of build_utterance_records() so an already-built index
+    (e.g. the L2 spectrogram index, which stores speaker as a plain column
+    rather than re-deriving it from source JSON) can be patched in place --
+    see scripts/apply_mission2_label_fixes.py -- without re-reading audio
+    or the source JSON, which for the L2 index would mean re-running the
+    ~80-minute full spectrogram build for a fix that only changes a
+    handful of calls' speaker labels.
+    """
+
+    if call_id in CONFIRMED_LABEL_SWAPPED_CALL_IDS:
+        return 1 - speaker
+    if utt_idx >= PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX.get(call_id, float("inf")):
+        return 1 - speaker
+    return speaker
 
 
 def _load_call_utterances(json_path: Path) -> tuple[str, list[dict]]:
@@ -200,9 +236,7 @@ def build_utterance_records(row: ManifestRow, data_root: Path) -> list[Utterance
             )
         if speaker not in (0, 1):
             raise ValueError(f"speaker must be 0 or 1: {json_path}[{idx}] got {speaker!r}")
-        speaker = int(speaker)
-        if call_id in CONFIRMED_LABEL_SWAPPED_CALL_IDS:
-            speaker = 1 - speaker
+        speaker = corrected_speaker(call_id, idx, int(speaker))
         records.append(
             UtteranceRecord(
                 call_id=call_id,
