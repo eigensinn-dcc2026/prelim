@@ -1,0 +1,100 @@
+{
+  "n_validation_utterances": 164983,
+  "overall_accuracy": 0.8459295806234581,
+  "accuracy_by_overlap": {
+    "False": {
+      "accuracy": 0.8826587970770096,
+      "n": 92508
+    },
+    "True": {
+      "accuracy": 0.7990479475681269,
+      "n": 72475
+    }
+  },
+  "accuracy_by_duration_bucket": {
+    "<0.5s": {
+      "accuracy": 0.8402634198636956,
+      "n": 13059
+    },
+    "0.5-1s": {
+      "accuracy": 0.800030036795074,
+      "n": 39951
+    },
+    "1-2s": {
+      "accuracy": 0.8254324210061945,
+      "n": 54403
+    },
+    "2-4s": {
+      "accuracy": 0.8851882973034909,
+      "n": 39273
+    },
+    ">=4s": {
+      "accuracy": 0.926873257911133,
+      "n": 18297
+    }
+  },
+  "accuracy_by_true_class": {
+    "0": {
+      "accuracy": 0.7974851008605591,
+      "n": 79367
+    },
+    "1": {
+      "accuracy": 0.8908381610913848,
+      "n": 85616
+    }
+  },
+  "mean_confidence_when_correct": 0.8543200466524007,
+  "mean_confidence_when_wrong": 0.6706436630229226,
+  "worst_calls_top10": [
+    {
+      "call_id": "651e5550bfd63782eb3866a5",
+      "accuracy": 0.05,
+      "n_utterances": 20
+    },
+    {
+      "call_id": "651e4b1829d82455557a23b2",
+      "accuracy": 0.14285714285714285,
+      "n_utterances": 21
+    },
+    {
+      "call_id": "651e49d83f1c5e4f25eec885",
+      "accuracy": 0.3235294117647059,
+      "n_utterances": 34
+    },
+    {
+      "call_id": "651e49d83f1c5e4f25eec782",
+      "accuracy": 0.3333333333333333,
+      "n_utterances": 27
+    },
+    {
+      "call_id": "651e4bfaf12d88de38d497f0",
+      "accuracy": 0.36,
+      "n_utterances": 25
+    },
+    {
+      "call_id": "651e53b5e498f89fe56780ca",
+      "accuracy": 0.375,
+      "n_utterances": 16
+    },
+    {
+      "call_id": "651e4c3e8c3bda5f9fa38af4",
+      "accuracy": 0.375,
+      "n_utterances": 16
+    },
+    {
+      "call_id": "651e50ebf615d4163143bad9",
+      "accuracy": 0.38461538461538464,
+      "n_utterances": 13
+    },
+    {
+      "call_id": "651e53da81ad054c47959955",
+      "accuracy": 0.3888888888888889,
+      "n_utterances": 54
+    },
+    {
+      "call_id": "651e5272f98a6671a3fee233",
+      "accuracy": 0.41379310344827586,
+      "n_utterances": 29
+    }
+  ]
+}
