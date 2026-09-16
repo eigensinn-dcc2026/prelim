@@ -62,6 +62,41 @@ def collate_batch(batch: list[tuple[torch.Tensor, int]]) -> tuple[torch.Tensor, 
     return padded, labels_tensor
 
 
+class SpectrogramWithDurationDataset(SpectrogramDataset):
+    """Like SpectrogramDataset, but also yields each utterance's own
+    ``duration_sec`` (its own startAt/endAt span -- allowed, see
+    SpeakerCNNLargeWithDuration) alongside its spectrogram and label.
+
+    A separate class (rather than adding duration to SpectrogramDataset
+    itself) so every existing SpectrogramDataset/collate_batch caller --
+    the shipped 91.22% pipeline in particular -- is untouched.
+    """
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, float, int]:
+        row = self.index_df.iloc[idx]
+        spec = np.load(self.spectrogram_dir / row["npy_path"])
+        return torch.from_numpy(spec), float(row["duration_sec"]), int(row["speaker"])
+
+
+def collate_batch_with_duration(
+    batch: list[tuple[torch.Tensor, float, int]],
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Like collate_batch, plus stacking each item's own duration_sec into a
+    (batch,) float tensor.
+    """
+
+    specs, durations, labels = zip(*batch)
+    n_mels = specs[0].shape[0]
+    max_frames = max(spec.shape[1] for spec in specs)
+
+    padded = torch.full((len(specs), 1, n_mels, max_frames), SPEC_FLOOR_DB, dtype=torch.float32)
+    for i, spec in enumerate(specs):
+        padded[i, 0, :, : spec.shape[1]] = spec
+    durations_tensor = torch.tensor(durations, dtype=torch.float32)
+    labels_tensor = torch.tensor(labels, dtype=torch.long)
+    return padded, durations_tensor, labels_tensor
+
+
 class SpeakerCNN(nn.Module):
     def __init__(self, n_mels: int = N_MELS) -> None:
         super().__init__()
@@ -139,6 +174,68 @@ class SpeakerCNNLarge(nn.Module):
         return self.classifier(x)
 
 
+class SpeakerCNNLargeWithDuration(nn.Module):
+    """SpeakerCNNLarge's conv stack, plus the utterance's own duration_sec
+    concatenated into the classifier head as an explicit scalar input.
+
+    Why: the L2 error analysis found the remaining 대원/신고자 gap
+    concentrated in short, content-free backchannel utterances ("네"/"예").
+    SpeakerCNNLarge already sees a short utterance's true frame count, but
+    only implicitly, diluted by the batch's own zero-padding -- for a very
+    short utterance, 3 rounds of MaxPool(stride 2) can leave only 1-2
+    surviving timesteps before AdaptiveAvgPool2d. Giving the model duration
+    directly (log1p-compressed, since raw seconds are strongly right-skewed)
+    lets it condition on "this is a very short utterance" without relying on
+    that weak, indirect signal. duration_sec is the current utterance's own
+    endAt-startAt span -- not derived from any other utterance in the call,
+    so this stays within the isolated-fragment rule (see
+    [[project-dcc2026-contest-rules]]).
+
+    A separate class from SpeakerCNNLarge (not a modification) so the
+    already-trained 91.22% checkpoint and scripts/train_mission2_cnn.py's
+    default path are untouched -- its classifier's first Linear has a
+    different input width (257, not 256), so an old checkpoint's state_dict
+    wouldn't load into it anyway. Pass --model large-duration to
+    scripts/train_mission2_cnn.py to train this one.
+    """
+
+    def __init__(self, n_mels: int = N_MELS) -> None:
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2, ceil_mode=True),
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2, ceil_mode=True),
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2, ceil_mode=True),
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+        )
+        self.pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.flatten = nn.Flatten()
+        self.classifier = nn.Sequential(
+            nn.Linear(256 + 1, 128),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 2),
+        )
+
+    def forward(self, x: torch.Tensor, duration: torch.Tensor) -> torch.Tensor:
+        x = self.features(x)
+        x = self.pool(x)
+        x = self.flatten(x)
+        duration_feature = torch.log1p(duration.to(x.dtype)).unsqueeze(1)
+        x = torch.cat([x, duration_feature], dim=1)
+        return self.classifier(x)
+
+
 def move_optimizer_state_to_device(optimizer: torch.optim.Optimizer, device: str) -> None:
     """Move every tensor in ``optimizer.state`` (e.g. Adam's exp_avg/
     exp_avg_sq momentum buffers) to ``device``, in place.
@@ -159,15 +256,22 @@ def move_optimizer_state_to_device(optimizer: torch.optim.Optimizer, device: str
 
 
 def train_one_epoch(model: nn.Module, loader, optimizer, device: str) -> float:
+    """``loader`` yields ``(*model_inputs, labels)`` tuples -- ``(specs,
+    labels)`` for SpeakerCNN/SpeakerCNNLarge, or ``(specs, duration,
+    labels)`` for SpeakerCNNLargeWithDuration -- and ``model(*model_inputs)``
+    is called accordingly, so this one loop drives either.
+    """
+
     model.to(device)
     model.train()
     criterion = nn.CrossEntropyLoss()
     total_loss = 0.0
     n = 0
-    for specs, labels in loader:
-        specs, labels = specs.to(device), labels.to(device)
+    for *inputs, labels in loader:
+        inputs = [t.to(device) for t in inputs]
+        labels = labels.to(device)
         optimizer.zero_grad()
-        logits = model(specs)
+        logits = model(*inputs)
         loss = criterion(logits, labels)
         loss.backward()
         optimizer.step()
@@ -178,13 +282,15 @@ def train_one_epoch(model: nn.Module, loader, optimizer, device: str) -> float:
 
 @torch.no_grad()
 def evaluate(model: nn.Module, loader, device: str) -> tuple[float, np.ndarray, np.ndarray]:
+    """See train_one_epoch()'s docstring for ``loader``'s tuple shape."""
+
     model.to(device)
     model.eval()
     all_preds = []
     all_labels = []
-    for specs, labels in loader:
-        specs = specs.to(device)
-        logits = model(specs)
+    for *inputs, labels in loader:
+        inputs = [t.to(device) for t in inputs]
+        logits = model(*inputs)
         all_preds.append(logits.argmax(dim=1).cpu().numpy())
         all_labels.append(labels.numpy())
     preds = np.concatenate(all_preds)
@@ -201,14 +307,16 @@ def predict_with_confidence(model: nn.Module, loader, device: str) -> tuple[np.n
     scripts/analyze_mission2_errors.py, for the same error-analysis use
     (are wrong predictions confidently wrong, or borderline?). Always in
     [0.5, 1.0] for a 2-class argmax.
+
+    See train_one_epoch()'s docstring for ``loader``'s tuple shape.
     """
 
     model.to(device)
     model.eval()
     all_preds, all_labels, all_confidence = [], [], []
-    for specs, labels in loader:
-        specs = specs.to(device)
-        logits = model(specs)
+    for *inputs, labels in loader:
+        inputs = [t.to(device) for t in inputs]
+        logits = model(*inputs)
         probs = torch.softmax(logits, dim=1)
         preds = probs.argmax(dim=1)
         confidence = probs.gather(1, preds.unsqueeze(1)).squeeze(1)

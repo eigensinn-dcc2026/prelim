@@ -11,8 +11,11 @@ import torch
 from dcc_data.mission2_cnn import (
     SpeakerCNN,
     SpeakerCNNLarge,
+    SpeakerCNNLargeWithDuration,
     SpectrogramDataset,
+    SpectrogramWithDurationDataset,
     collate_batch,
+    collate_batch_with_duration,
     evaluate,
     move_optimizer_state_to_device,
     predict_with_confidence,
@@ -33,6 +36,15 @@ def _make_index_and_specs(tmp_path, n_mels=N_MELS):
         np.save(full_path, spec)
         rows.append({"call_id": f"call{i}", "utt_idx": 0, "speaker": i % 2, "n_frames": n_frames, "npy_path": npy_path})
     return pd.DataFrame(rows), frame_counts
+
+
+def _make_index_and_specs_with_duration(tmp_path, n_mels=N_MELS):
+    index_df, frame_counts = _make_index_and_specs(tmp_path, n_mels=n_mels)
+    # distinct, deliberately *not* proportional to n_frames -- duration_sec is
+    # this utterance's own startAt/endAt span, not something derivable from
+    # the spectrogram's own frame count, so the fixture shouldn't conflate them.
+    index_df["duration_sec"] = [0.31, 4.97, 1.2]
+    return index_df, frame_counts
 
 
 def test_spectrogram_dataset_returns_tensor_and_label(tmp_path) -> None:
@@ -56,6 +68,33 @@ def test_collate_batch_pads_to_the_batch_max_with_the_floor_value(tmp_path) -> N
     assert labels.shape == (3,)
     # the shortest spectrogram's padded tail must read as silence (the floor),
     # not 0.0 -- 0 dB would be that utterance's *loudest* frame instead.
+    shortest_idx = frame_counts.index(min(frame_counts))
+    padded_tail = specs[shortest_idx, 0, :, frame_counts[shortest_idx] :]
+    assert torch.allclose(padded_tail, torch.full_like(padded_tail, SPEC_FLOOR_DB))
+
+
+def test_spectrogram_with_duration_dataset_returns_tensor_duration_and_label(tmp_path) -> None:
+    index_df, frame_counts = _make_index_and_specs_with_duration(tmp_path)
+    dataset = SpectrogramWithDurationDataset(index_df, tmp_path)
+
+    assert len(dataset) == 3
+    spec, duration, label = dataset[1]
+    assert spec.shape == (N_MELS, frame_counts[1])
+    assert duration == 4.97
+    assert label in (0, 1)
+
+
+def test_collate_batch_with_duration_pads_specs_and_stacks_durations(tmp_path) -> None:
+    index_df, frame_counts = _make_index_and_specs_with_duration(tmp_path)
+    dataset = SpectrogramWithDurationDataset(index_df, tmp_path)
+    batch = [dataset[i] for i in range(3)]
+
+    specs, durations, labels = collate_batch_with_duration(batch)
+
+    assert specs.shape == (3, 1, N_MELS, max(frame_counts))
+    assert durations.shape == (3,)
+    assert torch.allclose(durations, torch.tensor([0.31, 4.97, 1.2]), atol=1e-6)
+    assert labels.shape == (3,)
     shortest_idx = frame_counts.index(min(frame_counts))
     padded_tail = specs[shortest_idx, 0, :, frame_counts[shortest_idx] :]
     assert torch.allclose(padded_tail, torch.full_like(padded_tail, SPEC_FLOOR_DB))
@@ -109,12 +148,64 @@ def test_speaker_cnn_large_has_more_parameters_than_the_small_model() -> None:
     assert large_params > small_params * 4
 
 
+def test_speaker_cnn_large_with_duration_forward_pass_shape_for_variable_length_batch(tmp_path) -> None:
+    index_df, _ = _make_index_and_specs_with_duration(tmp_path)
+    dataset = SpectrogramWithDurationDataset(index_df, tmp_path)
+    batch = [dataset[i] for i in range(3)]
+    specs, durations, _ = collate_batch_with_duration(batch)
+
+    model = SpeakerCNNLargeWithDuration()
+    logits = model(specs, durations)
+
+    assert logits.shape == (3, 2)
+    assert torch.isfinite(logits).all()
+
+
+def test_speaker_cnn_large_with_duration_actually_uses_the_duration_input(tmp_path) -> None:
+    index_df, _ = _make_index_and_specs_with_duration(tmp_path)
+    dataset = SpectrogramWithDurationDataset(index_df, tmp_path)
+    batch = [dataset[i] for i in range(3)]
+    specs, _, _ = collate_batch_with_duration(batch)
+
+    model = SpeakerCNNLargeWithDuration()
+    model.eval()
+    short_duration = torch.zeros(3)
+    long_duration = torch.full((3,), 10.0)
+    with torch.no_grad():
+        logits_short = model(specs, short_duration)
+        logits_long = model(specs, long_duration)
+
+    # Same spectrograms, only the duration input differs -- if the model
+    # weren't actually reading it, these would be identical.
+    assert not torch.allclose(logits_short, logits_long)
+
+
 def test_train_one_epoch_and_evaluate_run_without_crashing(tmp_path) -> None:
     index_df, _ = _make_index_and_specs(tmp_path)
     dataset = SpectrogramDataset(index_df, tmp_path)
     loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=collate_batch)
 
     model = SpeakerCNN()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+    loss = train_one_epoch(model, loader, optimizer, device="cpu")
+    assert np.isfinite(loss)
+
+    acc, preds, labels = evaluate(model, loader, device="cpu")
+    assert 0.0 <= acc <= 1.0
+    assert preds.shape == labels.shape == (3,)
+
+
+def test_train_one_epoch_and_evaluate_work_with_a_duration_conditioned_model(tmp_path) -> None:
+    # train_one_epoch()/evaluate() unpack loader batches as `*inputs, labels`
+    # and call `model(*inputs)`, so the same two functions must also drive a
+    # model whose loader yields (specs, duration, label) triples, with no
+    # duration-specific branching needed in either function.
+    index_df, _ = _make_index_and_specs_with_duration(tmp_path)
+    dataset = SpectrogramWithDurationDataset(index_df, tmp_path)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=collate_batch_with_duration)
+
+    model = SpeakerCNNLargeWithDuration()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     loss = train_one_epoch(model, loader, optimizer, device="cpu")
@@ -165,6 +256,26 @@ def test_predict_with_confidence_matches_evaluate_and_is_bounded(tmp_path) -> No
     assert float((preds == labels).mean()) == acc
     # A softmax probability for a binary (argmax of 2) classification is
     # always >= 0.5 for the class it picked.
+    assert ((confidence >= 0.5) & (confidence <= 1.0)).all()
+
+
+def test_predict_with_confidence_matches_evaluate_for_a_duration_conditioned_model(tmp_path) -> None:
+    # scripts/analyze_mission2_cnn_errors.py's duration-bucket breakdown --
+    # the whole point of SpeakerCNNLargeWithDuration -- calls
+    # predict_with_confidence() on the checkpoint under analysis, so it must
+    # drive a duration-conditioned model exactly like evaluate() does.
+    index_df, _ = _make_index_and_specs_with_duration(tmp_path)
+    dataset = SpectrogramWithDurationDataset(index_df, tmp_path)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=False, collate_fn=collate_batch_with_duration)
+
+    model = SpeakerCNNLargeWithDuration()
+    acc, eval_preds, eval_labels = evaluate(model, loader, device="cpu")
+
+    preds, labels, confidence = predict_with_confidence(model, loader, device="cpu")
+
+    assert np.array_equal(preds, eval_preds)
+    assert np.array_equal(labels, eval_labels)
+    assert float((preds == labels).mean()) == acc
     assert ((confidence >= 0.5) & (confidence <= 1.0)).all()
 
 
