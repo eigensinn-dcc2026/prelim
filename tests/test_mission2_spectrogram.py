@@ -16,6 +16,7 @@ from pathlib import Path
 import numpy as np
 
 from dcc_data.manifest import ManifestRow
+from dcc_data.mission2_features import HOP_LENGTH
 from dcc_data.mission2_spectrogram import (
     N_MELS,
     SPEC_FLOOR_DB,
@@ -59,6 +60,28 @@ def test_mel_spectrogram_frame_count_grows_with_duration() -> None:
     short_spec = mel_spectrogram(_tone(150.0, 0.5), 8000)
     long_spec = mel_spectrogram(_tone(150.0, 3.0), 8000)
     assert long_spec.shape[1] > short_spec.shape[1]
+
+
+def test_mel_spectrogram_hop_length_defaults_to_the_shared_constant() -> None:
+    # Same output whether HOP_LENGTH is relied on implicitly or passed
+    # explicitly -- callers that don't care about resolution (L1's use of
+    # HOP_LENGTH, or any existing spectrogram-building call) see no change.
+    segment = _tone(150.0, 1.0)
+    default_spec = mel_spectrogram(segment, 8000)
+    explicit_spec = mel_spectrogram(segment, 8000, hop_length=HOP_LENGTH)
+    assert np.array_equal(default_spec, explicit_spec)
+
+
+def test_mel_spectrogram_smaller_hop_length_yields_more_frames() -> None:
+    # The whole point of the experiment: a short utterance survives fewer
+    # MaxPool(stride 2) rounds with more frames to start from -- see
+    # SpeakerCNN's docstring. Halving hop_length should roughly double the
+    # frame count for the same audio.
+    segment = _tone(150.0, 1.0)
+    default_spec = mel_spectrogram(segment, 8000, hop_length=HOP_LENGTH)
+    finer_spec = mel_spectrogram(segment, 8000, hop_length=HOP_LENGTH // 2)
+    assert finer_spec.shape[1] > default_spec.shape[1] * 1.5
+    assert finer_spec.shape[0] == N_MELS  # only time resolution changes
 
 
 def test_mel_spectrogram_is_near_silent_for_pure_silence() -> None:
@@ -114,3 +137,24 @@ def test_build_seoul_training_spectrograms_saves_one_npy_per_utterance(tmp_path:
         assert spec.shape[1] == entry["n_frames"]
         assert np.isfinite(spec).all()
         assert entry["speaker"] in (0, 1)
+
+
+def test_build_seoul_training_spectrograms_hop_length_controls_frame_count(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    utterances = [(0, 90, 0), (200, 1800, 1), (1900, 3400, 0)]
+    wav_relative = "chunk/Training/1.원천데이터/TS_서울_구급/call1.wav"
+    json_relative = "chunk/Training/2.라벨링데이터/TL_서울_구급/call1.json"
+    _write_call(root, wav_relative, json_relative, utterances, seed=0)
+    row = ManifestRow("Training", "call1", wav_relative, json_relative)
+
+    default_rows, _ = build_seoul_training_spectrograms(
+        [row], root, tmp_path / "specs_default", n_calls=1, seed=42
+    )
+    finer_rows, _ = build_seoul_training_spectrograms(
+        [row], root, tmp_path / "specs_finer", n_calls=1, seed=42, hop_length=HOP_LENGTH // 2
+    )
+
+    default_by_utt = {entry["utt_idx"]: entry["n_frames"] for entry in default_rows}
+    finer_by_utt = {entry["utt_idx"]: entry["n_frames"] for entry in finer_rows}
+    for utt_idx, default_n_frames in default_by_utt.items():
+        assert finer_by_utt[utt_idx] > default_n_frames
