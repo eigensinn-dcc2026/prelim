@@ -57,15 +57,23 @@ from sklearn.metrics import confusion_matrix, recall_score  # noqa: E402
 from dcc_data.mission2_cnn import (  # noqa: E402
     SpeakerCNN,
     SpeakerCNNLarge,
+    SpeakerCNNLargeWithDuration,
     SpectrogramDataset,
+    SpectrogramWithDurationDataset,
     collate_batch,
+    collate_batch_with_duration,
     evaluate,
     move_optimizer_state_to_device,
     train_with_best_checkpoint,
 )
 from dcc_data.mission2_train import make_group_split  # noqa: E402
 
-MODEL_CLASSES = {"small": SpeakerCNN, "large": SpeakerCNNLarge}
+MODEL_CLASSES = {"small": SpeakerCNN, "large": SpeakerCNNLarge, "large-duration": SpeakerCNNLargeWithDuration}
+# large-duration's loader yields (specs, duration, label) instead of (specs,
+# label) -- see SpeakerCNNLargeWithDuration's docstring -- so its Dataset/
+# collate_fn differ too; every other model shares the plain pair.
+DATASET_CLASSES = {"small": SpectrogramDataset, "large": SpectrogramDataset, "large-duration": SpectrogramWithDurationDataset}
+COLLATE_FNS = {"small": collate_batch, "large": collate_batch, "large-duration": collate_batch_with_duration}
 
 
 def parse_args() -> argparse.Namespace:
@@ -80,7 +88,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lr-patience", type=int, default=2, help="epochs with no val_acc improvement before halving lr")
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
     parser.add_argument("--num-workers", type=int, default=0)
-    parser.add_argument("--model", type=str, default="small", choices=list(MODEL_CLASSES), help="small=SpeakerCNN (25.7k params), large=SpeakerCNNLarge (422k params)")
+    parser.add_argument(
+        "--model", type=str, default="small", choices=list(MODEL_CLASSES),
+        help="small=SpeakerCNN (25.7k params), large=SpeakerCNNLarge (422k params), "
+        "large-duration=SpeakerCNNLarge + this utterance's own duration_sec as an explicit input",
+    )
     parser.add_argument("--model-output", type=Path, default=Path("checkpoints/mission2/m2_cnn.pt"))
     parser.add_argument("--resume", action="store_true", help="continue from --model-output instead of a fresh model")
     return parser.parse_args()
@@ -97,13 +109,15 @@ def main() -> int:
     val_df = df.iloc[val_idx]
     print(f"train={len(train_df)} val={len(val_df)} train_calls={train_df['call_id'].nunique()} val_calls={val_df['call_id'].nunique()}")
 
+    dataset_cls = DATASET_CLASSES[args.model]
+    collate_fn = COLLATE_FNS[args.model]
     train_loader = torch.utils.data.DataLoader(
-        SpectrogramDataset(train_df, args.spectrogram_dir),
-        batch_size=args.batch_size, shuffle=True, collate_fn=collate_batch, num_workers=args.num_workers,
+        dataset_cls(train_df, args.spectrogram_dir),
+        batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=args.num_workers,
     )
     val_loader = torch.utils.data.DataLoader(
-        SpectrogramDataset(val_df, args.spectrogram_dir),
-        batch_size=args.batch_size, shuffle=False, collate_fn=collate_batch, num_workers=args.num_workers,
+        dataset_cls(val_df, args.spectrogram_dir),
+        batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=args.num_workers,
     )
 
     model_cls = MODEL_CLASSES[args.model]

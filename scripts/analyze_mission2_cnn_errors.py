@@ -47,10 +47,21 @@ import pandas as pd  # noqa: E402
 import torch  # noqa: E402
 
 from dcc_data.mission2_analysis import DURATION_LABELS, bucket_duration, compute_overlap_flags  # noqa: E402
-from dcc_data.mission2_cnn import SpeakerCNN, SpeakerCNNLarge, SpectrogramDataset, collate_batch, predict_with_confidence  # noqa: E402
+from dcc_data.mission2_cnn import (  # noqa: E402
+    SpeakerCNN,
+    SpeakerCNNLarge,
+    SpeakerCNNLargeWithDuration,
+    SpectrogramDataset,
+    SpectrogramWithDurationDataset,
+    collate_batch,
+    collate_batch_with_duration,
+    predict_with_confidence,
+)
 from dcc_data.mission2_train import make_group_split  # noqa: E402
 
-MODEL_CLASSES = {"small": SpeakerCNN, "large": SpeakerCNNLarge}
+MODEL_CLASSES = {"small": SpeakerCNN, "large": SpeakerCNNLarge, "large-duration": SpeakerCNNLargeWithDuration}
+DATASET_CLASSES = {"small": SpectrogramDataset, "large": SpectrogramDataset, "large-duration": SpectrogramWithDurationDataset}
+COLLATE_FNS = {"small": collate_batch, "large": collate_batch, "large-duration": collate_batch_with_duration}
 
 
 def parse_args() -> argparse.Namespace:
@@ -79,9 +90,11 @@ def main() -> int:
     train_idx, val_idx = make_group_split(df, seed=args.seed, test_size=args.test_size)
     val_df = df.iloc[val_idx][["call_id", "utt_idx", "speaker", "duration_sec"]].reset_index(drop=True).copy()
 
+    dataset_cls = DATASET_CLASSES[args.model]
+    collate_fn = COLLATE_FNS[args.model]
     val_loader = torch.utils.data.DataLoader(
-        SpectrogramDataset(df.iloc[val_idx], args.spectrogram_dir),
-        batch_size=args.batch_size, shuffle=False, collate_fn=collate_batch, num_workers=args.num_workers,
+        dataset_cls(df.iloc[val_idx], args.spectrogram_dir),
+        batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=args.num_workers,
     )
 
     checkpoint = torch.load(args.ckpt_path, map_location="cpu")
