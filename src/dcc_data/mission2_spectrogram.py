@@ -45,12 +45,21 @@ N_MELS = 40
 SPEC_FLOOR_DB = -80.0
 
 
-def mel_spectrogram(segment: np.ndarray, sample_rate: int, *, n_mels: int = N_MELS) -> np.ndarray:
+def mel_spectrogram(
+    segment: np.ndarray, sample_rate: int, *, n_mels: int = N_MELS, hop_length: int = HOP_LENGTH
+) -> np.ndarray:
     """Log-mel spectrogram, shape (n_mels, n_frames), normalized to this
     segment's own peak (0 dB ceiling, SPEC_FLOOR_DB floor) -- per-utterance
     relative loudness, the same reason CALL_RELATIVE_FEATURE_COLUMNS z-score
     against each call's own mean/std rather than an absolute scale: absolute
     recording gain varies per call and isn't a speaker-identity signal.
+
+    ``hop_length`` defaults to the same HOP_LENGTH L1's hand-crafted features
+    use, so every existing caller is unaffected. A smaller value gives more
+    frames for the same audio -- SpeakerCNN's 3 rounds of MaxPool(stride 2)
+    can otherwise leave a short (backchannel-length) utterance with only 1-2
+    surviving timesteps before AdaptiveAvgPool2d; see
+    scripts/build_mission2_spectrograms.py's --hop-length.
     """
 
     if len(segment) < N_FFT:
@@ -58,7 +67,7 @@ def mel_spectrogram(segment: np.ndarray, sample_rate: int, *, n_mels: int = N_ME
     segment = segment.astype(np.float32, copy=False)
 
     mel = librosa.feature.melspectrogram(
-        y=segment, sr=sample_rate, n_fft=N_FFT, hop_length=HOP_LENGTH, n_mels=n_mels
+        y=segment, sr=sample_rate, n_fft=N_FFT, hop_length=hop_length, n_mels=n_mels
     )
     log_mel = librosa.power_to_db(mel, ref=np.max, top_db=-SPEC_FLOOR_DB)
     return np.nan_to_num(log_mel, nan=SPEC_FLOOR_DB, neginf=SPEC_FLOOR_DB).astype(np.float32)
@@ -79,7 +88,9 @@ def _spectrogram_path(output_dir: Path, call_id: str, utt_idx: int) -> Path:
     return output_dir / call_id / f"{utt_idx}.npy"
 
 
-def _process_one_call_spectrograms(row: ManifestRow, data_root: Path, output_dir: Path) -> tuple[list[dict], list[dict]]:
+def _process_one_call_spectrograms(
+    row: ManifestRow, data_root: Path, output_dir: Path, hop_length: int = HOP_LENGTH
+) -> tuple[list[dict], list[dict]]:
     """Process exactly one call: slice every utterance, save its spectrogram.
 
     Same "log, never silently drop" failure policy as
@@ -113,7 +124,7 @@ def _process_one_call_spectrograms(row: ManifestRow, data_root: Path, output_dir
         try:
             start_frame, end_frame = utterance_frame_range(record.start_at, record.end_at, sample_rate, total_frames)
             segment = slice_and_pad(waveform, start_frame, end_frame, N_FFT)
-            spec = mel_spectrogram(segment, sample_rate)
+            spec = mel_spectrogram(segment, sample_rate, hop_length=hop_length)
         except Exception as exc:  # noqa: BLE001
             failures.append(
                 {"stage": "spectrogram", "call_id": record.call_id, "utt_idx": record.utt_idx, "error_type": type(exc).__name__, "error_message": str(exc)}
@@ -148,12 +159,17 @@ def build_seoul_training_spectrograms(
     failure_sink: list[dict] | None = None,
     on_call_done: OnCallDone | None = None,
     max_workers: int = 1,
+    hop_length: int = HOP_LENGTH,
 ) -> tuple[list[dict], list[dict]]:
     """Sample Seoul/Training calls and save one spectrogram .npy per utterance.
 
     Mirrors mission2_features.build_seoul_training_dataset's sampling/
     parallelism/failure-logging exactly; only the per-utterance output
     differs (a saved .npy + an index row, instead of a 61-dim feature dict).
+
+    ``hop_length`` defaults to HOP_LENGTH (unchanged behavior); pass a
+    smaller value to build a separate, higher time-resolution spectrogram
+    set into a different ``output_dir`` -- see mel_spectrogram()'s docstring.
     """
 
     index_sink = index_sink if index_sink is not None else []
@@ -166,7 +182,7 @@ def build_seoul_training_spectrograms(
 
     if max_workers <= 1:
         for call_number, row in enumerate(sampled_rows, start=1):
-            index_rows, failures = _process_one_call_spectrograms(row, data_root, output_dir)
+            index_rows, failures = _process_one_call_spectrograms(row, data_root, output_dir, hop_length)
             index_sink.extend(index_rows)
             failure_sink.extend(failures)
             if on_call_done:
@@ -175,7 +191,10 @@ def build_seoul_training_spectrograms(
         from concurrent.futures import ProcessPoolExecutor, as_completed
 
         with ProcessPoolExecutor(max_workers=max_workers) as pool:
-            futures = [pool.submit(_process_one_call_spectrograms, row, data_root, output_dir) for row in sampled_rows]
+            futures = [
+                pool.submit(_process_one_call_spectrograms, row, data_root, output_dir, hop_length)
+                for row in sampled_rows
+            ]
             for call_number, future in enumerate(as_completed(futures), start=1):
                 index_rows, failures = future.result()
                 index_sink.extend(index_rows)

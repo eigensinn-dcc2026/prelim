@@ -29,6 +29,7 @@ if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
 
 from dcc_data.manifest import load_manifest  # noqa: E402
+from dcc_data.mission2_features import HOP_LENGTH  # noqa: E402
 from dcc_data.mission2_spectrogram import build_seoul_training_spectrograms  # noqa: E402
 
 
@@ -42,6 +43,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--index-output", type=Path, default=Path("data/m2_spectrogram_index.parquet"))
     parser.add_argument("--failures-log", type=Path, default=Path("data/m2_spectrogram_build_failures.jsonl"))
     parser.add_argument("--workers", type=int, default=1)
+    parser.add_argument(
+        "--hop-length", type=int, default=HOP_LENGTH,
+        help=f"STFT hop length in samples (default {HOP_LENGTH}, same as L1's features). "
+        "A smaller value gives more time frames for the same audio -- pass a distinct "
+        "--output-dir/--index-output so this doesn't overwrite the default-resolution set.",
+    )
     return parser.parse_args()
 
 
@@ -71,6 +78,7 @@ def main() -> int:
         seed=args.seed,
         on_call_done=on_call_done,
         max_workers=args.workers,
+        hop_length=args.hop_length,
     )
     if bar is not None:
         bar.close()
