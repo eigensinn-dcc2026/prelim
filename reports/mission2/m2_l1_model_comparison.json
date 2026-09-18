@@ -1,0 +1,111 @@
+[
+  {
+    "model": "gaussian_nb",
+    "accuracy": 0.6970172684458399,
+    "recall_daewon_0": 0.8096312069247924,
+    "recall_singoja_1": 0.5926228742291161,
+    "recall_gap_singoja_minus_daewon": -0.21700833269567632,
+    "confusion_matrix": [
+      [
+        64258,
+        15109
+      ],
+      [
+        34878,
+        50738
+      ]
+    ],
+    "fit_seconds": 0.8613325999904191
+  },
+  {
+    "model": "logreg",
+    "accuracy": 0.8323948528030161,
+    "recall_daewon_0": 0.7953305530006174,
+    "recall_singoja_1": 0.8667538777798542,
+    "recall_gap_singoja_minus_daewon": 0.07142332477923685,
+    "confusion_matrix": [
+      [
+        63123,
+        16244
+      ],
+      [
+        11408,
+        74208
+      ]
+    ],
+    "fit_seconds": 8.817514100010158
+  },
+  {
+    "model": "random_forest",
+    "accuracy": 0.8404744731275343,
+    "recall_daewon_0": 0.8116849572240352,
+    "recall_singoja_1": 0.867162679872921,
+    "recall_gap_singoja_minus_daewon": 0.05547772264888573,
+    "confusion_matrix": [
+      [
+        64421,
+        14946
+      ],
+      [
+        11373,
+        74243
+      ]
+    ],
+    "fit_seconds": 836.661076599994
+  },
+  {
+    "model": "xgboost",
+    "accuracy": 0.864652721795579,
+    "recall_daewon_0": 0.8217269142086762,
+    "recall_singoja_1": 0.9044454307606055,
+    "recall_gap_singoja_minus_daewon": 0.0827185165519293,
+    "confusion_matrix": [
+      [
+        65218,
+        14149
+      ],
+      [
+        8181,
+        77435
+      ]
+    ],
+    "fit_seconds": 47.065849899998284
+  },
+  {
+    "model": "lightgbm_n300",
+    "accuracy": 0.8599673905796354,
+    "recall_daewon_0": 0.8135623117920546,
+    "recall_singoja_1": 0.9029854232853672,
+    "recall_gap_singoja_minus_daewon": 0.08942311149331261,
+    "confusion_matrix": [
+      [
+        64570,
+        14797
+      ],
+      [
+        8306,
+        77310
+      ]
+    ],
+    "fit_seconds": 10.346875899995212
+  },
+  {
+    "model": "lightgbm_tuned",
+    "accuracy": 0.8677439493766025,
+    "recall_daewon_0": 0.8204417453097635,
+    "recall_singoja_1": 0.9115936273593721,
+    "recall_gap_singoja_minus_daewon": 0.09115188204960856,
+    "best_iteration": 1150,
+    "confusion_matrix": [
+      [
+        65116,
+        14251
+      ],
+      [
+        7569,
+        78047
+      ]
+    ],
+    "fit_seconds": 115.23398160000215
+  }
+]

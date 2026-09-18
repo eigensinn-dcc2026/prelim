@@ -4,5 +4,6 @@ pyarrow
 librosa
 scikit-learn
 lightgbm
+xgboost
 tqdm
 pytest

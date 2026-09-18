@@ -33,13 +33,46 @@ from sklearn.model_selection import GroupShuffleSplit, train_test_split
 from .mission2_features import FEATURE_COLUMNS
 
 
+# Confirmed win over LightGBM defaults (num_leaves=31, learning_rate=0.1,
+# n_estimators=100): 84.59% -> 86.77% on the full 826k-utterance, clean
+# 53-dim feature set (see reports/mission2/m2_l1_model_comparison_results.md
+# and reports/mission2/m2_l1_daewon_recall_push_results.md -- the latter
+# also confirmed the contest grades on accuracy alone, so no class_weight /
+# decision-threshold adjustment is applied here, only capacity/regularization
+# tuning).
+_TUNED_LGBM_PARAMS: dict[str, Any] = dict(num_leaves=255, learning_rate=0.02, n_estimators=1150)
+
+
 def _build_model(seed: int) -> Any:
     try:
         from lightgbm import LGBMClassifier
 
-        return LGBMClassifier(random_state=seed, verbosity=-1)
+        return LGBMClassifier(random_state=seed, verbosity=-1, **_TUNED_LGBM_PARAMS)
     except ImportError:
         return HistGradientBoostingClassifier(random_state=seed)
+
+
+def _fit_model(model: Any, X_train, y_train, X_val, y_val) -> None:
+    """Fit ``model``, using early stopping against (X_val, y_val) when it's a
+    LightGBM model -- val-based best-checkpoint selection, explicitly allowed
+    by the contest rules (see docs/[[project-dcc2026-contest-rules]])."""
+
+    try:
+        from lightgbm import LGBMClassifier, early_stopping
+    except ImportError:
+        model.fit(X_train, y_train)
+        return
+
+    if isinstance(model, LGBMClassifier):
+        model.fit(
+            X_train,
+            y_train,
+            eval_set=[(X_val, y_val)],
+            eval_metric="binary_logloss",
+            callbacks=[early_stopping(stopping_rounds=50, verbose=False)],
+        )
+    else:
+        model.fit(X_train, y_train)
 
 
 @dataclass
@@ -107,7 +140,7 @@ def fit_baseline(df: pd.DataFrame, *, seed: int = 42, test_size: float = 0.2) ->
         raise AssertionError(f"GroupShuffleSplit leaked {len(overlap)} call_id(s) across train/val")
 
     group_model = _build_model(seed)
-    group_model.fit(X[train_idx], y[train_idx])
+    _fit_model(group_model, X[train_idx], y[train_idx], X[val_idx], y[val_idx])
     group_predictions = group_model.predict(X[val_idx])
     group_split_accuracy = float(accuracy_score(y[val_idx], group_predictions))
     cm = confusion_matrix(y[val_idx], group_predictions, labels=[0, 1]).tolist()
@@ -116,7 +149,7 @@ def fit_baseline(df: pd.DataFrame, *, seed: int = 42, test_size: float = 0.2) ->
     # leakage gap. This model and split are never used for anything else.
     rx_train, rx_val, ry_train, ry_val = train_test_split(X, y, test_size=test_size, random_state=seed)
     random_model = _build_model(seed)
-    random_model.fit(rx_train, ry_train)
+    _fit_model(random_model, rx_train, ry_train, rx_val, ry_val)
     random_split_accuracy = float(accuracy_score(ry_val, random_model.predict(rx_val)))
 
     importances = getattr(group_model, "feature_importances_", None)
@@ -163,7 +196,11 @@ def build_experiment_log(result: BaselineResult, *, seed: int, n_sampled_calls: 
         "가설": "발화 조각의 음향 통계 feature와 duration만으로 speaker를 유의미하게 분류할 수 있다",
         "baseline": 0.520,
         "변경 변수": "없음 (첫 baseline 수립)",
-        "고정 변수": f"통화 {n_sampled_calls}건 샘플, seed={seed}, LightGBM(또는 HistGradientBoosting) 기본 파라미터",
+        "고정 변수": (
+            f"통화 {n_sampled_calls}건 샘플, seed={seed}, "
+            f"LightGBM(num_leaves=255, learning_rate=0.02, n_estimators=1150, early stopping) "
+            f"또는 HistGradientBoostingClassifier(lightgbm 미설치 시 기본 파라미터로 대체)"
+        ),
         "평가 지표": "Accuracy",
         "validation": "call_id GroupShuffleSplit 8:2",
         "채택 기준": "GroupSplit accuracy >= 0.70",
