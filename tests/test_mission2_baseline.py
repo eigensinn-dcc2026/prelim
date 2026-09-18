@@ -11,7 +11,7 @@ import pandas as pd
 from dcc_data.manifest import ManifestRow
 from dcc_data.mission2_features import (
     FEATURE_COLUMNS,
-    N_UTTERANCE_FEATURES,
+    N_FEATURES,
     build_seoul_training_dataset,
     is_seoul_path,
     pair_by_stem,
@@ -107,7 +107,7 @@ def test_utterance_feature_vector_handles_very_short_segment() -> None:
     rng = np.random.default_rng(0)
     short_segment = rng.standard_normal(50).astype(np.float32)  # well under N_FFT
     vector = utterance_feature_vector(short_segment, SAMPLE_RATE, duration_sec=0.05)
-    assert vector.shape == (N_UTTERANCE_FEATURES,)
+    assert vector.shape == (N_FEATURES,)
     assert np.isfinite(vector).all()
 
 
