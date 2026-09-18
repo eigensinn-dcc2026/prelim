@@ -303,18 +303,9 @@ N_FFT = 512
 HOP_LENGTH = 160
 N_MFCC = 20
 N_ACOUSTIC_FEATURES = 52  # MFCC/RMS/ZCR/spectral only -- acoustic_feature_vector()'s own contract
-N_UTTERANCE_FEATURES = 61  # duration_sec + 52 acoustic + 5 pitch/energy + 3 harmonicity dims
+N_FEATURES = 53  # duration_sec + the 52 acoustic statistics below
 
-# Human speech F0 range over an 8kHz phone channel -- wide enough to cover
-# both the 대원/신고자 speakers without a per-call calibration step.
-F0_MIN_HZ = 50.0
-F0_MAX_HZ = 500.0
-# A frame counts as "voiced" (energetic enough for its pitch estimate to be
-# trusted) once its RMS clears this fraction of the segment's own peak RMS --
-# relative, not absolute, because per-call recording gain varies.
-VOICED_RMS_RATIO = 0.1
-
-UTTERANCE_FEATURE_COLUMNS: tuple[str, ...] = (
+FEATURE_COLUMNS: tuple[str, ...] = (
     "duration_sec",
     *(f"mfcc_mean_{i}" for i in range(N_MFCC)),
     *(f"mfcc_std_{i}" for i in range(N_MFCC)),
@@ -330,30 +321,7 @@ UTTERANCE_FEATURE_COLUMNS: tuple[str, ...] = (
     "spectral_bandwidth_std",
     "spectral_flatness_mean",
     "spectral_flatness_std",
-    "f0_mean",
-    "f0_std",
-    "voiced_ratio",
-    "rms_p10",
-    "rms_p90",
-    "harmonicity_mean",
-    "harmonicity_min",
-    "harmonicity_std",
 )
-assert len(UTTERANCE_FEATURE_COLUMNS) == N_UTTERANCE_FEATURES
-
-# Call-relative features: each source column z-scored against *that call's
-# own* mean/std across all its utterances (see add_call_relative_features
-# below for why -- absolute pitch/energy turned out to be largely redundant
-# with spectral_centroid_mean/MFCC0 already in UTTERANCE_FEATURE_COLUMNS).
-CALL_RELATIVE_SOURCE_COLUMNS: tuple[str, ...] = ("f0_mean", "rms_p90", "duration_sec")
-CALL_RELATIVE_FEATURE_COLUMNS: tuple[str, ...] = tuple(f"{c}_rel_to_call" for c in CALL_RELATIVE_SOURCE_COLUMNS)
-N_CALL_RELATIVE_FEATURES = len(CALL_RELATIVE_FEATURE_COLUMNS)
-
-# The full model-input schema (what every downstream consumer -- training,
-# inference, error analysis -- treats as "the" feature columns): per-utterance
-# features plus the call-relative ones layered on top in a second pass.
-FEATURE_COLUMNS: tuple[str, ...] = UTTERANCE_FEATURE_COLUMNS + CALL_RELATIVE_FEATURE_COLUMNS
-N_FEATURES = N_UTTERANCE_FEATURES + N_CALL_RELATIVE_FEATURES
 assert len(FEATURE_COLUMNS) == N_FEATURES
 
 
@@ -389,157 +357,14 @@ def acoustic_feature_vector(segment: np.ndarray, sample_rate: int) -> np.ndarray
     return vector.astype(np.float32)
 
 
-def pitch_energy_feature_vector(segment: np.ndarray, sample_rate: int) -> np.ndarray:
-    """5-dim: f0_mean, f0_std, voiced_ratio, rms_p10, rms_p90.
-
-    yin() (not pyin()) is used for pitch: it has no built-in voiced/unvoiced
-    decision, so "voiced" is defined here from frame energy instead (relative
-    to the segment's own peak RMS, since per-call recording gain varies) --
-    a plain RMS threshold is ~40x cheaper than pyin's HMM decoding at this
-    data volume (800k+ utterances) and is enough to keep pitch stats from
-    being dragged toward 0 by silent/unvoiced frames.
-    """
-
-    if len(segment) < N_FFT:
-        segment = np.pad(segment, (0, N_FFT - len(segment)))
-    segment = segment.astype(np.float32, copy=False)
-
-    rms = librosa.feature.rms(y=segment, frame_length=N_FFT, hop_length=HOP_LENGTH)[0]
-    peak_rms = float(rms.max())
-    voiced_mask = rms > (VOICED_RMS_RATIO * peak_rms) if peak_rms > 0 else np.zeros_like(rms, dtype=bool)
-    voiced_ratio = float(voiced_mask.mean())
-
-    if voiced_mask.any():
-        f0 = librosa.yin(segment, fmin=F0_MIN_HZ, fmax=F0_MAX_HZ, sr=sample_rate, frame_length=N_FFT, hop_length=HOP_LENGTH)
-        voiced_f0 = f0[: len(voiced_mask)][voiced_mask[: len(f0)]]
-        f0_mean = float(voiced_f0.mean()) if voiced_f0.size > 0 else 0.0
-        f0_std = float(voiced_f0.std()) if voiced_f0.size > 1 else 0.0
-    else:
-        f0_mean = 0.0
-        f0_std = 0.0
-
-    rms_p10 = float(np.percentile(rms, 10))
-    rms_p90 = float(np.percentile(rms, 90))
-
-    vector = np.array([f0_mean, f0_std, voiced_ratio, rms_p10, rms_p90], dtype=np.float64)
-    return np.nan_to_num(vector, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
-
-
-def _frame_periodicity_strengths(
-    segment: np.ndarray, *, frame_length: int, hop_length: int, sample_rate: int, fmin: float, fmax: float
-) -> np.ndarray:
-    """Per-frame periodicity strength in [0, 1]: the normalized autocorrelation
-    peak within the [fmin, fmax] lag range (1.0 = perfectly periodic).
-
-    Vectorized (Wiener-Khinchin: autocorrelation via |FFT|^2 then inverse FFT)
-    across every frame of the segment at once -- a per-frame Python loop over
-    ~800k utterances' worth of frames would dominate build time.
-    """
-
-    frames = librosa.util.frame(segment, frame_length=frame_length, hop_length=hop_length).T.astype(np.float64)
-    frames = frames - frames.mean(axis=1, keepdims=True)
-    n_fft = 2 * frame_length
-    spectrum = np.fft.rfft(frames, n=n_fft, axis=1)
-    power = spectrum.real**2 + spectrum.imag**2
-    autocorr = np.fft.irfft(power, n=n_fft, axis=1)[:, :frame_length]
-
-    min_lag = max(1, int(sample_rate / fmax))
-    max_lag = min(frame_length - 1, int(sample_rate / fmin))
-    if max_lag <= min_lag:
-        return np.zeros(frames.shape[0])
-    peak = autocorr[:, min_lag : max_lag + 1].max(axis=1)
-    zero_lag = autocorr[:, 0]
-    strength = np.divide(peak, zero_lag, out=np.zeros_like(peak), where=zero_lag > 0)
-    return np.clip(strength, 0.0, 1.0)
-
-
-def harmonicity_feature_vector(segment: np.ndarray, sample_rate: int) -> np.ndarray:
-    """3-dim: harmonicity_mean, harmonicity_min, harmonicity_std.
-
-    Targets the overlap-driven accuracy gap (see m2_error_analysis.md 1-1:
-    overlapping utterances are 43.9% of val but 57.3% of errors). Two
-    speakers' voices overlapping in one segment have two independent,
-    generally unrelated F0s, which degrades a single frame's autocorrelation
-    peak relative to one clean periodic voice -- computed entirely from this
-    segment's own samples, so it never needs another utterance's timestamp
-    (the contest's "no order-derived features" rule is about exactly that).
-    Not a clean detector (voices whose F0s land near a harmonic ratio of each
-    other only show a small drop), just a soft signal for the model to use
-    alongside everything else.
-    """
-
-    if len(segment) < N_FFT:
-        segment = np.pad(segment, (0, N_FFT - len(segment)))
-    segment = segment.astype(np.float32, copy=False)
-
-    rms = librosa.feature.rms(y=segment, frame_length=N_FFT, hop_length=HOP_LENGTH)[0]
-    peak_rms = float(rms.max())
-    voiced_mask = rms > (VOICED_RMS_RATIO * peak_rms) if peak_rms > 0 else np.zeros_like(rms, dtype=bool)
-
-    if voiced_mask.any():
-        strengths = _frame_periodicity_strengths(
-            segment, frame_length=N_FFT, hop_length=HOP_LENGTH, sample_rate=sample_rate,
-            fmin=F0_MIN_HZ, fmax=F0_MAX_HZ,
-        )
-        n = min(len(strengths), len(voiced_mask))
-        voiced_strengths = strengths[:n][voiced_mask[:n]]
-        harmonicity_mean = float(voiced_strengths.mean()) if voiced_strengths.size > 0 else 0.0
-        harmonicity_min = float(voiced_strengths.min()) if voiced_strengths.size > 0 else 0.0
-        harmonicity_std = float(voiced_strengths.std()) if voiced_strengths.size > 1 else 0.0
-    else:
-        harmonicity_mean = 0.0
-        harmonicity_min = 0.0
-        harmonicity_std = 0.0
-
-    vector = np.array([harmonicity_mean, harmonicity_min, harmonicity_std], dtype=np.float64)
-    return np.nan_to_num(vector, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
-
-
 def utterance_feature_vector(segment: np.ndarray, sample_rate: int, duration_sec: float) -> np.ndarray:
-    """The context-free 61-dim vector for one utterance in isolation.
-
-    Call-relative features (CALL_RELATIVE_FEATURE_COLUMNS) are *not* part of
-    this vector -- they need every utterance in the same call at once, so
-    they are computed separately by add_call_relative_features() after this
-    function has run for each utterance in a call.
-    """
+    """The context-free 53-dim vector for one utterance in isolation."""
 
     acoustic = acoustic_feature_vector(segment, sample_rate)
-    pitch_energy = pitch_energy_feature_vector(segment, sample_rate)
-    harmonicity = harmonicity_feature_vector(segment, sample_rate)
-    vector = np.concatenate([np.array([duration_sec], dtype=np.float32), acoustic, pitch_energy, harmonicity])
-    if vector.shape[0] != N_UTTERANCE_FEATURES:
-        raise ValueError(f"feature vector has {vector.shape[0]} dims, expected {N_UTTERANCE_FEATURES}")
+    vector = np.concatenate([np.array([duration_sec], dtype=np.float32), acoustic])
+    if vector.shape[0] != N_FEATURES:
+        raise ValueError(f"feature vector has {vector.shape[0]} dims, expected {N_FEATURES}")
     return vector
-
-
-def add_call_relative_features(feature_rows: list[dict]) -> list[dict]:
-    """Add CALL_RELATIVE_FEATURE_COLUMNS to every row, in place.
-
-    Each of CALL_RELATIVE_SOURCE_COLUMNS is z-scored against *this call's
-    own* mean/std across ``feature_rows`` (which must all belong to the same
-    call) -- never against the speaker label, so it is exactly reproducible
-    at inference time. This exists because absolute f0_mean/rms_p90 barely
-    moved accuracy in a pilot (see reports/mission2/): they correlate -0.38
-    and -0.52 with spectral_centroid_mean/mfcc_mean_0, which the model
-    already had, so the *between-call* variance (different speaker, different
-    mic gain) was swamping the *within-call, between-speaker* signal we
-    actually want. A single-utterance call has std=0, but its value then
-    trivially equals the call's own mean, so its z-score is exactly 0 (the
-    ``+ 1e-6`` denominator epsilon only matters for that 0/0 case).
-    """
-
-    if not feature_rows:
-        return feature_rows
-
-    for source_col, rel_col in zip(CALL_RELATIVE_SOURCE_COLUMNS, CALL_RELATIVE_FEATURE_COLUMNS):
-        values = np.array([row[source_col] for row in feature_rows], dtype=np.float64)
-        mean = values.mean()
-        std = values.std()
-        z_scores = (values - mean) / (std + 1e-6)
-        for row, z_score in zip(feature_rows, z_scores):
-            row[rel_col] = float(z_score)
-    return feature_rows
 
 
 # ---------------------------------------------------------------------------
@@ -627,11 +452,10 @@ def _process_one_call(row: ManifestRow, data_root: Path) -> _CallResult:
                 "call_id": record.call_id,
                 "utt_idx": record.utt_idx,
                 "speaker": record.speaker,
-                **dict(zip(UTTERANCE_FEATURE_COLUMNS, vector.tolist())),
+                **dict(zip(FEATURE_COLUMNS, vector.tolist())),
             }
         )
 
-    add_call_relative_features(feature_rows)
     return index_records, feature_rows, failures
 
 
