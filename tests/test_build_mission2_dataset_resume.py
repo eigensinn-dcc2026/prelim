@@ -124,6 +124,141 @@ def test_resume_skips_already_processed_calls_and_appends_the_rest(tmp_path: Pat
     assert len(final_features) == len(final_index)
 
 
+def test_resume_reprocesses_a_call_that_was_indexed_but_never_resolved(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    stems = ["call_a", "call_b", "call_c"]
+    rows = [_write_call(root, stem, seed=i) for i, stem in enumerate(stems)]
+    manifest = tmp_path / "manifest.csv"
+    write_manifest(rows, manifest, overwrite=True)
+
+    index_output = tmp_path / "index.parquet"
+    features_output = tmp_path / "features.parquet"
+    failures_log = tmp_path / "failures.jsonl"
+
+    _run_main(
+        [
+            "--manifest",
+            str(manifest),
+            "--data-root",
+            str(root),
+            "--n-calls",
+            "0",
+            "--index-output",
+            str(index_output),
+            "--features-output",
+            str(features_output),
+            "--failures-log",
+            str(failures_log),
+            "--flush-every",
+            "0",
+        ]
+    )
+
+    full_index = pd.read_parquet(index_output)
+    full_features = pd.read_parquet(features_output)
+    assert set(full_index["call_id"]) == {"call_a", "call_b", "call_c"}
+    assert len(full_features) == len(full_index)
+
+    # Simulate a crash that happened right after call_c's utterances were
+    # indexed but before its audio was opened / features extracted: its
+    # index rows survive on disk, but it ends up with zero feature rows and
+    # zero failure entries -- the exact state that silently and permanently
+    # lost 2,170/29,200 real calls under the old --resume logic.
+    crashed_features = full_features[full_features["call_id"] != "call_c"]
+    crashed_features.to_parquet(features_output, index=False)
+    assert not failures_log.exists() or failures_log.stat().st_size == 0
+
+    _run_main(
+        [
+            "--manifest",
+            str(manifest),
+            "--data-root",
+            str(root),
+            "--n-calls",
+            "0",
+            "--index-output",
+            str(index_output),
+            "--features-output",
+            str(features_output),
+            "--failures-log",
+            str(failures_log),
+            "--flush-every",
+            "0",
+            "--resume",
+        ]
+    )
+
+    resumed_index = pd.read_parquet(index_output)
+    resumed_features = pd.read_parquet(features_output)
+    assert set(resumed_index["call_id"]) == {"call_a", "call_b", "call_c"}
+    assert len(resumed_index) == len(full_index)  # no duplicate rows introduced
+    # call_c must be fully recovered, not skipped forever because it was
+    # already (incompletely) present in the index.
+    assert set(resumed_features.loc[resumed_features["call_id"] == "call_c", "utt_idx"]) == {0, 1}
+    assert len(resumed_features) == len(resumed_index)
+
+
+def test_resume_preserves_survivor_file_when_only_one_output_exists(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    row = _write_call(root, "call_only", seed=0)
+    manifest = tmp_path / "manifest.csv"
+    write_manifest([row], manifest, overwrite=True)
+
+    index_output = tmp_path / "index.parquet"
+    features_output = tmp_path / "features.parquet"
+    failures_log = tmp_path / "failures.jsonl"
+
+    # Simulate a crash that landed between the two files being written
+    # inside _write_outputs: only the index file survives on disk.
+    stray_index = pd.DataFrame(
+        [
+            {
+                "call_id": "stray",
+                "wav_stem": "stray",
+                "wav_path": "stray.wav",
+                "json_path": "stray.json",
+                "utt_idx": 0,
+                "startAt": 0,
+                "endAt": 1000,
+                "duration_sec": 1.0,
+                "speaker": 0,
+            }
+        ]
+    )
+    stray_index.to_parquet(index_output, index=False)
+
+    _run_main(
+        [
+            "--manifest",
+            str(manifest),
+            "--data-root",
+            str(root),
+            "--n-calls",
+            "0",
+            "--index-output",
+            str(index_output),
+            "--features-output",
+            str(features_output),
+            "--failures-log",
+            str(failures_log),
+            "--flush-every",
+            "0",
+            "--resume",
+        ]
+    )
+
+    # The stray survivor must be preserved under a different name, not
+    # silently overwritten by the fresh run's unrelated output.
+    backups = list(tmp_path.glob("index.stale-*.parquet"))
+    assert len(backups) == 1
+    preserved = pd.read_parquet(backups[0])
+    assert list(preserved["call_id"]) == ["stray"]
+
+    # And the fresh run itself must have proceeded normally, unaffected.
+    fresh_index = pd.read_parquet(index_output)
+    assert set(fresh_index["wav_stem"]) == {"call_only"}
+
+
 def test_resume_without_existing_outputs_falls_back_to_a_fresh_run(tmp_path: Path) -> None:
     root = tmp_path / "raw"
     row = _write_call(root, "call_only", seed=0)

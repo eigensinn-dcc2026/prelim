@@ -162,15 +162,90 @@ def main() -> int:
             index_records = _load_existing_index(args.index_output)
             feature_rows = _load_existing_features(args.features_output)
             failures = _load_existing_failures(args.failures_log)
-            done_wav_paths = {record.wav_path for record in index_records}
+
+            # A call only counts as "done" if every utterance indexed for it
+            # already has a resolved outcome (a feature row, or a logged
+            # failure) -- being present in the index alone is NOT enough.
+            # Index rows for a call are written before that call's audio is
+            # opened/features are extracted (see _process_one_call), so if the
+            # process crashes between those two steps (e.g. a worker OOM/
+            # BrokenProcessPool), the call ends up indexed but with zero
+            # feature rows and zero failure entries. The old check here
+            # (`{record.wav_path for record in index_records}`) treated that
+            # call as done and would skip it forever on every future
+            # --resume, silently losing it with no error and no log entry.
+            # int(...) casts: values loaded back from parquet/JSON can come
+            # back as numpy/pandas integer types, which normally hash equal
+            # to plain Python ints -- but the two sides of this comparison
+            # are built independently, so cast explicitly rather than rely on
+            # that.
+            resolved_keys = {(row["call_id"], int(row["utt_idx"])) for row in feature_rows}
+            resolved_keys.update(
+                (failure["call_id"], int(failure["utt_idx"]))
+                for failure in failures
+                if failure.get("utt_idx") is not None  # stage="index" failures
+                # never produced index_records in the first place, so they
+                # have no counterpart to resolve here.
+            )
+
+            indexed_keys_by_wav_path: dict[str, set[tuple[str, int]]] = {}
+            for record in index_records:
+                indexed_keys_by_wav_path.setdefault(record.wav_path, set()).add(
+                    (record.call_id, int(record.utt_idx))
+                )
+
+            incomplete_wav_paths = {
+                wav_path
+                for wav_path, keys in indexed_keys_by_wav_path.items()
+                if not keys <= resolved_keys
+            }
+            done_wav_paths = set(indexed_keys_by_wav_path) - incomplete_wav_paths
+
+            if incomplete_wav_paths:
+                incomplete_call_ids = {
+                    call_id
+                    for wav_path, keys in indexed_keys_by_wav_path.items()
+                    if wav_path in incomplete_wav_paths
+                    for call_id, _utt_idx in keys
+                }
+                index_records = [r for r in index_records if r.wav_path not in incomplete_wav_paths]
+                feature_rows = [r for r in feature_rows if r["call_id"] not in incomplete_call_ids]
+                failures = [f for f in failures if f.get("call_id") not in incomplete_call_ids]
+
             before = len(rows)
             rows = [row for row in rows if row.wav_path not in done_wav_paths]
-            print(
-                f"--resume: 이미 처리된 통화 {before - len(rows)}개 건너뜀 "
-                f"(발화 {len(index_records)}개 기존 결과 유지), 남은 통화 {len(rows)}개 처리 예정"
+            message = (
+                f"--resume: 완전히 끝난 통화 {before - len(rows)}개 건너뜀 "
+                f"(발화 {len(feature_rows)}개 기존 결과 유지)"
             )
+            if incomplete_wav_paths:
+                message += f", 인덱스엔 있었지만 미완료였던 통화 {len(incomplete_wav_paths)}개는 처음부터 재처리"
+            message += f", 남은 통화 {len(rows)}개 처리 예정"
+            print(message)
         else:
-            print("--resume 지정됐지만 기존 출력 파일이 없어 새로 시작합니다.")
+            # --resume needs BOTH files to reconstruct prior progress. If only
+            # one exists (e.g. a crash landed between the two writes inside
+            # _write_outputs), the old code silently fell through to "start
+            # fresh" and then, at the end of main(), unconditionally
+            # overwrote that surviving file with the fresh (much smaller)
+            # run's results -- permanently discarding whatever progress it
+            # held, with no warning. Rename it out of the way instead so nothing
+            # is lost.
+            preserved = []
+            for path in (args.index_output, args.features_output):
+                if path.exists():
+                    backup = path.with_name(f"{path.stem}.stale-{int(time.time())}{path.suffix}")
+                    path.rename(backup)
+                    preserved.append(str(backup))
+            if preserved:
+                print(
+                    "--resume 지정됐지만 index/features 중 한쪽 파일만 존재해 이어할 수 없습니다 "
+                    "(중단된 실행의 부분 결과로 추정). 덮어써서 잃어버리지 않도록 보존했습니다: "
+                    + ", ".join(preserved)
+                    + " -- 처음부터 새로 시작합니다."
+                )
+            else:
+                print("--resume 지정됐지만 기존 출력 파일이 없어 새로 시작합니다.")
 
     try:
         from tqdm import tqdm
