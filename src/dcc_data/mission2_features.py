@@ -53,7 +53,7 @@ import numpy as np
 import librosa
 
 from .audio import read_wav_frames, read_wav_info
-from .guards import TRAINING, ensure_training_rows
+from .guards import TRAINING, VALIDATION, ensure_split, ensure_training_rows
 from .manifest import ManifestRow
 from .mission2 import milliseconds_to_frame
 
@@ -107,6 +107,24 @@ def select_seoul_training_rows(rows: Iterable[ManifestRow]) -> list[ManifestRow]
     return [
         row
         for row in training_rows
+        if is_seoul_path(row.wav_path) and is_seoul_path(row.json_path)
+    ]
+
+
+def select_seoul_validation_rows(rows: Iterable[ManifestRow]) -> list[ManifestRow]:
+    """Validation-only, Seoul-only rows.
+
+    For evaluation/early-stopping/checkpoint-selection only, per the contest
+    rules -- nothing that consumes this may call ``.fit()``/backprop on it.
+    Mirrors ``select_seoul_training_rows`` exactly, gated on ``VALIDATION``
+    instead of ``TRAINING`` via the same ``ensure_split`` guard.
+    """
+
+    validation_only = [row for row in rows if row.split == VALIDATION]
+    validation_rows = ensure_split(validation_only, VALIDATION)
+    return [
+        row
+        for row in validation_rows
         if is_seoul_path(row.wav_path) and is_seoul_path(row.json_path)
     ]
 
@@ -459,8 +477,8 @@ def _process_one_call(row: ManifestRow, data_root: Path) -> _CallResult:
     return index_records, feature_rows, failures
 
 
-def build_seoul_training_dataset(
-    rows: Iterable[ManifestRow],
+def _build_seoul_dataset(
+    seoul_rows: list[ManifestRow],
     data_root: Path,
     *,
     n_calls: int,
@@ -471,7 +489,9 @@ def build_seoul_training_dataset(
     on_call_done: OnCallDone | None = None,
     max_workers: int = 1,
 ) -> tuple[list[UtteranceRecord], list[dict], list[dict]]:
-    """Sample Seoul/Training calls and build the utterance index + feature cache.
+    """Shared sample+extract loop behind both the Training and Validation
+    builders below -- the only difference between them is which
+    ``select_seoul_*_rows`` filter produced ``seoul_rows``.
 
     ``index_sink``/``feature_sink``/``failure_sink`` may be passed in so a
     caller (e.g. the CLI script) can flush partial progress mid-run; they are
@@ -496,7 +516,6 @@ def build_seoul_training_dataset(
     feature_sink = feature_sink if feature_sink is not None else []
     failure_sink = failure_sink if failure_sink is not None else []
 
-    seoul_rows = select_seoul_training_rows(rows)
     sampled_rows = sample_calls(seoul_rows, n_calls, seed)
     total = len(sampled_rows)
 
@@ -522,6 +541,72 @@ def build_seoul_training_dataset(
                     on_call_done(call_number, total)
 
     return index_sink, feature_sink, failure_sink
+
+
+def build_seoul_training_dataset(
+    rows: Iterable[ManifestRow],
+    data_root: Path,
+    *,
+    n_calls: int,
+    seed: int,
+    index_sink: list[UtteranceRecord] | None = None,
+    feature_sink: list[dict] | None = None,
+    failure_sink: list[dict] | None = None,
+    on_call_done: OnCallDone | None = None,
+    max_workers: int = 1,
+) -> tuple[list[UtteranceRecord], list[dict], list[dict]]:
+    """Sample Seoul/Training calls and build the utterance index + feature cache.
+
+    See ``_build_seoul_dataset`` for the shared extraction-loop contract.
+    """
+
+    return _build_seoul_dataset(
+        select_seoul_training_rows(rows),
+        data_root,
+        n_calls=n_calls,
+        seed=seed,
+        index_sink=index_sink,
+        feature_sink=feature_sink,
+        failure_sink=failure_sink,
+        on_call_done=on_call_done,
+        max_workers=max_workers,
+    )
+
+
+def build_seoul_validation_dataset(
+    rows: Iterable[ManifestRow],
+    data_root: Path,
+    *,
+    n_calls: int = -1,
+    seed: int = 42,
+    index_sink: list[UtteranceRecord] | None = None,
+    feature_sink: list[dict] | None = None,
+    failure_sink: list[dict] | None = None,
+    on_call_done: OnCallDone | None = None,
+    max_workers: int = 1,
+) -> tuple[list[UtteranceRecord], list[dict], list[dict]]:
+    """Sample Seoul/Validation calls and build the utterance index + feature cache.
+
+    Same extraction pipeline as ``build_seoul_training_dataset`` (same 53
+    feature columns, same ``corrected_speaker`` label fixes), gated on
+    ``select_seoul_validation_rows`` instead -- for evaluation only, per the
+    contest rules (see that function's docstring). ``n_calls=-1`` (default)
+    takes every available Validation call rather than truncating, since
+    Validation is already much smaller than Training and there's no reason
+    to subsample it further.
+    """
+
+    return _build_seoul_dataset(
+        select_seoul_validation_rows(rows),
+        data_root,
+        n_calls=n_calls,
+        seed=seed,
+        index_sink=index_sink,
+        feature_sink=feature_sink,
+        failure_sink=failure_sink,
+        on_call_done=on_call_done,
+        max_workers=max_workers,
+    )
 
 
 # ---------------------------------------------------------------------------
