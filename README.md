@@ -57,6 +57,9 @@ dcc2026-prelim/
 ├── scripts/                # 직접 실행하는 데이터 감사·생성 스크립트
 ├── tests/                  # 공통 코드 테스트
 ├── reports/                # 데이터 감사·EDA 결과 보고서
+├── docs/
+│   ├── decisions.md        # 모델·방법론 선택과 보류·기각 이유
+│   └── experiment_log.md   # Mission별 실험 결과 요약과 원본 파일 인덱스
 ├── data/                   # 대회 원본/로컬 데이터 (Git 추적 제외)
 ├── checkpoints/            # 모델 가중치 (Git 추적 제외)
 ├── requirements.txt        # 프로젝트에 필요한 Python 외부 패키지 목록
@@ -74,6 +77,10 @@ dcc2026-prelim/
 - **`scripts/`**: `src/`의 부품 등을 이용해 실제 작업을 수행하는 **실행 프로그램**
 - **`tests/`**: 공통 코드가 예상대로 동작하는지 확인하는 테스트
 - **`reports/`**: 데이터 감사, EDA, 실험 결과 등을 사람이 읽을 수 있게 정리하는 곳
+- **`docs/`**: 실험 결과 요약과 팀의 채택·기각·보류 결정을 추적하는 곳
+
+실험 현황은 **[docs/experiment_log.md](./docs/experiment_log.md)**에서 확인하고, 모델·방법론을
+선택하거나 보류한 이유는 **[docs/decisions.md](./docs/decisions.md)**에서 확인합니다.
 
 즉,
 
