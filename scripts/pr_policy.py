@@ -8,6 +8,7 @@ Actions checks out the synthetic merge commit and fetches full history, while
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import subprocess
@@ -132,12 +133,37 @@ def evaluate_policy_inputs(
     changed_file_sizes: Mapping[str, int],
     added_lines: Mapping[str, Sequence[str]],
     config: Mapping[str, object],
+    deleted_test_files: Sequence[str] = (),
+    removed_test_functions: Mapping[str, Sequence[str]] | None = None,
 ) -> dict:
     findings: list[Finding] = []
     forbidden_prefixes = list(config.get("forbidden_prefixes", []))
     max_bytes = int(config.get("max_file_bytes", 10 * 1024 * 1024))
 
     normalized_changed = sorted({normalize_path(path) for path in changed_paths})
+
+    allowed_test_files = {
+        normalize_path(path) for path in config.get("allowed_test_file_deletions", [])
+    }
+    for path in sorted({normalize_path(path) for path in deleted_test_files}):
+        if path not in allowed_test_files:
+            findings.append(
+                Finding("deleted-test-file", path, "기존 테스트 파일은 삭제할 수 없습니다.")
+            )
+
+    allowed_test_functions = set(config.get("allowed_test_function_deletions", []))
+    for path, names in sorted((removed_test_functions or {}).items()):
+        normalized_path = normalize_path(path)
+        for name in sorted(set(names)):
+            identifier = f"{normalized_path}::{name}"
+            if identifier not in allowed_test_functions:
+                findings.append(
+                    Finding(
+                        "deleted-test-function",
+                        normalized_path,
+                        f"기존 테스트 함수 `{name}`은 삭제하거나 이름을 바꿀 수 없습니다.",
+                    )
+                )
 
     for path in normalized_changed:
         if is_forbidden_path(path, forbidden_prefixes):
@@ -192,9 +218,11 @@ def evaluate_policy_inputs(
                 break
 
     tests_required = any(requires_tests(path, config) for path in normalized_changed)
+    tests_changed = any(path == "tests" or path.startswith("tests/") for path in normalized_changed)
     return {
         "status": "fail" if findings else "pass",
         "tests_required": tests_required,
+        "tests_changed": tests_changed,
         "changed_paths": normalized_changed,
         "findings": [asdict(finding) for finding in findings],
     }
@@ -214,6 +242,54 @@ def git_bytes(args: Sequence[str], root: Path) -> bytes:
 def nul_paths(args: Sequence[str], root: Path) -> list[str]:
     raw = git_bytes(args, root)
     return [normalize_path(value.decode("utf-8", errors="surrogateescape")) for value in raw.split(b"\0") if value]
+
+
+def test_function_names(source: str) -> set[str]:
+    tree = ast.parse(source)
+    names: set[str] = set()
+
+    def visit_body(body: Sequence[ast.stmt], parents: tuple[str, ...] = ()) -> None:
+        for node in body:
+            if isinstance(node, ast.ClassDef):
+                visit_body(node.body, (*parents, node.name))
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith(
+                "test_"
+            ):
+                names.add("::".join((*parents, node.name)))
+
+    visit_body(tree.body)
+    return names
+
+
+def collect_test_protection_inputs(
+    base: str, head: str, root: Path
+) -> tuple[list[str], dict[str, list[str]]]:
+    def tracked_test_files(revision: str) -> set[str]:
+        return {
+            path
+            for path in nul_paths(
+                ["ls-tree", "-r", "--name-only", "-z", revision, "--", "tests"], root
+            )
+            if path.endswith(".py")
+        }
+
+    base_files = tracked_test_files(base)
+    head_files = tracked_test_files(head)
+    deleted_files = sorted(base_files - head_files)
+    removed_functions: dict[str, list[str]] = {}
+
+    for path in sorted(base_files & head_files):
+        base_source = git_bytes(["show", f"{base}:{path}"], root).decode(
+            "utf-8", errors="replace"
+        )
+        head_source = git_bytes(["show", f"{head}:{path}"], root).decode(
+            "utf-8", errors="replace"
+        )
+        missing = sorted(test_function_names(base_source) - test_function_names(head_source))
+        if missing:
+            removed_functions[path] = missing
+
+    return deleted_files, removed_functions
 
 
 def collect_added_lines(base: str, head: str, root: Path) -> dict[str, list[str]]:
@@ -256,9 +332,10 @@ def collect_policy_inputs(
     return changed_paths, sizes, collect_added_lines(base, head, root)
 
 
-def write_github_output(path: Path, tests_required: bool) -> None:
+def write_github_output(path: Path, tests_required: bool, tests_changed: bool) -> None:
     with path.open("a", encoding="utf-8") as handle:
         handle.write(f"tests_required={'true' if tests_required else 'false'}\n")
+        handle.write(f"tests_changed={'true' if tests_changed else 'false'}\n")
 
 
 def print_result(result: Mapping[str, object], *, scope_only: bool) -> None:
@@ -295,12 +372,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     root = Path.cwd()
     config = load_config(args.config)
     changed, sizes, added_lines = collect_policy_inputs(args.base, args.head, root)
+    deleted_test_files, removed_test_functions = collect_test_protection_inputs(
+        args.base, args.head, root
+    )
     result = evaluate_policy_inputs(
         root=root,
         changed_paths=changed,
         changed_file_sizes=sizes,
         added_lines=added_lines,
         config=config,
+        deleted_test_files=deleted_test_files,
+        removed_test_functions=removed_test_functions,
     )
     print_result(result, scope_only=args.scope_only)
 
@@ -309,7 +391,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
     if args.github_output:
-        write_github_output(args.github_output, bool(result["tests_required"]))
+        write_github_output(
+            args.github_output,
+            bool(result["tests_required"]),
+            bool(result["tests_changed"]),
+        )
     if args.scope_only:
         return 0
     return 1 if result["findings"] else 0
