@@ -1,0 +1,38 @@
+{
+  "base_branch": "main",
+  "max_file_bytes": 10485760,
+  "forbidden_prefixes": [
+    "data/",
+    "checkpoints/",
+    "outputs/"
+  ],
+  "test_path_prefixes": [
+    "src/",
+    "scripts/",
+    "tests/"
+  ],
+  "test_exact_paths": [
+    "requirements.txt"
+  ],
+  "sensitive_globs": [
+    ".github/**",
+    ".gitignore",
+    "requirements.txt",
+    "src/dcc_data/**",
+    "scripts/*inference*.py",
+    "scripts/train_*.py",
+    "scripts/pr_*.py"
+  ],
+  "required_approvals": 1,
+  "owner": "sooyahh",
+  "required_checks": [
+    "PR CI / policy",
+    "PR CI / tests"
+  ],
+  "status_context": "merge-gate/verdict",
+  "labels": {
+    "ready": "merge-ready",
+    "waiting": "merge-waiting",
+    "blocked": "merge-blocked"
+  }
+}
