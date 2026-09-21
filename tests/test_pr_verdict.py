@@ -19,17 +19,6 @@ def config() -> dict:
     return load_json(CONFIG_PATH)
 
 
-def approval(user: str = "reviewer", commit_id: str = "head-sha", state: str = "APPROVED") -> dict:
-    return {
-        "id": 1,
-        "state": state,
-        "commit_id": commit_id,
-        "submitted_at": "2026-09-21T00:00:00Z",
-        "user": user,
-        "author_association": "COLLABORATOR",
-    }
-
-
 def passing_snapshot() -> dict:
     return {
         "number": 24,
@@ -37,12 +26,9 @@ def passing_snapshot() -> dict:
         "base_branch": "main",
         "draft": False,
         "head_sha": "head-sha",
-        "author": "author",
         "mergeable": True,
         "mergeable_state": "clean",
         "behind_by": 0,
-        "files": ["docs/decision.md"],
-        "reviews": [approval()],
         "checks": [
             {
                 "id": 10,
@@ -67,26 +53,20 @@ def test_all_conditions_produce_ready_verdict() -> None:
     assert verdict["status_state"] == "success"
 
 
-def test_missing_or_stale_approval_waits() -> None:
-    missing = passing_snapshot()
-    missing["reviews"] = []
-    stale = passing_snapshot()
-    stale["reviews"] = [approval(commit_id="old-sha")]
-
-    assert evaluate_snapshot(missing, config())["state"] == "waiting"
-    assert evaluate_snapshot(stale, config())["state"] == "waiting"
-
-
-def test_later_changes_requested_overrides_approval() -> None:
+def test_human_review_is_not_required_for_any_author_or_file() -> None:
     snapshot = passing_snapshot()
-    later_review = approval(state="CHANGES_REQUESTED")
-    later_review.update({"id": 2, "submitted_at": "2026-09-21T01:00:00Z"})
-    snapshot["reviews"].append(later_review)
+    snapshot.update(
+        {
+            "author": "sooyahh",
+            "files": [".github/workflows/pr-ci.yml"],
+            "reviews": [],
+        }
+    )
 
     verdict = evaluate_snapshot(snapshot, config())
 
-    assert verdict["state"] == "waiting"
-    assert verdict["approvers"] == []
+    assert verdict["state"] == "ready"
+    assert all("승인" not in condition["name"] for condition in verdict["conditions"])
 
 
 def test_failed_check_or_conflict_blocks() -> None:
@@ -107,33 +87,6 @@ def test_behind_branch_and_draft_wait() -> None:
 
     assert evaluate_snapshot(behind, config())["state"] == "waiting"
     assert evaluate_snapshot(draft, config())["state"] == "waiting"
-
-
-def test_sensitive_change_requires_current_owner_approval() -> None:
-    snapshot = passing_snapshot()
-    snapshot["files"] = ["src/dcc_data/guards.py"]
-
-    waiting = evaluate_snapshot(snapshot, config())
-    snapshot["reviews"].append(
-        {
-            **approval(user="sooyahh"),
-            "id": 2,
-            "submitted_at": "2026-09-21T01:00:00Z",
-        }
-    )
-    ready = evaluate_snapshot(snapshot, config())
-
-    assert waiting["state"] == "waiting"
-    assert ready["state"] == "ready"
-
-
-def test_owner_authored_sensitive_change_needs_another_collaborator() -> None:
-    snapshot = passing_snapshot()
-    snapshot.update({"author": "sooyahh", "files": [".github/workflows/pr-ci.yml"]})
-
-    assert evaluate_snapshot(snapshot, config())["state"] == "ready"
-    snapshot["reviews"] = []
-    assert evaluate_snapshot(snapshot, config())["state"] == "waiting"
 
 
 def test_stale_workflow_run_is_ignored() -> None:
@@ -160,7 +113,20 @@ def test_comment_contains_marker_and_head_sha() -> None:
 
     assert COMMENT_MARKER in body
     assert "head-sha" in body
-    assert "merge-ready" in body
+    assert "병합 가능" in body
+    assert "자동 검사(CI)" in body
+    assert "별도 팀원 리뷰는 필수가 아닙니다" in body
+
+
+def test_config_and_workflow_do_not_require_human_review() -> None:
+    workflow_path = CONFIG_PATH.parent / "workflows" / "pr-verdict.yml"
+    workflow = workflow_path.read_text(encoding="utf-8")
+    settings = config()
+
+    assert "required_approvals" not in settings
+    assert "owner" not in settings
+    assert "pull_request_review" not in workflow
+    assert settings["labels"]["waiting"] == "병합-대기"
 
 
 class FakeApi(GitHubApi):
@@ -204,6 +170,10 @@ def test_publish_updates_existing_comment_instead_of_duplicating() -> None:
     assert any(method == "PATCH" and path.endswith("/comments/99") for method, path, _ in api.calls)
     assert not any(
         method == "POST" and path.endswith("/issues/24/comments") for method, path, _ in api.calls
+    )
+    assert any(
+        method == "DELETE" and path.endswith("/labels/merge-waiting")
+        for method, path, _ in api.calls
     )
 
 
