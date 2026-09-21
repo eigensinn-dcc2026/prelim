@@ -80,6 +80,17 @@ def build_candidates(seed: int) -> dict[str, dict[str, Any]]:
     try:
         from lightgbm import LGBMClassifier, early_stopping
 
+        # The very first L1 baseline (M2-LOG-001/002, plain
+        # LGBMClassifier(random_state=seed, verbosity=-1), no other
+        # overrides -- 84.59% on the old, --resume-bug-incomplete data).
+        # Re-run here unchanged so any accuracy delta vs. that historical
+        # number is attributable to the data fix alone, not tuning --
+        # requested explicitly rather than jumping straight to the tuned
+        # config and conflating "more/complete data" with "tuning".
+        candidates["lightgbm_default"] = {
+            "model": LGBMClassifier(random_state=seed, verbosity=-1),
+            "fit_kwargs": {},
+        }
         # n_estimators=300 to match random_forest/xgboost above -- the
         # earlier run compared XGBoost(300 trees) against the *baseline*
         # LightGBM(100 trees, sklearn/lightgbm default), which confounds
