@@ -33,6 +33,15 @@ Outputs:
 
 Partial --index-output/--features-output are written every --flush-every
 calls so a Colab disconnect does not lose all progress.
+
+Known limitation: a call whose label JSON parses fine but has an empty
+`utterances: []` list produces zero rows in every sink (index/features/
+failures), so --resume can't tell it apart from "never attempted" and
+re-reads its audio on every resumed run. Harmless (just wasted work, not
+data loss) and not expected to occur in this dataset -- every real call
+here has at least one utterance -- so it's left unhandled rather than
+threading an explicit "attempted calls" marker through every layer for a
+case that shouldn't come up.
 """
 
 from __future__ import annotations
@@ -121,6 +130,32 @@ def _load_existing_failures(failures_log: Path) -> list[dict]:
         return [json.loads(line) for line in stream if line.strip()]
 
 
+def _write_failures(failures, failures_log: Path) -> None:
+    failures_log.parent.mkdir(parents=True, exist_ok=True)
+    with failures_log.open("w", encoding="utf-8") as stream:
+        for failure in failures:
+            stream.write(json.dumps(failure, ensure_ascii=False) + "\n")
+
+
+def _preserve_stale_file(path: Path) -> Path:
+    """Rename ``path`` out of the way without clobbering an existing backup.
+
+    ``int(time.time())`` collides across two runs started in the same
+    wall-clock second (e.g. an automated retry), which raised an uncaught
+    ``FileExistsError`` on Windows instead of the intended graceful
+    preserve-and-restart. Nanosecond resolution plus a fallback counter makes
+    a real collision essentially impossible.
+    """
+
+    suffix = time.time_ns()
+    backup = path.with_name(f"{path.stem}.stale-{suffix}{path.suffix}")
+    while backup.exists():
+        suffix += 1
+        backup = path.with_name(f"{path.stem}.stale-{suffix}{path.suffix}")
+    path.rename(backup)
+    return backup
+
+
 def _write_outputs(index_records, feature_rows, index_output: Path, features_output: Path) -> None:
     import pandas as pd
 
@@ -189,10 +224,27 @@ def main() -> int:
             )
 
             indexed_keys_by_wav_path: dict[str, set[tuple[str, int]]] = {}
+            # call_id -> wav_path, built with an explicit uniqueness check.
+            # call_id comes from the label JSON's `_id` field, which nothing
+            # in the pipeline enforces as globally unique (only (split, stem)
+            # is validated) -- matching feature_rows/failures for cleanup by
+            # call_id alone would, on an id collision, silently delete an
+            # unrelated and fully-complete call's data. Fail loudly instead;
+            # in practice call_id looks like a Mongo ObjectId and this should
+            # never actually fire.
+            wav_path_by_call_id: dict[str, str] = {}
             for record in index_records:
                 indexed_keys_by_wav_path.setdefault(record.wav_path, set()).add(
                     (record.call_id, int(record.utt_idx))
                 )
+                existing = wav_path_by_call_id.get(record.call_id)
+                if existing is not None and existing != record.wav_path:
+                    raise ValueError(
+                        f"call_id {record.call_id!r} maps to two different wav_path values "
+                        f"({existing!r} and {record.wav_path!r}) in {args.index_output} -- "
+                        "refusing to --resume with ambiguous call_id data."
+                    )
+                wav_path_by_call_id[record.call_id] = record.wav_path
 
             incomplete_wav_paths = {
                 wav_path
@@ -201,19 +253,27 @@ def main() -> int:
             }
             done_wav_paths = set(indexed_keys_by_wav_path) - incomplete_wav_paths
 
-            if incomplete_wav_paths:
-                incomplete_call_ids = {
-                    call_id
-                    for wav_path, keys in indexed_keys_by_wav_path.items()
-                    if wav_path in incomplete_wav_paths
-                    for call_id, _utt_idx in keys
-                }
-                index_records = [r for r in index_records if r.wav_path not in incomplete_wav_paths]
-                feature_rows = [r for r in feature_rows if r["call_id"] not in incomplete_call_ids]
-                failures = [f for f in failures if f.get("call_id") not in incomplete_call_ids]
-
             before = len(rows)
             rows = [row for row in rows if row.wav_path not in done_wav_paths]
+
+            # Every wav_path about to be reprocessed -- whether it was
+            # "incomplete" above, or never made it into the index at all
+            # last time (e.g. it failed at the index/JSON-parsing stage) --
+            # must have its old index/feature/failure entries dropped first.
+            # Otherwise reprocessing appends on top of stale rows (silent
+            # duplicates), and a call that fails identically on every
+            # --resume attempt (a genuinely malformed JSON, say) would
+            # otherwise accumulate one duplicate failures.jsonl entry per
+            # attempt forever. Matched by wav_path throughout (not call_id)
+            # for the same collision-safety reason as above -- failure
+            # dicts always carry "wav_path", regardless of stage.
+            reprocess_wav_paths = {row.wav_path for row in rows}
+            index_records = [r for r in index_records if r.wav_path not in reprocess_wav_paths]
+            feature_rows = [
+                r for r in feature_rows if wav_path_by_call_id.get(r["call_id"]) not in reprocess_wav_paths
+            ]
+            failures = [f for f in failures if f.get("wav_path") not in reprocess_wav_paths]
+
             message = (
                 f"--resume: 완전히 끝난 통화 {before - len(rows)}개 건너뜀 "
                 f"(발화 {len(feature_rows)}개 기존 결과 유지)"
@@ -234,8 +294,7 @@ def main() -> int:
             preserved = []
             for path in (args.index_output, args.features_output):
                 if path.exists():
-                    backup = path.with_name(f"{path.stem}.stale-{int(time.time())}{path.suffix}")
-                    path.rename(backup)
+                    backup = _preserve_stale_file(path)
                     preserved.append(str(backup))
             if preserved:
                 print(
@@ -264,6 +323,12 @@ def main() -> int:
             bar.update(done - bar.n)
         if args.flush_every > 0 and done - last_flush_call >= args.flush_every:
             _write_outputs(index_records, feature_rows, args.index_output, args.features_output)
+            # failures_log used to be written only once at the very end of
+            # main(), unlike index/features which flush here -- a crash
+            # after this point but before the final write lost every
+            # in-memory failure recorded since the last flush, even though
+            # the index/feature progress for the same period survived.
+            _write_failures(failures, args.failures_log)
             last_flush_call = done
 
     start = time.monotonic()
@@ -282,11 +347,7 @@ def main() -> int:
         bar.close()
 
     _write_outputs(index_records, feature_rows, args.index_output, args.features_output)
-
-    args.failures_log.parent.mkdir(parents=True, exist_ok=True)
-    with args.failures_log.open("w", encoding="utf-8") as stream:
-        for failure in failures:
-            stream.write(json.dumps(failure, ensure_ascii=False) + "\n")
+    _write_failures(failures, args.failures_log)
 
     elapsed = time.monotonic() - start
     print(f"Index rows (utterances): {len(index_records)}")

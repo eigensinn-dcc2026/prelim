@@ -259,6 +259,130 @@ def test_resume_preserves_survivor_file_when_only_one_output_exists(tmp_path: Pa
     assert set(fresh_index["wav_stem"]) == {"call_only"}
 
 
+def _write_broken_call(root: Path, stem: str) -> ManifestRow:
+    """A call whose JSON never parses -- fails at the "index" stage on every
+    attempt, forever, regardless of --resume."""
+
+    wav_relative = f"Training/1.원천데이터/TS_서울_구급/{stem}.wav"
+    json_relative = f"Training/2.라벨링데이터/TL_서울_구급/{stem}.json"
+    _write_wav(root / wav_relative, 3.0, seed=99)
+    (root / json_relative).parent.mkdir(parents=True, exist_ok=True)
+    (root / json_relative).write_text("{not valid json", encoding="utf-8")
+    return ManifestRow("Training", stem, wav_relative, json_relative)
+
+
+def test_resume_does_not_duplicate_failure_entries_for_a_call_that_keeps_failing(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    good_row = _write_call(root, "call_a", seed=0)
+    bad_row = _write_broken_call(root, "call_bad")
+    manifest = tmp_path / "manifest.csv"
+    write_manifest([good_row, bad_row], manifest, overwrite=True)
+
+    index_output = tmp_path / "index.parquet"
+    features_output = tmp_path / "features.parquet"
+    failures_log = tmp_path / "failures.jsonl"
+
+    args = [
+        "--manifest",
+        str(manifest),
+        "--data-root",
+        str(root),
+        "--n-calls",
+        "0",
+        "--index-output",
+        str(index_output),
+        "--features-output",
+        str(features_output),
+        "--failures-log",
+        str(failures_log),
+        "--flush-every",
+        "0",
+    ]
+    _run_main(args)
+
+    failures_after_first_run = [json.loads(line) for line in failures_log.read_text(encoding="utf-8").splitlines()]
+    assert [f for f in failures_after_first_run if f["call_id"] == "call_bad"].__len__() == 1
+
+    # Resume twice more -- call_bad has no way to ever succeed, so it must
+    # keep failing, but its failures.jsonl entry must be replaced each time,
+    # never duplicated.
+    _run_main([*args, "--resume"])
+    _run_main([*args, "--resume"])
+
+    final_failures = [json.loads(line) for line in failures_log.read_text(encoding="utf-8").splitlines()]
+    bad_failures = [f for f in final_failures if f["call_id"] == "call_bad"]
+    assert len(bad_failures) == 1, f"expected exactly 1 failure entry for call_bad, got {len(bad_failures)}"
+
+
+def test_resume_refuses_ambiguous_call_id_shared_by_two_wav_paths(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    row = _write_call(root, "call_a", seed=0)
+    manifest = tmp_path / "manifest.csv"
+    write_manifest([row], manifest, overwrite=True)
+
+    index_output = tmp_path / "index.parquet"
+    features_output = tmp_path / "features.parquet"
+    failures_log = tmp_path / "failures.jsonl"
+
+    # Two index rows share call_id "dup" but point at different wav files --
+    # a scenario the pipeline doesn't otherwise guarantee can't happen, since
+    # call_id is just the label JSON's `_id` field with no enforced global
+    # uniqueness.
+    ambiguous_index = pd.DataFrame(
+        [
+            {
+                "call_id": "dup",
+                "wav_stem": "one",
+                "wav_path": "one.wav",
+                "json_path": "one.json",
+                "utt_idx": 0,
+                "startAt": 0,
+                "endAt": 1000,
+                "duration_sec": 1.0,
+                "speaker": 0,
+            },
+            {
+                "call_id": "dup",
+                "wav_stem": "two",
+                "wav_path": "two.wav",
+                "json_path": "two.json",
+                "utt_idx": 0,
+                "startAt": 0,
+                "endAt": 1000,
+                "duration_sec": 1.0,
+                "speaker": 0,
+            },
+        ]
+    )
+    ambiguous_index.to_parquet(index_output, index=False)
+    pd.DataFrame(
+        [{"call_id": "dup", "utt_idx": 0, "speaker": 0}]
+    ).to_parquet(features_output, index=False)
+
+    import pytest
+
+    with pytest.raises(ValueError, match="ambiguous call_id"):
+        _run_main(
+            [
+                "--manifest",
+                str(manifest),
+                "--data-root",
+                str(root),
+                "--n-calls",
+                "0",
+                "--index-output",
+                str(index_output),
+                "--features-output",
+                str(features_output),
+                "--failures-log",
+                str(failures_log),
+                "--flush-every",
+                "0",
+                "--resume",
+            ]
+        )
+
+
 def test_resume_without_existing_outputs_falls_back_to_a_fresh_run(tmp_path: Path) -> None:
     root = tmp_path / "raw"
     row = _write_call(root, "call_only", seed=0)
