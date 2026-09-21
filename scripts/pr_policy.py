@@ -129,17 +129,15 @@ def evaluate_policy_inputs(
     *,
     root: Path,
     changed_paths: Sequence[str],
-    added_paths: Sequence[str],
-    added_file_sizes: Mapping[str, int],
+    changed_file_sizes: Mapping[str, int],
     added_lines: Mapping[str, Sequence[str]],
     config: Mapping[str, object],
 ) -> dict:
     findings: list[Finding] = []
     forbidden_prefixes = list(config.get("forbidden_prefixes", []))
-    max_bytes = int(config.get("max_new_file_bytes", 10 * 1024 * 1024))
+    max_bytes = int(config.get("max_file_bytes", 10 * 1024 * 1024))
 
     normalized_changed = sorted({normalize_path(path) for path in changed_paths})
-    normalized_added = {normalize_path(path) for path in added_paths}
 
     for path in normalized_changed:
         if is_forbidden_path(path, forbidden_prefixes):
@@ -147,14 +145,14 @@ def evaluate_policy_inputs(
                 Finding("forbidden-path", path, "Git에 포함할 수 없는 산출물 경로입니다.")
             )
 
-    for path in sorted(normalized_added):
-        size = int(added_file_sizes.get(path, 0))
+    for path in normalized_changed:
+        size = int(changed_file_sizes.get(path, 0))
         if size > max_bytes:
             findings.append(
                 Finding(
                     "large-file",
                     path,
-                    f"새 파일 크기 {size} bytes가 제한 {max_bytes} bytes를 초과합니다.",
+                    f"파일 크기 {size} bytes가 제한 {max_bytes} bytes를 초과합니다.",
                 )
             )
 
@@ -246,17 +244,16 @@ def collect_added_lines(base: str, head: str, root: Path) -> dict[str, list[str]
     return result
 
 
-def collect_policy_inputs(base: str, head: str, root: Path) -> tuple[list[str], list[str], dict[str, int], dict[str, list[str]]]:
+def collect_policy_inputs(
+    base: str, head: str, root: Path
+) -> tuple[list[str], dict[str, int], dict[str, list[str]]]:
     changed_paths = nul_paths(["diff", "--name-only", "-z", f"{base}...{head}"], root)
-    added_paths = nul_paths(
-        ["diff", "--diff-filter=A", "--name-only", "-z", f"{base}...{head}"], root
-    )
     sizes: dict[str, int] = {}
-    for path in added_paths:
+    for path in changed_paths:
         file_path = root / Path(path)
         if file_path.is_file():
             sizes[path] = file_path.stat().st_size
-    return changed_paths, added_paths, sizes, collect_added_lines(base, head, root)
+    return changed_paths, sizes, collect_added_lines(base, head, root)
 
 
 def write_github_output(path: Path, tests_required: bool) -> None:
@@ -297,12 +294,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     root = Path.cwd()
     config = load_config(args.config)
-    changed, added, sizes, added_lines = collect_policy_inputs(args.base, args.head, root)
+    changed, sizes, added_lines = collect_policy_inputs(args.base, args.head, root)
     result = evaluate_policy_inputs(
         root=root,
         changed_paths=changed,
-        added_paths=added,
-        added_file_sizes=sizes,
+        changed_file_sizes=sizes,
         added_lines=added_lines,
         config=config,
     )

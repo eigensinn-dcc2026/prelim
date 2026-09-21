@@ -9,7 +9,7 @@ from scripts.pr_policy import collect_policy_inputs, detect_secret, evaluate_pol
 
 def config() -> dict:
     return {
-        "max_new_file_bytes": 10 * 1024 * 1024,
+        "max_file_bytes": 10 * 1024 * 1024,
         "forbidden_prefixes": ["data/", "checkpoints/", "outputs/"],
         "test_path_prefixes": ["src/", "scripts/", "tests/"],
         "test_exact_paths": ["requirements.txt"],
@@ -20,15 +20,13 @@ def evaluate(
     root: Path,
     *,
     changed: list[str],
-    added: list[str] | None = None,
     sizes: dict[str, int] | None = None,
     lines: dict[str, list[str]] | None = None,
 ) -> dict:
     return evaluate_policy_inputs(
         root=root,
         changed_paths=changed,
-        added_paths=added or [],
-        added_file_sizes=sizes or {},
+        changed_file_sizes=sizes or {},
         added_lines=lines or {},
         config=config(),
     )
@@ -45,18 +43,16 @@ def test_forbidden_artifact_path_fails(tmp_path: Path) -> None:
     assert finding_codes(result) == {"forbidden-path"}
 
 
-def test_new_file_size_limit_is_strictly_greater_than_10_mib(tmp_path: Path) -> None:
+def test_file_size_limit_is_strictly_greater_than_10_mib(tmp_path: Path) -> None:
     limit = 10 * 1024 * 1024
     at_limit = evaluate(
         tmp_path,
         changed=["reports/at-limit.bin"],
-        added=["reports/at-limit.bin"],
         sizes={"reports/at-limit.bin": limit},
     )
     over_limit = evaluate(
         tmp_path,
         changed=["reports/too-large.bin"],
-        added=["reports/too-large.bin"],
         sizes={"reports/too-large.bin": limit + 1},
     )
 
@@ -146,15 +142,56 @@ def test_git_diff_collection_drives_policy_evaluation(tmp_path: Path) -> None:
     git("commit", "-q", "-m", "head")
     head = git("rev-parse", "HEAD")
 
-    changed, added, sizes, lines = collect_policy_inputs(base, head, tmp_path)
+    changed, sizes, lines = collect_policy_inputs(base, head, tmp_path)
     result = evaluate_policy_inputs(
         root=tmp_path,
         changed_paths=changed,
-        added_paths=added,
-        added_file_sizes=sizes,
+        changed_file_sizes=sizes,
         added_lines=lines,
         config=config(),
     )
 
     assert result["tests_required"] is True
     assert {"forbidden-path", "personal-path"} <= finding_codes(result)
+
+
+def test_modified_file_over_limit_is_rejected_by_git_diff_collection(tmp_path: Path) -> None:
+    def git(*args: str) -> str:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return completed.stdout.strip()
+
+    git("init", "-q")
+    git("config", "user.name", "Merge Gate Test")
+    git("config", "user.email", "merge-gate@example.invalid")
+    artifact = tmp_path / "reports" / "artifact.bin"
+    artifact.parent.mkdir()
+    artifact.write_bytes(b"small")
+    git("add", "reports/artifact.bin")
+    git("commit", "-q", "-m", "base")
+    base = git("rev-parse", "HEAD")
+
+    artifact.write_bytes(b"x" * 17)
+    git("add", "reports/artifact.bin")
+    git("commit", "-q", "-m", "enlarge tracked file")
+    head = git("rev-parse", "HEAD")
+
+    changed, sizes, lines = collect_policy_inputs(base, head, tmp_path)
+    test_config = config()
+    test_config["max_file_bytes"] = 16
+    result = evaluate_policy_inputs(
+        root=tmp_path,
+        changed_paths=changed,
+        changed_file_sizes=sizes,
+        added_lines=lines,
+        config=test_config,
+    )
+
+    assert changed == ["reports/artifact.bin"]
+    assert sizes == {"reports/artifact.bin": 17}
+    assert "large-file" in finding_codes(result)

@@ -1,6 +1,6 @@
 {
   "base_branch": "main",
-  "max_new_file_bytes": 10485760,
+  "max_file_bytes": 10485760,
   "forbidden_prefixes": [
     "data/",
     "checkpoints/",
