@@ -126,6 +126,8 @@ def test_config_and_workflow_do_not_require_human_review() -> None:
     assert "required_approvals" not in settings
     assert "owner" not in settings
     assert "pull_request_review" not in workflow
+    assert "pull-requests: write" in workflow
+    assert "pull-requests: read" not in workflow
     assert settings["labels"]["waiting"] == "병합-대기"
 
 
