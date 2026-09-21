@@ -7,7 +7,6 @@ or executes pull request code; all mutable operations use GitHub's REST API.
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import json
 import os
 import sys
@@ -17,12 +16,14 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from typing import Mapping, Sequence
 
 
 COMMENT_MARKER = "<!-- merge-gate -->"
-COLLABORATOR_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
-DECISIVE_REVIEW_STATES = {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
+CHECK_DISPLAY_NAMES = {
+    "PR CI / policy": "파일·보안 규칙 검사",
+    "PR CI / tests": "자동 테스트",
+}
 
 
 @dataclass(frozen=True)
@@ -35,46 +36,6 @@ class Condition:
 def load_json(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
-
-
-def normalize_path(path: str) -> str:
-    return path.replace("\\", "/").removeprefix("./")
-
-
-def matches_any(path: str, patterns: Iterable[str]) -> bool:
-    normalized = normalize_path(path)
-    return any(fnmatch.fnmatchcase(normalized, normalize_path(pattern)) for pattern in patterns)
-
-
-def current_approvers(snapshot: Mapping[str, object]) -> set[str]:
-    author = str(snapshot["author"]).lower()
-    head_sha = str(snapshot["head_sha"])
-    latest: dict[str, Mapping[str, object]] = {}
-
-    reviews = sorted(
-        snapshot.get("reviews", []),
-        key=lambda review: (str(review.get("submitted_at") or ""), int(review.get("id") or 0)),
-    )
-    for review in reviews:
-        state = str(review.get("state", "")).upper()
-        if state not in DECISIVE_REVIEW_STATES:
-            continue
-        login = str(review.get("user", "")).lower()
-        if login:
-            latest[login] = review
-
-    approvers: set[str] = set()
-    for login, review in latest.items():
-        if login == author:
-            continue
-        if str(review.get("state", "")).upper() != "APPROVED":
-            continue
-        if str(review.get("commit_id") or "") != head_sha:
-            continue
-        if str(review.get("author_association", "")).upper() not in COLLABORATOR_ASSOCIATIONS:
-            continue
-        approvers.add(login)
-    return approvers
 
 
 def latest_check_states(checks: Sequence[Mapping[str, object]]) -> dict[str, Mapping[str, object]]:
@@ -95,92 +56,68 @@ def evaluate_snapshot(snapshot: Mapping[str, object], config: Mapping[str, objec
     base_branch = str(snapshot.get("base_branch", ""))
 
     if base_branch == expected_base:
-        conditions.append(Condition("대상 브랜치", "pass", f"`{expected_base}` 대상 PR입니다."))
+        conditions.append(
+            Condition("합칠 대상", "pass", f"팀 공용 코드인 `{expected_base}`에 합치는 PR입니다.")
+        )
     else:
         conditions.append(
-            Condition("대상 브랜치", "block", f"대상 브랜치가 `{expected_base}`가 아닙니다.")
+            Condition("합칠 대상", "block", f"`{expected_base}`에 합치는 PR이 아닙니다.")
         )
 
     if bool(snapshot.get("draft")):
-        conditions.append(Condition("Draft", "wait", "Draft를 해제해야 합니다."))
+        conditions.append(
+            Condition(
+                "작성 상태",
+                "wait",
+                "아직 작성 중(Draft)으로 표시되어 있습니다. 작성 완료 상태로 바꿔주세요.",
+            )
+        )
     else:
-        conditions.append(Condition("Draft", "pass", "리뷰 가능한 PR입니다."))
+        conditions.append(Condition("작성 상태", "pass", "작성 완료 상태입니다."))
 
     mergeable = snapshot.get("mergeable")
     mergeable_state = str(snapshot.get("mergeable_state") or "unknown").lower()
     if mergeable is False or mergeable_state == "dirty":
-        conditions.append(Condition("충돌", "block", "기준 브랜치와 충돌합니다."))
+        conditions.append(
+            Condition("코드 충돌", "block", "같은 부분이 서로 다르게 바뀌어 자동으로 합칠 수 없습니다.")
+        )
     elif mergeable is None or mergeable_state == "unknown":
-        conditions.append(Condition("충돌", "wait", "GitHub가 충돌 여부를 계산 중입니다."))
+        conditions.append(Condition("코드 충돌", "wait", "GitHub가 충돌 여부를 확인하고 있습니다."))
     else:
-        conditions.append(Condition("충돌", "pass", "병합 충돌이 없습니다."))
+        conditions.append(Condition("코드 충돌", "pass", "자동으로 합칠 수 있습니다."))
 
     behind_by = int(snapshot.get("behind_by") or 0)
     if behind_by > 0:
         conditions.append(
-            Condition("브랜치 최신화", "wait", f"`{expected_base}`보다 {behind_by}개 커밋 뒤처져 있습니다.")
+            Condition(
+                "최신 코드 반영",
+                "wait",
+                f"팀 공용 코드보다 {behind_by}개 변경사항이 뒤처져 있습니다. `{expected_base}`을 먼저 반영해주세요.",
+            )
         )
     else:
-        conditions.append(Condition("브랜치 최신화", "pass", "최신 기준 브랜치를 포함합니다."))
+        conditions.append(Condition("최신 코드 반영", "pass", "팀 공용 최신 코드가 반영되어 있습니다."))
 
     latest_checks = latest_check_states(snapshot.get("checks", []))
     for check_name in config.get("required_checks", []):
+        display_name = CHECK_DISPLAY_NAMES.get(str(check_name), str(check_name))
         check = latest_checks.get(str(check_name))
         if not check or str(check.get("status", "")).lower() != "completed":
-            conditions.append(Condition(check_name, "wait", "검사가 아직 완료되지 않았습니다."))
+            conditions.append(
+                Condition(display_name, "wait", "GitHub가 자동 검사를 실행하고 있습니다.")
+            )
             continue
         conclusion = str(check.get("conclusion") or "").lower()
         if conclusion == "success":
-            conditions.append(Condition(check_name, "pass", "검사를 통과했습니다."))
+            conditions.append(Condition(display_name, "pass", "문제가 발견되지 않았습니다."))
         else:
             conditions.append(
-                Condition(check_name, "block", f"검사 결과가 `{conclusion or 'unknown'}`입니다.")
+                Condition(
+                    display_name,
+                    "block",
+                    "자동 검사에서 문제가 발견됐습니다. 실패한 검사 항목을 열어 내용을 확인해주세요.",
+                )
             )
-
-    approvers = current_approvers(snapshot)
-    required_approvals = int(config.get("required_approvals", 1))
-    if len(approvers) >= required_approvals:
-        conditions.append(
-            Condition("현재 커밋 승인", "pass", f"유효한 승인 {len(approvers)}개가 있습니다.")
-        )
-    else:
-        conditions.append(
-            Condition(
-                "현재 커밋 승인",
-                "wait",
-                f"PR 작성자가 아닌 collaborator의 승인 {required_approvals}개가 필요합니다.",
-            )
-        )
-
-    changed_files = [str(path) for path in snapshot.get("files", [])]
-    sensitive_files = [
-        path for path in changed_files if matches_any(path, config.get("sensitive_globs", []))
-    ]
-    owner = str(config.get("owner", "")).lower()
-    author = str(snapshot.get("author", "")).lower()
-    if not sensitive_files:
-        conditions.append(Condition("민감 파일 승인", "pass", "민감 파일 변경이 없습니다."))
-    elif author == owner:
-        if approvers:
-            conditions.append(
-                Condition("민감 파일 승인", "pass", "owner 작성 PR을 다른 collaborator가 승인했습니다.")
-            )
-        else:
-            conditions.append(
-                Condition("민감 파일 승인", "wait", "owner 작성 PR은 다른 collaborator의 승인이 필요합니다.")
-            )
-    elif owner in approvers:
-        conditions.append(
-            Condition("민감 파일 승인", "pass", f"`@{owner}`가 현재 커밋을 승인했습니다.")
-        )
-    else:
-        conditions.append(
-            Condition(
-                "민감 파일 승인",
-                "wait",
-                f"민감 파일 변경에는 `@{owner}`의 현재 커밋 승인이 필요합니다.",
-            )
-        )
 
     states = {condition.state for condition in conditions}
     if "block" in states:
@@ -190,28 +127,26 @@ def evaluate_snapshot(snapshot: Mapping[str, object], config: Mapping[str, objec
     elif "wait" in states:
         state = "waiting"
         status_state = "pending"
-        description = "검사 완료, 브랜치 최신화 또는 승인을 기다립니다."
+        description = "자동 검사 완료 또는 최신 코드 반영을 기다립니다."
     else:
         state = "ready"
         status_state = "success"
-        description = "자동 조건을 모두 충족했습니다. 사람이 최종 merge하세요."
+        description = "자동 검사 조건을 모두 통과했습니다. PR 작성자가 병합해도 됩니다."
 
     return {
         "state": state,
         "status_state": status_state,
         "description": description,
         "conditions": [condition.__dict__ for condition in conditions],
-        "approvers": sorted(approvers),
-        "sensitive_files": sensitive_files,
     }
 
 
 def render_comment(snapshot: Mapping[str, object], verdict: Mapping[str, object]) -> str:
     icons = {"pass": "✅", "wait": "⏳", "block": "❌"}
     state_titles = {
-        "ready": "merge-ready",
-        "waiting": "merge-waiting",
-        "blocked": "merge-blocked",
+        "ready": "병합 가능",
+        "waiting": "병합 대기",
+        "blocked": "수정 필요",
     }
     lines = [
         COMMENT_MARKER,
@@ -227,20 +162,19 @@ def render_comment(snapshot: Mapping[str, object], verdict: Mapping[str, object]
         message = str(condition["message"]).replace("|", "\\|").replace("\n", " ")
         lines.append(f"| {condition['name']} | {icon} | {message} |")
 
-    sensitive_files = verdict.get("sensitive_files", [])
-    if sensitive_files:
-        lines.extend(
-            [
-                "",
-                "민감 파일: " + ", ".join(f"`{path}`" for path in sensitive_files[:10]),
-            ]
-        )
     lines.extend(
         [
             "",
             f"판정 커밋: `{str(snapshot['head_sha'])[:12]}`",
             "",
-            "> 이 판정은 권고형입니다. PR 작성자가 직접 merge하지 말고 팀원의 최종 확인을 받으세요.",
+            "### 용어 설명",
+            "",
+            "- **main**: 팀원들의 최종 코드를 모아두는 공용 브랜치입니다.",
+            "- **작성 중(Draft)**: PR 작업이 아직 끝나지 않았다는 표시입니다.",
+            "- **자동 검사(CI)**: GitHub가 파일 규칙과 테스트를 자동으로 확인하는 과정입니다.",
+            "- **코드 충돌**: 같은 코드가 서로 다르게 수정되어 사람이 정리해야 하는 상태입니다.",
+            "",
+            "> 별도 팀원 리뷰는 필수가 아닙니다. 최종 상태가 `병합 가능`이면 PR 작성자가 직접 merge할 수 있습니다.",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -318,10 +252,15 @@ class GitHubApi:
             time.sleep(2)
             pull = self.request("GET", f"/repos/{self.repository}/pulls/{number}")
 
-        files = self.paginate(f"/repos/{self.repository}/pulls/{number}/files")
-        reviews = self.paginate(f"/repos/{self.repository}/pulls/{number}/reviews")
         head_sha = str(pull["head"]["sha"])
-        base_sha = str(pull["base"]["sha"])
+        base_branch = str(pull["base"]["ref"])
+        encoded_base_branch = urllib.parse.quote(base_branch, safe="")
+        branch = self.request(
+            "GET", f"/repos/{self.repository}/branches/{encoded_base_branch}"
+        )
+        if not isinstance(branch, dict) or not isinstance(branch.get("commit"), dict):
+            raise RuntimeError(f"Base branch {base_branch!r} response is invalid")
+        base_sha = str(branch["commit"]["sha"])
         compare_path = (
             f"/repos/{self.repository}/compare/"
             f"{urllib.parse.quote(base_sha, safe='')}...{urllib.parse.quote(head_sha, safe='')}"
@@ -335,25 +274,12 @@ class GitHubApi:
         return {
             "number": number,
             "html_url": pull["html_url"],
-            "base_branch": pull["base"]["ref"],
+            "base_branch": base_branch,
             "draft": pull.get("draft", False),
             "head_sha": head_sha,
-            "author": pull["user"]["login"],
             "mergeable": pull.get("mergeable"),
             "mergeable_state": pull.get("mergeable_state"),
             "behind_by": comparison.get("behind_by", 0),
-            "files": [item["filename"] for item in files],
-            "reviews": [
-                {
-                    "id": review.get("id"),
-                    "state": review.get("state"),
-                    "commit_id": review.get("commit_id"),
-                    "submitted_at": review.get("submitted_at"),
-                    "user": (review.get("user") or {}).get("login"),
-                    "author_association": review.get("author_association"),
-                }
-                for review in reviews
-            ],
             "checks": [
                 {
                     "id": check.get("id"),
@@ -367,9 +293,9 @@ class GitHubApi:
 
     def ensure_labels(self, labels: Mapping[str, str]) -> None:
         definitions = {
-            labels["ready"]: ("2da44e", "자동 병합 조건을 모두 충족했습니다."),
-            labels["waiting"]: ("bf8700", "검사, 최신화 또는 승인을 기다립니다."),
-            labels["blocked"]: ("d73a4a", "병합 전에 해결해야 할 문제가 있습니다."),
+            labels["ready"]: ("2da44e", "자동 검사 조건을 모두 통과해 병합할 수 있습니다."),
+            labels["waiting"]: ("bf8700", "자동 검사 완료 또는 최신 코드 반영을 기다립니다."),
+            labels["blocked"]: ("d73a4a", "병합 전에 수정해야 할 문제가 있습니다."),
         }
         for name, (color, description) in definitions.items():
             encoded = urllib.parse.quote(name, safe="")
@@ -407,7 +333,8 @@ class GitHubApi:
         labels = config["labels"]
         self.ensure_labels(labels)
         desired = labels[verdict["state"]]
-        for label in labels.values():
+        managed_labels = set(labels.values()) | set(config.get("legacy_labels", []))
+        for label in managed_labels:
             encoded = urllib.parse.quote(label, safe="")
             if label == desired:
                 self.request("POST", f"/repos/{self.repository}/issues/{number}/labels", {"labels": [label]})
