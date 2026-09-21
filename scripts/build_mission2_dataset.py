@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -90,11 +91,24 @@ def parse_args() -> argparse.Namespace:
             "load --index-output/--features-output if they already exist and skip calls already "
             "present in them (matched by wav_path), appending only the remainder -- for continuing "
             "after an interrupted run (e.g. a Colab disconnect) instead of starting over from zero. "
-            "Only meaningful with --n-calls 0 (process everything); combining --resume with a "
-            "positive --n-calls does not reproduce what a single uninterrupted run would have sampled."
+            "Requires --n-calls 0 (process everything); enforced, not just advisory -- with a "
+            "positive --n-calls, incomplete calls the sample doesn't happen to reselect would be "
+            "deleted (their stale rows purged for reprocessing) but never actually reprocessed."
         ),
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.resume and args.n_calls != 0:
+        # --resume deletes every not-yet-fully-resolved call's prior rows
+        # before re-sampling (see main()), then build_seoul_training_dataset
+        # samples only --n-calls of the remaining rows. With a positive
+        # --n-calls, any incomplete call NOT selected by that sample is
+        # deleted but never reprocessed -- real, reviewer-reproduced data
+        # loss, not just "doesn't reproduce a single uninterrupted run" as
+        # the old help text implied. Fail fast instead of allowing it
+        # (the default --n-calls is 3000, so this previously fired silently
+        # on any --resume invocation that forgot to override it).
+        parser.error("--resume requires --n-calls 0 (process everything) -- see --resume's help for why")
+    return args
 
 
 def _load_existing_index(index_output: Path) -> list[UtteranceRecord]:
@@ -130,11 +144,128 @@ def _load_existing_failures(failures_log: Path) -> list[dict]:
         return [json.loads(line) for line in stream if line.strip()]
 
 
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` so a crash mid-write can never leave a
+    truncated/corrupted file at ``path`` itself.
+
+    Writing directly to the target (the original code's behavior) can leave
+    a 0-byte or partial file there if the process dies mid-write; --resume's
+    ``exists()`` check can't tell that apart from a complete file and would
+    crash trying to parse it (reviewer-reproduced by corrupting the features
+    parquet). Writing to a temp file in the same directory first, then
+    ``os.replace`` (atomic on both POSIX and Windows for same-filesystem
+    renames), means ``path`` is always either the previous complete version
+    or the new complete version, never something in between.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f"{path.name}.tmp-{os.getpid()}-{time.time_ns()}")
+    tmp_path.write_text(text, encoding="utf-8")
+    os.replace(tmp_path, path)
+
+
 def _write_failures(failures, failures_log: Path) -> None:
-    failures_log.parent.mkdir(parents=True, exist_ok=True)
-    with failures_log.open("w", encoding="utf-8") as stream:
-        for failure in failures:
-            stream.write(json.dumps(failure, ensure_ascii=False) + "\n")
+    _atomic_write_text(failures_log, "".join(json.dumps(f, ensure_ascii=False) + "\n" for f in failures))
+
+
+def _check_no_call_id_collision(index_records, *, context: str) -> dict[str, str]:
+    """Return call_id -> wav_path, raising if any call_id maps to two.
+
+    call_id is the label JSON's `_id` field; nothing in the pipeline
+    enforces it as globally unique (only (split, stem) is validated).
+    Matching rows across sinks by call_id alone would, on a collision,
+    silently merge/delete an unrelated call's data. Fail loudly instead --
+    in practice call_id looks like a Mongo ObjectId and this should never
+    actually fire.
+    """
+
+    wav_path_by_call_id: dict[str, str] = {}
+    for record in index_records:
+        existing = wav_path_by_call_id.get(record.call_id)
+        if existing is not None and existing != record.wav_path:
+            raise ValueError(
+                f"call_id {record.call_id!r} maps to two different wav_path values "
+                f"({existing!r} and {record.wav_path!r}) {context} -- refusing to continue "
+                "with ambiguous call_id data."
+            )
+        wav_path_by_call_id[record.call_id] = record.wav_path
+    return wav_path_by_call_id
+
+
+def _validate_loaded_state(index_records, feature_rows, failures, *, index_output: Path) -> None:
+    """Refuse to --resume from a corrupt/inconsistent prior run rather than
+    silently misclassifying it as complete.
+
+    A plain "is this utterance's key present somewhere" subset check (the
+    first version of this fix) still calls a call "done" if e.g. a feature
+    row is accidentally duplicated, or a feature and a failure both exist
+    for the same utterance, or a failure references an utterance that was
+    never indexed. All of those are real states a partial/interrupted prior
+    run's parquet files can end up in -- reviewer-reproduced by duplicating
+    one feature row and observing the call get skipped, duplicate row and
+    all, on --resume.
+    """
+
+    index_keys = [(r.call_id, int(r.utt_idx)) for r in index_records]
+    if len(index_keys) != len(set(index_keys)):
+        raise ValueError(f"duplicate (call_id, utt_idx) rows found in {index_output} -- refusing to --resume.")
+    index_key_set = set(index_keys)
+
+    feature_keys = [(row["call_id"], int(row["utt_idx"])) for row in feature_rows]
+    if len(feature_keys) != len(set(feature_keys)):
+        raise ValueError("duplicate (call_id, utt_idx) rows found in the features parquet -- refusing to --resume.")
+    feature_key_set = set(feature_keys)
+
+    utt_failures = [f for f in failures if f.get("utt_idx") is not None]
+    failure_keys = [(f["call_id"], int(f["utt_idx"])) for f in utt_failures]
+    if len(failure_keys) != len(set(failure_keys)):
+        raise ValueError("duplicate (call_id, utt_idx) entries found in the failures log -- refusing to --resume.")
+    failure_key_set = set(failure_keys)
+
+    overlap = feature_key_set & failure_key_set
+    if overlap:
+        raise ValueError(
+            f"{len(overlap)} utterance(s) have both a feature row and a failure entry "
+            f"(e.g. {next(iter(overlap))!r}) -- refusing to --resume with contradictory state."
+        )
+
+    orphans = (feature_key_set | failure_key_set) - index_key_set
+    if orphans:
+        raise ValueError(
+            f"{len(orphans)} feature/failure entries (e.g. {next(iter(orphans))!r}) reference an "
+            "utterance that was never indexed -- refusing to --resume with orphaned data."
+        )
+
+    wav_path_by_key = {(r.call_id, int(r.utt_idx)): r.wav_path for r in index_records}
+    for failure in utt_failures:
+        key = (failure["call_id"], int(failure["utt_idx"]))
+        recorded_wav_path = failure.get("wav_path")
+        if key in wav_path_by_key and recorded_wav_path is not None and recorded_wav_path != wav_path_by_key[key]:
+            raise ValueError(
+                f"failure entry for {key!r} records wav_path {recorded_wav_path!r}, but the index has "
+                f"{wav_path_by_key[key]!r} for the same key -- refusing to --resume with inconsistent data."
+            )
+
+
+def _preserve_and_restart_fresh(args: argparse.Namespace, reason: str) -> None:
+    """Back up whatever output files exist, then let --resume fall through
+    to a from-scratch run.
+
+    Used both when the on-disk state can't be reconstructed at all (only
+    one of index/features exists) and when it exists but fails to load or
+    fails ``_validate_loaded_state`` (e.g. a parquet corrupted by a crash
+    mid-write predating the atomic-write fix, or by something outside this
+    script's control). Either way, the old behavior -- crash uncaught, or
+    silently overwrite the survivor at the end of the run -- is wrong;
+    preserving every existing file under a `.stale-*` name and starting
+    over is always safe, just possibly wasteful of prior work.
+    """
+
+    preserved = []
+    for path in (args.index_output, args.features_output, args.failures_log):
+        if path.exists():
+            preserved.append(str(_preserve_stale_file(path)))
+    print(f"--resume: {reason} -- 처음부터 새로 시작합니다." + (f" 보존된 파일: {', '.join(preserved)}" if preserved else ""))
 
 
 def _preserve_stale_file(path: Path) -> Path:
@@ -156,11 +287,17 @@ def _preserve_stale_file(path: Path) -> Path:
     return backup
 
 
+def _atomic_write_parquet(df, path: Path) -> None:
+    """Same rationale as ``_atomic_write_text``, for parquet output."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f"{path.name}.tmp-{os.getpid()}-{time.time_ns()}")
+    df.to_parquet(tmp_path, index=False)
+    os.replace(tmp_path, path)
+
+
 def _write_outputs(index_records, feature_rows, index_output: Path, features_output: Path) -> None:
     import pandas as pd
-
-    index_output.parent.mkdir(parents=True, exist_ok=True)
-    features_output.parent.mkdir(parents=True, exist_ok=True)
 
     index_df = pd.DataFrame(
         [
@@ -178,10 +315,10 @@ def _write_outputs(index_records, feature_rows, index_output: Path, features_out
             for r in index_records
         ]
     )
-    index_df.to_parquet(index_output, index=False)
+    _atomic_write_parquet(index_df, index_output)
 
     features_df = pd.DataFrame(feature_rows, columns=["call_id", "utt_idx", "speaker", *FEATURE_COLUMNS])
-    features_df.to_parquet(features_output, index=False)
+    _atomic_write_parquet(features_df, features_output)
 
 
 def main() -> int:
@@ -192,23 +329,65 @@ def main() -> int:
     feature_rows: list = []
     failures: list = []
 
+    resumed = False
     if args.resume:
-        if args.index_output.exists() and args.features_output.exists():
-            index_records = _load_existing_index(args.index_output)
-            feature_rows = _load_existing_features(args.features_output)
-            failures = _load_existing_failures(args.failures_log)
+        # Captured once, up front: the preserve-and-restart fallback below
+        # renames index/features/failures away on a read failure, which
+        # would otherwise make a live `.exists()` re-check after the fact
+        # see "only one file exists" and redundantly (harmlessly, but
+        # confusingly) attempt to preserve an already-empty state again.
+        both_existed = args.index_output.exists() and args.features_output.exists()
+        if both_existed:
+            try:
+                index_records = _load_existing_index(args.index_output)
+                feature_rows = _load_existing_features(args.features_output)
+                failures = _load_existing_failures(args.failures_log)
+            except Exception as exc:  # noqa: BLE001 -- deliberately broad: a corrupt
+                # parquet can raise anything from pyarrow/pandas (reviewer-
+                # reproduced by truncating the features file). A file that
+                # can't even be *read* is unrecoverable -- fall back to
+                # preserve-and-restart, same as "only one file exists".
+                index_records, feature_rows, failures = [], [], []
+                _preserve_and_restart_fresh(
+                    args, f"기존 출력을 읽는 데 실패했습니다({type(exc).__name__}: {exc})"
+                )
+            else:
+                # Unlike a read failure, a *validation* failure (duplicate
+                # rows, orphan features, contradictory feature+failure for
+                # the same utterance, ...) means the files parsed fine but
+                # are logically inconsistent -- deliberately NOT caught
+                # alongside the read failures above. Silently discarding
+                # (possibly hours of) prior work over one bad row would be
+                # its own kind of data loss; this should be a loud, blocking
+                # error a human looks at, not an auto-recovery.
+                _validate_loaded_state(index_records, feature_rows, failures, index_output=args.index_output)
+                resumed = True
 
+        if resumed:
             # A call only counts as "done" if every utterance indexed for it
             # already has a resolved outcome (a feature row, or a logged
             # failure) -- being present in the index alone is NOT enough.
-            # Index rows for a call are written before that call's audio is
-            # opened/features are extracted (see _process_one_call), so if the
-            # process crashes between those two steps (e.g. a worker OOM/
-            # BrokenProcessPool), the call ends up indexed but with zero
-            # feature rows and zero failure entries. The old check here
-            # (`{record.wav_path for record in index_records}`) treated that
-            # call as done and would skip it forever on every future
-            # --resume, silently losing it with no error and no log entry.
+            # _process_one_call returns index/feature/failure rows for a
+            # call together, as one tuple, so a mid-call worker crash
+            # (OOM/BrokenProcessPool) actually drops all three for that call
+            # from the parent sinks, not just features -- an earlier version
+            # of this comment claimed otherwise; that was wrong (caught in
+            # PR review). The real mechanism for "indexed but unresolved" is:
+            # every utterance in a call fails at the *feature* stage (not
+            # audio_open), which still returns (index_records, [], failures)
+            # normally -- but failures_log used to be written only once at
+            # the very end of main() while index/features flushed
+            # periodically (see _write_failures's call sites below, now
+            # fixed to flush together). A run interrupted after such a
+            # periodic flush but before the final write left exactly this
+            # state on disk: indexed, zero features, and failures.jsonl
+            # missing that call (or empty, if it was the only failure so
+            # far) -- matching the real 2,170/29,200-call pattern this fix
+            # was written against. The old completeness check here
+            # (`{record.wav_path for record in index_records}`) treated any
+            # indexed call as done regardless, and would skip it forever on
+            # every future --resume, silently losing it with no error and no
+            # log entry.
             # int(...) casts: values loaded back from parquet/JSON can come
             # back as numpy/pandas integer types, which normally hash equal
             # to plain Python ints -- but the two sides of this comparison
@@ -223,28 +402,16 @@ def main() -> int:
                 # have no counterpart to resolve here.
             )
 
+            # call_id -> wav_path map, collision-checked (see
+            # _check_no_call_id_collision) -- used below to match
+            # feature_rows (which only carry call_id) back to a wav_path.
+            wav_path_by_call_id = _check_no_call_id_collision(index_records, context=f"in {args.index_output}")
+
             indexed_keys_by_wav_path: dict[str, set[tuple[str, int]]] = {}
-            # call_id -> wav_path, built with an explicit uniqueness check.
-            # call_id comes from the label JSON's `_id` field, which nothing
-            # in the pipeline enforces as globally unique (only (split, stem)
-            # is validated) -- matching feature_rows/failures for cleanup by
-            # call_id alone would, on an id collision, silently delete an
-            # unrelated and fully-complete call's data. Fail loudly instead;
-            # in practice call_id looks like a Mongo ObjectId and this should
-            # never actually fire.
-            wav_path_by_call_id: dict[str, str] = {}
             for record in index_records:
                 indexed_keys_by_wav_path.setdefault(record.wav_path, set()).add(
                     (record.call_id, int(record.utt_idx))
                 )
-                existing = wav_path_by_call_id.get(record.call_id)
-                if existing is not None and existing != record.wav_path:
-                    raise ValueError(
-                        f"call_id {record.call_id!r} maps to two different wav_path values "
-                        f"({existing!r} and {record.wav_path!r}) in {args.index_output} -- "
-                        "refusing to --resume with ambiguous call_id data."
-                    )
-                wav_path_by_call_id[record.call_id] = record.wav_path
 
             incomplete_wav_paths = {
                 wav_path
@@ -282,29 +449,23 @@ def main() -> int:
                 message += f", 인덱스엔 있었지만 미완료였던 통화 {len(incomplete_wav_paths)}개는 처음부터 재처리"
             message += f", 남은 통화 {len(rows)}개 처리 예정"
             print(message)
-        else:
+        elif not both_existed:
             # --resume needs BOTH files to reconstruct prior progress. If only
             # one exists (e.g. a crash landed between the two writes inside
-            # _write_outputs), the old code silently fell through to "start
-            # fresh" and then, at the end of main(), unconditionally
-            # overwrote that surviving file with the fresh (much smaller)
-            # run's results -- permanently discarding whatever progress it
-            # held, with no warning. Rename it out of the way instead so nothing
-            # is lost.
-            preserved = []
-            for path in (args.index_output, args.features_output):
-                if path.exists():
-                    backup = _preserve_stale_file(path)
-                    preserved.append(str(backup))
-            if preserved:
-                print(
-                    "--resume 지정됐지만 index/features 중 한쪽 파일만 존재해 이어할 수 없습니다 "
-                    "(중단된 실행의 부분 결과로 추정). 덮어써서 잃어버리지 않도록 보존했습니다: "
-                    + ", ".join(preserved)
-                    + " -- 처음부터 새로 시작합니다."
-                )
-            else:
-                print("--resume 지정됐지만 기존 출력 파일이 없어 새로 시작합니다.")
+            # _write_outputs -- still possible in principle even with the
+            # atomic-write fix, since the two files are written one after
+            # the other, not as a single transaction), the old code silently
+            # fell through to "start fresh" and then, at the end of main(),
+            # unconditionally overwrote that surviving file with the fresh
+            # (much smaller) run's results. Same fallback as the load-failure
+            # path above (a validation failure, by contrast, does NOT reach
+            # here -- it's raised, not caught, see the `else` branch above).
+            reason = (
+                "index/features 중 한쪽 파일만 존재해 이어할 수 없습니다(중단된 실행의 부분 결과로 추정)"
+                if (args.index_output.exists() or args.features_output.exists())
+                else "기존 출력 파일이 없습니다"
+            )
+            _preserve_and_restart_fresh(args, reason)
 
     try:
         from tqdm import tqdm
@@ -345,6 +506,13 @@ def main() -> int:
     )
     if bar is not None:
         bar.close()
+
+    # Re-check after processing, not just on the initially-loaded index: a
+    # newly (re)processed call's JSON `_id` could collide with an
+    # already-"done" call's call_id that was loaded from disk and never
+    # touched this run (reviewer-reproduced) -- the earlier check inside the
+    # --resume branch only ever saw the pre-processing state.
+    _check_no_call_id_collision(index_records, context="after this run's processing")
 
     _write_outputs(index_records, feature_rows, args.index_output, args.features_output)
     _write_failures(failures, args.failures_log)

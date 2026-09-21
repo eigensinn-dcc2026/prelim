@@ -324,10 +324,13 @@ def test_resume_refuses_ambiguous_call_id_shared_by_two_wav_paths(tmp_path: Path
     features_output = tmp_path / "features.parquet"
     failures_log = tmp_path / "failures.jsonl"
 
-    # Two index rows share call_id "dup" but point at different wav files --
-    # a scenario the pipeline doesn't otherwise guarantee can't happen, since
-    # call_id is just the label JSON's `_id` field with no enforced global
-    # uniqueness.
+    # Two index rows share call_id "dup" but point at different wav files,
+    # each with its OWN (non-colliding) utt_idx -- a scenario the pipeline
+    # doesn't otherwise guarantee can't happen, since call_id is just the
+    # label JSON's `_id` field with no enforced global uniqueness. utt_idx
+    # is deliberately distinct per row (0 vs 1) so this exercises the
+    # call_id -> wav_path collision check specifically, not the separate
+    # (call_id, utt_idx) duplicate-row check in _validate_loaded_state.
     ambiguous_index = pd.DataFrame(
         [
             {
@@ -346,7 +349,7 @@ def test_resume_refuses_ambiguous_call_id_shared_by_two_wav_paths(tmp_path: Path
                 "wav_stem": "two",
                 "wav_path": "two.wav",
                 "json_path": "two.json",
-                "utt_idx": 0,
+                "utt_idx": 1,
                 "startAt": 0,
                 "endAt": 1000,
                 "duration_sec": 1.0,
@@ -356,7 +359,10 @@ def test_resume_refuses_ambiguous_call_id_shared_by_two_wav_paths(tmp_path: Path
     )
     ambiguous_index.to_parquet(index_output, index=False)
     pd.DataFrame(
-        [{"call_id": "dup", "utt_idx": 0, "speaker": 0}]
+        [
+            {"call_id": "dup", "utt_idx": 0, "speaker": 0},
+            {"call_id": "dup", "utt_idx": 1, "speaker": 0},
+        ]
     ).to_parquet(features_output, index=False)
 
     import pytest
@@ -381,6 +387,229 @@ def test_resume_refuses_ambiguous_call_id_shared_by_two_wav_paths(tmp_path: Path
                 "--resume",
             ]
         )
+
+
+def test_resume_rejects_a_positive_n_calls(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    row = _write_call(root, "call_only", seed=0)
+    manifest = tmp_path / "manifest.csv"
+    write_manifest([row], manifest, overwrite=True)
+
+    import pytest
+
+    # A positive --n-calls (the default is 3000, not 0) combined with
+    # --resume used to silently delete incomplete calls the sample didn't
+    # happen to reselect, without ever reprocessing them (reviewer-
+    # reproduced). Now enforced at the argument-parsing level.
+    with pytest.raises(SystemExit):
+        _run_main(
+            [
+                "--manifest",
+                str(manifest),
+                "--data-root",
+                str(root),
+                "--n-calls",
+                "1",
+                "--index-output",
+                str(tmp_path / "index.parquet"),
+                "--features-output",
+                str(tmp_path / "features.parquet"),
+                "--failures-log",
+                str(tmp_path / "failures.jsonl"),
+                "--resume",
+            ]
+        )
+
+
+def test_resume_recovers_from_a_corrupted_features_file_instead_of_crashing(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    row = _write_call(root, "call_only", seed=0)
+    manifest = tmp_path / "manifest.csv"
+    write_manifest([row], manifest, overwrite=True)
+
+    index_output = tmp_path / "index.parquet"
+    features_output = tmp_path / "features.parquet"
+    failures_log = tmp_path / "failures.jsonl"
+
+    args = [
+        "--manifest",
+        str(manifest),
+        "--data-root",
+        str(root),
+        "--n-calls",
+        "0",
+        "--index-output",
+        str(index_output),
+        "--features-output",
+        str(features_output),
+        "--failures-log",
+        str(failures_log),
+        "--flush-every",
+        "0",
+    ]
+    _run_main(args)
+
+    # Corrupt the features parquet in place -- simulates a crash mid-write
+    # (predating the atomic-write fix) or damage from outside this script.
+    features_output.write_bytes(b"not a real parquet file")
+
+    # Must NOT crash uncaught: falls back to preserve-and-restart, same as
+    # the "only one file exists" case.
+    _run_main([*args, "--resume"])
+
+    backups = list(tmp_path.glob("features.stale-*.parquet"))
+    assert len(backups) == 1, "the corrupted file must be preserved, not silently discarded"
+    assert set(pd.read_parquet(index_output)["wav_stem"]) == {"call_only"}
+    assert set(pd.read_parquet(features_output)["call_id"]) == {"call_only"}
+
+
+def test_resume_raises_loudly_on_a_duplicate_feature_row_instead_of_silently_resuming(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    row = _write_call(root, "call_only", seed=0)
+    manifest = tmp_path / "manifest.csv"
+    write_manifest([row], manifest, overwrite=True)
+
+    index_output = tmp_path / "index.parquet"
+    features_output = tmp_path / "features.parquet"
+    failures_log = tmp_path / "failures.jsonl"
+
+    args = [
+        "--manifest",
+        str(manifest),
+        "--data-root",
+        str(root),
+        "--n-calls",
+        "0",
+        "--index-output",
+        str(index_output),
+        "--features-output",
+        str(features_output),
+        "--failures-log",
+        str(failures_log),
+        "--flush-every",
+        "0",
+    ]
+    _run_main(args)
+
+    # Duplicate one feature row in place -- a logically-inconsistent but
+    # perfectly parseable file (reviewer-reproduced: the old subset-based
+    # completeness check judged the call "done" and left the duplicate in
+    # the final output forever). Unlike a corrupted/unreadable file, this
+    # must be a loud, blocking error -- not silently auto-recovered by
+    # discarding the file, since that could throw away real prior work over
+    # what might be a one-row fixable mistake.
+    features = pd.read_parquet(features_output)
+    duplicated = pd.concat([features, features.iloc[[0]]], ignore_index=True)
+    duplicated.to_parquet(features_output, index=False)
+
+    import pytest
+
+    with pytest.raises(ValueError, match="duplicate"):
+        _run_main([*args, "--resume"])
+
+
+def test_resume_recovers_a_call_that_crashed_between_a_periodic_flush_and_the_failures_write(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Faithful reproduction of the mechanism PR review identified as the
+    real one (the PR's original description -- "crash between index write
+    and audio open" -- doesn't hold up: _process_one_call returns
+    index/feature/failure rows for a call together in one tuple, so a
+    mid-call worker crash drops all three from the parent sinks, not just
+    features).
+
+    The real path: every utterance in a call fails at the *feature* stage
+    (not audio_open, e.g. a corrupted WAV that opens but won't decode),
+    which still returns (index_records, [], failures) normally and gets
+    added to the parent sinks -- but if the process is interrupted exactly
+    between that cycle's index/features flush and its failures flush (the
+    two used to happen at different times entirely; now they're back to
+    back in the same on_call_done call), the on-disk state is
+    index-present/features-absent/failures-not-yet-written. Reproduced here
+    via a real _write_failures call site, not post-hoc parquet surgery.
+    """
+
+    root = tmp_path / "raw"
+    bad_row = _write_call(root, "call_bad", seed=0)
+    # A WAV file that opens (has a valid-looking header) but has no actual
+    # audio frames -- read_call_waveform succeeds at the file-open level
+    # (this call gets indexed) but every utterance's slice/feature-extract
+    # step fails: a "feature" stage failure, not "audio_open".
+    wav_path = root / bad_row.wav_path
+    with wave.open(str(wav_path), "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(SAMPLE_RATE)
+        wav_file.writeframes(b"")  # zero frames
+
+    manifest = tmp_path / "manifest.csv"
+    write_manifest([bad_row], manifest, overwrite=True)
+
+    index_output = tmp_path / "index.parquet"
+    features_output = tmp_path / "features.parquet"
+    failures_log = tmp_path / "failures.jsonl"
+
+    real_write_failures = build_mission2_dataset._write_failures
+
+    def crashing_write_failures(failures, path):
+        raise RuntimeError("simulated crash: interrupted between this cycle's flush and the failures write")
+
+    monkeypatch.setattr(build_mission2_dataset, "_write_failures", crashing_write_failures)
+
+    import pytest
+
+    with pytest.raises(RuntimeError, match="simulated crash"):
+        _run_main(
+            [
+                "--manifest",
+                str(manifest),
+                "--data-root",
+                str(root),
+                "--n-calls",
+                "0",
+                "--index-output",
+                str(index_output),
+                "--features-output",
+                str(features_output),
+                "--failures-log",
+                str(failures_log),
+                "--flush-every",
+                "1",
+            ]
+        )
+
+    # Reproduces the real on-disk signature: indexed, but not in features,
+    # and failures.jsonl never got written for it.
+    assert index_output.exists()
+    assert set(pd.read_parquet(index_output)["call_id"]) == {"call_bad"}
+    assert not features_output.exists() or "call_bad" not in set(pd.read_parquet(features_output)["call_id"])
+    assert not failures_log.exists() or failures_log.stat().st_size == 0
+
+    # Resuming for real must recover it (not skip it forever) and end up
+    # with a properly logged failure this time.
+    monkeypatch.setattr(build_mission2_dataset, "_write_failures", real_write_failures)
+    _run_main(
+        [
+            "--manifest",
+            str(manifest),
+            "--data-root",
+            str(root),
+            "--n-calls",
+            "0",
+            "--index-output",
+            str(index_output),
+            "--features-output",
+            str(features_output),
+            "--failures-log",
+            str(failures_log),
+            "--flush-every",
+            "0",
+            "--resume",
+        ]
+    )
+
+    final_failures = [json.loads(line) for line in failures_log.read_text(encoding="utf-8").splitlines()]
+    assert any(f["call_id"] == "call_bad" for f in final_failures)
 
 
 def test_resume_without_existing_outputs_falls_back_to_a_fresh_run(tmp_path: Path) -> None:
