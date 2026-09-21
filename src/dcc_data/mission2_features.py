@@ -53,7 +53,7 @@ import numpy as np
 import librosa
 
 from .audio import read_wav_frames, read_wav_info
-from .guards import TRAINING, ensure_training_rows
+from .guards import TRAINING, VALIDATION, ensure_split, ensure_training_rows
 from .manifest import ManifestRow
 from .mission2 import milliseconds_to_frame
 
@@ -111,6 +111,24 @@ def select_seoul_training_rows(rows: Iterable[ManifestRow]) -> list[ManifestRow]
     ]
 
 
+def select_seoul_validation_rows(rows: Iterable[ManifestRow]) -> list[ManifestRow]:
+    """Validation-only, Seoul-only rows.
+
+    For evaluation/early-stopping/checkpoint-selection only, per the contest
+    rules -- nothing that consumes this may call ``.fit()``/backprop on it.
+    Mirrors ``select_seoul_training_rows`` exactly, gated on ``VALIDATION``
+    instead of ``TRAINING`` via the same ``ensure_split`` guard.
+    """
+
+    validation_only = [row for row in rows if row.split == VALIDATION]
+    validation_rows = ensure_split(validation_only, VALIDATION)
+    return [
+        row
+        for row in validation_rows
+        if is_seoul_path(row.wav_path) and is_seoul_path(row.json_path)
+    ]
+
+
 def sample_calls(rows: list[ManifestRow], n_calls: int, seed: int) -> list[ManifestRow]:
     """Reproducibly sample ``n_calls`` calls (not utterances) by call/row.
 
@@ -139,6 +157,84 @@ class UtteranceRecord:
     end_at: float
     duration_sec: float
     speaker: int
+
+
+# Calls whose speaker=0/1 labels are confirmed swapped for the *entire* call
+# (the source JSON's 대원/신고자 roles are reversed on every utterance) --
+# see reports/mission2/m2_label_swap_audit.md for the transcript evidence
+# (each call's dispatcher-only lines, e.g. the fixed "119입니다" greeting or
+# a closing "출동할게요", are attributed to speaker 1 instead of the usual 0).
+# Corrected here, on read, rather than editing the team's copy of the source
+# JSON, so the fix stays auditable/reversible and the raw AI-Hub download is
+# never mutated. Keyed by the JSON's own "_id" field (not the filename stem,
+# which carries an extra "_<date>" suffix "_id" does not have).
+CONFIRMED_LABEL_SWAPPED_CALL_IDS: frozenset[str] = frozenset(
+    {
+        "651e5550bfd63782eb3866a5",
+        "651e4b1829d82455557a23b2",
+        "651e50c72f06ed4a6e31e3d4",
+        "651e4c754428de718c773dab",
+    }
+)
+
+# Calls where only *part* of the call is mislabeled -- every utterance from
+# the given utt_idx onward needs its speaker flipped, not the whole call.
+# Found by dcc_data.mission2_analysis.find_label_discontinuity_candidates()
+# against the L2 CNN's held-out val predictions: for these calls, no single
+# whole-call flip explains the errors, but a flip starting partway through
+# does, at ~100% corrected accuracy -- the model confidently agrees with
+# the label up to that utt_idx and confidently disagrees from it on, with a
+# single clean boundary (see reports/mission2/m2_label_swap_audit.md).
+PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX: dict[str, int] = {
+    "651e4e712e98ee712096903c": 5,
+}
+
+# Same idea, opposite polarity: every utterance *before* the given utt_idx
+# needs its speaker flipped, everything from utt_idx onward is already
+# correct as raw.
+#
+# 651e4c754428de718c773b56 was originally in CONFIRMED_LABEL_SWAPPED_CALL_IDS
+# (whole-call swap). best_flip_point's k=6 was computed relative to *that*
+# swapped label, not the raw one: "flip the current (already-swapped) label
+# from k onward" means the correct final value is swap-for-idx<6,
+# raw-for-idx>=6. When this call was moved out of the whole-call-swap set
+# into its own boundary entry, the boundary got applied with
+# PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX's polarity by mistake -- flipping
+# idx>=6 and leaving idx<6 as raw, exactly backwards. Caught by manually
+# reading the full transcript against expected 대원/신고자 dialogue patterns
+# ("네, 119입니다" at utt_idx 0 is an unmistakable dispatcher greeting, but
+# was raw speaker=1 and left unflipped by the old logic; "이 사람이 가슴이
+# 답답하다... 어떻게 하면 돼요?" at utt_idx 6 is unmistakably the reporter
+# describing a third party's symptoms and asking for guidance, but was
+# flipped to 대원 by the old logic) -- all 21 utterances of this call are
+# consistent with flip-before-6 and contradict flip-from-6, with zero
+# ambiguous cases.
+PARTIAL_LABEL_SWAP_FLIP_BEFORE_UTT_IDX: dict[str, int] = {
+    "651e4c754428de718c773b56": 6,
+}
+
+
+def corrected_speaker(call_id: str, utt_idx: int, speaker: int) -> int:
+    """Apply CONFIRMED_LABEL_SWAPPED_CALL_IDS/PARTIAL_LABEL_SWAP_FLIP_FROM_
+    UTT_IDX/PARTIAL_LABEL_SWAP_FLIP_BEFORE_UTT_IDX to one utterance's raw
+    speaker value.
+
+    Pulled out of build_utterance_records() so an already-built index
+    (e.g. the L2 spectrogram index, which stores speaker as a plain column
+    rather than re-deriving it from source JSON) can be patched in place --
+    see scripts/apply_mission2_label_fixes.py -- without re-reading audio
+    or the source JSON, which for the L2 index would mean re-running the
+    ~80-minute full spectrogram build for a fix that only changes a
+    handful of calls' speaker labels.
+    """
+
+    if call_id in CONFIRMED_LABEL_SWAPPED_CALL_IDS:
+        return 1 - speaker
+    if utt_idx >= PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX.get(call_id, float("inf")):
+        return 1 - speaker
+    if utt_idx < PARTIAL_LABEL_SWAP_FLIP_BEFORE_UTT_IDX.get(call_id, -1):
+        return 1 - speaker
+    return speaker
 
 
 def _load_call_utterances(json_path: Path) -> tuple[str, list[dict]]:
@@ -180,6 +276,7 @@ def build_utterance_records(row: ManifestRow, data_root: Path) -> list[Utterance
             )
         if speaker not in (0, 1):
             raise ValueError(f"speaker must be 0 or 1: {json_path}[{idx}] got {speaker!r}")
+        speaker = corrected_speaker(call_id, idx, int(speaker))
         records.append(
             UtteranceRecord(
                 call_id=call_id,
@@ -190,7 +287,7 @@ def build_utterance_records(row: ManifestRow, data_root: Path) -> list[Utterance
                 start_at=float(start_at),
                 end_at=float(end_at),
                 duration_sec=(float(end_at) - float(start_at)) / 1000.0,
-                speaker=int(speaker),
+                speaker=speaker,
             )
         )
     return records
@@ -245,7 +342,7 @@ def slice_and_pad(waveform: np.ndarray, start_frame: int, end_frame: int, min_le
 N_FFT = 512
 HOP_LENGTH = 160
 N_MFCC = 20
-N_ACOUSTIC_FEATURES = 52
+N_ACOUSTIC_FEATURES = 52  # MFCC/RMS/ZCR/spectral only -- acoustic_feature_vector()'s own contract
 N_FEATURES = 53  # duration_sec + the 52 acoustic statistics below
 
 FEATURE_COLUMNS: tuple[str, ...] = (
@@ -301,6 +398,8 @@ def acoustic_feature_vector(segment: np.ndarray, sample_rate: int) -> np.ndarray
 
 
 def utterance_feature_vector(segment: np.ndarray, sample_rate: int, duration_sec: float) -> np.ndarray:
+    """The context-free 53-dim vector for one utterance in isolation."""
+
     acoustic = acoustic_feature_vector(segment, sample_rate)
     vector = np.concatenate([np.array([duration_sec], dtype=np.float32), acoustic])
     if vector.shape[0] != N_FEATURES:
@@ -400,8 +499,8 @@ def _process_one_call(row: ManifestRow, data_root: Path) -> _CallResult:
     return index_records, feature_rows, failures
 
 
-def build_seoul_training_dataset(
-    rows: Iterable[ManifestRow],
+def _build_seoul_dataset(
+    seoul_rows: list[ManifestRow],
     data_root: Path,
     *,
     n_calls: int,
@@ -412,7 +511,9 @@ def build_seoul_training_dataset(
     on_call_done: OnCallDone | None = None,
     max_workers: int = 1,
 ) -> tuple[list[UtteranceRecord], list[dict], list[dict]]:
-    """Sample Seoul/Training calls and build the utterance index + feature cache.
+    """Shared sample+extract loop behind both the Training and Validation
+    builders below -- the only difference between them is which
+    ``select_seoul_*_rows`` filter produced ``seoul_rows``.
 
     ``index_sink``/``feature_sink``/``failure_sink`` may be passed in so a
     caller (e.g. the CLI script) can flush partial progress mid-run; they are
@@ -437,7 +538,6 @@ def build_seoul_training_dataset(
     feature_sink = feature_sink if feature_sink is not None else []
     failure_sink = failure_sink if failure_sink is not None else []
 
-    seoul_rows = select_seoul_training_rows(rows)
     sampled_rows = sample_calls(seoul_rows, n_calls, seed)
     total = len(sampled_rows)
 
@@ -463,6 +563,72 @@ def build_seoul_training_dataset(
                     on_call_done(call_number, total)
 
     return index_sink, feature_sink, failure_sink
+
+
+def build_seoul_training_dataset(
+    rows: Iterable[ManifestRow],
+    data_root: Path,
+    *,
+    n_calls: int,
+    seed: int,
+    index_sink: list[UtteranceRecord] | None = None,
+    feature_sink: list[dict] | None = None,
+    failure_sink: list[dict] | None = None,
+    on_call_done: OnCallDone | None = None,
+    max_workers: int = 1,
+) -> tuple[list[UtteranceRecord], list[dict], list[dict]]:
+    """Sample Seoul/Training calls and build the utterance index + feature cache.
+
+    See ``_build_seoul_dataset`` for the shared extraction-loop contract.
+    """
+
+    return _build_seoul_dataset(
+        select_seoul_training_rows(rows),
+        data_root,
+        n_calls=n_calls,
+        seed=seed,
+        index_sink=index_sink,
+        feature_sink=feature_sink,
+        failure_sink=failure_sink,
+        on_call_done=on_call_done,
+        max_workers=max_workers,
+    )
+
+
+def build_seoul_validation_dataset(
+    rows: Iterable[ManifestRow],
+    data_root: Path,
+    *,
+    n_calls: int = -1,
+    seed: int = 42,
+    index_sink: list[UtteranceRecord] | None = None,
+    feature_sink: list[dict] | None = None,
+    failure_sink: list[dict] | None = None,
+    on_call_done: OnCallDone | None = None,
+    max_workers: int = 1,
+) -> tuple[list[UtteranceRecord], list[dict], list[dict]]:
+    """Sample Seoul/Validation calls and build the utterance index + feature cache.
+
+    Same extraction pipeline as ``build_seoul_training_dataset`` (same 53
+    feature columns, same ``corrected_speaker`` label fixes), gated on
+    ``select_seoul_validation_rows`` instead -- for evaluation only, per the
+    contest rules (see that function's docstring). ``n_calls=-1`` (default)
+    takes every available Validation call rather than truncating, since
+    Validation is already much smaller than Training and there's no reason
+    to subsample it further.
+    """
+
+    return _build_seoul_dataset(
+        select_seoul_validation_rows(rows),
+        data_root,
+        n_calls=n_calls,
+        seed=seed,
+        index_sink=index_sink,
+        feature_sink=feature_sink,
+        failure_sink=failure_sink,
+        on_call_done=on_call_done,
+        max_workers=max_workers,
+    )
 
 
 # ---------------------------------------------------------------------------
