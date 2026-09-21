@@ -162,6 +162,42 @@ class FakeApi(GitHubApi):
         return None
 
 
+class SnapshotApi(GitHubApi):
+    def __init__(self) -> None:
+        super().__init__("unused", "owner/repo")
+        self.paths: list[str] = []
+
+    def request(self, method: str, path: str, data: object | None = None) -> object:
+        assert method == "GET"
+        self.paths.append(path)
+        if path.endswith("/pulls/24"):
+            return {
+                "html_url": "https://github.com/owner/repo/pull/24",
+                "base": {"ref": "main", "sha": "stale-base-sha"},
+                "head": {"sha": "head-sha"},
+                "draft": False,
+                "mergeable": True,
+                "mergeable_state": "clean",
+            }
+        if path.endswith("/branches/main"):
+            return {"commit": {"sha": "current-main-sha"}}
+        if "/compare/current-main-sha...head-sha" in path:
+            return {"behind_by": 46}
+        if path.endswith("/commits/head-sha/check-runs?per_page=100"):
+            return {"check_runs": []}
+        raise AssertionError(f"Unexpected API path: {path}")
+
+
+def test_snapshot_compares_head_with_current_base_branch_tip() -> None:
+    api = SnapshotApi()
+
+    snapshot = api.snapshot(24)
+
+    assert snapshot["behind_by"] == 46
+    assert any("/compare/current-main-sha...head-sha" in path for path in api.paths)
+    assert not any("/compare/stale-base-sha...head-sha" in path for path in api.paths)
+
+
 def test_publish_updates_existing_comment_instead_of_duplicating() -> None:
     api = FakeApi()
     snapshot = passing_snapshot()
