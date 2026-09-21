@@ -185,19 +185,39 @@ CONFIRMED_LABEL_SWAPPED_CALL_IDS: frozenset[str] = frozenset(
 # does, at ~100% corrected accuracy -- the model confidently agrees with
 # the label up to that utt_idx and confidently disagrees from it on, with a
 # single clean boundary (see reports/mission2/m2_label_swap_audit.md).
-# 651e4c754428de718c773b56 was originally in CONFIRMED_LABEL_SWAPPED_CALL_IDS
-# as a whole-call swap; that fixed utt_idx 0-5 (which weren't broken) and
-# left 6+ (the actually-mislabeled ones) untouched -- moved here once the
-# CNN's predictions made the real boundary visible.
 PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX: dict[str, int] = {
-    "651e4c754428de718c773b56": 6,
     "651e4e712e98ee712096903c": 5,
+}
+
+# Same idea, opposite polarity: every utterance *before* the given utt_idx
+# needs its speaker flipped, everything from utt_idx onward is already
+# correct as raw.
+#
+# 651e4c754428de718c773b56 was originally in CONFIRMED_LABEL_SWAPPED_CALL_IDS
+# (whole-call swap). best_flip_point's k=6 was computed relative to *that*
+# swapped label, not the raw one: "flip the current (already-swapped) label
+# from k onward" means the correct final value is swap-for-idx<6,
+# raw-for-idx>=6. When this call was moved out of the whole-call-swap set
+# into its own boundary entry, the boundary got applied with
+# PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX's polarity by mistake -- flipping
+# idx>=6 and leaving idx<6 as raw, exactly backwards. Caught by manually
+# reading the full transcript against expected 대원/신고자 dialogue patterns
+# ("네, 119입니다" at utt_idx 0 is an unmistakable dispatcher greeting, but
+# was raw speaker=1 and left unflipped by the old logic; "이 사람이 가슴이
+# 답답하다... 어떻게 하면 돼요?" at utt_idx 6 is unmistakably the reporter
+# describing a third party's symptoms and asking for guidance, but was
+# flipped to 대원 by the old logic) -- all 21 utterances of this call are
+# consistent with flip-before-6 and contradict flip-from-6, with zero
+# ambiguous cases.
+PARTIAL_LABEL_SWAP_FLIP_BEFORE_UTT_IDX: dict[str, int] = {
+    "651e4c754428de718c773b56": 6,
 }
 
 
 def corrected_speaker(call_id: str, utt_idx: int, speaker: int) -> int:
     """Apply CONFIRMED_LABEL_SWAPPED_CALL_IDS/PARTIAL_LABEL_SWAP_FLIP_FROM_
-    UTT_IDX to one utterance's raw speaker value.
+    UTT_IDX/PARTIAL_LABEL_SWAP_FLIP_BEFORE_UTT_IDX to one utterance's raw
+    speaker value.
 
     Pulled out of build_utterance_records() so an already-built index
     (e.g. the L2 spectrogram index, which stores speaker as a plain column
@@ -211,6 +231,8 @@ def corrected_speaker(call_id: str, utt_idx: int, speaker: int) -> int:
     if call_id in CONFIRMED_LABEL_SWAPPED_CALL_IDS:
         return 1 - speaker
     if utt_idx >= PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX.get(call_id, float("inf")):
+        return 1 - speaker
+    if utt_idx < PARTIAL_LABEL_SWAP_FLIP_BEFORE_UTT_IDX.get(call_id, -1):
         return 1 - speaker
     return speaker
 

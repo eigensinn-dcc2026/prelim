@@ -93,7 +93,13 @@ def main() -> int:
     overall_accuracy = float(val_df["correct"].mean())
 
     def group_error_rate(by: str) -> dict:
-        table = val_df.groupby(by, observed=True)["correct"].agg(["mean", "count"])
+        # dropna=False: groupby's default (dropna=True) silently excludes
+        # NaN-group rows from the result entirely -- for "overlaps_other"
+        # specifically, that's the utterances that had no match in --index
+        # (already warned about above), so the per-bucket counts here used
+        # to not sum to n_validation_utterances with no indication why.
+        # Surfaced as an explicit "nan" bucket instead of dropped.
+        table = val_df.groupby(by, observed=True, dropna=False)["correct"].agg(["mean", "count"])
         return {
             str(key): {"accuracy": float(row["mean"]), "n": int(row["count"])}
             for key, row in table.iterrows()
