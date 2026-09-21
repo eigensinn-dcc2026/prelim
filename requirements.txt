@@ -7,3 +7,4 @@ lightgbm
 tqdm
 pytest
 iterative-stratification
+matplotlib
