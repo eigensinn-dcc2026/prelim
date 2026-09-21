@@ -10,6 +10,16 @@
 
 ---
 
+## 2026-09-20 — [M3] 양성 손실 가중치를 완화해 후속 실험
+
+- **결정**: 희소 증상의 낮은 recall을 보완하기 위해 weighted BCE를 사용하되,
+  과다 양성 예측을 줄이도록 `pos_weight_scale=0.25`, 상한 3.0으로 완화함.
+- **이유**: 초기 강한 가중치 모델은 recall은 높아졌지만 precision과 subset accuracy가 낮아져
+  오탐 증가 가능성이 확인됨.
+- **상태/후속**: Training 40%, effective batch size 16, 3 epochs 학습 체크포인트는 생성됨.
+  평가 결과를 확인한 뒤 비가중 모델과 동일 조건으로 비교해야 함.
+- **관련**: [`m3_weighted_diagnosis_sources.json`](../reports/mission3/m3_weighted_diagnosis_sources.json),
+  [`train_weighted_40pct_vscode.py`](../scripts/mission3/train_weighted_40pct_vscode.py).
 ## 2026-09-20 — [M3] recordId 단위 층화 분할과 JSON 행 단위 층화 분할 비교 필요 (미결)
 
 - **현황**: [`mission3_baseline.py`](../scripts/mission3_baseline.py)는 `recordId`로 그룹화한 뒤
@@ -28,6 +38,32 @@
   train/validation overlap을 기록하고 그룹 단위 분할로 재평가하기 전까지 0.4530을 최종 수치로 채택하지 않음.
 - **담당/완료 조건**: 이수빈 확인 요청. 분할 감사 수치와 재실행 결과를 기계 판독 가능한 로그로 남기면 종결.
 
+## 2026-09-19 — [M3] 증상별 임계값 조정을 중단하고 전 증상 임계값을 0.5로 고정
+
+- **결정**: 증상별 임계값 조정을 중단하고 모든 증상의 판정 임계값을 0.5로 고정함.
+- **이유**: 임계값 조정 후 오탐이 증가했고, 당시 선택된 증상별 임계값 배열이 남아 있지 않아
+  결과를 재현할 수 없음. 공식 Validation에 맞춘 사후 조정 위험도 있음.
+- **상태/후속**: 증상별 임계값 실험은 참고용으로만 유지하고, 이후 모델은 임계값 0.5에서 비교함.
+- **관련**: [`m3_threshold_comparison.json`](../reports/mission3/m3_threshold_comparison.json),
+  [`MISSION3_Colab_가중치모델_임계값점검.ipynb`](../notebooks/mission3/MISSION3_Colab_가중치모델_임계값점검.ipynb).
+
+## 2026-09-18 — [M3] 단순 토큰 청크를 발화 턴 기반 청크로 변경
+
+- **결정**: 같은 화자의 연속 발화를 하나의 턴으로 묶고, 질문과 다음 답변이 가능한 한
+  같은 청크에 포함되도록 `dialogue_turn_overlap_v1`을 사용함.
+- **이유**: 토큰 수만 기준으로 자르면 119 상담의 질문과 증상 답변이 서로 다른 청크로 분리될 수 있음.
+- **상태/후속**: 공식 Validation Macro F1 0.5365를 기록함. 토큰 청크와 학습 조건을 동일하게 맞춘
+  재실험 전까지 두 방식의 우열은 확정하지 않음.
+- **관련**: [`m3_turn_chunk_validation_metrics.json`](../reports/mission3/m3_turn_chunk_validation_metrics.json).
+
+## 2026-09-16 — [M3] 긴 대화의 전체 내용을 사용하기 위해 토큰 청크 도입
+
+- **결정**: 전체 대화를 256토큰·overlap 64의 여러 청크로 나누고,
+  청크별 logit을 max pooling해 통화 단위 예측을 생성함.
+- **이유**: 기존 baseline에서는 256토큰 이후의 증상 표현이 모델 입력에서 제외됨.
+- **상태/후속**: 공식 Validation Macro F1 0.5496을 기록함. 질문과 답변이 청크 경계에서
+  분리되는 문제를 보완하기 위해 이후 발화 턴 청크를 실험함.
+- **관련**: [`m3_chunk_validation_metrics.json`](../reports/mission3/m3_chunk_validation_metrics.json).
 ## 2026-09-15 — [M2] 라벨이 뒤바뀐 것으로 의심되는 통화 청음 확인 (미결)
 
 - **현황**: 전체 규모 오류 분석에서, 정확도가 극단적으로 낮은 통화 일부가 "어려워서 틀린" 것이 아니라
@@ -83,6 +119,14 @@
 - **이유**: GBM과 LR은 같은 3,640개 샘플에 대한 paired 비교이므로 marginal CI 겹침만으로는
   유의성을 판단할 수 없음. 엄밀한 비교에는 McNemar test나 paired bootstrap이 필요함.
 
+## 2026-09-01 — [M3] KcBERT 다중 라벨 모델을 최초 신경망 baseline으로 사용
+
+- **결정**: 앞 256토큰을 사용하는 KcBERT 9종 다중 라벨 모델을 최초 신경망 baseline으로 사용함.
+- **이유**: 한 통화에 여러 증상이 존재해 다중 라벨 분류가 필요하며,
+  Training 내부 검증 Macro F1 최고 0.5861을 기록함.
+- **상태/후속**: baseline으로 유지함. 약 29.88%의 대화가 256토큰을 초과해
+  후반 문맥이 잘리는 문제는 청크 방식으로 보완함.
+- **관련**: [`m3_kcbert_baseline_train.log`](../reports/mission3/m3_kcbert_baseline_train.log).
 ---
 
 새 결정은 첫 번째 결정 항목 위에 추가합니다.

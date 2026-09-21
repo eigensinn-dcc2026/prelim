@@ -41,11 +41,19 @@
 
 | 실험 ID | 날짜 | 실험 | 결과 | 상태 | 관련 파일 |
 |---|---|---|---|---|---|
+| M3-KCBERT-001 | 2026-09-01 | KcBERT 다중 라벨 baseline, 앞 256토큰, Training 90%/내부 검증 10%, seed=42, 비가중 BCE, 3 epochs | 내부 검증 Macro F1 최고 0.5861(epoch 2) | baseline 완료 | [`m3_kcbert_baseline_train.log`](../reports/mission3/m3_kcbert_baseline_train.log) |
 | M3-EXP-001 | 2026-09-11 | TF-IDF + One-vs-Rest LR, `recordId` 단위 다중레이블 층화 분할 | PR 문서에 `[실행 후 입력]` placeholder가 남아 있어 결과 미기재 | 미확정 | [`mission3_baseline.py`](../scripts/mission3_baseline.py), [`M3_PR.docx`](../scripts/M3_PR.docx) |
+| M3-CHUNK-001 | 2026-09-16 | 전체 토큰 청크, Training 20%, 256토큰·overlap 64·max pooling, 공식 Validation 3,640건 평가 | Macro F1 0.5496 / Micro F1 0.6054 / subset accuracy 0.4253 | 완료 | [`m3_chunk_validation_metrics.json`](../reports/mission3/m3_chunk_validation_metrics.json) |
+| M3-TURN-001 | 2026-09-18 | 질문과 답변의 경계를 보존하는 발화 턴 청크, 공식 Validation 3,640건 평가 | Macro F1 0.5365 / Micro F1 0.5932 / subset accuracy 0.4080 | 실행 완료·학습 조건 추가 확인 필요 | [`m3_turn_chunk_validation_metrics.json`](../reports/mission3/m3_turn_chunk_validation_metrics.json) |
 | M3-EXP-002 | 2026-09-19 | TF-IDF + LR, JSON 행 단위 MultilabelStratifiedShuffleSplit, seed=42 | 보고값: Macro F1 0.3955→0.4530, Precision 0.5639 / Recall 0.4110 | 보류 — 분할 감사 전 비교 불가 | [`mission3_baseline 최종 수정본.py`](<../scripts/mission3_baseline 최종 수정본.py>), [`F1 성능 검증 과정 및 결과.docx`](<../scripts/F1 성능 검증 과정 및 결과.docx>), [`decisions.md`](./decisions.md) |
+| M3-WEIGHT-001 | 2026-09-19 | 턴 청크 모델에 증상별 양성 손실 가중치 적용, Training 50% | 결과 원본 파일 추가 확인 필요 | 실행 완료·결과 확인 필요 | [`m3_weighted_diagnosis_sources.json`](../reports/mission3/m3_weighted_diagnosis_sources.json) |
+| M3-THRESH-001 | 2026-09-19 | weighted 모델의 내부 검증 결과를 이용해 증상별 판정 임계값 조정 | 선택된 임계값 배열이 남아 있지 않음 | 실행 완료·재현 정보 부족 | [`m3_threshold_comparison.json`](../reports/mission3/m3_threshold_comparison.json) |
+| M3-THRESH-002 | 2026-09-19 | 증상별 임계값 조정을 중단하고 모든 증상을 0.5로 고정해 재평가 | 별도 평가 결과 파일 확인 필요 | 평가 방식 변경·결과 확인 필요 | [`MISSION3_Colab_가중치모델_임계값점검.ipynb`](../notebooks/mission3/MISSION3_Colab_가중치모델_임계값점검.ipynb) |
+| M3-WEIGHT-002 | 2026-09-20 | 완화 weighted BCE, Training 40%, scale 0.25, max 3.0, effective batch 16, 3 epochs | 체크포인트 생성, 평가 결과 확인 필요 | 학습 완료·평가 필요 | [`train_weighted_40pct_vscode.py`](../scripts/mission3/train_weighted_40pct_vscode.py) |
 
-> M3는 현재 구조화된 실험 로그가 없습니다. 다음 실행에서는 전체 행 수, 고유 `recordId` 수,
-> 중복 그룹 수, train/validation의 `recordId` overlap, 분할 단위와 지표를 JSON으로 저장해야 합니다.
+> 최초 KcBERT의 0.5861은 Training **내부 검증** 결과이고, 청크 모델의 0.5496/0.5365는
+> **공식 Validation** 결과이므로 점수만으로 직접 우열을 판단하지 않습니다.
+> 임계값·가중치 실험은 누락된 결과와 설정을 확인한 뒤 수치를 보완해야 합니다.
 
 ---
 
