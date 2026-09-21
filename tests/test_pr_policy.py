@@ -4,7 +4,12 @@ import json
 import subprocess
 from pathlib import Path
 
-from scripts.pr_policy import collect_policy_inputs, detect_secret, evaluate_policy_inputs
+from scripts.pr_policy import (
+    collect_policy_inputs,
+    collect_test_protection_inputs,
+    detect_secret,
+    evaluate_policy_inputs,
+)
 
 
 def config() -> dict:
@@ -195,3 +200,66 @@ def test_modified_file_over_limit_is_rejected_by_git_diff_collection(tmp_path: P
     assert changed == ["reports/artifact.bin"]
     assert sizes == {"reports/artifact.bin": 17}
     assert "large-file" in finding_codes(result)
+
+
+def test_existing_test_files_and_functions_cannot_be_removed(tmp_path: Path) -> None:
+    def git(*args: str) -> str:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return completed.stdout.strip()
+
+    git("init", "-q")
+    git("config", "user.name", "Merge Gate Test")
+    git("config", "user.email", "merge-gate@example.invalid")
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    deleted_file = tests_dir / "test_deleted.py"
+    modified_file = tests_dir / "test_modified.py"
+    deleted_file.write_text("def test_preserved():\n    assert True\n", encoding="utf-8")
+    modified_file.write_text(
+        "def test_kept():\n    assert True\n\n"
+        "def test_removed():\n    assert True\n",
+        encoding="utf-8",
+    )
+    git("add", "tests")
+    git("commit", "-q", "-m", "base tests")
+    base = git("rev-parse", "HEAD")
+
+    deleted_file.unlink()
+    modified_file.write_text("def test_kept():\n    assert True\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "weaken tests")
+    head = git("rev-parse", "HEAD")
+
+    changed, sizes, lines = collect_policy_inputs(base, head, tmp_path)
+    deleted_files, removed_functions = collect_test_protection_inputs(base, head, tmp_path)
+    result = evaluate_policy_inputs(
+        root=tmp_path,
+        changed_paths=changed,
+        changed_file_sizes=sizes,
+        added_lines=lines,
+        config=config(),
+        deleted_test_files=deleted_files,
+        removed_test_functions=removed_functions,
+    )
+
+    assert result["tests_changed"] is True
+    assert deleted_files == ["tests/test_deleted.py"]
+    assert removed_functions == {"tests/test_modified.py": ["test_removed"]}
+    assert {"deleted-test-file", "deleted-test-function"} <= finding_codes(result)
+
+
+def test_workflow_uses_trusted_main_policy_and_baseline_tests() -> None:
+    workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "pr-ci.yml"
+    workflow = workflow_path.read_text(encoding="utf-8")
+
+    assert "path: trusted" in workflow
+    assert "python ../trusted/scripts/pr_policy.py" in workflow
+    assert "--config ../trusted/.github/merge-gate.json" in workflow
+    assert "cp -R ../trusted/tests .merge-gate-baseline-tests" in workflow
+    assert "python -m pytest .merge-gate-baseline-tests" in workflow
