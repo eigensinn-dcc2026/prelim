@@ -14,25 +14,19 @@
   "test_exact_paths": [
     "requirements.txt"
   ],
-  "sensitive_globs": [
-    ".github/**",
-    ".gitignore",
-    "requirements.txt",
-    "src/dcc_data/**",
-    "scripts/*inference*.py",
-    "scripts/train_*.py",
-    "scripts/pr_*.py"
-  ],
-  "required_approvals": 1,
-  "owner": "sooyahh",
   "required_checks": [
     "PR CI / policy",
     "PR CI / tests"
   ],
   "status_context": "merge-gate/verdict",
   "labels": {
-    "ready": "merge-ready",
-    "waiting": "merge-waiting",
-    "blocked": "merge-blocked"
-  }
+    "ready": "병합-가능",
+    "waiting": "병합-대기",
+    "blocked": "수정-필요"
+  },
+  "legacy_labels": [
+    "merge-ready",
+    "merge-waiting",
+    "merge-blocked"
+  ]
 }
