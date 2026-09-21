@@ -253,7 +253,14 @@ class GitHubApi:
             pull = self.request("GET", f"/repos/{self.repository}/pulls/{number}")
 
         head_sha = str(pull["head"]["sha"])
-        base_sha = str(pull["base"]["sha"])
+        base_branch = str(pull["base"]["ref"])
+        encoded_base_branch = urllib.parse.quote(base_branch, safe="")
+        branch = self.request(
+            "GET", f"/repos/{self.repository}/branches/{encoded_base_branch}"
+        )
+        if not isinstance(branch, dict) or not isinstance(branch.get("commit"), dict):
+            raise RuntimeError(f"Base branch {base_branch!r} response is invalid")
+        base_sha = str(branch["commit"]["sha"])
         compare_path = (
             f"/repos/{self.repository}/compare/"
             f"{urllib.parse.quote(base_sha, safe='')}...{urllib.parse.quote(head_sha, safe='')}"
@@ -267,7 +274,7 @@ class GitHubApi:
         return {
             "number": number,
             "html_url": pull["html_url"],
-            "base_branch": pull["base"]["ref"],
+            "base_branch": base_branch,
             "draft": pull.get("draft", False),
             "head_sha": head_sha,
             "mergeable": pull.get("mergeable"),
