@@ -25,34 +25,15 @@ def clean_text(value: Any) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def _safe_order_value(item: dict[str, Any]) -> tuple[float, float]:
-    """발화를 가능한 한 시간 순서대로 정렬하기 위한 안전한 키입니다."""
-    start_at = item.get("startAt", None)
-    utterance_id = item.get("id", None)
-
-    try:
-        start_value = float(start_at)
-    except (TypeError, ValueError):
-        start_value = float("inf")
-
-    try:
-        id_value = float(utterance_id)
-    except (TypeError, ValueError):
-        id_value = float("inf")
-
-    return start_value, id_value
-
 
 def transcript_from_json(data: dict[str, Any]) -> str:
-    """utterances[].text만 시간 순서대로 이어 붙입니다."""
+    """JSON의 기존 utterances 순서를 유지하며 text만 이어 붙입니다."""
     utterances = data.get("utterances", [])
     if not isinstance(utterances, list):
         return ""
 
     valid_utterances = [item for item in utterances if isinstance(item, dict)]
-    ordered = sorted(valid_utterances, key=_safe_order_value)
-
-    texts = [clean_text(item.get("text", "")) for item in ordered]
+    texts = [clean_text(item.get("text", "")) for item in valid_utterances]
     return " ".join(text for text in texts if text)
 
 
