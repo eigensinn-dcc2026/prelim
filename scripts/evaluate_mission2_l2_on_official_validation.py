@@ -64,6 +64,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--log-output", type=Path, default=Path("reports/mission2/m2_l2_official_validation_result.json")
     )
+    parser.add_argument(
+        "--predictions-output", type=Path, default=None,
+        help="optional: also save a per-utterance (call_id, utt_idx, speaker, predicted) CSV -- "
+        "e.g. for joining against another model's predictions on the same split.",
+    )
     return parser.parse_args()
 
 
@@ -94,6 +99,16 @@ def main() -> int:
         source_epoch = checkpoint.get("epoch")
 
     accuracy, preds, labels = evaluate(model, loader, args.device)
+    if not np.array_equal(labels, df["speaker"].to_numpy()):
+        raise ValueError("dataset iteration order does not match --index row order")
+
+    if args.predictions_output is not None:
+        args.predictions_output.parent.mkdir(parents=True, exist_ok=True)
+        df[["call_id", "utt_idx", "speaker"]].assign(predicted=preds).to_csv(
+            args.predictions_output, index=False
+        )
+        print(f"Per-utterance predictions: {args.predictions_output}")
+
     cm = confusion_matrix(labels, preds, labels=[0, 1])
     recall_daewon = float(cm[0, 0] / cm[0].sum()) if cm[0].sum() else float("nan")
     recall_singoja = float(cm[1, 1] / cm[1].sum()) if cm[1].sum() else float("nan")
