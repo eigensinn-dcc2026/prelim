@@ -10,6 +10,33 @@
 
 ---
 
+## 2026-09-23 — [M2] L2(CNN) 공식 Validation 확정 — L1 대비 압도적 우위, 제출 우선순위 L2로 전환
+
+- **현황**: 2026-09-18 결정("L1을 먼저 완성하고 L2는 잠정 보류")에서 걸어둔 완료 조건 4개
+  — (1) hop-length 실험, (2) `mission2-l2-cnn-clean`에 라벨 수정 반영, (3) 공식 Validation 1회
+  검증, (4) `main` 병합 여부 결정 — 중 (2)·(3)이 이번에 완료됨. (1)은 여전히 미평가.
+- **결과**: L2(SpeakerCNNLarge, 라벨 수정 반영 재학습) 공식 Validation **90.88~90.89%**
+  (M2-VAL-003) — 같은 시점 L1 최종 후보(M2-VAL-002, 86.44%) 대비 **+4.44~4.45%p**. 타 팀
+  레포지토리 조사에서 확인된 최고 기록(eunkyo00, 90.25%)도 상회 — 현재 파악된 범위에서
+  최고 기록.
+- **인프라 메모**: 로컬 CPU 추론이 111,947발화 기준 비현실적으로 느려(개별 `.npy` 파일을
+  OneDrive 동기화 폴더에서 하나씩 읽는 구조) Colab GPU로 전환. 같은 체크포인트(epoch 21)를
+  CPU/GPU 양쪽에서 평가한 결과 정확도는 사실상 동일(90.89%/90.88%)하나 부동소수점 차이로
+  약 250건(전체의 0.22%)의 개별 예측이 달라짐 — 결정 경계(대회 규정상 고정 0.5 threshold)
+  부근 케이스로 추정, 결론에는 영향 없음.
+- **결정**: (4) `main` 병합 여부를 지금 결정한다 — 제출 우선순위를 L2로 전환. L1(86.44%)은
+  안정적인 대안/비교 baseline으로 유지하되, 이후 accuracy 개선 작업은 L2 트랙에 집중한다.
+  (1) hop-length 실험은 이미 큰 격차가 확인된 상태라 급하지 않음 — 여력이 되면 추가 개선
+  실험으로 낮은 우선순위 유지.
+- **이유**: +4.4%p는 대회 채점(accuracy 단일 지표) 기준 매우 큰 차이이고, 2026-09-18 시점의
+  "L1이 정리 비용이 낮다"는 판단 근거는 이제 L1이 완성된 상태이므로 더 이상 유효하지 않음.
+  L2를 더 보류할수록 기회비용만 커짐(2026-09-18 결정에서 이미 지적된 리스크).
+- **후속 조치**: `mission2-l2-cnn-clean`을 `main`에 병합(팀 리뷰 거쳐서, 셀프 머지 금지
+  원칙 준수). L1 대비 L2가 어떤 유형의 오류를 더 고치는지/못 고치는지 per-utterance 비교 진행 중.
+- **관련**: M2-VAL-002, M2-VAL-003, M2-CNN-003(`docs/experiment_log.md`),
+  [`m2_l2_official_validation_result_local_cpu.json`](../reports/mission2/m2_l2_official_validation_result_local_cpu.json),
+  [`m2_l2_official_validation_result_colab_gpu.json`](../reports/mission2/m2_l2_official_validation_result_colab_gpu.json).
+
 ## 2026-09-20 — [M3] recordId 단위 층화 분할과 JSON 행 단위 층화 분할 비교 필요 (미결)
 
 - **현황**: [`mission3_baseline.py`](../scripts/mission3_baseline.py)는 `recordId`로 그룹화한 뒤
