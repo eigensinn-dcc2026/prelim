@@ -210,8 +210,6 @@ def test_wav_header_cache_records_error_without_raising(tmp_path: Path) -> None:
     assert merged[("Validation", "missing")]["sample_rate"] == ""
 
 
-def test_phase2_skeletons_do_not_compute_stats() -> None:
-    assert eda.accumulate_common() == {}
-    assert eda.accumulate_mission1() == {}
-    assert eda.accumulate_mission2() == {}
-    assert eda.accumulate_mission3() == {}
+def test_new_default_output_does_not_reuse_legacy_name() -> None:
+    assert eda.DEFAULT_OUTPUT.name == "eda_full_summary.json"
+    assert eda.DEFAULT_OUTPUT != eda.LEGACY_EDA_PATH

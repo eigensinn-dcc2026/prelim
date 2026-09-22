@@ -14,6 +14,7 @@ reports/data_audit/*/remote_manifest.csv
 # EDA regenerable / local-only
 reports/eda/wav_header_cache.csv
 reports/eda/eda_mission_summary.json
+reports/eda/waveform_sample_features.parquet
 
 # Mission 2 per-utterance error detail (14MB+, regenerable via
 # scripts/analyze_mission2_errors.py) -- only the summary JSON is committed

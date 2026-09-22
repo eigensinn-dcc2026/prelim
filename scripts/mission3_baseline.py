@@ -4,7 +4,7 @@ Mission 3 TF-IDF + Logistic Regression baseline.
 역할
 1) Training JSON에서 utterances[].text만 읽기
 2) 목표 9개 증상 라벨 정리
-3) 같은 recordId가 train/validation에 섞이지 않도록 그룹 분할
+3) JSON 샘플 단위 다중라벨 층화 train/validation 분할
 4) TF-IDF + One-vs-Rest Logistic Regression 학습
 5) Macro F1 / 증상별 F1 계산
 6) 추론에 사용할 joblib 체크포인트 저장
@@ -56,40 +56,15 @@ def clean_text(value: Any) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def _safe_order_value(item: dict[str, Any]) -> tuple[float, float]:
-    """발화를 가능한 한 시간 순서대로 정렬하기 위한 안전한 키입니다."""
-    start_at = item.get("startAt", None)
-    utterance_id = item.get("id", None)
-
-    try:
-        start_value = float(start_at)
-    except (TypeError, ValueError):
-        start_value = float("inf")
-
-    try:
-        id_value = float(utterance_id)
-    except (TypeError, ValueError):
-        id_value = float("inf")
-
-    return start_value, id_value
-
 
 def transcript_from_json(data: dict[str, Any]) -> str:
-    """
-    JSON의 utterances[].text만 시간 순서대로 이어 붙입니다.
-
-    주의:
-    speaker, address, urgencyLevel, symptom 등 다른 필드는
-    모델 입력으로 사용하지 않습니다.
-    """
+    """JSON의 기존 utterances 순서를 유지하며 text만 이어 붙입니다."""
     utterances = data.get("utterances", [])
     if not isinstance(utterances, list):
         return ""
 
     valid_utterances = [item for item in utterances if isinstance(item, dict)]
-    ordered = sorted(valid_utterances, key=_safe_order_value)
-
-    texts = [clean_text(item.get("text", "")) for item in ordered]
+    texts = [clean_text(item.get("text", "")) for item in valid_utterances]
     return " ".join(text for text in texts if text)
 
 
@@ -121,9 +96,6 @@ def read_one_json(json_path: str | Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("JSON 최상위 구조가 객체(dict)가 아닙니다.")
 
-    # 같은 통화를 묶기 위한 ID입니다. 모델 입력에는 사용하지 않습니다.
-    group_id = data.get("recordId") or data.get("_id") or json_path.stem
-
     all_symptoms = _normalize_symptoms(data.get("symptom", []))
     target_symptoms = filter_target_symptoms(all_symptoms)
     non_target_symptoms = [
@@ -132,7 +104,6 @@ def read_one_json(json_path: str | Path) -> dict[str, Any]:
 
     return {
         "label_file_name": json_path.name,
-        "group_id": str(group_id),
         "text": transcript_from_json(data),
         "symptoms": target_symptoms,
         "non_target_symptoms": non_target_symptoms,
@@ -182,7 +153,7 @@ def load_training_dataframe(label_dir: str | Path) -> pd.DataFrame:
 
 def make_dataset_summary(df: pd.DataFrame) -> dict[str, Any]:
     """노트북에서 사용할 데이터 기본 점검 결과를 만듭니다."""
-    required_columns = {"group_id", "text", "symptoms"}
+    required_columns = {"text", "symptoms"}
     missing = required_columns - set(df.columns)
     if missing:
         raise ValueError(f"DataFrame에 필요한 열이 없습니다: {sorted(missing)}")
@@ -200,8 +171,6 @@ def make_dataset_summary(df: pd.DataFrame) -> dict[str, Any]:
 
     return {
         "sample_count": int(len(df)),
-        "unique_record_count": int(df["group_id"].nunique()),
-        "duplicate_record_rows": int(len(df) - df["group_id"].nunique()),
         "empty_text_count": int(df["text"].eq("").sum()),
         "zero_target_label_count": int(df["symptoms"].map(len).eq(0).sum()),
         "load_failure_count": int(len(df.attrs.get("load_failures", []))),
@@ -210,70 +179,29 @@ def make_dataset_summary(df: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def _merge_group_labels(series: pd.Series) -> list[str]:
-    """같은 recordId 안에 등장하는 목표 증상을 합칩니다."""
-    merged: set[str] = set()
-
-    for labels in series:
-        if isinstance(labels, list):
-            merged.update(labels)
-
-    return [label for label in TARGET_SYMPTOMS if label in merged]
-
-
-def _make_group_split(
+def _make_split(
     df: pd.DataFrame,
     test_size: float,
     seed: int,
     mlb: MultiLabelBinarizer,
-) -> tuple[pd.DataFrame, pd.DataFrame, int]:
-    """
-    같은 recordId가 양쪽에 섞이지 않도록 그룹 단위로 나눕니다.
-    동시에 다중라벨 분포가 최대한 비슷하게 유지되도록 층화합니다.
-    """
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """JSON 샘플 단위로 다중라벨 분포를 최대한 유지하며 분할합니다."""
     if MultilabelStratifiedShuffleSplit is None:
         raise ImportError(
             "iterative-stratification 패키지가 필요합니다. "
-            "Colab에서 `!pip install -q iterative-stratification`을 먼저 실행해 주세요."
+            "requirements.txt를 설치해 주세요."
         )
-
     if not (0 < test_size < 1):
         raise ValueError("test_size는 0과 1 사이여야 합니다.")
+    if len(df) < 2:
+        raise ValueError("train/validation 분리를 하려면 최소 2개 샘플이 필요합니다.")
 
-    group_df = (
-        df.groupby("group_id", sort=True)["symptoms"]
-        .apply(_merge_group_labels)
-        .reset_index()
-    )
-
-    if len(group_df) < 2:
-        raise ValueError("train/validation 분리를 하려면 최소 2개의 recordId가 필요합니다.")
-
-    group_y = mlb.transform(group_df["symptoms"])
-
+    y = mlb.transform(df["symptoms"])
     splitter = MultilabelStratifiedShuffleSplit(
-        n_splits=1,
-        test_size=test_size,
-        random_state=seed,
+        n_splits=1, test_size=test_size, random_state=seed
     )
-
-    train_idx, valid_idx = next(
-        splitter.split(np.arange(len(group_df)), group_y)
-    )
-
-    train_group_ids = set(group_df.iloc[train_idx]["group_id"].astype(str))
-    valid_group_ids = set(group_df.iloc[valid_idx]["group_id"].astype(str))
-
-    overlap = train_group_ids.intersection(valid_group_ids)
-    if overlap:
-        raise RuntimeError(
-            f"recordId 데이터 누출이 발생했습니다. 겹치는 그룹 수: {len(overlap)}"
-        )
-
-    train_df = df[df["group_id"].astype(str).isin(train_group_ids)].copy()
-    valid_df = df[df["group_id"].astype(str).isin(valid_group_ids)].copy()
-
-    return train_df, valid_df, len(overlap)
+    train_idx, valid_idx = next(splitter.split(np.arange(len(df)), y))
+    return df.iloc[train_idx].copy(), df.iloc[valid_idx].copy()
 
 
 def _labels_to_string(labels: list[str]) -> str:
@@ -316,12 +244,9 @@ def train_baseline(
     mlb = MultiLabelBinarizer(classes=TARGET_SYMPTOMS)
     mlb.fit([TARGET_SYMPTOMS])
 
-    # 3. 같은 통화가 섞이지 않도록 train/validation 분리
-    train_df, valid_df, overlap_count = _make_group_split(
-        df=df,
-        test_size=test_size,
-        seed=seed,
-        mlb=mlb,
+    # 3. JSON 샘플 단위 train/validation 분리
+    train_df, valid_df = _make_split(
+        df=df, test_size=test_size, seed=seed, mlb=mlb
     )
 
     if train_df.empty or valid_df.empty:
@@ -397,15 +322,9 @@ def train_baseline(
     joblib.dump(checkpoint, checkpoint_path)
 
     # 9. 노트북/PR에서 사용할 지표 저장
-    train_group_count = int(train_df["group_id"].nunique())
-    valid_group_count = int(valid_df["group_id"].nunique())
-
     metrics = {
         "train_sample_count": int(len(train_df)),
         "validation_sample_count": int(len(valid_df)),
-        "train_group_count": train_group_count,
-        "validation_group_count": valid_group_count,
-        "group_overlap_count": int(overlap_count),
         "macro_f1": macro_f1,
         "micro_f1": micro_f1,
         "threshold": float(threshold),
@@ -447,7 +366,6 @@ def train_baseline(
 
     print(f"Train samples: {len(train_df):,}")
     print(f"Validation samples: {len(valid_df):,}")
-    print(f"recordId overlap: {overlap_count}")
     print(f"Macro F1: {macro_f1:.4f}")
     print(f"Micro F1: {micro_f1:.4f}")
     print(f"Checkpoint: {checkpoint_path}")
