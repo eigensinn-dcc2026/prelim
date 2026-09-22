@@ -58,6 +58,7 @@ SOURCE_ROOT = REPOSITORY_ROOT / "src"
 if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
 
+from dcc_data.guards import DataGuardError, DuplicateIdentifierError  # noqa: E402
 from dcc_data.manifest import load_manifest  # noqa: E402
 from dcc_data.mission2_features import (  # noqa: E402
     FEATURE_COLUMNS,
@@ -160,8 +161,17 @@ def _atomic_write_text(path: Path, text: str) -> None:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_name(f"{path.name}.tmp-{os.getpid()}-{time.time_ns()}")
-    tmp_path.write_text(text, encoding="utf-8")
-    os.replace(tmp_path, path)
+    try:
+        tmp_path.write_text(text, encoding="utf-8")
+        os.replace(tmp_path, path)
+    except Exception:
+        # Same cleanup-on-failure as the repo's other atomic-write sites
+        # (dcc_data.manifest.write_manifest, scripts/mission2_inference.py,
+        # scripts/audit_dcc_dataset.py) -- without this, a write or replace
+        # failure (disk full, permissions, ...) orphans the temp file
+        # permanently instead of just failing cleanly.
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def _write_failures(failures, failures_log: Path) -> None:
@@ -177,13 +187,19 @@ def _check_no_call_id_collision(index_records, *, context: str) -> dict[str, str
     silently merge/delete an unrelated call's data. Fail loudly instead --
     in practice call_id looks like a Mongo ObjectId and this should never
     actually fire.
+
+    Raises dcc_data.guards.DuplicateIdentifierError (not a plain
+    ValueError) so this joins the same exception taxonomy every other
+    dcc_data/*.py module already uses for "a split/identifier isn't
+    unique" -- see guards.validate_manifest_rows for the reference
+    implementation of the same seen-set/raise-on-duplicate-key idiom.
     """
 
     wav_path_by_call_id: dict[str, str] = {}
     for record in index_records:
         existing = wav_path_by_call_id.get(record.call_id)
         if existing is not None and existing != record.wav_path:
-            raise ValueError(
+            raise DuplicateIdentifierError(
                 f"call_id {record.call_id!r} maps to two different wav_path values "
                 f"({existing!r} and {record.wav_path!r}) {context} -- refusing to continue "
                 "with ambiguous call_id data."
@@ -208,30 +224,36 @@ def _validate_loaded_state(index_records, feature_rows, failures, *, index_outpu
 
     index_keys = [(r.call_id, int(r.utt_idx)) for r in index_records]
     if len(index_keys) != len(set(index_keys)):
-        raise ValueError(f"duplicate (call_id, utt_idx) rows found in {index_output} -- refusing to --resume.")
+        raise DuplicateIdentifierError(
+            f"duplicate (call_id, utt_idx) rows found in {index_output} -- refusing to --resume."
+        )
     index_key_set = set(index_keys)
 
     feature_keys = [(row["call_id"], int(row["utt_idx"])) for row in feature_rows]
     if len(feature_keys) != len(set(feature_keys)):
-        raise ValueError("duplicate (call_id, utt_idx) rows found in the features parquet -- refusing to --resume.")
+        raise DuplicateIdentifierError(
+            "duplicate (call_id, utt_idx) rows found in the features parquet -- refusing to --resume."
+        )
     feature_key_set = set(feature_keys)
 
     utt_failures = [f for f in failures if f.get("utt_idx") is not None]
     failure_keys = [(f["call_id"], int(f["utt_idx"])) for f in utt_failures]
     if len(failure_keys) != len(set(failure_keys)):
-        raise ValueError("duplicate (call_id, utt_idx) entries found in the failures log -- refusing to --resume.")
+        raise DuplicateIdentifierError(
+            "duplicate (call_id, utt_idx) entries found in the failures log -- refusing to --resume."
+        )
     failure_key_set = set(failure_keys)
 
     overlap = feature_key_set & failure_key_set
     if overlap:
-        raise ValueError(
+        raise DataGuardError(
             f"{len(overlap)} utterance(s) have both a feature row and a failure entry "
             f"(e.g. {next(iter(overlap))!r}) -- refusing to --resume with contradictory state."
         )
 
     orphans = (feature_key_set | failure_key_set) - index_key_set
     if orphans:
-        raise ValueError(
+        raise DataGuardError(
             f"{len(orphans)} feature/failure entries (e.g. {next(iter(orphans))!r}) reference an "
             "utterance that was never indexed -- refusing to --resume with orphaned data."
         )
@@ -241,7 +263,7 @@ def _validate_loaded_state(index_records, feature_rows, failures, *, index_outpu
         key = (failure["call_id"], int(failure["utt_idx"]))
         recorded_wav_path = failure.get("wav_path")
         if key in wav_path_by_key and recorded_wav_path is not None and recorded_wav_path != wav_path_by_key[key]:
-            raise ValueError(
+            raise DataGuardError(
                 f"failure entry for {key!r} records wav_path {recorded_wav_path!r}, but the index has "
                 f"{wav_path_by_key[key]!r} for the same key -- refusing to --resume with inconsistent data."
             )
@@ -292,8 +314,12 @@ def _atomic_write_parquet(df, path: Path) -> None:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_name(f"{path.name}.tmp-{os.getpid()}-{time.time_ns()}")
-    df.to_parquet(tmp_path, index=False)
-    os.replace(tmp_path, path)
+    try:
+        df.to_parquet(tmp_path, index=False)
+        os.replace(tmp_path, path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def _write_outputs(index_records, feature_rows, index_output: Path, features_output: Path) -> None:

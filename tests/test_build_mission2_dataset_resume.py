@@ -367,7 +367,15 @@ def test_resume_refuses_ambiguous_call_id_shared_by_two_wav_paths(tmp_path: Path
 
     import pytest
 
-    with pytest.raises(ValueError, match="ambiguous call_id"):
+    from dcc_data.guards import DuplicateIdentifierError
+
+    # DuplicateIdentifierError specifically (not just any ValueError): this
+    # should join the same exception taxonomy every other dcc_data/*.py
+    # module raises for "identifier isn't unique" (guards.py), so callers
+    # elsewhere that catch DuplicateIdentifierError/DataGuardError to
+    # distinguish "a known integrity guard tripped" from "an unexpected bug"
+    # catch this too.
+    with pytest.raises(DuplicateIdentifierError, match="ambiguous call_id"):
         _run_main(
             [
                 "--manifest",
@@ -463,6 +471,136 @@ def test_resume_recovers_from_a_corrupted_features_file_instead_of_crashing(tmp_
     assert set(pd.read_parquet(features_output)["call_id"]) == {"call_only"}
 
 
+def _build_single_call_index_and_empty_features(tmp_path: Path):
+    """Shared setup for the three _validate_loaded_state DataGuardError
+    branches below: one real call indexed (2 utterances), features/failures
+    left for the caller to construct by hand."""
+
+    root = tmp_path / "raw"
+    row = _write_call(root, "call_only", seed=0)
+    manifest = tmp_path / "manifest.csv"
+    write_manifest([row], manifest, overwrite=True)
+
+    index_output = tmp_path / "index.parquet"
+    features_output = tmp_path / "features.parquet"
+    failures_log = tmp_path / "failures.jsonl"
+
+    args = [
+        "--manifest",
+        str(manifest),
+        "--data-root",
+        str(root),
+        "--n-calls",
+        "0",
+        "--index-output",
+        str(index_output),
+        "--features-output",
+        str(features_output),
+        "--failures-log",
+        str(failures_log),
+        "--flush-every",
+        "0",
+    ]
+    _run_main(args)
+    return root, args, index_output, features_output, failures_log
+
+
+def test_resume_raises_on_an_utterance_with_both_a_feature_row_and_a_failure_entry(tmp_path: Path) -> None:
+    _, args, index_output, features_output, failures_log = _build_single_call_index_and_empty_features(tmp_path)
+
+    # utt_idx 0 already has a feature row (from the successful first run);
+    # add a failure entry for that same (call_id, utt_idx) -- a state that
+    # should never occur, but --resume must refuse it loudly rather than
+    # pick one arbitrarily.
+    failures_log.write_text(
+        json.dumps(
+            {
+                "stage": "feature",
+                "call_id": "call_only",
+                "utt_idx": 0,
+                "wav_path": "Training/1.원천데이터/TS_서울_구급/call_only.wav",
+                "json_path": "Training/2.라벨링데이터/TL_서울_구급/call_only.json",
+                "error_type": "RuntimeError",
+                "error_message": "simulated",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    import pytest
+
+    from dcc_data.guards import DataGuardError
+
+    with pytest.raises(DataGuardError, match="both a feature row and a failure entry"):
+        _run_main([*args, "--resume"])
+
+
+def test_resume_raises_on_a_failure_entry_for_an_utterance_never_indexed(tmp_path: Path) -> None:
+    _, args, index_output, features_output, failures_log = _build_single_call_index_and_empty_features(tmp_path)
+
+    # utt_idx 99 was never in this call's index at all.
+    failures_log.write_text(
+        json.dumps(
+            {
+                "stage": "feature",
+                "call_id": "call_only",
+                "utt_idx": 99,
+                "wav_path": "Training/1.원천데이터/TS_서울_구급/call_only.wav",
+                "json_path": "Training/2.라벨링데이터/TL_서울_구급/call_only.json",
+                "error_type": "RuntimeError",
+                "error_message": "simulated",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    import pytest
+
+    from dcc_data.guards import DataGuardError
+
+    with pytest.raises(DataGuardError, match="never indexed"):
+        _run_main([*args, "--resume"])
+
+
+def test_resume_raises_when_a_failure_wav_path_disagrees_with_the_index(tmp_path: Path) -> None:
+    _, args, index_output, features_output, failures_log = _build_single_call_index_and_empty_features(tmp_path)
+
+    # Delete utt_idx 1's feature row so it's unresolved, then log a failure
+    # for it whose wav_path doesn't match what the index has on file for
+    # the same (call_id, utt_idx) -- internally inconsistent provenance.
+    features = pd.read_parquet(features_output)
+    features = features[features["utt_idx"] != 1]
+    features.to_parquet(features_output, index=False)
+
+    failures_log.write_text(
+        json.dumps(
+            {
+                "stage": "feature",
+                "call_id": "call_only",
+                "utt_idx": 1,
+                "wav_path": "Training/1.원천데이터/TS_서울_구급/some_other_call.wav",
+                "json_path": "Training/2.라벨링데이터/TL_서울_구급/some_other_call.json",
+                "error_type": "RuntimeError",
+                "error_message": "simulated",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    import pytest
+
+    from dcc_data.guards import DataGuardError
+
+    with pytest.raises(DataGuardError, match="inconsistent data"):
+        _run_main([*args, "--resume"])
+
+
 def test_resume_raises_loudly_on_a_duplicate_feature_row_instead_of_silently_resuming(tmp_path: Path) -> None:
     root = tmp_path / "raw"
     row = _write_call(root, "call_only", seed=0)
@@ -504,7 +642,9 @@ def test_resume_raises_loudly_on_a_duplicate_feature_row_instead_of_silently_res
 
     import pytest
 
-    with pytest.raises(ValueError, match="duplicate"):
+    from dcc_data.guards import DuplicateIdentifierError
+
+    with pytest.raises(DuplicateIdentifierError, match="duplicate"):
         _run_main([*args, "--resume"])
 
 
@@ -610,6 +750,42 @@ def test_resume_recovers_a_call_that_crashed_between_a_periodic_flush_and_the_fa
 
     final_failures = [json.loads(line) for line in failures_log.read_text(encoding="utf-8").splitlines()]
     assert any(f["call_id"] == "call_bad" for f in final_failures)
+
+
+def test_atomic_write_helpers_clean_up_their_temp_file_on_failure(tmp_path: Path, monkeypatch) -> None:
+    """The repo's other atomic-write sites (dcc_data.manifest.write_manifest,
+    scripts/mission2_inference.py, scripts/audit_dcc_dataset.py) all delete
+    their temp file if the write/replace fails, instead of orphaning it.
+    _atomic_write_text/_atomic_write_parquet must match that, not just
+    achieve atomicity on the happy path.
+    """
+
+    import os
+
+    real_replace = os.replace
+
+    def failing_replace(src, dst):
+        raise OSError("simulated disk-full/permission failure")
+
+    monkeypatch.setattr(build_mission2_dataset.os, "replace", failing_replace)
+
+    text_path = tmp_path / "failures.jsonl"
+    try:
+        build_mission2_dataset._atomic_write_text(text_path, "irrelevant")
+    except OSError:
+        pass
+    assert list(tmp_path.glob("*.tmp-*")) == []
+    assert not text_path.exists()
+
+    parquet_path = tmp_path / "index.parquet"
+    try:
+        build_mission2_dataset._atomic_write_parquet(pd.DataFrame({"a": [1]}), parquet_path)
+    except OSError:
+        pass
+    assert list(tmp_path.glob("*.tmp-*")) == []
+    assert not parquet_path.exists()
+
+    monkeypatch.setattr(build_mission2_dataset.os, "replace", real_replace)
 
 
 def test_resume_without_existing_outputs_falls_back_to_a_fresh_run(tmp_path: Path) -> None:
