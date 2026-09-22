@@ -30,13 +30,23 @@ if str(SOURCE_ROOT) not in sys.path:
 
 from dcc_data.manifest import load_manifest  # noqa: E402
 from dcc_data.mission2_features import HOP_LENGTH  # noqa: E402
-from dcc_data.mission2_spectrogram import build_seoul_training_spectrograms  # noqa: E402
+from dcc_data.mission2_spectrogram import (  # noqa: E402
+    build_seoul_training_spectrograms,
+    build_seoul_validation_spectrograms,
+)
+
+BUILDERS = {"training": build_seoul_training_spectrograms, "validation": build_seoul_validation_spectrograms}
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--data-root", type=Path, required=True)
+    parser.add_argument(
+        "--split", choices=list(BUILDERS), default="training",
+        help="training (default, unchanged behavior) or validation -- the official Validation "
+        "folder, eval-only, never for a training loop's .fit()/backprop.",
+    )
     parser.add_argument("--output-dir", type=Path, default=Path("data/m2_spectrograms"))
     parser.add_argument("--n-calls", type=int, default=3000)
     parser.add_argument("--seed", type=int, default=42)
@@ -55,6 +65,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     rows = load_manifest(args.manifest, data_root=args.data_root)
+    build_spectrograms = BUILDERS[args.split]
 
     try:
         from tqdm import tqdm
@@ -70,7 +81,7 @@ def main() -> int:
             bar.update(done - bar.n)
 
     start = time.monotonic()
-    index_rows, failures = build_seoul_training_spectrograms(
+    index_rows, failures = build_spectrograms(
         rows,
         args.data_root,
         args.output_dir,

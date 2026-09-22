@@ -21,6 +21,7 @@ from dcc_data.mission2_spectrogram import (
     N_MELS,
     SPEC_FLOOR_DB,
     build_seoul_training_spectrograms,
+    build_seoul_validation_spectrograms,
     mel_spectrogram,
 )
 
@@ -137,6 +138,36 @@ def test_build_seoul_training_spectrograms_saves_one_npy_per_utterance(tmp_path:
         assert spec.shape[1] == entry["n_frames"]
         assert np.isfinite(spec).all()
         assert entry["speaker"] in (0, 1)
+
+
+def test_build_seoul_validation_spectrograms_uses_the_validation_split_only(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    utterances = [(0, 90, 0), (200, 1800, 1)]
+
+    train_wav = "chunk/Training/1.원천데이터/TS_서울_구급/call_train.wav"
+    train_json = "chunk/Training/2.라벨링데이터/TL_서울_구급/call_train.json"
+    _write_call(root, train_wav, train_json, utterances, seed=0)
+    train_row = ManifestRow("Training", "call_train", train_wav, train_json)
+
+    val_wav = "chunk/Validation/1.원천데이터/VS_서울_구급/call_val.wav"
+    val_json = "chunk/Validation/2.라벨링데이터/VL_서울_구급/call_val.json"
+    _write_call(root, val_wav, val_json, utterances, seed=1)
+    val_row = ManifestRow("Validation", "call_val", val_wav, val_json)
+
+    output_dir = tmp_path / "specs"
+    index_rows, failures = build_seoul_validation_spectrograms(
+        [train_row, val_row], root, output_dir, n_calls=0, seed=42
+    )
+
+    assert failures == []
+    # Only the Validation call's utterances -- the Training call must not
+    # leak in, the same isolation guarantee L1's validation builder has.
+    assert {entry["call_id"] for entry in index_rows} == {"call_val"}
+    assert len(index_rows) == 2
+    for entry in index_rows:
+        spec = np.load(output_dir / entry["npy_path"])
+        assert spec.shape[0] == N_MELS
+        assert np.isfinite(spec).all()
 
 
 def test_build_seoul_training_spectrograms_hop_length_controls_frame_count(tmp_path: Path) -> None:

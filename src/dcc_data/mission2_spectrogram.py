@@ -32,6 +32,7 @@ from .mission2_features import (
     read_call_waveform,
     sample_calls,
     select_seoul_training_rows,
+    select_seoul_validation_rows,
     slice_and_pad,
     utterance_frame_range,
 )
@@ -148,11 +149,12 @@ def _process_one_call_spectrograms(
     return index_rows, failures
 
 
-def build_seoul_training_spectrograms(
+def _build_seoul_spectrograms(
     rows: Iterable[ManifestRow],
     data_root: Path,
     output_dir: Path,
     *,
+    select_rows: Callable[[Iterable[ManifestRow]], list[ManifestRow]],
     n_calls: int,
     seed: int,
     index_sink: list[dict] | None = None,
@@ -161,21 +163,15 @@ def build_seoul_training_spectrograms(
     max_workers: int = 1,
     hop_length: int = HOP_LENGTH,
 ) -> tuple[list[dict], list[dict]]:
-    """Sample Seoul/Training calls and save one spectrogram .npy per utterance.
-
-    Mirrors mission2_features.build_seoul_training_dataset's sampling/
-    parallelism/failure-logging exactly; only the per-utterance output
-    differs (a saved .npy + an index row, instead of a 61-dim feature dict).
-
-    ``hop_length`` defaults to HOP_LENGTH (unchanged behavior); pass a
-    smaller value to build a separate, higher time-resolution spectrogram
-    set into a different ``output_dir`` -- see mel_spectrogram()'s docstring.
+    """Shared implementation behind build_seoul_training_spectrograms and
+    build_seoul_validation_spectrograms -- only which rows are eligible
+    (``select_rows``) differs, mirroring mission2_features._build_seoul_dataset.
     """
 
     index_sink = index_sink if index_sink is not None else []
     failure_sink = failure_sink if failure_sink is not None else []
 
-    seoul_rows = select_seoul_training_rows(rows)
+    seoul_rows = select_rows(rows)
     sampled_rows = sample_calls(seoul_rows, n_calls, seed)
     total = len(sampled_rows)
     output_dir = Path(output_dir)
@@ -203,3 +199,75 @@ def build_seoul_training_spectrograms(
                     on_call_done(call_number, total)
 
     return index_sink, failure_sink
+
+
+def build_seoul_training_spectrograms(
+    rows: Iterable[ManifestRow],
+    data_root: Path,
+    output_dir: Path,
+    *,
+    n_calls: int,
+    seed: int,
+    index_sink: list[dict] | None = None,
+    failure_sink: list[dict] | None = None,
+    on_call_done: OnCallDone | None = None,
+    max_workers: int = 1,
+    hop_length: int = HOP_LENGTH,
+) -> tuple[list[dict], list[dict]]:
+    """Sample Seoul/Training calls and save one spectrogram .npy per utterance.
+
+    Mirrors mission2_features.build_seoul_training_dataset's sampling/
+    parallelism/failure-logging exactly; only the per-utterance output
+    differs (a saved .npy + an index row, instead of a 61-dim feature dict).
+
+    ``hop_length`` defaults to HOP_LENGTH (unchanged behavior); pass a
+    smaller value to build a separate, higher time-resolution spectrogram
+    set into a different ``output_dir`` -- see mel_spectrogram()'s docstring.
+    """
+
+    return _build_seoul_spectrograms(
+        rows,
+        data_root,
+        output_dir,
+        select_rows=select_seoul_training_rows,
+        n_calls=n_calls,
+        seed=seed,
+        index_sink=index_sink,
+        failure_sink=failure_sink,
+        on_call_done=on_call_done,
+        max_workers=max_workers,
+        hop_length=hop_length,
+    )
+
+
+def build_seoul_validation_spectrograms(
+    rows: Iterable[ManifestRow],
+    data_root: Path,
+    output_dir: Path,
+    *,
+    n_calls: int,
+    seed: int,
+    index_sink: list[dict] | None = None,
+    failure_sink: list[dict] | None = None,
+    on_call_done: OnCallDone | None = None,
+    max_workers: int = 1,
+    hop_length: int = HOP_LENGTH,
+) -> tuple[list[dict], list[dict]]:
+    """Same as build_seoul_training_spectrograms, but over the official
+    Validation split (dcc_data.mission2_features.select_seoul_validation_rows)
+    -- eval-only, never pass this to a training loop's ``.fit()``/backprop.
+    """
+
+    return _build_seoul_spectrograms(
+        rows,
+        data_root,
+        output_dir,
+        select_rows=select_seoul_validation_rows,
+        n_calls=n_calls,
+        seed=seed,
+        index_sink=index_sink,
+        failure_sink=failure_sink,
+        on_call_done=on_call_done,
+        max_workers=max_workers,
+        hop_length=hop_length,
+    )
