@@ -41,6 +41,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import random
 import sys
 import time
 from pathlib import Path
@@ -80,7 +81,14 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--index", type=Path, default=Path("data/m2_spectrogram_index.parquet"))
     parser.add_argument("--spectrogram-dir", type=Path, default=Path("data/m2_spectrograms"))
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=42, help="seed for the call_id-grouped train/val split only (make_group_split)")
+    parser.add_argument(
+        "--torch-seed", type=int, default=None,
+        help="seed for model init + DataLoader shuffle order (defaults to --seed). Kept separate from --seed "
+        "so repeated runs can keep the same held-out val split while varying only these two sources of "
+        "run-to-run noise -- collate_batch pads each batch to its own longest utterance, so an uncontrolled "
+        "shuffle order changes what a short utterance is batched with, not just its weight-init luck.",
+    )
     parser.add_argument("--test-size", type=float, default=0.2)
     parser.add_argument("--epochs", type=int, default=20, help="how many MORE epochs to run this invocation")
     parser.add_argument("--batch-size", type=int, default=64)
@@ -103,6 +111,14 @@ def main() -> int:
     if args.device == "cuda" and not torch.cuda.is_available():
         raise SystemExit("--device cuda requested but torch.cuda.is_available() is False")
 
+    torch_seed = args.torch_seed if args.torch_seed is not None else args.seed
+    random.seed(torch_seed)
+    torch.manual_seed(torch_seed)
+    torch.cuda.manual_seed_all(torch_seed)
+    train_shuffle_generator = torch.Generator()
+    train_shuffle_generator.manual_seed(torch_seed)
+    print(f"torch_seed={torch_seed} (model init + train shuffle order); split seed={args.seed}")
+
     df = pd.read_parquet(args.index)
     train_idx, val_idx = make_group_split(df, seed=args.seed, test_size=args.test_size)
     train_df = df.iloc[train_idx]
@@ -114,6 +130,7 @@ def main() -> int:
     train_loader = torch.utils.data.DataLoader(
         dataset_cls(train_df, args.spectrogram_dir),
         batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=args.num_workers,
+        generator=train_shuffle_generator,
     )
     val_loader = torch.utils.data.DataLoader(
         dataset_cls(val_df, args.spectrogram_dir),
