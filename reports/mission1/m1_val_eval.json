@@ -1,0 +1,55 @@
+{
+  "실험 ID": "M1-EXP-001-val",
+  "majority_baseline": 0.5322602739726028,
+  "internal_target": 0.7,
+  "n_validation": 3640,
+  "n_train_checkpoint": 29200,
+  "measured": {
+    "majority_class": "F",
+    "majority_class_accuracy": 0.5381868131868132,
+    "gbm": {
+      "accuracy": 0.9491758241758241,
+      "confusion_matrix_labels": [
+        "F",
+        "M"
+      ],
+      "confusion_matrix": [
+        [
+          1873,
+          86
+        ],
+        [
+          99,
+          1582
+        ]
+      ],
+      "recall_F": 0.9561000510464522,
+      "recall_M": 0.9411064842355741,
+      "n_samples": 3640,
+      "n_F": 1959,
+      "n_M": 1681
+    },
+    "lr": {
+      "accuracy": 0.951098901098901,
+      "confusion_matrix_labels": [
+        "F",
+        "M"
+      ],
+      "confusion_matrix": [
+        [
+          1878,
+          81
+        ],
+        [
+          97,
+          1584
+        ]
+      ],
+      "recall_F": 0.9586523736600306,
+      "recall_M": 0.942296252230815,
+      "n_samples": 3640,
+      "n_F": 1959,
+      "n_M": 1681
+    }
+  }
+}
