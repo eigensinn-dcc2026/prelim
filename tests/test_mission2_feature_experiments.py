@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from dcc_data import mission2_candidate_features as candidate_features
 from dcc_data.mission2_candidate_features import (
     CANDIDATE_REGISTRY,
     build_candidate_feature_cache,
@@ -688,6 +689,10 @@ def test_notebook_e05_precommit_and_validated_cache_merge_contract() -> None:
     assert namespace["PRECOMMITTED_COMBINATION_EXPERIMENTS"] == {
         "E05": expected_features,
     }
+    # Saved Notebook switches reflect the user's last run. Isolate the
+    # precommit contract from that persisted execution state.
+    namespace["LOCK_E05_SELECTION"] = False
+    namespace["RUN_SELECTED_FEATURE_EXPERIMENT"] = False
     assert namespace["LOCK_E05_SELECTION"] is False
     assert namespace["RUN_SELECTED_FEATURE_EXPERIMENT"] is False
 
@@ -817,3 +822,220 @@ def test_notebook_e05_precommit_and_validated_cache_merge_contract() -> None:
     )
     assert comparison_namespace["experiment_table"].empty
     assert set(namespace["PRECOMMITTED_COMBINATION_EXPERIMENTS"]) == {"E05"}
+
+
+def test_analysis_signal_validates_and_pads_only_short_waveforms() -> None:
+    for invalid in ([], [np.nan], [np.inf], [-np.inf]):
+        with pytest.raises(ValueError, match="empty|NaN or inf"):
+            candidate_features._analysis_signal(np.asarray(invalid))
+
+    short = candidate_features._analysis_signal(np.array([[0.25, -0.5]]))
+    assert short.dtype == np.float32
+    assert short.shape == (512,)
+    np.testing.assert_array_equal(short[:2], np.array([0.25, -0.5], dtype=np.float32))
+    assert np.count_nonzero(short[2:]) == 0
+
+    long = np.linspace(-0.5, 0.5, 513, dtype=np.float32)
+    np.testing.assert_array_equal(candidate_features._analysis_signal(long), long)
+
+
+def test_registered_audio_features_use_only_requested_names_in_order() -> None:
+    sample_rate = 8_000
+    times = np.arange(1_024) / sample_rate
+    waveform = (0.5 * np.sin(2 * np.pi * 1_000 * times)).astype(np.float32)
+    names = ("zcr", "peak_amplitude", "rms", "spectral_rolloff", "clipping_ratio")
+
+    observed = candidate_features.extract_registered_audio_features(
+        waveform, sample_rate, names
+    )
+
+    assert tuple(observed) == names
+    assert np.isfinite(list(observed.values())).all()
+    assert observed["rms"] == pytest.approx(
+        np.sqrt(np.dot(waveform.astype(float), waveform.astype(float)) / len(waveform))
+    )
+    assert observed["peak_amplitude"] == pytest.approx(float(np.max(np.abs(waveform))))
+    assert observed["clipping_ratio"] == pytest.approx(0.0)
+    assert 0.20 < observed["zcr"] < 0.30
+    assert 700.0 < observed["spectral_rolloff"] < 1_500.0
+
+    with pytest.raises(ValueError, match="unexpected sample rate"):
+        candidate_features.extract_registered_audio_features(waveform, 16_000, names)
+    with pytest.raises(ValueError, match="unknown or forbidden"):
+        candidate_features.extract_registered_audio_features(waveform, sample_rate, ("text",))
+
+
+def test_short_audio_statistics_ignore_synthetic_fft_padding() -> None:
+    waveform = np.array([-1.0, 1.0] * 4, dtype=np.float32)
+    names = (
+        "silence_ratio", "rms", "rms_frame_std", "peak_amplitude",
+        "clipping_ratio", "zcr", "spectral_rolloff",
+    )
+
+    observed = candidate_features.extract_registered_audio_features(waveform, 8_000, names)
+
+    assert tuple(observed) == names
+    assert observed["rms"] == pytest.approx(1.0)
+    assert observed["rms_frame_std"] == pytest.approx(0.0)
+    assert observed["silence_ratio"] == pytest.approx(0.0)
+    assert observed["peak_amplitude"] == pytest.approx(1.0)
+    assert observed["clipping_ratio"] == pytest.approx(1.0)
+    assert observed["zcr"] == pytest.approx(1.0)
+    assert np.isfinite(observed["spectral_rolloff"])
+    assert candidate_features.extract_registered_audio_features(
+        np.array([-0.0, 0.5], dtype=np.float32), 8_000, ("zcr",)
+    )["zcr"] == 0.0
+    assert candidate_features.extract_registered_audio_features(
+        np.array([0.5], dtype=np.float32), 8_000, ("zcr",)
+    )["zcr"] == 0.0
+
+
+def test_frame_rms_is_lazy_and_shared(monkeypatch: pytest.MonkeyPatch) -> None:
+    waveform = np.full(1_024, 0.25, dtype=np.float32)
+    original_rms = candidate_features.librosa.feature.rms
+    calls = 0
+
+    def counted_rms(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_rms(*args, **kwargs)
+
+    monkeypatch.setattr(candidate_features.librosa.feature, "rms", counted_rms)
+    candidate_features.extract_registered_audio_features(waveform, 8_000, ("rms",))
+    assert calls == 0
+    candidate_features.extract_registered_audio_features(waveform, 8_000, ("rms_frame_std",))
+    assert calls == 1
+    candidate_features.extract_registered_audio_features(
+        waveform, 8_000, ("silence_ratio", "rms_frame_std")
+    )
+    assert calls == 2
+
+
+def test_candidate_frame_filters_split_preserves_order_and_applies_crops(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    manifest = pd.DataFrame(
+        [
+            ("Training", "Training|a|0", "a", "a.wav", 0, 2, True),
+            ("Validation", "Validation|v|0", "v", "missing.wav", 0, 2, True),
+            ("Training", "Training|b|0", "b", "b.wav", 1, 3, True),
+            ("Training", "Training|a|1", "a", "a.wav", 2, 4, True),
+        ],
+        columns=["split", "record_key", "call_id", "audio_path", "crop_start_frame", "crop_end_frame", "crop_ok"],
+    )
+    waveforms = {
+        "a.wav": np.array([0.1, 0.1, 0.4, 0.4], dtype=np.float32),
+        "b.wav": np.array([0.2, 0.3, 0.4, 0.5], dtype=np.float32),
+    }
+    reads: list[str] = []
+    callbacks: list[tuple[int, int]] = []
+
+    def fake_read(path: Path):
+        reads.append(path.name)
+        return waveforms[path.name], 8_000
+
+    monkeypatch.setattr(candidate_features, "read_call_waveform", fake_read)
+    frame = candidate_features.extract_candidate_feature_frame(
+        manifest, data_root=tmp_path, split="Training", feature_names=("rms", "peak_amplitude"),
+        on_call_done=lambda done, total: callbacks.append((done, total)),
+    )
+
+    assert reads == ["a.wav", "b.wav"]
+    assert callbacks == [(1, 2), (2, 2)]
+    assert list(frame.columns) == ["record_key", "call_id", "rms", "peak_amplitude"]
+    assert frame["record_key"].tolist() == ["Training|a|0", "Training|b|0", "Training|a|1"]
+    np.testing.assert_allclose(frame["rms"], [0.1, np.sqrt((0.3**2 + 0.4**2) / 2), 0.4])
+    np.testing.assert_allclose(frame["peak_amplitude"], [0.1, 0.4, 0.4])
+
+
+def test_candidate_frame_rejects_invalid_crop_and_duplicate_key(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    manifest = pd.DataFrame(
+        [("Training", "Training|a|0", "a", "a.wav", 0, 4, True)],
+        columns=["split", "record_key", "call_id", "audio_path", "crop_start_frame", "crop_end_frame", "crop_ok"],
+    )
+    monkeypatch.setattr(
+        candidate_features, "read_call_waveform",
+        lambda path: (np.ones(3, dtype=np.float32), 8_000),
+    )
+    with pytest.raises(AssertionError, match="invalid crop"):
+        candidate_features.extract_candidate_feature_frame(
+            manifest, data_root=tmp_path, split="Training", feature_names=("rms",)
+        )
+    with pytest.raises(AssertionError, match="record_key is not unique"):
+        candidate_features.extract_candidate_feature_frame(
+            pd.concat([manifest, manifest], ignore_index=True),
+            data_root=tmp_path, split="Training", feature_names=("rms",),
+        )
+
+
+def test_v1_candidate_cache_is_not_accepted_as_current_semantics(tmp_path: Path) -> None:
+    manifest = pd.DataFrame({"split": ["Training"], "record_key": ["Training|a|0"]})
+    paths = candidate_features.candidate_cache_paths(tmp_path, "Training", ("zcr",))
+    expected_metadata = candidate_features.expected_candidate_cache_metadata(
+        manifest, split="Training", feature_names=("zcr",), source_signature="synthetic"
+    )
+    metadata = json.loads(json.dumps(expected_metadata))
+    metadata["cache_schema_version"] = "mission2_candidate_audio_features_v1"
+    metadata["extraction_config"].pop("short_audio_policy", None)
+    paths[0].touch()
+    paths[1].write_text(json.dumps(metadata), encoding="utf-8")
+
+    with pytest.raises(AssertionError, match="candidate cache metadata mismatch"):
+        candidate_features.load_candidate_feature_cache(
+            manifest, cache_root=tmp_path, split="Training",
+            feature_names=("zcr",), source_signature="synthetic",
+        )
+    with pytest.raises(FileExistsError, match="candidate cache already exists"):
+        candidate_features.build_candidate_feature_cache(
+            manifest, data_root=tmp_path, cache_root=tmp_path, split="Training",
+            feature_names=("zcr",), source_signature="synthetic",
+            allow_full_extraction=True,
+        )
+    assert paths[0].exists() and paths[1].exists()
+
+
+def test_outlier_fraction_keeps_three_iqr_and_empty_contract() -> None:
+    values = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 100.0])
+    assert candidate_features._outlier_fraction_beyond_iqr(values) == pytest.approx(1 / 7)
+    assert candidate_features._outlier_fraction_beyond_iqr(np.array([1.0] * 4)) == 0.0
+    assert np.isnan(candidate_features._outlier_fraction_beyond_iqr(np.array([])))
+    with pytest.raises(ValueError, match="finite 1D"):
+        candidate_features._outlier_fraction_beyond_iqr(np.array([1.0, np.nan]))
+
+
+def test_e05_code_derives_lock_and_merge_contract_from_one_pair() -> None:
+    notebook_path = Path(__file__).resolve().parents[1] / "notebooks" / "mission2_feature_experiments.ipynb"
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+    code_by_id = {
+        cell["id"]: "".join(cell["source"])
+        for cell in notebook["cells"] if cell["cell_type"] == "code"
+    }
+    e05_ids = ("m2-fe-e05-config", "m2-fe-e05-lock", "m2-fe-e05-cache-merge")
+    literal_pair = "('spectral_rolloff', 'zcr')"
+    assert sum(code_by_id[cell_id].count(literal_pair) for cell_id in e05_ids) == 1
+
+    # Replacing only the canonical tuple must carry through the lock contract.
+    changed_config = code_by_id["m2-fe-e05-config"].replace(
+        literal_pair, "('zcr', 'spectral_centroid')", 1
+    )
+    namespace = {
+        "CANDIDATE_REGISTRY": CANDIDATE_REGISTRY,
+        "Path": Path,
+        "REPO_ROOT": notebook_path.parents[1],
+        "os": __import__("os"),
+        "pd": pd,
+        "lock_candidate_selection": lock_candidate_selection,
+    }
+    exec(compile(code_by_id["m2-fe-config"], "m2-fe-config", "exec"), namespace)
+    exec(compile(changed_config, "m2-fe-e05-config", "exec"), namespace)
+    namespace["LOCK_E05_SELECTION"] = True
+    namespace["RUN_SELECTED_FEATURE_EXPERIMENT"] = False
+    exec(compile(code_by_id["m2-fe-e05-lock"], "m2-fe-e05-lock", "exec"), namespace)
+
+    assert namespace["locked_candidate"].feature_names == ("zcr", "spectral_centroid")
+    assert namespace["locked_candidate"].selection_name == "zcr+spectral_centroid"
+    assert namespace["E05_TRAINING_ONLY_PRECOMMIT"]["selected_pair"] == (
+        "zcr", "spectral_centroid"
+    )

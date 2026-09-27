@@ -38,13 +38,19 @@ from .mission2_experiments import (
 from .mission2_features import read_call_waveform
 
 
-CANDIDATE_CACHE_SCHEMA_VERSION = "mission2_candidate_audio_features_v1"
+CANDIDATE_CACHE_SCHEMA_VERSION = "mission2_candidate_audio_features_v2"
 CANDIDATE_EXTRACTION_CONFIG = {
     "sample_rate": 8_000,
     "n_fft": 512,
     "hop_length": 160,
     "silence_threshold_dbfs": -40.0,
     "clipping_amplitude": 0.999,
+    "short_audio_policy": {
+        "spectral": "right_zero_pad_to_n_fft",
+        "frame_energy": "one_frame_from_observed_utterance_rms",
+        "zcr": "adjacent_observed_sample_sign_changes",
+        "amplitude": "observed_samples_only",
+    },
 }
 
 
@@ -239,6 +245,21 @@ def _standardized_mean_difference(class_0: np.ndarray, class_1: np.ndarray) -> f
     return float((np.mean(class_1) - np.mean(class_0)) / np.sqrt(pooled_variance))
 
 
+def _outlier_fraction_beyond_iqr(values: np.ndarray, *, multiplier: float = 3.0) -> float:
+    """Return the share beyond the IQR fence; an empty Stage-1 slice is unknown."""
+
+    numeric = np.asarray(values, dtype=float)
+    if numeric.ndim != 1 or not np.isfinite(numeric).all():
+        raise ValueError("outlier values must be finite 1D numeric values")
+    if not len(numeric):
+        return np.nan
+    q1, q3 = np.quantile(numeric, [0.25, 0.75])
+    iqr = q3 - q1
+    if iqr == 0:
+        return 0.0
+    return float(np.mean((numeric < q1 - multiplier * iqr) | (numeric > q3 + multiplier * iqr)))
+
+
 def stage1_feasibility_diagnostics(
     raw_eda_acoustic_sample: pd.DataFrame,
     feature_names: Sequence[str],
@@ -281,18 +302,11 @@ def stage1_feasibility_diagnostics(
         finite_values = values[finite]
         if not len(finite_values):
             quantiles = [np.nan] * 7
-            outlier_fraction = np.nan
         else:
             quantiles = np.quantile(
                 finite_values, [0.01, 0.05, 0.25, 0.50, 0.75, 0.95, 0.99]
             )
-            q1, q3 = quantiles[2], quantiles[4]
-            iqr = q3 - q1
-            outlier_fraction = (
-                float(np.mean((finite_values < q1 - 3 * iqr) | (finite_values > q3 + 3 * iqr)))
-                if iqr > 0
-                else 0.0
-            )
+        outlier_fraction = _outlier_fraction_beyond_iqr(finite_values)
         class_values: dict[int, np.ndarray] = {}
         for speaker in [0, 1]:
             speaker_values = numeric.loc[
@@ -381,6 +395,8 @@ def stage1_feasibility_diagnostics(
 
 
 def _analysis_signal(signal: np.ndarray) -> np.ndarray:
+    """Validate a crop and pad only the copy used by spectral transforms."""
+
     values = np.asarray(signal, dtype=np.float32).reshape(-1)
     if not len(values):
         raise ValueError("empty waveform crop")
@@ -406,19 +422,22 @@ def extract_registered_audio_features(
     hop_length = CANDIDATE_EXTRACTION_CONFIG["hop_length"]
     results: dict[str, float] = {}
 
-    energy_names = {
-        "rms",
-        "rms_frame_std",
-        "silence_ratio",
-    }
-    if set(names) & energy_names:
-        frame_rms = librosa.feature.rms(
-            y=analysis_signal, frame_length=n_fft, hop_length=hop_length
-        )[0]
-        if "rms" in names:
-            results["rms"] = float(
-                np.sqrt(np.mean(np.square(raw_signal, dtype=np.float64)))
-            )
+    if "rms" in names:
+        results["rms"] = float(
+            np.sqrt(np.mean(np.square(raw_signal, dtype=np.float64)))
+        )
+    if {"rms_frame_std", "silence_ratio"} & set(names):
+        if len(raw_signal) < n_fft:
+            # A short utterance has one observed energy window. FFT padding is
+            # not an extra silent observation for occupancy or variability.
+            short_rms = results.get("rms")
+            if short_rms is None:
+                short_rms = float(np.sqrt(np.mean(np.square(raw_signal, dtype=np.float64))))
+            frame_rms = np.array([short_rms])
+        else:
+            frame_rms = librosa.feature.rms(
+                y=analysis_signal, frame_length=n_fft, hop_length=hop_length
+            )[0]
         if "rms_frame_std" in names:
             results["rms_frame_std"] = float(np.std(frame_rms))
         if "silence_ratio" in names:
@@ -449,15 +468,24 @@ def extract_registered_audio_features(
             )
 
     if "zcr" in names:
-        results["zcr"] = float(
-            np.mean(
-                librosa.feature.zero_crossing_rate(
-                    y=analysis_signal,
-                    frame_length=n_fft,
-                    hop_length=hop_length,
-                )[0]
+        if len(raw_signal) < n_fft:
+            # Count transitions only between observed samples, with zero
+            # treated as non-negative. A one-sample crop has no transition.
+            if len(raw_signal) > 1:
+                is_negative = raw_signal < 0
+                results["zcr"] = float(np.mean(is_negative[1:] != is_negative[:-1]))
+            else:
+                results["zcr"] = 0.0
+        else:
+            results["zcr"] = float(
+                np.mean(
+                    librosa.feature.zero_crossing_rate(
+                        y=analysis_signal,
+                        frame_length=n_fft,
+                        hop_length=hop_length,
+                    )[0]
+                )
             )
-        )
 
     spectral_extractors = {
         "spectral_centroid": lambda: librosa.feature.spectral_centroid(
@@ -733,12 +761,7 @@ def _stage2_distribution_table(
                         f"empty Stage 2 class slice: {split_name}, speaker={speaker}"
                     )
                 q1, q3 = np.quantile(values, [0.25, 0.75])
-                iqr = q3 - q1
-                outlier_fraction = (
-                    float(np.mean((values < q1 - 3 * iqr) | (values > q3 + 3 * iqr)))
-                    if iqr > 0
-                    else 0.0
-                )
+                outlier_fraction = _outlier_fraction_beyond_iqr(values)
                 rows.append(
                     {
                         "partition": split_name,
