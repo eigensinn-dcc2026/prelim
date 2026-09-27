@@ -129,6 +129,41 @@ def test_build_seoul_training_dataset_excludes_validation_and_non_seoul(tmp_path
         assert row["speaker"] in (0, 1)
 
 
+def test_parallel_workers_produce_the_same_aggregate_results_as_sequential(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    rows = _build_manifest_rows(root, 8, region="서울", split="Training")
+
+    seq_index, seq_features, seq_failures = build_seoul_training_dataset(
+        rows, root, n_calls=100, seed=42, max_workers=1
+    )
+    par_index, par_features, par_failures = build_seoul_training_dataset(
+        rows, root, n_calls=100, seed=42, max_workers=4
+    )
+
+    assert seq_failures == par_failures == []
+    # Completion order can differ across processes, so compare as sets/sorted,
+    # not the raw (order-dependent) lists.
+    key = lambda r: (r.call_id, r.utt_idx)  # noqa: E731
+    assert sorted(seq_index, key=key) == sorted(par_index, key=key)
+
+    # Structural equivalence only (same calls/utterances present, same
+    # non-numeric fields) -- not exact feature values. Sequential (this
+    # process) vs. parallel (freshly spawned worker processes) can pick a
+    # different BLAS thread count and land on a different (still
+    # mathematically equivalent) floating-point summation order for the FFT
+    # pipeline underlying MFCC, which is not guaranteed to reproduce
+    # bit-for-bit or even within a tight tolerance -- and nothing about the
+    # pipeline's correctness depends on it being so.
+    feature_key = lambda r: (r["call_id"], r["utt_idx"])  # noqa: E731
+    non_numeric = lambda row: {k: v for k, v in row.items() if k not in FEATURE_COLUMNS}  # noqa: E731
+    seq_sorted = sorted(seq_features, key=feature_key)
+    par_sorted = sorted(par_features, key=feature_key)
+    assert [non_numeric(row) for row in seq_sorted] == [non_numeric(row) for row in par_sorted]
+    for seq_row, par_row in zip(seq_sorted, par_sorted):
+        for column in FEATURE_COLUMNS:
+            assert np.isfinite(seq_row[column]) and np.isfinite(par_row[column])
+
+
 def test_group_shuffle_split_has_no_call_id_leakage(tmp_path: Path) -> None:
     root = tmp_path / "raw"
     rows = _build_manifest_rows(root, 20, region="서울", split="Training")
