@@ -1,0 +1,35 @@
+{
+  "base_branch": "main",
+  "max_file_bytes": 10485760,
+  "forbidden_prefixes": [
+    "data/",
+    "checkpoints/",
+    "outputs/"
+  ],
+  "test_path_prefixes": [
+    ".github/",
+    "src/",
+    "scripts/",
+    "tests/"
+  ],
+  "test_exact_paths": [
+    "requirements.txt"
+  ],
+  "allowed_test_file_deletions": [],
+  "allowed_test_function_deletions": [],
+  "required_checks": [
+    "PR CI / policy",
+    "PR CI / tests"
+  ],
+  "status_context": "merge-gate/verdict",
+  "labels": {
+    "ready": "병합-가능",
+    "waiting": "병합-대기",
+    "blocked": "수정-필요"
+  },
+  "legacy_labels": [
+    "merge-ready",
+    "merge-waiting",
+    "merge-blocked"
+  ]
+}
