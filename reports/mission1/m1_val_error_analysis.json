@@ -1,0 +1,754 @@
+{
+  "실험 ID": "M1-VAL-ERR-001",
+  "validation_policy": "Official Validation may be used to compare a small number of meaningful experiments. It must never be used for fit, scaler statistics, or backprop. This script only predicts with a frozen LR.",
+  "n_validation": 3640,
+  "confusion_matrix_labels": [
+    "F",
+    "M"
+  ],
+  "confusion_matrix": [
+    [
+      1878,
+      81
+    ],
+    [
+      97,
+      1584
+    ]
+  ],
+  "error_counts": {
+    "F→M": 81,
+    "M→F": 97,
+    "total": 178,
+    "error_rate": 0.0489010989010989,
+    "F_error_rate": 0.04134762633996937,
+    "M_error_rate": 0.05770374776918501
+  },
+  "duration": {
+    "unit": "caller_union_sec",
+    "note": "Primary duration is caller union (deduplicated). caller_sum_sec is stored on each row as a diagnostic of concat length.",
+    "correct": {
+      "n": 3462,
+      "mean": 33.75248209127672,
+      "median": 30.499499999999998,
+      "p10": 17.6852,
+      "p90": 54.6447
+    },
+    "incorrect": {
+      "n": 178,
+      "mean": 32.76842696629214,
+      "median": 30.4875,
+      "p10": 16.9828,
+      "p90": 52.39880000000001
+    },
+    "error_rate_by_quintile": [
+      {
+        "bin": "Q1",
+        "interval": "(0.779, 21.239]",
+        "n": 728,
+        "n_error": 44,
+        "error_rate": 0.06043956043956044,
+        "n_F_to_M": 19,
+        "n_M_to_F": 25
+      },
+      {
+        "bin": "Q2",
+        "interval": "(21.239, 27.586]",
+        "n": 728,
+        "n_error": 30,
+        "error_rate": 0.04120879120879121,
+        "n_F_to_M": 12,
+        "n_M_to_F": 18
+      },
+      {
+        "bin": "Q3",
+        "interval": "(27.586, 33.963]",
+        "n": 728,
+        "n_error": 34,
+        "error_rate": 0.046703296703296704,
+        "n_F_to_M": 19,
+        "n_M_to_F": 15
+      },
+      {
+        "bin": "Q4",
+        "interval": "(33.963, 44.596]",
+        "n": 728,
+        "n_error": 38,
+        "error_rate": 0.0521978021978022,
+        "n_F_to_M": 16,
+        "n_M_to_F": 22
+      },
+      {
+        "bin": "Q5",
+        "interval": "(44.596, 115.291]",
+        "n": 728,
+        "n_error": 32,
+        "error_rate": 0.04395604395604396,
+        "n_F_to_M": 15,
+        "n_M_to_F": 17
+      }
+    ]
+  },
+  "n_caller_utterances": {
+    "correct": {
+      "n": 3462,
+      "mean": 15.943963027151936,
+      "median": 15.0,
+      "p10": 9.0,
+      "p90": 24.0
+    },
+    "incorrect": {
+      "n": 178,
+      "mean": 16.314606741573034,
+      "median": 15.0,
+      "p10": 9.0,
+      "p90": 24.30000000000001
+    },
+    "error_rate_by_quintile": [
+      {
+        "bin": "Q1",
+        "interval": "(1.999, 11.0]",
+        "n": 899,
+        "n_error": 37,
+        "error_rate": 0.041156840934371525,
+        "n_F_to_M": 18,
+        "n_M_to_F": 19
+      },
+      {
+        "bin": "Q2",
+        "interval": "(11.0, 14.0]",
+        "n": 821,
+        "n_error": 44,
+        "error_rate": 0.0535931790499391,
+        "n_F_to_M": 22,
+        "n_M_to_F": 22
+      },
+      {
+        "bin": "Q3",
+        "interval": "(14.0, 16.0]",
+        "n": 499,
+        "n_error": 16,
+        "error_rate": 0.03206412825651302,
+        "n_F_to_M": 11,
+        "n_M_to_F": 5
+      },
+      {
+        "bin": "Q4",
+        "interval": "(16.0, 21.0]",
+        "n": 792,
+        "n_error": 44,
+        "error_rate": 0.05555555555555555,
+        "n_F_to_M": 15,
+        "n_M_to_F": 29
+      },
+      {
+        "bin": "Q5",
+        "interval": "(21.0, 52.0]",
+        "n": 629,
+        "n_error": 37,
+        "error_rate": 0.058823529411764705,
+        "n_F_to_M": 15,
+        "n_M_to_F": 22
+      }
+    ],
+    "short_and_few": {
+      "duration_median_sec": 30.499499999999998,
+      "n_caller_utterances_median": 15.0,
+      "short_and_few": {
+        "n": 1506,
+        "n_error": 66,
+        "error_rate": 0.043824701195219126
+      },
+      "short_not_few": {
+        "n": 314,
+        "n_error": 23,
+        "error_rate": 0.0732484076433121
+      },
+      "not_short_and_few": {
+        "n": 490,
+        "n_error": 24,
+        "error_rate": 0.04897959183673469
+      },
+      "not_short_not_few": {
+        "n": 1330,
+        "n_error": 65,
+        "error_rate": 0.04887218045112782
+      }
+    }
+  },
+  "overlap": {
+    "definition": "overlap_ratio = |caller_union ∩ operator_union| / |caller_union| (Training overlap audit; denominator is union, not interval sum).",
+    "zero_vs_nonzero_reference_only": {
+      "note": "Training audit found overlap>0 on most calls, so this split is reference only and is not used to rank hypotheses.",
+      "zero": {
+        "n": 137,
+        "n_error": 4,
+        "error_rate": 0.029197080291970802
+      },
+      "nonzero": {
+        "n": 3503,
+        "n_error": 174,
+        "error_rate": 0.04967170996288895
+      }
+    },
+    "error_rate_by_quintile": [
+      {
+        "bin": "Q1",
+        "interval": "(-0.001, 0.0325]",
+        "n": 728,
+        "n_error": 37,
+        "error_rate": 0.050824175824175824,
+        "n_F_to_M": 19,
+        "n_M_to_F": 18
+      },
+      {
+        "bin": "Q2",
+        "interval": "(0.0325, 0.0655]",
+        "n": 728,
+        "n_error": 41,
+        "error_rate": 0.05631868131868132,
+        "n_F_to_M": 18,
+        "n_M_to_F": 23
+      },
+      {
+        "bin": "Q3",
+        "interval": "(0.0655, 0.101]",
+        "n": 728,
+        "n_error": 27,
+        "error_rate": 0.03708791208791209,
+        "n_F_to_M": 12,
+        "n_M_to_F": 15
+      },
+      {
+        "bin": "Q4",
+        "interval": "(0.101, 0.154]",
+        "n": 728,
+        "n_error": 33,
+        "error_rate": 0.04532967032967033,
+        "n_F_to_M": 13,
+        "n_M_to_F": 20
+      },
+      {
+        "bin": "Q5",
+        "interval": "(0.154, 0.566]",
+        "n": 728,
+        "n_error": 40,
+        "error_rate": 0.054945054945054944,
+        "n_F_to_M": 19,
+        "n_M_to_F": 21
+      }
+    ],
+    "high_tail_ratio_ge_0.2": {
+      "note": "0.2 is a descriptive cut near the Training-audit high side (median ratio ~0.08), not tuned on Validation.",
+      "high": {
+        "n": 378,
+        "n_error": 23,
+        "error_rate": 0.06084656084656084
+      },
+      "not_high": {
+        "n": 3262,
+        "n_error": 155,
+        "error_rate": 0.04751686082158185
+      }
+    },
+    "correct": {
+      "n": 3462,
+      "mean": 0.09730227403610595,
+      "median": 0.08225117292857398,
+      "p10": 0.011727330166894817,
+      "p90": 0.20173714327173628
+    },
+    "incorrect": {
+      "n": 178,
+      "mean": 0.10121948905309604,
+      "median": 0.08063900814511041,
+      "p10": 0.012171837863518253,
+      "p90": 0.22095911278145566
+    }
+  },
+  "acoustic_features": {
+    "lr_abs_coef_top": [
+      {
+        "column": "mfcc_std_19",
+        "abs_coef": 2.0176215169850185
+      },
+      {
+        "column": "mfcc_mean_16",
+        "abs_coef": 1.999250206367851
+      },
+      {
+        "column": "mfcc_mean_15",
+        "abs_coef": 1.8748307435683198
+      },
+      {
+        "column": "mfcc_mean_6",
+        "abs_coef": 1.6070795420767816
+      },
+      {
+        "column": "mfcc_mean_17",
+        "abs_coef": 1.5935894082641338
+      },
+      {
+        "column": "mfcc_mean_18",
+        "abs_coef": 1.5494905639287622
+      },
+      {
+        "column": "mfcc_std_3",
+        "abs_coef": 1.3941800029506382
+      },
+      {
+        "column": "mfcc_std_11",
+        "abs_coef": 1.3777614443649975
+      },
+      {
+        "column": "mfcc_mean_8",
+        "abs_coef": 1.307021592136069
+      },
+      {
+        "column": "spectral_centroid_std",
+        "abs_coef": 1.1789129378232588
+      },
+      {
+        "column": "mfcc_mean_19",
+        "abs_coef": 1.1628126167499706
+      },
+      {
+        "column": "mfcc_std_7",
+        "abs_coef": 1.0818220793052205
+      },
+      {
+        "column": "mfcc_std_16",
+        "abs_coef": 0.923824341578094
+      },
+      {
+        "column": "mfcc_std_9",
+        "abs_coef": 0.9185971437205914
+      },
+      {
+        "column": "spectral_rolloff_std",
+        "abs_coef": 0.8939953540174308
+      }
+    ],
+    "cohens_d_error_minus_correct_top_by_true_gender": [
+      {
+        "gender": "F",
+        "column": "mfcc_std_19",
+        "cohens_d_error_minus_correct": -1.2443353054865713
+      },
+      {
+        "gender": "F",
+        "column": "mfcc_std_17",
+        "cohens_d_error_minus_correct": -1.1523124980735253
+      },
+      {
+        "gender": "F",
+        "column": "mfcc_std_16",
+        "cohens_d_error_minus_correct": -1.0961349262349536
+      },
+      {
+        "gender": "F",
+        "column": "mfcc_std_3",
+        "cohens_d_error_minus_correct": 0.9958008708057161
+      },
+      {
+        "gender": "F",
+        "column": "mfcc_std_18",
+        "cohens_d_error_minus_correct": -0.9606397973026862
+      },
+      {
+        "gender": "F",
+        "column": "mfcc_mean_16",
+        "cohens_d_error_minus_correct": -0.8894617866628785
+      },
+      {
+        "gender": "F",
+        "column": "mfcc_std_15",
+        "cohens_d_error_minus_correct": -0.8150452738562936
+      },
+      {
+        "gender": "F",
+        "column": "mfcc_std_13",
+        "cohens_d_error_minus_correct": -0.7426871377922175
+      },
+      {
+        "gender": "F",
+        "column": "mfcc_mean_18",
+        "cohens_d_error_minus_correct": -0.7156006504496515
+      },
+      {
+        "gender": "F",
+        "column": "mfcc_std_2",
+        "cohens_d_error_minus_correct": -0.6701282425232985
+      },
+      {
+        "gender": "M",
+        "column": "mfcc_std_17",
+        "cohens_d_error_minus_correct": 1.826671224768051
+      },
+      {
+        "gender": "M",
+        "column": "mfcc_std_16",
+        "cohens_d_error_minus_correct": 1.6857238985020606
+      },
+      {
+        "gender": "M",
+        "column": "mfcc_std_19",
+        "cohens_d_error_minus_correct": 1.6491191026071477
+      },
+      {
+        "gender": "M",
+        "column": "mfcc_std_18",
+        "cohens_d_error_minus_correct": 1.3675121486648698
+      },
+      {
+        "gender": "M",
+        "column": "mfcc_std_13",
+        "cohens_d_error_minus_correct": 1.3442259495608189
+      },
+      {
+        "gender": "M",
+        "column": "mfcc_mean_16",
+        "cohens_d_error_minus_correct": 0.9826963786176218
+      },
+      {
+        "gender": "M",
+        "column": "mfcc_std_15",
+        "cohens_d_error_minus_correct": 0.9558496981816562
+      },
+      {
+        "gender": "M",
+        "column": "mfcc_std_3",
+        "cohens_d_error_minus_correct": -0.9099767891058281
+      },
+      {
+        "gender": "M",
+        "column": "mfcc_mean_6",
+        "cohens_d_error_minus_correct": 0.7189025506649832
+      },
+      {
+        "gender": "M",
+        "column": "mfcc_mean_12",
+        "cohens_d_error_minus_correct": -0.712139670097782
+      }
+    ],
+    "pitch_related_spectral_indicators": {
+      "note": "Pitch-related / spectral indicators: indirect acoustic measurements that may relate to pitch or gender. Actual F0 is not measured here.",
+      "columns": [
+        "zcr_mean",
+        "spectral_centroid_mean",
+        "mfcc_mean_0",
+        "mfcc_mean_1",
+        "mfcc_mean_2",
+        "mfcc_mean_3"
+      ],
+      "cohens_d_within_true_gender": {
+        "F": {
+          "zcr_mean": -0.07879623719216323,
+          "spectral_centroid_mean": -0.13529468654994842,
+          "mfcc_mean_0": 0.0647769667305368,
+          "mfcc_mean_1": -0.005691830290048456,
+          "mfcc_mean_2": 0.3013232457098032,
+          "mfcc_mean_3": 0.20168053516276427
+        },
+        "M": {
+          "zcr_mean": 0.04886488836057208,
+          "spectral_centroid_mean": -0.018086810098592532,
+          "mfcc_mean_0": -0.22429398743770673,
+          "mfcc_mean_1": -0.26639276413981544,
+          "mfcc_mean_2": -0.16248657326402122,
+          "mfcc_mean_3": -0.4281433735125352
+        }
+      },
+      "error_mean_vs_correct_gender_means": {
+        "F": {
+          "n_error": 81,
+          "n_indicators_closer_to_opposite": 2,
+          "n_indicators_closer_to_same": 4,
+          "n_indicators_tie": 0,
+          "columns": {
+            "zcr_mean": {
+              "error_mean": 0.16982121029753744,
+              "same_gender_correct_mean": 0.17127695276984137,
+              "opposite_gender_correct_mean": 0.16787590682412487,
+              "closer_to": "same"
+            },
+            "spectral_centroid_mean": {
+              "error_mean": 891.8567761079764,
+              "same_gender_correct_mean": 904.1816320774781,
+              "opposite_gender_correct_mean": 889.3330651100235,
+              "closer_to": "opposite"
+            },
+            "mfcc_mean_0": {
+              "error_mean": -412.18883712203416,
+              "same_gender_correct_mean": -416.42659732708915,
+              "opposite_gender_correct_mean": -400.4740533925066,
+              "closer_to": "same"
+            },
+            "mfcc_mean_1": {
+              "error_mean": 81.68728317449123,
+              "same_gender_correct_mean": 81.75678084071832,
+              "opposite_gender_correct_mean": 85.86883119621662,
+              "closer_to": "same"
+            },
+            "mfcc_mean_2": {
+              "error_mean": -6.204247542737443,
+              "same_gender_correct_mean": -9.552851549429318,
+              "opposite_gender_correct_mean": -5.067053367742432,
+              "closer_to": "opposite"
+            },
+            "mfcc_mean_3": {
+              "error_mean": -4.522307394969243,
+              "same_gender_correct_mean": -6.020431147353586,
+              "opposite_gender_correct_mean": -1.870175815954512,
+              "closer_to": "same"
+            }
+          }
+        },
+        "M": {
+          "n_error": 97,
+          "n_indicators_closer_to_opposite": 3,
+          "n_indicators_closer_to_same": 3,
+          "n_indicators_tie": 0,
+          "columns": {
+            "zcr_mean": {
+              "error_mean": 0.16877273370310203,
+              "same_gender_correct_mean": 0.16787590682412487,
+              "opposite_gender_correct_mean": 0.17127695276984137,
+              "closer_to": "same"
+            },
+            "spectral_centroid_mean": {
+              "error_mean": 887.7158788307426,
+              "same_gender_correct_mean": 889.3330651100235,
+              "opposite_gender_correct_mean": 904.1816320774781,
+              "closer_to": "same"
+            },
+            "mfcc_mean_0": {
+              "error_mean": -415.34592492801625,
+              "same_gender_correct_mean": -400.4740533925066,
+              "opposite_gender_correct_mean": -416.42659732708915,
+              "closer_to": "opposite"
+            },
+            "mfcc_mean_1": {
+              "error_mean": 82.55104226181187,
+              "same_gender_correct_mean": 85.86883119621662,
+              "opposite_gender_correct_mean": 81.75678084071832,
+              "closer_to": "opposite"
+            },
+            "mfcc_mean_2": {
+              "error_mean": -6.776378128523986,
+              "same_gender_correct_mean": -5.067053367742432,
+              "opposite_gender_correct_mean": -9.552851549429318,
+              "closer_to": "same"
+            },
+            "mfcc_mean_3": {
+              "error_mean": -5.457728010650301,
+              "same_gender_correct_mean": -1.870175815954512,
+              "opposite_gender_correct_mean": -6.020431147353586,
+              "closer_to": "opposite"
+            }
+          }
+        }
+      }
+    }
+  },
+  "hypothesis_evidence": {
+    "note": "Evidence statistics use different units and are not ranked automatically. Inspect each block and choose the next experiment by human judgment. Actual F0 is not measured in this analysis.",
+    "overlap": {
+      "error_rate_q5_minus_q1": 0.00412087912087912,
+      "quintiles": [
+        {
+          "bin": "Q1",
+          "interval": "(-0.001, 0.0325]",
+          "n": 728,
+          "n_error": 37,
+          "error_rate": 0.050824175824175824,
+          "n_F_to_M": 19,
+          "n_M_to_F": 18
+        },
+        {
+          "bin": "Q2",
+          "interval": "(0.0325, 0.0655]",
+          "n": 728,
+          "n_error": 41,
+          "error_rate": 0.05631868131868132,
+          "n_F_to_M": 18,
+          "n_M_to_F": 23
+        },
+        {
+          "bin": "Q3",
+          "interval": "(0.0655, 0.101]",
+          "n": 728,
+          "n_error": 27,
+          "error_rate": 0.03708791208791209,
+          "n_F_to_M": 12,
+          "n_M_to_F": 15
+        },
+        {
+          "bin": "Q4",
+          "interval": "(0.101, 0.154]",
+          "n": 728,
+          "n_error": 33,
+          "error_rate": 0.04532967032967033,
+          "n_F_to_M": 13,
+          "n_M_to_F": 20
+        },
+        {
+          "bin": "Q5",
+          "interval": "(0.154, 0.566]",
+          "n": 728,
+          "n_error": 40,
+          "error_rate": 0.054945054945054944,
+          "n_F_to_M": 19,
+          "n_M_to_F": 21
+        }
+      ],
+      "median_overlap_ratio_correct": 0.08225117292857398,
+      "median_overlap_ratio_incorrect": 0.08063900814511041,
+      "high_tail_error_rate": {
+        "n": 378,
+        "n_error": 23,
+        "error_rate": 0.06084656084656084
+      }
+    },
+    "observation_shortage": {
+      "duration_error_rate_q1_minus_q5": 0.01648351648351648,
+      "n_caller_utterances_error_rate_q1_minus_q5": -0.01766668847739318,
+      "duration_quintiles": [
+        {
+          "bin": "Q1",
+          "interval": "(0.779, 21.239]",
+          "n": 728,
+          "n_error": 44,
+          "error_rate": 0.06043956043956044,
+          "n_F_to_M": 19,
+          "n_M_to_F": 25
+        },
+        {
+          "bin": "Q2",
+          "interval": "(21.239, 27.586]",
+          "n": 728,
+          "n_error": 30,
+          "error_rate": 0.04120879120879121,
+          "n_F_to_M": 12,
+          "n_M_to_F": 18
+        },
+        {
+          "bin": "Q3",
+          "interval": "(27.586, 33.963]",
+          "n": 728,
+          "n_error": 34,
+          "error_rate": 0.046703296703296704,
+          "n_F_to_M": 19,
+          "n_M_to_F": 15
+        },
+        {
+          "bin": "Q4",
+          "interval": "(33.963, 44.596]",
+          "n": 728,
+          "n_error": 38,
+          "error_rate": 0.0521978021978022,
+          "n_F_to_M": 16,
+          "n_M_to_F": 22
+        },
+        {
+          "bin": "Q5",
+          "interval": "(44.596, 115.291]",
+          "n": 728,
+          "n_error": 32,
+          "error_rate": 0.04395604395604396,
+          "n_F_to_M": 15,
+          "n_M_to_F": 17
+        }
+      ],
+      "n_caller_utterances_quintiles": [
+        {
+          "bin": "Q1",
+          "interval": "(1.999, 11.0]",
+          "n": 899,
+          "n_error": 37,
+          "error_rate": 0.041156840934371525,
+          "n_F_to_M": 18,
+          "n_M_to_F": 19
+        },
+        {
+          "bin": "Q2",
+          "interval": "(11.0, 14.0]",
+          "n": 821,
+          "n_error": 44,
+          "error_rate": 0.0535931790499391,
+          "n_F_to_M": 22,
+          "n_M_to_F": 22
+        },
+        {
+          "bin": "Q3",
+          "interval": "(14.0, 16.0]",
+          "n": 499,
+          "n_error": 16,
+          "error_rate": 0.03206412825651302,
+          "n_F_to_M": 11,
+          "n_M_to_F": 5
+        },
+        {
+          "bin": "Q4",
+          "interval": "(16.0, 21.0]",
+          "n": 792,
+          "n_error": 44,
+          "error_rate": 0.05555555555555555,
+          "n_F_to_M": 15,
+          "n_M_to_F": 29
+        },
+        {
+          "bin": "Q5",
+          "interval": "(21.0, 52.0]",
+          "n": 629,
+          "n_error": 37,
+          "error_rate": 0.058823529411764705,
+          "n_F_to_M": 15,
+          "n_M_to_F": 22
+        }
+      ],
+      "median_duration_correct_sec": 30.499499999999998,
+      "median_duration_incorrect_sec": 30.4875,
+      "short_and_few_error_rate": {
+        "n": 1506,
+        "n_error": 66,
+        "error_rate": 0.043824701195219126
+      }
+    },
+    "pitch_related_spectral": {
+      "note": "Indirect pitch-related / spectral indicators ['zcr_mean', 'spectral_centroid_mean', 'mfcc_mean_0', 'mfcc_mean_1', 'mfcc_mean_2', 'mfcc_mean_3']. Not a measured F0.",
+      "cohens_d_within_true_gender": {
+        "F": {
+          "zcr_mean": -0.07879623719216323,
+          "spectral_centroid_mean": -0.13529468654994842,
+          "mfcc_mean_0": 0.0647769667305368,
+          "mfcc_mean_1": -0.005691830290048456,
+          "mfcc_mean_2": 0.3013232457098032,
+          "mfcc_mean_3": 0.20168053516276427
+        },
+        "M": {
+          "zcr_mean": 0.04886488836057208,
+          "spectral_centroid_mean": -0.018086810098592532,
+          "mfcc_mean_0": -0.22429398743770673,
+          "mfcc_mean_1": -0.26639276413981544,
+          "mfcc_mean_2": -0.16248657326402122,
+          "mfcc_mean_3": -0.4281433735125352
+        }
+      },
+      "error_mean_closer_to_opposite_gender": {
+        "F": {
+          "n_error": 81,
+          "n_indicators_closer_to_opposite": 2,
+          "n_indicators_closer_to_same": 4,
+          "n_indicators_tie": 0
+        },
+        "M": {
+          "n_error": 97,
+          "n_indicators_closer_to_opposite": 3,
+          "n_indicators_closer_to_same": 3,
+          "n_indicators_tie": 0
+        }
+      }
+    }
+  }
+}
