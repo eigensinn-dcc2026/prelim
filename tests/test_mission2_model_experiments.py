@@ -5,6 +5,7 @@ from dataclasses import replace
 import hashlib
 import importlib
 import importlib.util
+import inspect
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -127,6 +128,7 @@ def _prepared(model_module):
         call_ids=call_ids,
         feature_names=EXPECTED_E05,
         split_function=_group_split_adapter,
+        expected_split_contract=None,
     )
 
 
@@ -148,6 +150,7 @@ def _prepared_screening(model_module):
         call_ids=call_ids,
         feature_names=EXPECTED_E05,
         split_function=_group_split_adapter,
+        expected_split_contract=None,
     )
 
 
@@ -604,6 +607,7 @@ def test_standard_scaler_is_fit_on_internal_train_only(model_module):
         call_ids=call_ids,
         feature_names=EXPECTED_E05,
         split_function=_group_split_adapter,
+        expected_split_contract=None,
     )
     expected_mean = X[prepared.train_idx].astype(np.float64).mean(axis=0)
     assert np.allclose(prepared.scaler.mean_, expected_mean)
@@ -760,6 +764,14 @@ def test_frozen_row_level_reference_must_match_aggregate_ledger(model_module):
         result, reference=reference
     )
     assert observed["correct_count"] == 3
+
+    rounded_reference = dict(
+        reference,
+        accuracy=float(np.nextafter(np.float32(0.75), np.float32(1.0))),
+    )
+    assert model_module.validate_frozen_e05_row_level_result(
+        result, reference=rounded_reference
+    )["correct_count"] == 3
 
     invalid_reference = dict(reference, accuracy=0.80)
     with pytest.raises(ValueError, match="accuracy"):
@@ -1117,6 +1129,7 @@ def test_standalone_split_and_diagnostic_report_need_no_pr16_helper(model_module
         call_ids=call_ids,
         feature_names=EXPECTED_E05,
         split_function=model_module.standalone_group_split_indices,
+        expected_split_contract=None,
     )
     result = model_module.run_internal_m00(prepared, allow_fit=True)
     tracking = pd.DataFrame(
@@ -1331,10 +1344,48 @@ def test_m00_official_reproducibility_gate_uses_aggregate_only(model_module):
         result, reference=reference
     )
     assert observed["accuracy"] == pytest.approx(result.metrics["accuracy"])
+    rounded_reference = dict(
+        reference, accuracy=float(np.float32(reference["accuracy"]))
+    )
+    assert model_module.validate_m00_official_reproducibility(
+        result, reference=rounded_reference
+    )["correct_count"] == reference["correct_count"]
     with pytest.raises(ValueError, match="accuracy"):
         model_module.validate_m00_official_reproducibility(
             result, reference={**reference, "accuracy": reference["accuracy"] + 0.1}
         )
+
+
+def test_m00_reproducibility_detects_changed_predictions_despite_rate_rounding(
+    model_module,
+):
+    result = model_module.run_official_m00(
+        _prepared_official(model_module), allow_fit=True, user_approved=True
+    )
+    confidence = result.probabilities.max(axis=1)
+    reference = {
+        "training_rows": 60,
+        "validation_rows": 20,
+        **dict(result.metrics),
+        "accuracy": float(np.float32(result.metrics["accuracy"])),
+        "high_confidence_error_count": int(
+            np.sum((result.y_pred != result.y_true) & (confidence >= 0.90))
+        ),
+    }
+    changed = result.y_pred.copy()
+    changed[0] = 1 - changed[0]
+    with pytest.raises(ValueError, match="correct_count|confusion_matrix") as error:
+        model_module.validate_m00_official_reproducibility(
+            replace(result, y_pred=changed), reference=reference
+        )
+    assert "X_evaluation_fingerprint" in str(error.value)
+
+
+def test_internal_prepare_requires_explicit_split_contract_keyword(model_module):
+    parameter = inspect.signature(model_module.prepare_internal_comparison).parameters[
+        "expected_split_contract"
+    ]
+    assert parameter.default is inspect.Parameter.empty
 
 
 def test_j_table_includes_only_executed_internal_and_official_reports(model_module):
@@ -1486,7 +1537,7 @@ def test_screening_comparison_to_m01_has_consistent_paired_arithmetic(model_modu
     changed_audit = dict(candidates[0].fit_audit)
     changed_audit["X_evaluation_fingerprint"] = "different"
     with pytest.raises(ValueError, match="X_evaluation_fingerprint"):
-        model_module.compare_candidate_to_reference(
+        model_module.compare_model_candidate_to_reference(
             m01, replace(candidates[0], fit_audit=changed_audit)
         )
 
@@ -1648,7 +1699,8 @@ def test_notebook_appends_screening_and_promotion_gates_with_false_defaults():
         "checkpoint-l-code"
     )
     assert "RUN_INTERNAL_FAMILY_SCREENING = False" in cells["checkpoint-l-code"]
-    assert "PROMOTED_MODEL_IDS = ()" in cells["checkpoint-m-code"]
+    # The executed M04 promotion remains part of the notebook's experiment record.
+    assert 'PROMOTED_MODEL_IDS = ("M04",)' in cells["checkpoint-m-code"]
     assert "USER_APPROVED_PROMOTION = False" in cells["checkpoint-m-code"]
     assert (
         "RUN_PROMOTED_OFFICIAL_VALIDATION = False"
@@ -1784,6 +1836,7 @@ def test_internal_m04_reference_replays_frozen_config_on_supplied_scaler(
         call_ids=call_ids,
         feature_names=EXPECTED_E05,
         split_function=_group_split_adapter,
+        expected_split_contract=None,
     )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", ConvergenceWarning)
@@ -1899,7 +1952,9 @@ def test_notebook_appends_internal_only_checkpoint_o_with_false_switch():
     notebook = json.loads(NOTEBOOK_PATH.read_text(encoding="utf-8"))
     cells = {cell["id"]: "".join(cell.get("source", [])) for cell in notebook["cells"]}
     ordered_ids = [cell["id"] for cell in notebook["cells"]]
-    assert ordered_ids[-2:] == ["checkpoint-o-md", "checkpoint-o-code"]
+    assert ordered_ids.index("checkpoint-o-md") < ordered_ids.index(
+        "checkpoint-o-code"
+    )
     source = cells["checkpoint-o-code"]
     assert "RUN_INTERNAL_M04_CONVERGENCE_CHECK = False" in source
     assert "run_internal_m04_convergence_check" in source
@@ -2055,11 +2110,16 @@ def test_checkpoint_o_preserves_iter60_and_rebuilds_only_stale_m04_reference(
 def test_checkpoint_o_stops_on_stale_m04_reference_without_rebuild_gate(
     model_module, monkeypatch
 ):
-    current_scaler = object()
+    prepared = _prepared(model_module)
     monkeypatch.setattr(
         model_module,
         "run_internal_m04_convergence_check",
         lambda *args, **kwargs: pytest.fail("M04-60 must not be fitted"),
+    )
+    monkeypatch.setattr(
+        model_module,
+        "run_internal_m04_reference",
+        lambda *args, **kwargs: pytest.fail("M04-30 must not be rebuilt"),
     )
     notebook = json.loads(NOTEBOOK_PATH.read_text(encoding="utf-8"))
     source = "".join(
@@ -2070,12 +2130,12 @@ def test_checkpoint_o_stops_on_stale_m04_reference_without_rebuild_gate(
     setup_prefix = source.split("m04_iter60_base_report =", maxsplit=1)[0]
     namespace = {
         "M04_MLP_CONFIG": model_module.M04_MLP_CONFIG,
-        "prepared_internal": SimpleNamespace(scaler=current_scaler),
+        "prepared_internal": prepared,
         "screening_results": [
             SimpleNamespace(experiment_id="M04", scaler=object())
         ],
         "m04_iter60_result": SimpleNamespace(
-            experiment_id="M04_ITER60", scaler=current_scaler
+            experiment_id="M04_ITER60", scaler=prepared.scaler
         ),
     }
 

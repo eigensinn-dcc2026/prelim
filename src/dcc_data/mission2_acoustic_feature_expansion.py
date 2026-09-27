@@ -10,6 +10,7 @@ alignment, fixed-split preparation, and same-run paired diagnostics.
 from __future__ import annotations
 
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from contextlib import nullcontext
 from dataclasses import dataclass
 import hashlib
 import json
@@ -41,16 +42,21 @@ _WORKER_THREADPOOL_GUARD: Any | None = None
 from .audio import read_wav_frames
 from . import mission2_model_experiments as _model_experiments_module
 from .mission2_model_experiments import (
+    ARRAY_FINGERPRINT_VERSION,
     E05_FEATURE_NAMES,
     EXPECTED_INTERNAL_SPLIT,
     M04_MLP_CONFIG,
     ModelExperimentResult,
+    _array_fingerprint,
+    _rate_matches_count,
     _overlap_mask,
     build_standalone_diagnostic_report,
     calculate_prediction_metrics,
+    config_fingerprint,
     create_fixed_internal_split,
     record_key_signature,
     standalone_group_split_indices,
+    validate_binary_probabilities,
 )
 
 
@@ -607,18 +613,14 @@ def _json_fingerprint(value: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def config_fingerprint(config: Mapping[str, Any]) -> str:
-    """Return a deterministic fingerprint for a JSON-compatible mapping."""
+def _legacy_acoustic_array_fingerprint(values: np.ndarray) -> str:
+    """Preserve the pre-v1 hash used by frozen acoustic Notebook artifacts."""
 
-    return _json_fingerprint(dict(config))
-
-
-def _array_fingerprint(values: np.ndarray) -> str:
     array = np.ascontiguousarray(values)
     digest = hashlib.sha256()
     digest.update(str(array.dtype).encode("ascii"))
     digest.update(str(array.shape).encode("ascii"))
-    digest.update(array.tobytes())
+    digest.update(array.tobytes(order="C"))
     return digest.hexdigest()
 
 
@@ -1864,12 +1866,15 @@ def extract_candidate_feature_frame(
     )
     resolved_worker_count = _resolve_worker_count(worker_count)
     if resolved_worker_count == 1 or len(tasks) == 1:
-        _initialize_worker_thread_limits()
         rows = []
-        for call_number, task in enumerate(tasks, start=1):
-            rows.extend(_extract_call_rows(task))
-            if on_call_done is not None:
-                on_call_done(call_number, len(tasks), task.call_id)
+        # A serial run shares the Notebook process, so restore its numeric
+        # thread settings before later sklearn/numpy work in that session.
+        limit = _threadpool_limits(limits=1) if _threadpool_limits else nullcontext()
+        with limit:
+            for call_number, task in enumerate(tasks, start=1):
+                rows.extend(_extract_call_rows(task))
+                if on_call_done is not None:
+                    on_call_done(call_number, len(tasks), task.call_id)
     else:
         rows = _extract_tasks_parallel(
             tasks,
@@ -1970,6 +1975,19 @@ def load_candidate_feature_cache(
         raise ValueError("candidate cache columns or row count are invalid")
     if not frame["record_key"].astype(str).is_unique:
         raise ValueError("candidate cache record_key must be one-to-one")
+    source = manifest.loc[manifest["split"].astype(str) == split]
+    loaded_keys = frame["record_key"].astype(str).to_numpy()
+    canonical_keys = source["record_key"].astype(str).to_numpy()
+    if record_key_signature(loaded_keys) != observed["record_key_signature"]:
+        raise ValueError("candidate cache parquet record_key_signature mismatch")
+    # The signature sorts keys, so order and call alignment need direct checks.
+    if not np.array_equal(loaded_keys, canonical_keys):
+        raise ValueError("candidate cache record_key canonical order mismatch")
+    if not np.array_equal(
+        frame["call_id"].astype(str).to_numpy(),
+        source["call_id"].astype(str).to_numpy(),
+    ):
+        raise ValueError("candidate cache call_id alignment mismatch")
     values = frame.loc[:, feature_names].to_numpy(dtype=np.float32)
     if not np.isfinite(values).all():
         raise ValueError("candidate cache contains NaN or inf")
@@ -1996,9 +2014,15 @@ def _validate_e05_inputs(
         raise ValueError("E05 X/y/record_key/call_id row alignment mismatch")
     if len(np.unique(keys)) != len(keys) or np.any(np.char.str_len(keys) == 0):
         raise ValueError("canonical record_key must be non-empty and one-to-one")
+    _require_binary_labels(labels)
+    return matrix, labels, keys, calls
+
+
+def _require_binary_labels(labels: np.ndarray) -> None:
+    """Use the same speaker-label rule for E05 and residual preparations."""
+
     if not set(np.unique(labels)).issubset({0, 1}):
         raise ValueError("speaker labels must be binary")
-    return matrix, labels, keys, calls
 
 
 def assemble_single_block_matrix(
@@ -2100,7 +2124,7 @@ def prepare_single_block_screening(
     record_keys: Sequence[str],
     call_ids: Sequence[str],
     candidate_frame: pd.DataFrame,
-    expected_split_contract: Mapping[str, int] | None = None,
+    expected_split_contract: Mapping[str, int] | None,
     block_ids: Sequence[str] = tuple(block.block_id for block in FEATURE_BLOCKS),
 ) -> dict[str, PreparedRepresentation]:
     """Prepare E05 and every E05+single-block matrix on one fixed GroupSplit."""
@@ -2155,7 +2179,7 @@ def prepare_round2_single_block_screening(
     record_keys: Sequence[str],
     call_ids: Sequence[str],
     candidate_frame: pd.DataFrame,
-    expected_split_contract: Mapping[str, int] | None = None,
+    expected_split_contract: Mapping[str, int] | None,
 ) -> dict[str, PreparedRepresentation]:
     """Prepare the fixed AF02 47D reference and each Round 2 49D candidate."""
 
@@ -2266,7 +2290,7 @@ def prepare_frozen_49d_single_block_screening(
     record_keys: Sequence[str],
     call_ids: Sequence[str],
     candidate_frame: pd.DataFrame,
-    expected_split_contract: Mapping[str, int] | None = None,
+    expected_split_contract: Mapping[str, int] | None,
     block_ids: Sequence[str] = NEXT_CANDIDATE_BLOCK_IDS,
 ) -> dict[str, PreparedRepresentation]:
     """Prepare frozen 49D and 49D-plus-one candidate representations."""
@@ -2334,15 +2358,40 @@ def prepare_frozen_49d_single_block_screening(
     return prepared
 
 
-def _scaler_fingerprint(scaler: StandardScaler) -> str:
+def _scaler_fingerprint(
+    scaler: StandardScaler,
+    *,
+    array_fingerprint: Callable[[np.ndarray], str] = _array_fingerprint,
+) -> str:
     return _json_fingerprint(
         {
-            "mean": _array_fingerprint(np.asarray(scaler.mean_)),
-            "scale": _array_fingerprint(np.asarray(scaler.scale_)),
-            "var": _array_fingerprint(np.asarray(scaler.var_)),
+            "mean": array_fingerprint(np.asarray(scaler.mean_)),
+            "scale": array_fingerprint(np.asarray(scaler.scale_)),
+            "var": array_fingerprint(np.asarray(scaler.var_)),
             "n_samples_seen": int(scaler.n_samples_seen_),
         }
     )
+
+
+def _prepared_array_fingerprints(
+    prepared: PreparedRepresentation,
+    *,
+    array_fingerprint: Callable[[np.ndarray], str] = _array_fingerprint,
+) -> dict[str, str]:
+    """Bind one array algorithm to the split and scaler provenance together."""
+
+    return {
+        "split_fingerprint": _json_fingerprint(
+            {
+                "train_idx": array_fingerprint(prepared.train_idx),
+                "validation_idx": array_fingerprint(prepared.validation_idx),
+                "audit": dict(prepared.split_audit),
+            }
+        ),
+        "scaler_fingerprint": _scaler_fingerprint(
+            prepared.scaler, array_fingerprint=array_fingerprint
+        ),
+    }
 
 
 def validate_canonical_52d_prepared(
@@ -2466,14 +2515,9 @@ def validate_canonical_52d_prepared(
         "evaluation_shape": expected_validation_shape,
         "scaler_fit_rows": expected_train,
         "scaler_fit_scope": "internal_train_only",
+        "array_fingerprint_version": ARRAY_FINGERPRINT_VERSION,
         "feature_fingerprint": _json_fingerprint(list(prepared.feature_names)),
-        "split_fingerprint": _json_fingerprint(
-            {
-                "train_idx": _array_fingerprint(train_idx),
-                "validation_idx": _array_fingerprint(validation_idx),
-                "audit": dict(prepared.split_audit),
-            }
-        ),
+        **_prepared_array_fingerprints(prepared),
         "row_fingerprint": _json_fingerprint(
             {
                 "training": prepared.training_record_keys.tolist(),
@@ -2486,7 +2530,6 @@ def validate_canonical_52d_prepared(
                 "evaluation": _array_fingerprint(prepared.y_evaluation),
             }
         ),
-        "scaler_fingerprint": _scaler_fingerprint(prepared.scaler),
     }
 
 
@@ -2511,7 +2554,9 @@ def prepare_residual_combination_screening(
     """
 
     matrix = np.asarray(X_52d)
-    labels = np.asarray(y, dtype=np.int64)
+    raw_labels = np.asarray(y)
+    _require_binary_labels(raw_labels)
+    labels = np.asarray(raw_labels, dtype=np.int64)
     keys = np.asarray(record_keys).astype(str)
     calls = np.asarray(call_ids).astype(str)
     train_idx = np.asarray(canonical_train_idx, dtype=np.int64)
@@ -2669,6 +2714,14 @@ def audit_canonical_52d_result(
             mismatches.append(name)
     if not np.array_equal(result.y_true, prepared.y_evaluation):
         mismatches.append("evaluation_labels")
+    try:
+        validate_binary_probabilities(
+            result.probabilities,
+            expected_rows=len(prepared.y_evaluation),
+            classes=getattr(model, "classes_", None),
+        )
+    except (TypeError, ValueError):
+        mismatches.append("probabilities")
     if dict(result.model_config) != dict(M04_ITER100_FEATURE_SCREENING_CONFIG):
         mismatches.append("model_config")
     if observed_params != expected_params:
@@ -2689,42 +2742,65 @@ def audit_canonical_52d_result(
             getattr(prepared.scaler, attribute),
         ):
             mismatches.append(f"scaler.{attribute}")
+    array_version = fit_audit.get("array_fingerprint_version")
+    if array_version is None:
+        # Historical in-memory acoustic results used tuple-shaped hashes.
+        expected_array_fingerprints = _prepared_array_fingerprints(
+            prepared, array_fingerprint=_legacy_acoustic_array_fingerprint
+        )
+    elif array_version == ARRAY_FINGERPRINT_VERSION:
+        expected_array_fingerprints = prepared_audit
+    else:
+        mismatches.append("array_fingerprint_version")
+        expected_array_fingerprints = prepared_audit
     for name in (
         "feature_fingerprint",
         "split_fingerprint",
         "row_fingerprint",
         "scaler_fingerprint",
     ):
-        if fit_audit.get(name) != prepared_audit.get(name):
+        expected = (
+            expected_array_fingerprints.get(name)
+            if name in {"split_fingerprint", "scaler_fingerprint"}
+            else prepared_audit.get(name)
+        )
+        if fit_audit.get(name) != expected:
             mismatches.append(name)
 
     observed_accuracy = result.metrics.get("accuracy")
-    try:
-        accuracy_matches = bool(
-            np.isclose(
-                float(observed_accuracy),
-                float(expected_accuracy),
-                rtol=0.0,
-                atol=np.finfo(np.float64).eps,
-            )
-        )
-    except (TypeError, ValueError):
-        accuracy_matches = False
-    if not accuracy_matches:
-        mismatches.append("accuracy")
     observed_confusion = _normalized_confusion_matrix(
         result.metrics.get("confusion_matrix")
     )
     expected_confusion = _normalized_confusion_matrix(expected_confusion_matrix)
+    if expected_confusion is None:
+        mismatches.append("expected_confusion_matrix")
     if observed_confusion != expected_confusion:
         mismatches.append("confusion_matrix")
+    expected_rows = len(prepared.y_evaluation)
+    expected_correct = None
+    if expected_confusion is not None:
+        expected_correct = expected_confusion[0][0] + expected_confusion[1][1]
+        if sum(sum(row) for row in expected_confusion) != expected_rows:
+            mismatches.append("expected_confusion_row_count")
+        if not _rate_matches_count(expected_accuracy, expected_correct, expected_rows):
+            mismatches.append("expected_accuracy_count")
+        if not _rate_matches_count(observed_accuracy, expected_correct, expected_rows):
+            mismatches.append("accuracy")
+        if result.metrics.get("correct_count") != expected_correct:
+            mismatches.append("correct_count")
 
     try:
         recalculated = calculate_prediction_metrics(result.y_true, result.y_pred)
     except (TypeError, ValueError):
         recalculated = {}
-    if recalculated.get("accuracy") != observed_accuracy:
+    if not _rate_matches_count(
+        observed_accuracy,
+        recalculated.get("correct_count", -1),
+        recalculated.get("sample_count", -1),
+    ):
         mismatches.append("prediction_accuracy")
+    if recalculated.get("correct_count") != result.metrics.get("correct_count"):
+        mismatches.append("prediction_correct_count")
     if _normalized_confusion_matrix(
         recalculated.get("confusion_matrix")
     ) != observed_confusion:
@@ -2747,6 +2823,14 @@ def audit_canonical_52d_result(
         "observed_accuracy": observed_accuracy,
         "expected_confusion_matrix": expected_confusion,
         "observed_confusion_matrix": observed_confusion,
+        "expected_correct_count": expected_correct,
+        "observed_correct_count": recalculated.get("correct_count"),
+        "environment_versions": fit_audit.get("environment_versions"),
+        "array_fingerprint_version": array_version or "acoustic-array-legacy-v0",
+        "source_modules": fit_audit.get("source_modules"),
+        "model_config_fingerprint": fit_audit.get("model_config_fingerprint"),
+        "row_fingerprint": fit_audit.get("row_fingerprint"),
+        "prediction_fingerprint": fit_audit.get("prediction_fingerprint"),
     }
 
 
@@ -2796,6 +2880,7 @@ def resolve_canonical_52d_reference(
         raise RuntimeError(
             "STOP: canonical 52D is missing or stale and refit is disabled: "
             + ", ".join(existing_audit["mismatches"])
+            + f"; reproducibility diagnostic={existing_audit!r}"
         )
 
     refit_result = _run_prepared_representation(
@@ -2814,6 +2899,7 @@ def resolve_canonical_52d_reference(
         raise RuntimeError(
             "STOP: refitted 52D did not reproduce the canonical contract: "
             + ", ".join(refit_audit["mismatches"])
+            + f"; reproducibility diagnostic={refit_audit!r}"
         )
     return Canonical52DResolution(
         result=refit_result,
@@ -2841,21 +2927,15 @@ def build_reference_contract(prepared: PreparedRepresentation) -> dict[str, Any]
             "reference contract requires exact E05 42D, AF02 47D, or frozen 49D data"
         )
     return {
+        "array_fingerprint_version": ARRAY_FINGERPRINT_VERSION,
         "row_fingerprint": _json_fingerprint(
             {
                 "training": prepared.training_record_keys.tolist(),
                 "evaluation": prepared.evaluation_record_keys.tolist(),
             }
         ),
-        "split_fingerprint": _json_fingerprint(
-            {
-                "train_idx": _array_fingerprint(prepared.train_idx),
-                "validation_idx": _array_fingerprint(prepared.validation_idx),
-                "audit": dict(prepared.split_audit),
-            }
-        ),
+        **_prepared_array_fingerprints(prepared),
         "feature_fingerprint": _json_fingerprint(list(prepared.feature_names)),
-        "scaler_fingerprint": _scaler_fingerprint(prepared.scaler),
         "config_fingerprint": config_fingerprint(M04_ITER100_FEATURE_SCREENING_CONFIG),
         "seed": int(M04_ITER100_FEATURE_SCREENING_CONFIG["random_state"]),
         "scaler_fit_scope": "internal_train_only",
@@ -2878,7 +2958,11 @@ def _run_prepared_representation(
     fit_seconds = perf_counter() - started
     prediction_started = perf_counter()
     prediction = model.predict(prepared.X_evaluation_scaled).astype(np.int64)
-    probabilities = model.predict_proba(prepared.X_evaluation_scaled).astype(np.float64)
+    probabilities = validate_binary_probabilities(
+        model.predict_proba(prepared.X_evaluation_scaled),
+        expected_rows=len(prepared.y_evaluation),
+        classes=model.classes_,
+    )
     prediction_seconds = perf_counter() - prediction_started
     metrics = calculate_prediction_metrics(prepared.y_evaluation, prediction)
     runtime_provenance = _runtime_provenance(model)
@@ -2891,6 +2975,10 @@ def _run_prepared_representation(
         }
         else None
     )
+    canonical_fingerprints = _prepared_array_fingerprints(prepared)
+    legacy_fingerprints = _prepared_array_fingerprints(
+        prepared, array_fingerprint=_legacy_acoustic_array_fingerprint
+    )
     fit_audit = {
         "train_idx": prepared.train_idx.copy(),
         "validation_idx": prepared.validation_idx.copy(),
@@ -2900,22 +2988,18 @@ def _run_prepared_representation(
         "training_scope": "Training/internal_train",
         "evaluation_scope": "Training/internal_validation",
         "scaler_fit_scope": "internal_train_only",
+        "array_fingerprint_version": ARRAY_FINGERPRINT_VERSION,
         "model_config_fingerprint": config_fingerprint(
             M04_ITER100_FEATURE_SCREENING_CONFIG
         ),
         "feature_fingerprint": _json_fingerprint(list(prepared.feature_names)),
-        "scaler_fingerprint": _scaler_fingerprint(prepared.scaler),
+        **canonical_fingerprints,
+        "legacy_split_fingerprint": legacy_fingerprints["split_fingerprint"],
+        "legacy_scaler_fingerprint": legacy_fingerprints["scaler_fingerprint"],
         "row_fingerprint": _json_fingerprint(
             {
                 "training": prepared.training_record_keys.tolist(),
                 "evaluation": prepared.evaluation_record_keys.tolist(),
-            }
-        ),
-        "split_fingerprint": _json_fingerprint(
-            {
-                "train_idx": _array_fingerprint(prepared.train_idx),
-                "validation_idx": _array_fingerprint(prepared.validation_idx),
-                "audit": dict(prepared.split_audit),
             }
         ),
         "seed": int(M04_ITER100_FEATURE_SCREENING_CONFIG["random_state"]),
@@ -3088,6 +3172,21 @@ def audit_reference_reproduction(
     )
     observed = dict(result.fit_audit)
     observed["config_fingerprint"] = observed["model_config_fingerprint"]
+    prefit_version = prefit_contract.get("array_fingerprint_version")
+    result_version = observed.get("array_fingerprint_version")
+    if prefit_version is None:
+        if result_version == ARRAY_FINGERPRINT_VERSION:
+            # Compare a frozen v0 prefit contract against the v0 hashes also
+            # recorded in a newly produced result.
+            observed["split_fingerprint"] = observed.get("legacy_split_fingerprint")
+            observed["scaler_fingerprint"] = observed.get("legacy_scaler_fingerprint")
+        elif result_version is not None:
+            raise ValueError(f"unsupported result array fingerprint version: {result_version}")
+    elif prefit_version != ARRAY_FINGERPRINT_VERSION or result_version != prefit_version:
+        raise ValueError(
+            "reference array fingerprint version mismatch: "
+            f"prefit={prefit_version!r}, result={result_version!r}"
+        )
     mismatches = {
         name: {"expected": prefit_contract.get(name), "observed": observed.get(name)}
         for name in fingerprint_fields
@@ -3098,6 +3197,7 @@ def audit_reference_reproduction(
     accuracy = float(result.metrics["accuracy"])
     return {
         "fingerprint_contract_passed": True,
+        "array_fingerprint_version": prefit_version or "acoustic-array-legacy-v0",
         "accuracy": accuracy,
         "accuracy_target": float(accuracy_target),
         "accuracy_delta_from_target": float(accuracy - accuracy_target),
@@ -3113,7 +3213,7 @@ def audit_reference_reproduction(
     }
 
 
-def compare_candidate_to_reference(
+def compare_feature_candidate_to_reference(
     reference: ModelExperimentResult, candidate: ModelExperimentResult
 ) -> dict[str, Any]:
     """Return same-run paired deltas without selecting or promoting a block."""
@@ -3487,7 +3587,7 @@ __all__ = [
     "candidate_cache_paths",
     "candidate_hypothesis_table",
     "candidate_manifest_table",
-    "compare_candidate_to_reference",
+    "compare_feature_candidate_to_reference",
     "config_fingerprint",
     "extract_acoustic_blocks",
     "implemented_candidate_definition_table",

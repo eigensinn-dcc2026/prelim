@@ -873,7 +873,7 @@ def prepare_internal_comparison(
     feature_names: Sequence[str],
     split_function: SplitFunction,
     expected_rows: int | None = None,
-    expected_split_contract: Mapping[str, int] | None = None,
+    expected_split_contract: Mapping[str, int] | None,
 ) -> PreparedComparison:
     """Build the one shared split and internal-train-only StandardScaler."""
 
@@ -1034,10 +1034,39 @@ def build_m04_convergence_check_model() -> MLPClassifier:
     return MLPClassifier(**M04_CONVERGENCE_CHECK_CONFIG)
 
 
-def config_fingerprint(config: Mapping[str, Any]) -> str:
-    """Return a stable SHA-256 fingerprint for a JSON-compatible config."""
+def _canonical_config_value(value: Any) -> Any:
+    """Normalize supported config values without guessing at object semantics."""
 
-    payload = json.dumps(dict(config), sort_keys=True, separators=(",", ":"))
+    if isinstance(value, np.generic):
+        return _canonical_config_value(value.item())
+    if isinstance(value, Path):
+        return str(value)
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        if not np.isfinite(value):
+            raise ValueError("config fingerprint requires finite numeric values")
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_canonical_config_value(item) for item in value]
+    if isinstance(value, Mapping):
+        if any(not isinstance(key, str) for key in value):
+            raise TypeError("config fingerprint requires string mapping keys")
+        return {key: _canonical_config_value(item) for key, item in value.items()}
+    raise TypeError(f"unsupported config fingerprint value: {type(value).__name__}")
+
+
+def config_fingerprint(config: Mapping[str, Any]) -> str:
+    """Hash one canonical JSON representation of a supported config mapping."""
+
+    if not isinstance(config, Mapping):
+        raise TypeError("config fingerprint requires a mapping")
+    payload = json.dumps(
+        _canonical_config_value(config),
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -1068,13 +1097,61 @@ def calculate_prediction_metrics(
     }
 
 
+def validate_binary_probabilities(
+    probabilities: Any,
+    *,
+    expected_rows: int,
+    classes: Sequence[int] | None = None,
+) -> np.ndarray:
+    """Validate the shared [speaker=0, speaker=1] predict_proba contract."""
+
+    if classes is not None and not np.array_equal(np.asarray(classes), [0, 1]):
+        raise ValueError(f"model classes must be [0, 1], received {classes!r}")
+    values = np.asarray(probabilities, dtype=np.float64)
+    expected_shape = (expected_rows, 2)
+    if values.shape != expected_shape:
+        raise ValueError(
+            f"predict_proba shape mismatch: expected {expected_shape}, got {values.shape}"
+        )
+    if not np.isfinite(values).all():
+        raise ValueError("predict_proba values must be finite")
+    if np.any((values < 0.0) | (values > 1.0)):
+        raise ValueError("predict_proba values must be within [0, 1]")
+    if not np.allclose(values.sum(axis=1), 1.0, rtol=1e-6, atol=1e-8):
+        raise ValueError("predict_proba rows must sum to one")
+    return values
+
+
+def _rate_matches_count(rate: Any, numerator: int, denominator: int) -> bool:
+    """Accept a float32 rate representation only when its discrete count agrees."""
+
+    try:
+        observed = float(rate)
+    except (TypeError, ValueError):
+        return False
+    if denominator < 0 or numerator < 0 or numerator > denominator:
+        return False
+    exact = numerator / denominator if denominator else 0.0
+    if not np.isfinite(observed) or not 0.0 <= observed <= 1.0:
+        return False
+    # Exact row/count checks remain authoritative; one float32 ULP covers a
+    # stored rate rounded through float32 without accepting a changed count.
+    return abs(observed - exact) <= float(np.spacing(np.float32(exact)))
+
+
+ARRAY_FINGERPRINT_VERSION = "sha256-dtype-jsonshape-c-v1"
+
+
 def _array_fingerprint(values: np.ndarray) -> str:
     """Fingerprint transformed values together with their shape and dtype."""
 
-    array = np.ascontiguousarray(values)
+    original = np.asarray(values)
+    if original.dtype.hasobject:
+        raise TypeError("array fingerprint does not support object dtype")
+    array = np.ascontiguousarray(original)
     digest = hashlib.sha256()
-    digest.update(str(array.dtype).encode("ascii"))
-    digest.update(json.dumps(array.shape).encode("ascii"))
+    digest.update(str(original.dtype).encode("ascii"))
+    digest.update(json.dumps(original.shape).encode("ascii"))
     digest.update(array.tobytes(order="C"))
     return digest.hexdigest()
 
@@ -1098,25 +1175,14 @@ def _run_model(
     fit_started = perf_counter()
     model.fit(prepared.X_train_scaled, prepared.y_train)
     fit_seconds = perf_counter() - fit_started
-    classes = np.asarray(model.classes_, dtype=np.int64)
-    if not np.array_equal(classes, np.array([0, 1], dtype=np.int64)):
-        raise ValueError(f"model classes must be [0, 1], received {classes.tolist()}")
     prediction_started = perf_counter()
     prediction = np.asarray(model.predict(prepared.X_evaluation_scaled), dtype=np.int64)
-    probabilities = np.asarray(
-        model.predict_proba(prepared.X_evaluation_scaled), dtype=np.float64
+    probabilities = validate_binary_probabilities(
+        model.predict_proba(prepared.X_evaluation_scaled),
+        expected_rows=len(prepared.y_evaluation),
+        classes=model.classes_,
     )
     prediction_seconds = perf_counter() - prediction_started
-    expected_probability_shape = (len(prepared.y_evaluation), 2)
-    if probabilities.shape != expected_probability_shape:
-        raise ValueError(
-            "predict_proba shape mismatch: expected "
-            f"{expected_probability_shape}, got {probabilities.shape}"
-        )
-    if not np.isfinite(probabilities).all() or not np.allclose(
-        probabilities.sum(axis=1), 1.0, rtol=1e-6, atol=1e-8
-    ):
-        raise ValueError("predict_proba values must be finite and sum to one")
 
     metrics = calculate_prediction_metrics(prepared.y_evaluation, prediction)
     fit_audit = {
@@ -1525,7 +1591,7 @@ def _validate_shared_result_payload(
         raise ValueError("screening y alignment mismatch")
 
 
-def compare_candidate_to_reference(
+def compare_model_candidate_to_reference(
     reference: ModelExperimentResult, candidate: ModelExperimentResult
 ) -> dict[str, Any]:
     """Compare one aligned M02--M04 result against current-best M01."""
@@ -1690,7 +1756,7 @@ def build_screening_comparisons(
         raise ValueError(
             f"screening comparison requires {expected_ids}; observed {observed_ids}"
         )
-    return [compare_candidate_to_reference(reference, result) for result in candidates]
+    return [compare_model_candidate_to_reference(reference, result) for result in candidates]
 
 
 def _internal_result_fingerprint(result: ModelExperimentResult) -> str:
@@ -2119,15 +2185,11 @@ def validate_frozen_e05_row_level_result(
     keys = np.asarray(result.fit_audit["validation_record_keys"]).astype(str)
     truth = np.asarray(result.y_true, dtype=np.int64)
     prediction = np.asarray(result.y_pred, dtype=np.int64)
-    probabilities = np.asarray(result.probabilities, dtype=np.float64)
+    probabilities = validate_binary_probabilities(
+        result.probabilities, expected_rows=len(truth)
+    )
     if len(keys) != len(truth) or len(np.unique(keys)) != len(keys):
         raise ValueError("frozen E05 record_key ledger is not one-to-one")
-    if probabilities.shape != (len(truth), 2):
-        raise ValueError("frozen E05 probability shape mismatch")
-    if not np.isfinite(probabilities).all() or not np.allclose(
-        probabilities.sum(axis=1), 1.0, rtol=1e-6, atol=1e-8
-    ):
-        raise ValueError("frozen E05 probabilities are invalid")
 
     observed = calculate_prediction_metrics(truth, prediction)
     confidence = probabilities.max(axis=1)
@@ -2151,18 +2213,18 @@ def validate_frozen_e05_row_level_result(
             f"expected {reference_values['confusion_matrix']!r}, "
             f"observed {observed['confusion_matrix']!r}"
         )
-    approximate_fields = (
-        "accuracy",
-        "recall_speaker_0",
-        "recall_speaker_1",
-    )
-    for name in approximate_fields:
-        if not np.isclose(
-            observed[name], float(reference_values[name]), rtol=1e-12, atol=1e-12
-        ):
+    reference_matrix = np.asarray(reference_values["confusion_matrix"], dtype=np.int64)
+    rate_counts = {
+        "accuracy": (int(reference_values["correct_count"]), len(truth)),
+        "recall_speaker_0": (int(reference_matrix[0, 0]), int(reference_matrix[0].sum())),
+        "recall_speaker_1": (int(reference_matrix[1, 1]), int(reference_matrix[1].sum())),
+    }
+    for name, (numerator, denominator) in rate_counts.items():
+        if not _rate_matches_count(reference_values[name], numerator, denominator):
             raise ValueError(
-                f"frozen E05 {name} mismatch: "
-                f"expected {reference_values[name]!r}, observed {observed[name]!r}"
+                f"frozen E05 {name} reference mismatch: stored "
+                f"{reference_values[name]!r} disagrees with exact count "
+                f"{numerator}/{denominator}; observed {observed[name]!r}"
             )
     return observed
 
@@ -2236,10 +2298,24 @@ def validate_m00_official_reproducibility(
         raise ValueError("M00 Official evaluation scope mismatch")
 
     observed = calculate_prediction_metrics(result.y_true, result.y_pred)
-    confidence = np.asarray(result.probabilities, dtype=np.float64).max(axis=1)
+    probabilities = validate_binary_probabilities(
+        result.probabilities,
+        expected_rows=len(result.y_true),
+        classes=result.model.classes_,
+    )
+    confidence = probabilities.max(axis=1)
     observed["high_confidence_error_count"] = int(
         np.sum((result.y_pred != result.y_true) & (confidence >= 0.90))
     )
+    observed_provenance = {
+        name: result.fit_audit.get(name)
+        for name in (
+            "model_config_fingerprint",
+            "X_train_fingerprint",
+            "X_evaluation_fingerprint",
+            "y_evaluation_fingerprint",
+        )
+    }
     exact_fields = (
         "sample_count",
         "correct_count",
@@ -2250,19 +2326,30 @@ def validate_m00_official_reproducibility(
         if observed[name] != int(expected[name]):
             raise ValueError(
                 f"M00 Official {name} mismatch: expected {expected[name]!r}, "
-                f"observed {observed[name]!r}"
+                f"observed {observed[name]!r}; "
+                f"observed_provenance={observed_provenance!r}"
             )
     if not np.array_equal(
         np.asarray(observed["confusion_matrix"], dtype=np.int64),
         np.asarray(expected["confusion_matrix"], dtype=np.int64),
     ):
-        raise ValueError("M00 Official confusion_matrix mismatch")
-    for name in ("accuracy", "recall_speaker_0", "recall_speaker_1"):
-        if not np.isclose(
-            observed[name], float(expected[name]), rtol=1e-12, atol=1e-12
-        ):
+        raise ValueError(
+            "M00 Official confusion_matrix mismatch: "
+            f"expected {expected['confusion_matrix']!r}, "
+            f"observed {observed['confusion_matrix']!r}; "
+            f"observed_provenance={observed_provenance!r}"
+        )
+    reference_matrix = np.asarray(expected["confusion_matrix"], dtype=np.int64)
+    rate_counts = {
+        "accuracy": (int(expected["correct_count"]), int(expected["validation_rows"])),
+        "recall_speaker_0": (int(reference_matrix[0, 0]), int(reference_matrix[0].sum())),
+        "recall_speaker_1": (int(reference_matrix[1, 1]), int(reference_matrix[1].sum())),
+    }
+    for name, (numerator, denominator) in rate_counts.items():
+        if not _rate_matches_count(expected[name], numerator, denominator):
             raise ValueError(
-                f"M00 Official {name} mismatch: expected {expected[name]!r}, "
+                f"M00 Official {name} reference mismatch: stored {expected[name]!r} "
+                f"disagrees with exact count {numerator}/{denominator}; "
                 f"observed {observed[name]!r}"
             )
     return observed
@@ -2323,7 +2410,7 @@ __all__ = [
     "calculate_prediction_metrics",
     "compare_model_results",
     "compare_official_model_results",
-    "compare_candidate_to_reference",
+    "compare_model_candidate_to_reference",
     "compare_m04_convergence_check",
     "compare_to_frozen_e05_official",
     "config_fingerprint",

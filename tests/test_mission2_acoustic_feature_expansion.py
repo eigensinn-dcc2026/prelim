@@ -5,6 +5,7 @@ from dataclasses import replace
 import hashlib
 import importlib
 import importlib.util
+import inspect
 import json
 from pathlib import Path
 import subprocess
@@ -36,6 +37,68 @@ def expansion_module():
         "acoustic feature expansion module has not been implemented"
     )
     return importlib.import_module(MODULE_NAME)
+
+
+def test_shared_array_fingerprint_is_layout_independent_and_content_sensitive(
+    expansion_module,
+):
+    model_module = importlib.import_module("dcc_data.mission2_model_experiments")
+    values = np.arange(12, dtype=np.float32).reshape(3, 4)
+    baseline = model_module._array_fingerprint(values)
+    assert expansion_module._array_fingerprint(values) == baseline
+    assert expansion_module._array_fingerprint(np.asfortranarray(values)) == baseline
+    assert model_module._array_fingerprint(values.reshape(2, 6)) != baseline
+    assert model_module._array_fingerprint(values.astype(np.float64)) != baseline
+    changed = values.copy()
+    changed[0, 0] = 99
+    assert model_module._array_fingerprint(changed) != baseline
+    assert model_module._array_fingerprint(np.asarray(1)) != model_module._array_fingerprint(
+        np.asarray([1])
+    )
+    with pytest.raises(TypeError, match="object dtype"):
+        model_module._array_fingerprint(np.asarray([object()], dtype=object))
+    assert expansion_module._legacy_acoustic_array_fingerprint(
+        np.arange(12, dtype=np.int64).reshape(3, 4)
+    ) == "2dbaee24e99866f445e3be4af710f8075e4fd7ee175d377b4a901f55288c507b"
+
+
+def test_shared_config_fingerprint_is_strict_and_preserves_pitch_cache_hash(
+    expansion_module,
+):
+    model_module = importlib.import_module("dcc_data.mission2_model_experiments")
+    first = {
+        "paths": (Path("cache") / "features",),
+        "seed": np.int64(42),
+        "weight": np.float32(0.5),
+    }
+    second = {
+        "weight": 0.5,
+        "seed": 42,
+        "paths": [str(Path("cache") / "features")],
+    }
+    assert model_module.config_fingerprint(first) == expansion_module.config_fingerprint(
+        second
+    )
+    assert model_module.config_fingerprint(first) != model_module.config_fingerprint(
+        {**second, "seed": 43}
+    )
+    with pytest.raises(TypeError, match="unsupported"):
+        expansion_module.config_fingerprint({"unsupported": object()})
+    with pytest.raises(TypeError, match="string mapping keys"):
+        model_module.config_fingerprint({1: "unsupported key"})
+    with pytest.raises(ValueError, match="finite"):
+        model_module.config_fingerprint({"weight": float("nan")})
+    assert expansion_module.config_fingerprint(
+        expansion_module.PITCH_EXTRACTION_CONFIG
+    ) == "6a3dda4caa74914667125f04ad27eb4802fadb411ce515f6680804f5b9e1cac3"
+
+
+def test_comparison_functions_have_distinct_public_names(expansion_module):
+    model_module = importlib.import_module("dcc_data.mission2_model_experiments")
+    assert callable(expansion_module.compare_feature_candidate_to_reference)
+    assert callable(model_module.compare_model_candidate_to_reference)
+    assert not hasattr(expansion_module, "compare_candidate_to_reference")
+    assert not hasattr(model_module, "compare_candidate_to_reference")
 
 
 def _sine_wave(
@@ -600,7 +663,7 @@ def test_all_blocks_preserve_order_and_round2_float32_finiteness(expansion_modul
     frame = expansion_module.extract_acoustic_blocks(_sine_wave())
     assert tuple(frame) == expansion_module.ALL_CANDIDATE_FEATURE_NAMES
     values = np.asarray(list(frame.values()))
-    assert values.shape == (15,)
+    assert values.shape == (len(expansion_module.ALL_CANDIDATE_FEATURE_NAMES),)
     assert np.isfinite(values).all()
     for block_id in expansion_module.ROUND2_BLOCK_IDS:
         for feature_name in expansion_module.BLOCK_BY_ID[block_id].feature_names:
@@ -768,6 +831,71 @@ def test_worker_thread_limit_is_initialized_once_not_per_call(
     assert limit_calls == [1]
 
 
+@pytest.mark.parametrize("fail_extraction", [False, True])
+def test_sequential_thread_limit_restores_parent_after_extraction(
+    expansion_module, monkeypatch, tmp_path, fail_extraction
+):
+    events = []
+
+    class Guard:
+        def __enter__(self):
+            events.append("enter")
+
+        def __exit__(self, *_error):
+            events.append("restore")
+
+    monkeypatch.setattr(
+        expansion_module,
+        "_threadpool_limits",
+        lambda *, limits: (events.append(("limit", limits)), Guard())[1],
+    )
+
+    def fake_extract(task):
+        events.append("extract")
+        if fail_extraction:
+            raise RuntimeError("synthetic failure")
+        return [
+            {
+                "source_position": 0,
+                "record_key": "key_0",
+                "call_id": "call_0",
+                "cpp_median_db": np.float32(1.0),
+                "cpp_iqr_db": np.float32(2.0),
+            }
+        ]
+
+    monkeypatch.setattr(expansion_module, "_extract_call_rows", fake_extract)
+    manifest = pd.DataFrame(
+        {
+            "split": ["Training"],
+            "record_key": ["key_0"],
+            "call_id": ["call_0"],
+            "audio_path": ["unused.wav"],
+            "crop_start_frame": [0],
+            "crop_end_frame": [100],
+            "crop_ok": [True],
+        }
+    )
+    if fail_extraction:
+        with pytest.raises(RuntimeError, match="synthetic failure"):
+            expansion_module.extract_candidate_feature_frame(
+                manifest,
+                data_root=tmp_path,
+                split="Training",
+                worker_count=None,
+                block_ids=("AF04_CPP",),
+            )
+    else:
+        expansion_module.extract_candidate_feature_frame(
+            manifest,
+            data_root=tmp_path,
+            split="Training",
+            worker_count=None,
+            block_ids=("AF04_CPP",),
+        )
+    assert events == [("limit", 1), "enter", "extract", "restore"]
+
+
 def test_worker_exception_names_call_and_leaves_no_cache_artifact(
     expansion_module, tmp_path
 ):
@@ -877,6 +1005,7 @@ def test_round2_preparation_uses_af02_47d_reference_and_only_two_candidates(
         record_keys=record_keys,
         call_ids=call_ids,
         candidate_frame=candidate,
+        expected_split_contract=None,
     )
     assert tuple(prepared) == (
         "AF02_47D_REFERENCE",
@@ -938,6 +1067,7 @@ def test_round2_reference_contract_and_fit_gates_accept_exact_47d(expansion_modu
         record_keys=record_keys,
         call_ids=call_ids,
         candidate_frame=candidate,
+        expected_split_contract=None,
     )
     reference = prepared["AF02_47D_REFERENCE"]
     contract = expansion_module.build_reference_contract(reference)
@@ -970,6 +1100,7 @@ def test_fixed_group_split_and_training_only_scaler(expansion_module):
         record_keys=record_keys,
         call_ids=call_ids,
         candidate_frame=candidate,
+        expected_split_contract=None,
     )
     reference = prepared["E05_REFERENCE"]
     train_calls = set(call_ids[reference.train_idx])
@@ -1000,6 +1131,7 @@ def test_reference_gate_checks_fingerprints_before_accuracy_target(expansion_mod
         record_keys=record_keys,
         call_ids=call_ids,
         candidate_frame=candidate,
+        expected_split_contract=None,
     )["E05_REFERENCE"]
     contract = expansion_module.build_reference_contract(prepared)
     result = expansion_module.run_feature_screening_reference(
@@ -1013,6 +1145,29 @@ def test_reference_gate_checks_fingerprints_before_accuracy_target(expansion_mod
     assert audit["fingerprint_contract_passed"] is True
     assert audit["accuracy_is_reproduction_target_not_gate"] is True
     assert isinstance(audit["accuracy_target_match"], bool)
+    assert contract["array_fingerprint_version"] == expansion_module.ARRAY_FINGERPRINT_VERSION
+    legacy_contract = dict(contract)
+    legacy_contract.pop("array_fingerprint_version")
+    legacy_contract.update(
+        expansion_module._prepared_array_fingerprints(
+            prepared,
+            array_fingerprint=expansion_module._legacy_acoustic_array_fingerprint,
+        )
+    )
+    assert expansion_module.audit_reference_reproduction(
+        result, legacy_contract
+    )["fingerprint_contract_passed"] is True
+    historical_audit = dict(result.fit_audit)
+    historical_audit.pop("array_fingerprint_version")
+    historical_audit.update(
+        {
+            name: legacy_contract[name]
+            for name in ("split_fingerprint", "scaler_fingerprint")
+        }
+    )
+    assert expansion_module.audit_reference_reproduction(
+        replace(result, fit_audit=historical_audit), legacy_contract
+    )["fingerprint_contract_passed"] is True
     broken_contract = dict(contract)
     broken_contract["split_fingerprint"] = "broken"
     with pytest.raises(ValueError, match="fingerprint"):
@@ -1030,6 +1185,7 @@ def test_same_run_paired_comparison_contract(expansion_module):
         record_keys=record_keys,
         call_ids=call_ids,
         candidate_frame=candidate,
+        expected_split_contract=None,
     )
     reference = expansion_module.run_feature_screening_reference(
         prepared["E05_REFERENCE"], allow_fit=True
@@ -1039,7 +1195,7 @@ def test_same_run_paired_comparison_contract(expansion_module):
         block_id="AF01_ENERGY_DYNAMICS",
         allow_fit=True,
     )
-    comparison = expansion_module.compare_candidate_to_reference(
+    comparison = expansion_module.compare_feature_candidate_to_reference(
         reference, candidate_result
     )
     paired_total = sum(
@@ -1079,6 +1235,7 @@ def test_competition_scale_actions_require_explicit_switches(expansion_module):
         record_keys=record_keys,
         call_ids=call_ids,
         candidate_frame=candidate,
+        expected_split_contract=None,
     )["E05_REFERENCE"]
     with pytest.raises(RuntimeError, match="STOP"):
         expansion_module.run_feature_screening_reference(prepared, allow_fit=False)
@@ -1106,6 +1263,57 @@ def test_candidate_cache_partial_and_stale_artifacts_fail_fast(
     with pytest.raises(ValueError, match="metadata differs"):
         expansion_module.load_candidate_feature_cache(
             manifest=manifest, cache_root=tmp_path, split="Training"
+        )
+
+
+def test_candidate_cache_checks_parquet_keys_and_canonical_order(
+    expansion_module, tmp_path
+):
+    manifest = pd.DataFrame(
+        {
+            "split": ["Training", "Training"],
+            "record_key": ["key_0", "key_1"],
+            "call_id": ["call_0", "call_1"],
+        }
+    )
+    block_ids = ("AF04_CPP",)
+    parquet_path, metadata_path = expansion_module.candidate_cache_paths(
+        tmp_path, split="Training", block_ids=block_ids
+    )
+    metadata_path.write_text(
+        json.dumps(
+            expansion_module._expected_cache_metadata(
+                manifest, split="Training", block_ids=block_ids
+            )
+        ),
+        encoding="utf-8",
+    )
+    good = pd.DataFrame(
+        {
+            "record_key": ["key_0", "key_1"],
+            "call_id": ["call_0", "call_1"],
+            "cpp_median_db": np.array([1.0, 2.0], dtype=np.float32),
+            "cpp_iqr_db": np.array([3.0, 4.0], dtype=np.float32),
+        }
+    )
+    good.to_parquet(parquet_path, index=False)
+    loaded = expansion_module.load_candidate_feature_cache(
+        manifest=manifest, cache_root=tmp_path, split="Training", block_ids=block_ids
+    )
+    assert loaded["record_key"].tolist() == ["key_0", "key_1"]
+
+    changed = good.copy()
+    changed.loc[1, "record_key"] = "wrong_key"
+    changed.to_parquet(parquet_path, index=False)
+    with pytest.raises(ValueError, match="record_key_signature|record_key"):
+        expansion_module.load_candidate_feature_cache(
+            manifest=manifest, cache_root=tmp_path, split="Training", block_ids=block_ids
+        )
+
+    good.iloc[::-1].to_parquet(parquet_path, index=False)
+    with pytest.raises(ValueError, match="order|alignment"):
+        expansion_module.load_candidate_feature_cache(
+            manifest=manifest, cache_root=tmp_path, split="Training", block_ids=block_ids
         )
 
 
@@ -1600,6 +1808,7 @@ def test_frozen_49d_preparation_preserves_prefix_and_appends_one_block_only(
         record_keys=record_keys,
         call_ids=call_ids,
         candidate_frame=candidates,
+        expected_split_contract=None,
     )
     assert tuple(prepared) == (
         expansion_module.FROZEN_49D_REFERENCE_ID,
@@ -1716,17 +1925,16 @@ def test_frozen_49d_residual_analysis_rejects_record_key_misalignment(
         )
 
 
-def test_notebook_appends_49d_candidate_pool_without_new_boolean_gate():
+def test_notebook_retains_executed_49d_candidate_pool_without_new_boolean_gate():
     notebook = json.loads(NOTEBOOK_PATH.read_text(encoding="utf-8"))
     cell_ids = {cell.get("id") for cell in notebook["cells"]}
     assert {
         "afe-49d-residual-analysis",
         "afe-49d-hypothesis-table",
-        "afe-next-candidate-definitions",
         "afe-next-candidate-extraction",
         "afe-next-candidate-prepare",
         "afe-next-candidate-screening",
-        "afe-next-candidate-stop",
+        "afe-next-candidate-diagnostics",
     } <= cell_ids
     code = "\n".join(
         "".join(cell.get("source", []))
@@ -1745,8 +1953,10 @@ def test_notebook_appends_49d_candidate_pool_without_new_boolean_gate():
     assert {name for name in assignments if name.startswith("RUN_")} == {
         "RUN_FEATURE_EXTRACTION", "RUN_SINGLE_BLOCK_SCREENING"
     }
-    assert "def extract_next_candidate_cache" in code
-    assert "def screen_next_candidates" in code
+    assert "NEXT_CANDIDATE_BLOCK_IDS" in code
+    assert "build_candidate_feature_cache(" in code
+    assert "prepare_frozen_49d_single_block_screening(" in code
+    assert "run_frozen_49d_screening_candidate(" in code
 
 
 def test_notebook_appends_residual_target_round_with_default_off_gates():
@@ -1979,6 +2189,165 @@ def test_canonical_52d_audit_accepts_one_ulp_accuracy_serialization_rounding(
     assert "accuracy" not in audit["mismatches"]
 
 
+def test_canonical_52d_audit_uses_counts_for_float32_rate_and_changed_prediction(
+    expansion_module,
+):
+    prepared, inputs, result = _synthetic_canonical_52d_result(expansion_module)
+    prepared_audit = expansion_module.validate_canonical_52d_prepared(
+        prepared, **inputs
+    )
+    rounded_accuracy = float(
+        np.nextafter(np.float32(result.metrics["accuracy"]), np.float32(1.0))
+    )
+    accepted = expansion_module.audit_canonical_52d_result(
+        result,
+        prepared,
+        prepared_audit=prepared_audit,
+        expected_accuracy=rounded_accuracy,
+        expected_confusion_matrix=result.metrics["confusion_matrix"],
+    )
+    assert accepted["is_canonical"] is True
+
+    changed_prediction = result.y_pred.copy()
+    changed_prediction[0] = 1 - changed_prediction[0]
+    changed = expansion_module.audit_canonical_52d_result(
+        replace(result, y_pred=changed_prediction),
+        prepared,
+        prepared_audit=prepared_audit,
+        expected_accuracy=rounded_accuracy,
+        expected_confusion_matrix=result.metrics["confusion_matrix"],
+    )
+    assert changed["is_canonical"] is False
+    assert "prediction_confusion_matrix" in changed["mismatches"]
+    assert changed["environment_versions"]
+    assert changed["row_fingerprint"]
+    with pytest.raises(RuntimeError, match="reproducibility diagnostic") as error:
+        expansion_module.resolve_canonical_52d_reference(
+            prepared,
+            existing_result=replace(result, y_pred=changed_prediction),
+            allow_refit=False,
+            expected_accuracy=rounded_accuracy,
+            expected_confusion_matrix=result.metrics["confusion_matrix"],
+            **inputs,
+        )
+    assert "prediction_fingerprint" in str(error.value)
+
+    invalid_reference = expansion_module.audit_canonical_52d_result(
+        result,
+        prepared,
+        prepared_audit=prepared_audit,
+        expected_accuracy=rounded_accuracy,
+        expected_confusion_matrix=[],
+    )
+    assert "expected_confusion_matrix" in invalid_reference["mismatches"]
+
+
+def test_canonical_52d_audit_accepts_explicit_legacy_array_hashes(expansion_module):
+    prepared, inputs, result = _synthetic_canonical_52d_result(expansion_module)
+    prepared_audit = expansion_module.validate_canonical_52d_prepared(
+        prepared, **inputs
+    )
+    old_audit = dict(result.fit_audit)
+    old_audit.pop("array_fingerprint_version")
+    old_audit.update(
+        expansion_module._prepared_array_fingerprints(
+            prepared,
+            array_fingerprint=expansion_module._legacy_acoustic_array_fingerprint,
+        )
+    )
+    historical_result = replace(result, fit_audit=old_audit)
+    audit = expansion_module.audit_canonical_52d_result(
+        historical_result,
+        prepared,
+        prepared_audit=prepared_audit,
+        expected_accuracy=result.metrics["accuracy"],
+        expected_confusion_matrix=result.metrics["confusion_matrix"],
+    )
+    assert audit["is_canonical"] is True
+    assert audit["array_fingerprint_version"] == "acoustic-array-legacy-v0"
+    old_audit["split_fingerprint"] = "corrupted"
+    rejected = expansion_module.audit_canonical_52d_result(
+        replace(result, fit_audit=old_audit),
+        prepared,
+        prepared_audit=prepared_audit,
+        expected_accuracy=result.metrics["accuracy"],
+        expected_confusion_matrix=result.metrics["confusion_matrix"],
+    )
+    assert "split_fingerprint" in rejected["mismatches"]
+
+
+def test_canonical_52d_audit_rejects_invalid_probability_payloads(expansion_module):
+    prepared, inputs, result = _synthetic_canonical_52d_result(expansion_module)
+    prepared_audit = expansion_module.validate_canonical_52d_prepared(
+        prepared, **inputs
+    )
+    bad_payloads = {
+        "nan": np.full_like(result.probabilities, np.nan),
+        "row_sum": np.full_like(result.probabilities, 0.2),
+        "shape": result.probabilities[:, :1],
+        "range": np.tile(np.array([1.1, -0.1]), (len(result.y_true), 1)),
+    }
+    for name, probabilities in bad_payloads.items():
+        audit = expansion_module.audit_canonical_52d_result(
+            replace(result, probabilities=probabilities),
+            prepared,
+            prepared_audit=prepared_audit,
+            expected_accuracy=result.metrics["accuracy"],
+            expected_confusion_matrix=result.metrics["confusion_matrix"],
+        )
+        assert "probabilities" in audit["mismatches"], name
+
+
+@pytest.mark.parametrize("bad_kind", ["classes", "nan", "row_sum", "range"])
+def test_prepared_representation_rejects_bad_model_probabilities(
+    expansion_module, monkeypatch, bad_kind
+):
+    prepared, _inputs = _synthetic_canonical_52d_prepared(expansion_module)
+
+    class FakeMLP:
+        def __init__(self, **params):
+            self.params = params
+            self.classes_ = np.array([1, 0] if bad_kind == "classes" else [0, 1])
+            self.n_iter_ = 1
+            self.loss_curve_ = (0.2,)
+
+        def fit(self, _X, _y):
+            return self
+
+        def predict(self, X):
+            return np.zeros(len(X), dtype=np.int64)
+
+        def predict_proba(self, X):
+            if bad_kind == "nan":
+                return np.full((len(X), 2), np.nan)
+            if bad_kind == "row_sum":
+                return np.full((len(X), 2), 0.2)
+            if bad_kind == "range":
+                return np.tile(np.array([1.1, -0.1]), (len(X), 1))
+            return np.tile(np.array([0.8, 0.2]), (len(X), 1))
+
+        def get_params(self, deep=False):
+            return self.params
+
+    monkeypatch.setattr(expansion_module, "MLPClassifier", FakeMLP)
+    with pytest.raises(ValueError, match="classes|predict_proba"):
+        expansion_module._run_prepared_representation(
+            prepared, experiment_id="SYNTHETIC", allow_fit=True
+        )
+
+
+def test_screening_prepare_signatures_require_explicit_split_contract(expansion_module):
+    for name in (
+        "prepare_single_block_screening",
+        "prepare_round2_single_block_screening",
+        "prepare_frozen_49d_single_block_screening",
+    ):
+        parameter = inspect.signature(getattr(expansion_module, name)).parameters[
+            "expected_split_contract"
+        ]
+        assert parameter.default is inspect.Parameter.empty, name
+
+
 def test_invalid_prepared_52d_stops_before_stale_refit(
     expansion_module,
     monkeypatch,
@@ -2175,6 +2544,47 @@ def test_residual_combination_preparation_stops_on_cache_call_misalignment(
         )
 
 
+@pytest.mark.parametrize("invalid_label", [2, -1, 0.5])
+def test_residual_combination_rejects_nonbinary_canonical_labels(
+    expansion_module, invalid_label
+):
+    prepared_52d, inputs = _synthetic_canonical_52d_prepared(expansion_module)
+    labels = inputs["canonical_labels"].astype(np.float64)
+    labels[0] = invalid_label
+    prepared_52d = replace(
+        prepared_52d,
+        y_train=labels[prepared_52d.train_idx],
+        y_evaluation=labels[prepared_52d.validation_idx],
+    )
+    row_count = len(labels)
+    cache_names = tuple(
+        name
+        for block_id in expansion_module.RESIDUAL_TARGET_BLOCK_IDS
+        for name in expansion_module.BLOCK_BY_ID[block_id].feature_names
+    )
+    candidate = pd.DataFrame(
+        {
+            "record_key": inputs["canonical_record_keys"],
+            "call_id": [f"call_{index}" for index in range(row_count)],
+            **{
+                name: np.ones(row_count, dtype=np.float32) for name in cache_names
+            },
+        }
+    )
+    with pytest.raises(ValueError, match="binary"):
+        expansion_module.prepare_residual_combination_screening(
+            prepared_52d=prepared_52d,
+            X_52d=inputs["canonical_matrix"],
+            y=labels,
+            record_keys=inputs["canonical_record_keys"],
+            call_ids=candidate["call_id"].to_numpy(),
+            candidate_frame=candidate,
+            canonical_train_idx=inputs["canonical_train_idx"],
+            canonical_validation_idx=inputs["canonical_validation_idx"],
+            expected_split_contract=inputs["expected_split_contract"],
+        )
+
+
 def test_residual_combination_preparation_stops_on_noncanonical_prepared_split(
     expansion_module,
 ):
@@ -2215,7 +2625,7 @@ def test_residual_combination_preparation_stops_on_noncanonical_prepared_split(
         )
 
 
-def test_notebook_residual_combination_round_is_bounded_and_unexecuted():
+def test_notebook_residual_combination_round_is_bounded_and_retains_outputs():
     notebook = json.loads(NOTEBOOK_PATH.read_text(encoding="utf-8"))
     expected_ids = (
         "afe-residual-combination-prepare",
@@ -2231,8 +2641,9 @@ def test_notebook_residual_combination_round_is_bounded_and_unexecuted():
 
     assert tuple(cells) == expected_ids
     for cell in cells.values():
-        assert cell.get("execution_count") is None
-        assert cell.get("outputs") == []
+        assert isinstance(cell.get("execution_count"), int)
+        assert cell["execution_count"] > 0
+        assert cell.get("outputs")
 
     code = "\n".join("".join(cells[cell_id]["source"]) for cell_id in expected_ids)
     assert "ALLOW_RESIDUAL_COMBINATION_SCREENING = False" in code
