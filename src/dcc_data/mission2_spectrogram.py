@@ -90,7 +90,7 @@ def _spectrogram_path(output_dir: Path, call_id: str, utt_idx: int) -> Path:
 
 
 def _process_one_call_spectrograms(
-    row: ManifestRow, data_root: Path, output_dir: Path, hop_length: int = HOP_LENGTH
+    row: ManifestRow, data_root: Path, output_dir: Path, hop_length: int = HOP_LENGTH, n_mels: int = N_MELS
 ) -> tuple[list[dict], list[dict]]:
     """Process exactly one call: slice every utterance, save its spectrogram.
 
@@ -125,7 +125,7 @@ def _process_one_call_spectrograms(
         try:
             start_frame, end_frame = utterance_frame_range(record.start_at, record.end_at, sample_rate, total_frames)
             segment = slice_and_pad(waveform, start_frame, end_frame, N_FFT)
-            spec = mel_spectrogram(segment, sample_rate, hop_length=hop_length)
+            spec = mel_spectrogram(segment, sample_rate, hop_length=hop_length, n_mels=n_mels)
         except Exception as exc:  # noqa: BLE001
             failures.append(
                 {"stage": "spectrogram", "call_id": record.call_id, "utt_idx": record.utt_idx, "error_type": type(exc).__name__, "error_message": str(exc)}
@@ -162,6 +162,7 @@ def _build_seoul_spectrograms(
     on_call_done: OnCallDone | None = None,
     max_workers: int = 1,
     hop_length: int = HOP_LENGTH,
+    n_mels: int = N_MELS,
 ) -> tuple[list[dict], list[dict]]:
     """Shared implementation behind build_seoul_training_spectrograms and
     build_seoul_validation_spectrograms -- only which rows are eligible
@@ -178,7 +179,7 @@ def _build_seoul_spectrograms(
 
     if max_workers <= 1:
         for call_number, row in enumerate(sampled_rows, start=1):
-            index_rows, failures = _process_one_call_spectrograms(row, data_root, output_dir, hop_length)
+            index_rows, failures = _process_one_call_spectrograms(row, data_root, output_dir, hop_length, n_mels)
             index_sink.extend(index_rows)
             failure_sink.extend(failures)
             if on_call_done:
@@ -188,7 +189,7 @@ def _build_seoul_spectrograms(
 
         with ProcessPoolExecutor(max_workers=max_workers) as pool:
             futures = [
-                pool.submit(_process_one_call_spectrograms, row, data_root, output_dir, hop_length)
+                pool.submit(_process_one_call_spectrograms, row, data_root, output_dir, hop_length, n_mels)
                 for row in sampled_rows
             ]
             for call_number, future in enumerate(as_completed(futures), start=1):
@@ -213,6 +214,7 @@ def build_seoul_training_spectrograms(
     on_call_done: OnCallDone | None = None,
     max_workers: int = 1,
     hop_length: int = HOP_LENGTH,
+    n_mels: int = N_MELS,
 ) -> tuple[list[dict], list[dict]]:
     """Sample Seoul/Training calls and save one spectrogram .npy per utterance.
 
@@ -223,6 +225,8 @@ def build_seoul_training_spectrograms(
     ``hop_length`` defaults to HOP_LENGTH (unchanged behavior); pass a
     smaller value to build a separate, higher time-resolution spectrogram
     set into a different ``output_dir`` -- see mel_spectrogram()'s docstring.
+    ``n_mels`` defaults to N_MELS (unchanged behavior); pass a larger value
+    for a higher frequency-resolution set, same ``output_dir`` caveat.
     """
 
     return _build_seoul_spectrograms(
@@ -237,6 +241,7 @@ def build_seoul_training_spectrograms(
         on_call_done=on_call_done,
         max_workers=max_workers,
         hop_length=hop_length,
+        n_mels=n_mels,
     )
 
 
@@ -252,6 +257,7 @@ def build_seoul_validation_spectrograms(
     on_call_done: OnCallDone | None = None,
     max_workers: int = 1,
     hop_length: int = HOP_LENGTH,
+    n_mels: int = N_MELS,
 ) -> tuple[list[dict], list[dict]]:
     """Same as build_seoul_training_spectrograms, but over the official
     Validation split (dcc_data.mission2_features.select_seoul_validation_rows)
@@ -270,4 +276,5 @@ def build_seoul_validation_spectrograms(
         on_call_done=on_call_done,
         max_workers=max_workers,
         hop_length=hop_length,
+        n_mels=n_mels,
     )

@@ -31,6 +31,7 @@ if str(SOURCE_ROOT) not in sys.path:
 from dcc_data.manifest import load_manifest  # noqa: E402
 from dcc_data.mission2_features import HOP_LENGTH  # noqa: E402
 from dcc_data.mission2_spectrogram import (  # noqa: E402
+    N_MELS,
     build_seoul_training_spectrograms,
     build_seoul_validation_spectrograms,
 )
@@ -58,6 +59,12 @@ def parse_args() -> argparse.Namespace:
         help=f"STFT hop length in samples (default {HOP_LENGTH}, same as L1's features). "
         "A smaller value gives more time frames for the same audio -- pass a distinct "
         "--output-dir/--index-output so this doesn't overwrite the default-resolution set.",
+    )
+    parser.add_argument(
+        "--n-mels", type=int, default=N_MELS,
+        help=f"number of mel frequency bands (default {N_MELS}). A larger value gives more "
+        "frequency resolution for the same audio -- pass a distinct --output-dir/--index-output "
+        "so this doesn't overwrite the default-resolution set.",
     )
     return parser.parse_args()
 
@@ -90,6 +97,7 @@ def main() -> int:
         on_call_done=on_call_done,
         max_workers=args.workers,
         hop_length=args.hop_length,
+        n_mels=args.n_mels,
     )
     if bar is not None:
         bar.close()

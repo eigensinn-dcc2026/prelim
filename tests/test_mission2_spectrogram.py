@@ -85,6 +85,17 @@ def test_mel_spectrogram_smaller_hop_length_yields_more_frames() -> None:
     assert finer_spec.shape[0] == N_MELS  # only time resolution changes
 
 
+def test_mel_spectrogram_n_mels_controls_frequency_bins_only() -> None:
+    # Mirrors test_mel_spectrogram_smaller_hop_length_yields_more_frames --
+    # this is the other axis: n_mels changes frequency resolution (rows),
+    # hop_length changes time resolution (columns), independently.
+    segment = _tone(150.0, 1.0)
+    default_spec = mel_spectrogram(segment, 8000, n_mels=N_MELS)
+    finer_spec = mel_spectrogram(segment, 8000, n_mels=N_MELS * 2)
+    assert finer_spec.shape[0] == N_MELS * 2
+    assert finer_spec.shape[1] == default_spec.shape[1]
+
+
 def test_mel_spectrogram_is_near_silent_for_pure_silence() -> None:
     segment = np.zeros(8000, dtype=np.float32)
     spec = mel_spectrogram(segment, 8000)
@@ -189,3 +200,29 @@ def test_build_seoul_training_spectrograms_hop_length_controls_frame_count(tmp_p
     finer_by_utt = {entry["utt_idx"]: entry["n_frames"] for entry in finer_rows}
     for utt_idx, default_n_frames in default_by_utt.items():
         assert finer_by_utt[utt_idx] > default_n_frames
+
+
+def test_build_seoul_training_spectrograms_n_mels_controls_frequency_bins(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    utterances = [(0, 90, 0), (200, 1800, 1), (1900, 3400, 0)]
+    wav_relative = "chunk/Training/1.원천데이터/TS_서울_구급/call1.wav"
+    json_relative = "chunk/Training/2.라벨링데이터/TL_서울_구급/call1.json"
+    _write_call(root, wav_relative, json_relative, utterances, seed=0)
+    row = ManifestRow("Training", "call1", wav_relative, json_relative)
+
+    default_rows, _ = build_seoul_training_spectrograms(
+        [row], root, tmp_path / "specs_default", n_calls=1, seed=42
+    )
+    wider_rows, _ = build_seoul_training_spectrograms(
+        [row], root, tmp_path / "specs_wider", n_calls=1, seed=42, n_mels=N_MELS * 2
+    )
+
+    assert len(default_rows) == len(wider_rows) == 3
+    for entry in default_rows:
+        spec = np.load(tmp_path / "specs_default" / entry["npy_path"])
+        assert spec.shape[0] == N_MELS
+    for entry in wider_rows:
+        spec = np.load(tmp_path / "specs_wider" / entry["npy_path"])
+        assert spec.shape[0] == N_MELS * 2
+        # n_frames in the index tracks the time axis (shape[1]), unaffected by n_mels
+        assert spec.shape[1] == entry["n_frames"]
