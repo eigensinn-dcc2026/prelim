@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -11,9 +12,13 @@ import pytest
 from dcc_data import mission2_candidate_features as candidate_features
 from dcc_data.mission2_candidate_features import (
     CANDIDATE_REGISTRY,
+    CANDIDATE_EXTRACTION_CONFIG,
     build_candidate_feature_cache,
+    freeze_stage2_precommit,
     load_candidate_feature_cache,
     lock_candidate_selection,
+    require_stage2_precommit,
+    stage2_config_fingerprint,
     stage1_feasibility_diagnostics,
     stage2_training_group_screen,
     validate_candidate_names,
@@ -21,6 +26,8 @@ from dcc_data.mission2_candidate_features import (
 from dcc_data.mission2_experiments import (
     BASELINE_FEATURE_NAMES,
     EXPECTED_CACHE_METADATA,
+    MFCC_CONFIG,
+    REFERENCE_MODEL_CONFIG,
     AlignedSplit,
     append_comparison_row,
     assemble_experiment_matrix,
@@ -56,6 +63,43 @@ def _aligned_split(split: str, rows: int = 6) -> AlignedSplit:
     X_mfcc = np.arange(rows * 40, dtype=float).reshape(rows, 40)
     y = np.array([0, 1] * (rows // 2), dtype=np.int64)
     return AlignedSplit(split, X_mfcc, y, record_keys, tracking)
+
+
+def _synthetic_stage2_result(
+    candidate_name: str, feature_names: tuple[str, ...]
+) -> dict[str, object]:
+    return {
+        "provenance": {
+            "source_signature": "synthetic-v2-training",
+            "config_fingerprint": stage2_config_fingerprint(_stage2_config()),
+        },
+        "scope": {
+            "source_split": "Training",
+            "source_rows": 10,
+            "official_validation_used": False,
+        },
+        "split_audit": pd.DataFrame([{
+            "seed": 42, "test_size": 0.2, "train_rows": 8,
+            "internal_validation_rows": 2, "train_calls": 4,
+            "internal_validation_calls": 1, "call_id_overlap": 0,
+        }]),
+        "baseline_metrics": {"accuracy": 0.8},
+        "candidate_performance": pd.DataFrame([{
+            "candidate_name": candidate_name,
+            "added_features": list(feature_names),
+            "accuracy": 0.81,
+            "accuracy_delta_vs_mfcc40": 0.01,
+            "official_validation_used": False,
+        }]),
+    }
+
+
+def _stage2_config() -> dict[str, object]:
+    return {
+        "mfcc": MFCC_CONFIG,
+        "reference_model": REFERENCE_MODEL_CONFIG,
+        "candidate_extraction": CANDIDATE_EXTRACTION_CONFIG,
+    }
 
 
 def test_duration_uses_millisecond_annotation_contract() -> None:
@@ -400,7 +444,107 @@ def test_stage2_selection_lock_requires_exact_training_result() -> None:
     assert locked.evidence_stage == "full_or_larger_training_call_id_group_split"
 
 
-def test_notebook_precommits_manual_e03_e04_without_placeholder_results() -> None:
+def test_frozen_stage2_precommit_accepts_actual_training_evidence() -> None:
+    result = _synthetic_stage2_result("zcr", ("zcr",))
+    record = freeze_stage2_precommit(
+        result, experiment_id="E03", candidate_name="zcr",
+        feature_names=("zcr",), config=_stage2_config(),
+        source_signature="synthetic-v2-training",
+    )
+    assert require_stage2_precommit(
+        record, experiment_id="E03", candidate_name="zcr",
+        feature_names=("zcr",), config=_stage2_config(),
+        source_signature="synthetic-v2-training",
+    ) is record
+    assert record.accuracy == pytest.approx(0.81)
+    assert record.accuracy_delta_vs_mfcc40 == pytest.approx(0.01)
+    assert record.train_rows == 8 and record.call_id_overlap == 0
+
+
+def test_frozen_stage2_precommit_rejects_candidate_mismatch() -> None:
+    record = freeze_stage2_precommit(
+        _synthetic_stage2_result("zcr", ("zcr",)),
+        experiment_id="E03", candidate_name="zcr", feature_names=("zcr",),
+        config=_stage2_config(), source_signature="synthetic-v2-training",
+    )
+    with pytest.raises(RuntimeError, match="candidate ID mismatch"):
+        require_stage2_precommit(
+            record, experiment_id="E04", candidate_name="zcr",
+            feature_names=("zcr",), config=_stage2_config(),
+            source_signature="synthetic-v2-training",
+        )
+
+
+def test_frozen_stage2_precommit_rejects_feature_mismatch() -> None:
+    record = freeze_stage2_precommit(
+        _synthetic_stage2_result("zcr", ("zcr",)),
+        experiment_id="E03", candidate_name="zcr", feature_names=("zcr",),
+        config=_stage2_config(), source_signature="synthetic-v2-training",
+    )
+    with pytest.raises(RuntimeError, match="feature tuple mismatch"):
+        require_stage2_precommit(
+            record, experiment_id="E03", candidate_name="zcr",
+            feature_names=("spectral_centroid",), config=_stage2_config(),
+            source_signature="synthetic-v2-training",
+        )
+
+
+def test_frozen_stage2_precommit_rejects_metric_and_config_fingerprint_mismatch() -> None:
+    result = _synthetic_stage2_result("zcr", ("zcr",))
+    result["candidate_performance"].loc[0, "accuracy_delta_vs_mfcc40"] = 0.02
+    with pytest.raises(AssertionError, match="metric/delta mismatch"):
+        freeze_stage2_precommit(
+            result, experiment_id="E03", candidate_name="zcr",
+            feature_names=("zcr",), config=_stage2_config(),
+            source_signature="synthetic-v2-training",
+        )
+    record = freeze_stage2_precommit(
+        _synthetic_stage2_result("zcr", ("zcr",)),
+        experiment_id="E03", candidate_name="zcr", feature_names=("zcr",),
+        config=_stage2_config(), source_signature="synthetic-v2-training",
+    )
+    with pytest.raises(RuntimeError, match="metric/provenance fingerprint mismatch"):
+        require_stage2_precommit(
+            replace(record, accuracy=0.82), experiment_id="E03",
+            candidate_name="zcr", feature_names=("zcr",),
+            config=_stage2_config(), source_signature="synthetic-v2-training",
+        )
+    changed_config = {**_stage2_config(), "reference_model": {"max_iter": 2}}
+    with pytest.raises(RuntimeError, match="config fingerprint mismatch"):
+        require_stage2_precommit(
+            record, experiment_id="E03", candidate_name="zcr",
+            feature_names=("zcr",), config=changed_config,
+            source_signature="synthetic-v2-training",
+        )
+
+
+def test_frozen_stage2_precommit_rejects_missing_record() -> None:
+    with pytest.raises(RuntimeError, match="precommit is missing"):
+        require_stage2_precommit(
+            None, experiment_id="E03", candidate_name="zcr",
+            feature_names=("zcr",), config=_stage2_config(),
+            source_signature="synthetic-v2-training",
+        )
+
+
+def test_frozen_stage2_precommit_rejects_stale_stage2_provenance() -> None:
+    result = _synthetic_stage2_result("zcr", ("zcr",))
+    with pytest.raises(AssertionError, match="Training data signature mismatch"):
+        freeze_stage2_precommit(
+            result, experiment_id="E03", candidate_name="zcr",
+            feature_names=("zcr",), config=_stage2_config(),
+            source_signature="different-training-data",
+        )
+    result["provenance"]["config_fingerprint"] = "old-config"
+    with pytest.raises(AssertionError, match="config fingerprint mismatch"):
+        freeze_stage2_precommit(
+            result, experiment_id="E03", candidate_name="zcr",
+            feature_names=("zcr",), config=_stage2_config(),
+            source_signature="synthetic-v2-training",
+        )
+
+
+def test_notebook_freezes_manual_e03_e04_from_actual_stage2_results() -> None:
     notebook_path = (
         Path(__file__).resolve().parents[1]
         / "notebooks"
@@ -430,6 +574,7 @@ def test_notebook_precommits_manual_e03_e04_without_placeholder_results() -> Non
         "E04": ("spectral_centroid",),
     }
     assert namespace["RUN_SELECTED_FEATURE_EXPERIMENT"] is False
+    assert namespace["RUN_BASELINE_REPRODUCTION"] is False
     assert namespace["CANDIDATE_SELECTION_LOCKED"] is False
     assert "RUN_E03" not in namespace and "RUN_E04" not in namespace
     for feature_names in namespace["PRECOMMITTED_EXPERIMENTS"].values():
@@ -444,6 +589,12 @@ def test_notebook_precommits_manual_e03_e04_without_placeholder_results() -> Non
                 "SELECTED_CANDIDATE_NAME": feature_names[0],
                 "SELECTED_FEATURE_NAMES": feature_names,
                 "lock_candidate_selection": lock_candidate_selection,
+                "freeze_stage2_precommit": freeze_stage2_precommit,
+                "stage2_result": _synthetic_stage2_result(feature_names[0], feature_names),
+                "MFCC_CONFIG": MFCC_CONFIG,
+                "REFERENCE_MODEL_CONFIG": REFERENCE_MODEL_CONFIG,
+                "CANDIDATE_EXTRACTION_CONFIG": CANDIDATE_EXTRACTION_CONFIG,
+                "eda_manifest_meta": {"source_signature": "synthetic-v2-training"},
             }
         )
         exec(
@@ -452,6 +603,12 @@ def test_notebook_precommits_manual_e03_e04_without_placeholder_results() -> Non
         )
         assert selection_namespace["locked_candidate"].feature_names == feature_names
         assert selection_namespace["CANDIDATE_SELECTION_LOCKED"] is True
+        assert selection_namespace["frozen_precommit"].experiment_id == experiment_id
+
+        missing_stage2 = dict(selection_namespace)
+        missing_stage2.pop("stage2_result")
+        with pytest.raises(RuntimeError, match="run Training-only Stage 2"):
+            exec(compile(code_by_id["m2-fe-cpd-lock"], "m2-fe-cpd-lock", "exec"), missing_stage2)
 
     comparison_namespace = {
         "append_comparison_row": append_comparison_row,
@@ -689,10 +846,7 @@ def test_notebook_e05_precommit_and_validated_cache_merge_contract() -> None:
     assert namespace["PRECOMMITTED_COMBINATION_EXPERIMENTS"] == {
         "E05": expected_features,
     }
-    # Saved Notebook switches reflect the user's last run. Isolate the
-    # precommit contract from that persisted execution state.
-    namespace["LOCK_E05_SELECTION"] = False
-    namespace["RUN_SELECTED_FEATURE_EXPERIMENT"] = False
+    # Committed source gates remain off even though historical outputs remain.
     assert namespace["LOCK_E05_SELECTION"] is False
     assert namespace["RUN_SELECTED_FEATURE_EXPERIMENT"] is False
 
@@ -716,6 +870,14 @@ def test_notebook_e05_precommit_and_validated_cache_merge_contract() -> None:
         {
             "LOCK_E05_SELECTION": True,
             "lock_candidate_selection": lock_candidate_selection,
+            "freeze_stage2_precommit": freeze_stage2_precommit,
+            "stage2_result": _synthetic_stage2_result(
+                "spectral_rolloff+zcr", expected_features
+            ),
+            "MFCC_CONFIG": MFCC_CONFIG,
+            "REFERENCE_MODEL_CONFIG": REFERENCE_MODEL_CONFIG,
+            "CANDIDATE_EXTRACTION_CONFIG": CANDIDATE_EXTRACTION_CONFIG,
+            "eda_manifest_meta": {"source_signature": "synthetic-v2-training"},
         }
     )
     exec(
@@ -724,6 +886,7 @@ def test_notebook_e05_precommit_and_validated_cache_merge_contract() -> None:
     )
     assert clean_namespace["E05_COMBINATION_SELECTION_LOCKED"] is True
     assert clean_namespace["locked_candidate"].feature_names == expected_features
+    assert clean_namespace["frozen_precommit"].feature_names == expected_features
     assert clean_namespace["PRECOMMITTED_EXPERIMENTS"] == {
         "E03": ("zcr",),
         "E04": ("spectral_centroid",),
@@ -776,13 +939,22 @@ def test_notebook_e05_precommit_and_validated_cache_merge_contract() -> None:
             "EXPECTED_UTTERANCE_COUNTS": {"Validation": 6},
             "aligned_validation": validation,
             "full_eda_manifest": pd.DataFrame(),
-            "eda_manifest_meta": {"source_signature": "synthetic"},
+            "eda_manifest_meta": {"source_signature": "synthetic-v2-training"},
             "load_candidate_feature_cache": fake_load_candidate_feature_cache,
             "assemble_experiment_matrix": assemble_experiment_matrix,
             "BASELINE_FEATURE_NAMES": BASELINE_FEATURE_NAMES,
             "np": np,
+            "require_stage2_precommit": require_stage2_precommit,
         }
     )
+    missing_precommit = dict(cache_namespace)
+    missing_precommit.pop("frozen_precommit")
+    with pytest.raises(RuntimeError, match="precommit is missing"):
+        exec(
+            compile(code_by_id["m2-fe-e05-cache-merge"], "m2-fe-e05-cache-merge", "exec"),
+            missing_precommit,
+        )
+    assert load_calls == []
     exec(
         compile(
             code_by_id["m2-fe-e05-cache-merge"],
@@ -1027,11 +1199,19 @@ def test_e05_code_derives_lock_and_merge_contract_from_one_pair() -> None:
         "os": __import__("os"),
         "pd": pd,
         "lock_candidate_selection": lock_candidate_selection,
+        "freeze_stage2_precommit": freeze_stage2_precommit,
+        "MFCC_CONFIG": MFCC_CONFIG,
+        "REFERENCE_MODEL_CONFIG": REFERENCE_MODEL_CONFIG,
+        "CANDIDATE_EXTRACTION_CONFIG": CANDIDATE_EXTRACTION_CONFIG,
+        "eda_manifest_meta": {"source_signature": "synthetic-v2-training"},
     }
     exec(compile(code_by_id["m2-fe-config"], "m2-fe-config", "exec"), namespace)
     exec(compile(changed_config, "m2-fe-e05-config", "exec"), namespace)
     namespace["LOCK_E05_SELECTION"] = True
     namespace["RUN_SELECTED_FEATURE_EXPERIMENT"] = False
+    namespace["stage2_result"] = _synthetic_stage2_result(
+        "zcr+spectral_centroid", ("zcr", "spectral_centroid")
+    )
     exec(compile(code_by_id["m2-fe-e05-lock"], "m2-fe-e05-lock", "exec"), namespace)
 
     assert namespace["locked_candidate"].feature_names == ("zcr", "spectral_centroid")

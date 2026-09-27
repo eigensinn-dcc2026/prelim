@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
@@ -72,6 +73,28 @@ class CandidateSelection:
     feature_names: tuple[str, ...]
     evidence_stage: str
     selection_fingerprint: str
+
+
+@dataclass(frozen=True)
+class FrozenStage2Precommit:
+    """One Training-only Stage 2 choice, copied before Validation is opened."""
+
+    experiment_id: str
+    candidate_name: str
+    feature_names: tuple[str, ...]
+    accuracy: float
+    accuracy_delta_vs_mfcc40: float
+    config_fingerprint: str
+    source_signature: str
+    source_rows: int
+    seed: int
+    test_size: float
+    train_rows: int
+    internal_validation_rows: int
+    train_calls: int
+    internal_validation_calls: int
+    call_id_overlap: int
+    evidence_fingerprint: str
 
 
 def _spec(
@@ -851,6 +874,8 @@ def stage2_training_group_screen(
     test_size: float = 0.2,
     minimum_training_rows: int = 601,
     correlation_sample_limit: int = 100_000,
+    source_signature: str | None = None,
+    config: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compare candidates on one fixed full/larger Training call GroupSplit."""
 
@@ -863,6 +888,8 @@ def stage2_training_group_screen(
         )
     if not candidate_groups:
         raise ValueError("candidate_groups must not be empty")
+    if (source_signature is None) != (config is None):
+        raise ValueError("Stage 2 source signature and config must be supplied together")
     groups = {
         str(name): validate_candidate_names(features)
         for name, features in candidate_groups.items()
@@ -933,6 +960,12 @@ def stage2_training_group_screen(
             }
         )
     return {
+        "provenance": {
+            "source_signature": source_signature,
+            "config_fingerprint": (
+                stage2_config_fingerprint(config) if config is not None else None
+            ),
+        },
         "scope": {
             "purpose": "stage2_candidate_priority_evidence",
             "source_split": "Training",
@@ -994,3 +1027,120 @@ def lock_candidate_selection(
         evidence_stage="full_or_larger_training_call_id_group_split",
         selection_fingerprint=fingerprint,
     )
+
+
+def stage2_config_fingerprint(config: Mapping[str, Any]) -> str:
+    """Fingerprint the exact model and extraction settings used for Stage 2."""
+
+    try:
+        encoded = json.dumps(
+            config, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Stage 2 config must be finite JSON data") from exc
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _precommit_fingerprint(record: FrozenStage2Precommit) -> str:
+    payload = asdict(record)
+    payload.pop("evidence_fingerprint")
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def freeze_stage2_precommit(
+    stage2_result: Mapping[str, Any],
+    *,
+    experiment_id: str,
+    candidate_name: str,
+    feature_names: Sequence[str],
+    config: Mapping[str, Any],
+    source_signature: str,
+) -> FrozenStage2Precommit:
+    """Copy metric and provenance from an actual Training-only Stage 2 result."""
+
+    if not experiment_id or not source_signature:
+        raise AssertionError("experiment ID and Training source signature are required")
+    selection = lock_candidate_selection(
+        stage2_result, selection_name=candidate_name, feature_names=feature_names
+    )
+    provenance = stage2_result.get("provenance", {})
+    if provenance.get("source_signature") != source_signature:
+        raise AssertionError("Stage 2 Training data signature mismatch")
+    config_fingerprint = stage2_config_fingerprint(config)
+    if provenance.get("config_fingerprint") != config_fingerprint:
+        raise AssertionError("Stage 2 config fingerprint mismatch")
+    scope = stage2_result["scope"]
+    audit_frame = stage2_result["split_audit"]
+    if not isinstance(audit_frame, pd.DataFrame) or len(audit_frame) != 1:
+        raise AssertionError("Stage 2 requires one actual GroupSplit audit row")
+    audit = audit_frame.iloc[0]
+    if int(audit["call_id_overlap"]) != 0:
+        raise AssertionError("Stage 2 GroupSplit contains call overlap")
+    source_rows = int(scope["source_rows"])
+    train_rows = int(audit["train_rows"])
+    validation_rows = int(audit["internal_validation_rows"])
+    if source_rows <= 0 or train_rows + validation_rows != source_rows:
+        raise AssertionError("Stage 2 split rows do not match Training source rows")
+
+    performance = stage2_result["candidate_performance"]
+    row = performance.loc[performance["candidate_name"] == candidate_name].iloc[0]
+    if bool(row["official_validation_used"]):
+        raise AssertionError("Stage 2 candidate used Official Validation")
+    accuracy = float(row["accuracy"])
+    delta = float(row["accuracy_delta_vs_mfcc40"])
+    baseline_accuracy = float(stage2_result["baseline_metrics"]["accuracy"])
+    if not all(map(math.isfinite, (accuracy, delta, baseline_accuracy))):
+        raise AssertionError("Stage 2 metrics must be finite")
+    if not math.isclose(accuracy - baseline_accuracy, delta, rel_tol=0, abs_tol=1e-12):
+        raise AssertionError("Stage 2 candidate metric/delta mismatch")
+
+    record = FrozenStage2Precommit(
+        experiment_id=experiment_id,
+        candidate_name=selection.selection_name,
+        feature_names=selection.feature_names,
+        accuracy=accuracy,
+        accuracy_delta_vs_mfcc40=delta,
+        config_fingerprint=config_fingerprint,
+        source_signature=source_signature,
+        source_rows=source_rows,
+        seed=int(audit["seed"]),
+        test_size=float(audit["test_size"]),
+        train_rows=train_rows,
+        internal_validation_rows=validation_rows,
+        train_calls=int(audit["train_calls"]),
+        internal_validation_calls=int(audit["internal_validation_calls"]),
+        call_id_overlap=0,
+        evidence_fingerprint="",
+    )
+    return FrozenStage2Precommit(
+        **{**asdict(record), "evidence_fingerprint": _precommit_fingerprint(record)}
+    )
+
+
+def require_stage2_precommit(
+    record: FrozenStage2Precommit | None,
+    *,
+    experiment_id: str,
+    candidate_name: str,
+    feature_names: Sequence[str],
+    config: Mapping[str, Any],
+    source_signature: str,
+) -> FrozenStage2Precommit:
+    """Stop before Official Validation if the frozen selection has drifted."""
+
+    if not isinstance(record, FrozenStage2Precommit):
+        raise RuntimeError("STOP: frozen Training-only Stage 2 precommit is missing")
+    if record.evidence_fingerprint != _precommit_fingerprint(record):
+        raise RuntimeError("STOP: frozen Stage 2 metric/provenance fingerprint mismatch")
+    if record.experiment_id != experiment_id or record.candidate_name != candidate_name:
+        raise RuntimeError("STOP: frozen Stage 2 candidate ID mismatch")
+    if record.feature_names != tuple(feature_names):
+        raise RuntimeError("STOP: frozen Stage 2 feature tuple mismatch")
+    if record.config_fingerprint != stage2_config_fingerprint(config):
+        raise RuntimeError("STOP: frozen Stage 2 config fingerprint mismatch")
+    if record.source_signature != source_signature:
+        raise RuntimeError("STOP: frozen Stage 2 Training data signature mismatch")
+    return record
