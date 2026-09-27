@@ -10,6 +10,30 @@
 
 ---
 
+## 2026-09-27 — [M2] duration-conditioning(SpeakerCNNLargeWithDuration) 최종 기각 — seed 통제 재검증에서 이전 +0.30%p 재현 안 됨
+
+- **현황**: M2-CNN-004(2026-09-16)에서 측정된 +0.30%p 정확도 개선(격차는 확대)이 `--seed`가
+  train/val 분할에만 쓰이고 모델 초기화·`DataLoader` shuffle 순서는 통제되지 않은 1회 실행
+  결과였음이 M2-CNN-005(hop80) 사후 확인 과정에서 함께 드러남. `train_mission2_cnn.py`에
+  `--torch-seed`(모델 초기화 + train shuffle 순서, split seed와 분리)를 추가하고 M2-CNN-004를
+  torch-seed 1/2/3으로 재검증(M2-CNN-006).
+- **결과**: 전체 accuracy 차이(large-duration−large) 평균 -0.15%p, **3개 seed 전부 음수** —
+  가설과 반대 방향. 목표했던 0.5-1s 버킷도 3개 전부 -0.39~-0.95%p로 일관되게 악화(평균
+  -0.70%p, 같은 모델의 seed 간 noise 기준선 0.15~0.17%p보다 뚜렷이 큼) — duration 입력이
+  오히려 이 버킷에 해가 될 수 있다는 신호. <0.5s 버킷은 부호가 갈려 판단 불가.
+- **결정**: `SpeakerCNNLargeWithDuration` 채택하지 않음. M2-CNN-004의 측정치는 무효로 처리.
+  M2-CNN-005(hop80)의 기각 사유("시드/배치 순서 미통제가 원인")도 이번 재검증으로 다시 확인됨
+  — 두 실험 모두 실제로는 메커니즘 문제가 아니라 재현성 없는 1회 실행이었음.
+- **이유**: 2026-09-26 세션에서 "채점이 accuracy 단일 지표이니 recall 격차 확대는 무시하고
+  accuracy만 보고 재평가하자"고 판단했던 근거 자체는 여전히 맞지만, 실제로 재측정해보니 그
+  accuracy 이득 자체가 노이즈였음 — "규정상 재평가할 이유가 있다"와 "재평가해서 실제 이득이
+  있다"는 서로 다른 질문이었고, 후자를 확인하지 않은 채 전자만으로 결론을 냈으면 오판이었을 것.
+- **후속 조치**: `--torch-seed`는 앞으로 이런 A/B 비교의 기본 절차로 유지(단발 실행 결과를
+  그대로 채택하지 않는다). 0.5~1초 backchannel 병목에는 다른 메커니즘(`n_mels` 확대, duration
+  bucket 가중 샘플링 등)을 다음 후보로 검토.
+- **관련**: M2-CNN-004, M2-CNN-005, M2-CNN-006(`docs/experiment_log.md`),
+  [`m2_cnn_duration_seed_recheck.md`](../reports/mission2/m2_cnn_duration_seed_recheck.md).
+
 ## 2026-09-23 — [M2] 제출 우선순위 다시 L1로 — L2 추론 파이프라인 미비로 보류
 
 - **현황**: 같은 날 아래("L2 공식 Validation 확정") 결정으로 제출 우선순위를 L2로 전환했으나,
