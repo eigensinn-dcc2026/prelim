@@ -8,3 +8,4 @@ tqdm
 pytest
 iterative-stratification
 matplotlib
+opensmile==2.6.0
