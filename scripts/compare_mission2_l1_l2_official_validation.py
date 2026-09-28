@@ -28,7 +28,21 @@ of re-running CNN inference locally):
         --l1-ckpt checkpoints/mission2/m2_baseline_lgbm_tuned_postfix2.pkl \\
         --l1-features data/local_cache/m2_features_validation_official.parquet \\
         --l2-predictions-csv data/local_cache/m2_l2_val_predictions.csv \\
-        --utterance-index data/local_cache/m2_utterances_validation_official.parquet
+        --utterance-index data/local_cache/m2_utterances_validation_official.parquet \\
+        --l1-result-json reports/mission2/m2_l1_official_validation_result_postfix2.json \\
+        --l2-result-json reports/mission2/m2_l2_official_validation_result_colab_gpu.json
+
+Nothing is written unless the inputs line up exactly. The L1 / L2 / utterance-index /
+overlap-flag tables must each have one row per (call_id, utt_idx), all four must cover the
+same utterances, and the ground-truth speaker carried by L1, L2 and the utterance index must
+agree row by row. Pass --l1-result-json / --l2-result-json (the separately saved official
+Validation evaluation results) to also require that the joined predictions reproduce their
+n_utterances and confusion_matrix exactly.
+
+Only the --l2-predictions-csv path runs on the code in this branch. The
+evaluate_mission2_l{1,2}_on_official_validation.py scripts and dcc_data.mission2_cnn used by
+the other path live on gwanghee/mission2-l1-model-comparison and gwanghee/mission2-l2-cnn-clean,
+which are not merged to main.
 """
 
 from __future__ import annotations
@@ -50,6 +64,85 @@ from dcc_data.mission2_analysis import bucket_duration, compute_overlap_flags  #
 from dcc_data.mission2_features import FEATURE_COLUMNS  # noqa: E402
 from dcc_data.mission2_train import load_model  # noqa: E402
 
+KEY_COLUMNS = ["call_id", "utt_idx"]
+
+
+def _require_unique_keys(frame: pd.DataFrame, name: str) -> None:
+    duplicated = frame.duplicated(KEY_COLUMNS, keep=False)
+    if duplicated.any():
+        examples = frame.loc[duplicated, KEY_COLUMNS].head(3).values.tolist()
+        raise ValueError(
+            f"{name}: {int(duplicated.sum())} rows share a duplicate (call_id, utt_idx) key, e.g. {examples}"
+        )
+
+
+def _require_same_keys_as_l1(l1_keys: set, frame: pd.DataFrame, name: str) -> None:
+    keys = set(zip(frame["call_id"], frame["utt_idx"]))
+    missing, extra = l1_keys - keys, keys - l1_keys
+    if missing or extra:
+        raise ValueError(
+            f"{name} covers different utterances than L1: {len(missing)} missing, {len(extra)} extra "
+            f"(e.g. missing {sorted(missing, key=str)[:3]}, extra {sorted(extra, key=str)[:3]})"
+        )
+
+
+def _require_same_speaker(merged: pd.DataFrame, column: str, name: str) -> None:
+    mismatched = int((merged["speaker"] != merged[column]).sum())
+    if mismatched:
+        raise ValueError(f"{name} speaker disagrees with L1 speaker for {mismatched} of {len(merged)} utterances")
+
+
+def build_comparison_frame(
+    l1_result: pd.DataFrame, l2_result: pd.DataFrame, utt_index: pd.DataFrame, overlap_df: pd.DataFrame
+) -> pd.DataFrame:
+    """Join L1/L2 predictions with duration and overlap flags, or raise.
+
+    Row order follows ``l1_result``. Anything short of an exact one-to-one join (duplicate or
+    missing utterances, or ground-truth speakers that disagree between sources) means the two
+    models were not scored on the same utterances, so the caller must not write a comparison.
+    """
+
+    inputs = {"L1": l1_result, "L2": l2_result, "utterance index": utt_index, "overlap flags": overlap_df}
+    for name, frame in inputs.items():
+        _require_unique_keys(frame, name)
+
+    l1_keys = set(zip(l1_result["call_id"], l1_result["utt_idx"]))
+    for name in ("L2", "utterance index", "overlap flags"):
+        _require_same_keys_as_l1(l1_keys, inputs[name], name)
+
+    merged = l1_result.merge(
+        l2_result.rename(columns={"speaker": "l2_speaker"})[KEY_COLUMNS + ["l2_speaker", "l2_pred"]],
+        on=KEY_COLUMNS, how="inner", validate="one_to_one",
+    )
+    merged = merged.merge(
+        utt_index[KEY_COLUMNS + ["duration_sec", "speaker"]].rename(columns={"speaker": "index_speaker"}),
+        on=KEY_COLUMNS, how="left", validate="one_to_one",
+    )
+    merged = merged.merge(overlap_df[KEY_COLUMNS + ["overlaps_other"]], on=KEY_COLUMNS, how="left", validate="one_to_one")
+
+    _require_same_speaker(merged, "l2_speaker", "L2")
+    _require_same_speaker(merged, "index_speaker", "utterance index")
+    return merged.drop(columns=["l2_speaker", "index_speaker"])
+
+
+def confusion_matrix_2x2(truth: pd.Series, pred: pd.Series) -> list[list[int]]:
+    return [[int(((truth == t) & (pred == p)).sum()) for p in (0, 1)] for t in (0, 1)]
+
+
+def check_against_saved_result(merged: pd.DataFrame, pred_column: str, result_path: Path, name: str) -> None:
+    """Require the joined predictions to reproduce a separately saved official-Validation result."""
+
+    saved = json.loads(Path(result_path).read_text(encoding="utf-8"))
+    joined = {
+        "n_utterances": len(merged),
+        "confusion_matrix": confusion_matrix_2x2(merged["speaker"], merged[pred_column]),
+    }
+    for key, value in joined.items():
+        if saved[key] != value:
+            raise ValueError(
+                f"{name} does not reproduce {Path(result_path).name}: {key} saved={saved[key]} joined={value}"
+            )
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -66,6 +159,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--l2-spectrogram-dir", type=Path, default=None)
     parser.add_argument("--utterance-index", type=Path, required=True, help="has startAt/endAt/duration_sec")
     parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument(
+        "--l1-result-json", type=Path, default=None,
+        help="saved official-Validation result JSON of the same L1 checkpoint; if given, the joined L1 "
+        "predictions must reproduce its n_utterances and confusion_matrix exactly, or nothing is written",
+    )
+    parser.add_argument(
+        "--l2-result-json", type=Path, default=None,
+        help="same as --l1-result-json, for the L2 predictions",
+    )
     parser.add_argument(
         "--output", type=Path, default=Path("reports/mission2/m2_l1_l2_official_validation_comparison.csv")
     )
@@ -107,10 +209,10 @@ def main() -> int:
     utt_index = pd.read_parquet(args.utterance_index).rename(columns={"start_at": "startAt", "end_at": "endAt"})
 
     if args.l2_predictions_csv is not None:
-        l2_pred_df = pd.read_csv(args.l2_predictions_csv)
+        l2_pred_df = pd.read_csv(args.l2_predictions_csv, dtype={"call_id": str})
         l2_accuracy = float((l2_pred_df["speaker"] == l2_pred_df["predicted"]).mean())
         print(f"L2 (from {args.l2_predictions_csv.name}): {len(l2_pred_df)} utterances, accuracy={l2_accuracy:.4f}")
-        l2_result = l2_pred_df[["call_id", "utt_idx"]].copy()
+        l2_result = l2_pred_df[["call_id", "utt_idx", "speaker"]].copy()
         l2_result["l2_pred"] = l2_pred_df["predicted"]
     else:
         import torch  # local import: only needed for the (slow, CPU-bound) local-inference path
@@ -132,29 +234,21 @@ def main() -> int:
         print(f"L2: {len(l2_index_df)} utterances, accuracy={l2_accuracy:.4f}")
         if not np.array_equal(l2_labels, l2_index_df["speaker"].to_numpy()):
             raise ValueError("L2 dataset iteration order does not match l2_index_df row order")
-        l2_result = l2_index_df[["call_id", "utt_idx"]].copy()
+        l2_result = l2_index_df[["call_id", "utt_idx", "speaker"]].copy()
         l2_result["l2_pred"] = l2_preds
 
     # --- overlap flags ----------------------------------------------------
     overlap_df = compute_overlap_flags(utt_index)
 
     # --- join everything ------------------------------------------------
-    merged = l1_result.merge(l2_result[["call_id", "utt_idx", "l2_pred"]], on=["call_id", "utt_idx"], how="inner")
-    merged = merged.merge(
-        utt_index[["call_id", "utt_idx", "duration_sec"]], on=["call_id", "utt_idx"], how="left"
-    )
-    merged = merged.merge(overlap_df, on=["call_id", "utt_idx"], how="left")
-    if merged["overlaps_other"].isna().any():
-        print(f"[warn] {int(merged['overlaps_other'].isna().sum())} utterances had no overlap-flag match", file=sys.stderr)
+    merged = build_comparison_frame(l1_result, l2_result, utt_index, overlap_df)
+    if args.l1_result_json is not None:
+        check_against_saved_result(merged, "l1_pred", args.l1_result_json, "L1")
+    if args.l2_result_json is not None:
+        check_against_saved_result(merged, "l2_pred", args.l2_result_json, "L2")
     merged["duration_bucket"] = bucket_duration(merged["duration_sec"])
     merged["l1_correct"] = merged["speaker"] == merged["l1_pred"]
     merged["l2_correct"] = merged["speaker"] == merged["l2_pred"]
-
-    if len(merged) != len(l1_result) or len(merged) != len(l2_result):
-        print(
-            f"[warn] row counts differ after join: l1={len(l1_result)} l2={len(l2_result)} merged={len(merged)}",
-            file=sys.stderr,
-        )
 
     def group_stats(by) -> dict:
         table = merged.groupby(by, observed=True)[["l1_correct", "l2_correct"]].agg(["mean", "count"])
