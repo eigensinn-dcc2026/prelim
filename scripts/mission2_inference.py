@@ -82,6 +82,23 @@ CNN_CHECKPOINT_SUFFIXES = frozenset({".pt", ".pth", ".ckpt"})
 
 PredictFn = Callable[[np.ndarray, int, float], int]
 
+# The CNN was trained on batches padded (with SPEC_FLOOR_DB, see mission2_cnn.collate_batch) to each
+# batch's longest utterance, so it almost never saw an unpadded short utterance; feeding one at
+# inference costs ~1.1pp (M2-VAL-004). Padding every utterance up to a fixed length -- using only its own
+# spectrogram, never another utterance -- recovers that on the Training-internal held-out calls
+# (89.58% -> 90.84% at 300; 200-500 is a plateau). 300 frames = 6 s at this repo's 8 kHz / hop 160.
+L2_MIN_FRAMES = 300
+
+
+def pad_spectrogram_to_min_frames(spectrogram: np.ndarray, min_frames: int = L2_MIN_FRAMES) -> np.ndarray:
+    from dcc_data.mission2_spectrogram import SPEC_FLOOR_DB
+
+    n_mels, n_frames = spectrogram.shape
+    if n_frames >= min_frames:
+        return spectrogram
+    padding = np.full((n_mels, min_frames - n_frames), SPEC_FLOOR_DB, dtype=spectrogram.dtype)
+    return np.concatenate([spectrogram, padding], axis=1)
+
 
 def _load_l1_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
     model, meta = load_model(ckpt_path)
@@ -118,7 +135,7 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
 
     @torch.no_grad()
     def predict(segment: np.ndarray, sample_rate: int, duration_sec: float) -> int:
-        spectrogram = mel_spectrogram(segment, sample_rate)
+        spectrogram = pad_spectrogram_to_min_frames(mel_spectrogram(segment, sample_rate))
         batch = torch.from_numpy(spectrogram).unsqueeze(0).unsqueeze(0)  # (1, 1, n_mels, n_frames)
         logits = model(batch)
         return int(logits.argmax(dim=1).item())

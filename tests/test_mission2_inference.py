@@ -110,6 +110,37 @@ def l2_checkpoint(tmp_path: Path) -> Path:
     return ckpt_path
 
 
+def test_pad_spectrogram_pads_short_utterances_with_the_floor_value_only() -> None:
+    from dcc_data.mission2_spectrogram import N_MELS, SPEC_FLOOR_DB
+
+    short = np.full((N_MELS, 40), -12.5, dtype=np.float32)
+    padded = mission2_inference.pad_spectrogram_to_min_frames(short, 100)
+
+    assert padded.shape == (N_MELS, 100)
+    assert padded.dtype == np.float32
+    assert np.array_equal(padded[:, :40], short)  # the utterance's own frames are untouched
+    assert np.all(padded[:, 40:] == SPEC_FLOOR_DB)  # same value collate_batch pads with
+
+
+def test_pad_spectrogram_leaves_long_utterances_unchanged() -> None:
+    from dcc_data.mission2_spectrogram import N_MELS
+
+    long_spec = np.zeros((N_MELS, 250), dtype=np.float32)
+    assert mission2_inference.pad_spectrogram_to_min_frames(long_spec, 100) is long_spec
+
+
+def test_pad_spectrogram_ignores_everything_but_the_utterance_itself() -> None:
+    # Isolation: the padded result is a pure function of one spectrogram -- padding one utterance
+    # must not depend on any other utterance having been processed before it.
+    from dcc_data.mission2_spectrogram import N_MELS
+
+    a = np.random.default_rng(0).standard_normal((N_MELS, 30)).astype(np.float32)
+    b = np.random.default_rng(1).standard_normal((N_MELS, 90)).astype(np.float32)
+    alone = mission2_inference.pad_spectrogram_to_min_frames(a)
+    mission2_inference.pad_spectrogram_to_min_frames(b)
+    assert np.array_equal(alone, mission2_inference.pad_spectrogram_to_min_frames(a))
+
+
 def test_load_predictor_dispatches_on_ckpt_suffix(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
     monkeypatch.setattr(mission2_inference, "_load_l1_predictor", lambda p: calls.append("l1") or (None, 0))
