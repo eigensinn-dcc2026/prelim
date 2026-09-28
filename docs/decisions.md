@@ -8,6 +8,11 @@
 > 형식: 최신 항목이 맨 위. 항목마다 결정 내용, 이유, 후속 조치를 간단히 적습니다.
 > 새 항목을 추가하는 시점: 실험 결과를 채택·기각·보류로 정할 때, 또는 방향을 바꿀 때.
 > 날짜는 `YYYY-MM-DD` 형식으로 쓰고, 정확한 날짜가 아니면 본문에 "근사치"라고 표시합니다.
+>
+> **† 표시가 붙은 링크**는 아직 `main`에 없는 파일입니다. 닫힌 PR #18 브랜치의 2026-09-20 시점
+> 보고서(고정 커밋 `c9afba6`)나, 아직 병합 안 된 브랜치의 특정 커밋으로 연결됩니다. 커밋에 고정된
+> 링크라서 그 시점의 내용이 그대로 열립니다. 해당 브랜치를 지우면 열리지 않을 수 있으니, 파일이
+> `main`에 들어오면 상대경로 링크로 바꿔주세요.
 
 ---
 
@@ -30,13 +35,15 @@
   Calibration(확률값 자체를 더 정확하게 만드는 것)은 허용되지만, 그 뒤에도 기준선은 0.5다.
 - **관련**: M2-EXP-002, M2-EXP-009(`docs/experiment_log.md`).
 
-## 2026-09-27 — [M2] L2(CNN) 제출 차단 문제 해결 — `mission2_inference.py`에 CNN 경로 추가 (공식 검증은 아직)
+## 2026-09-27 — [M2] L2(CNN) 제출 차단 문제 해결 시도 — 별도 브랜치의 CNN 경로 (main 미병합, 공식 검증은 아직)
 
 - **현황**: M2-AUDIT-003(2026-09-23)에서 `mission2_inference.py`(대회 지정 실행 코드)가 L1
-  전용이라 L2를 제출할 방법이 없다는 게 확인됐었음. 이번에 그 스크립트에 CNN 실행 경로를
+  전용이라 L2를 제출할 방법이 없다는 게 확인됐었음. 이번에 **`gwanghee/mission2-l2-cnn-clean`
+  브랜치의 커밋 [`d40531f`†][l2clean-inference-commit]에서** 그 스크립트에 CNN 실행 경로를
   추가함 — `--ckpt_path`로 받는 파일이 `.pt`/`.pth`/`.ckpt`면 CNN, 그 외(`.pkl` 등)면 기존
   L1 경로로 자동 분기해서, 기존 실행 인자(`--audio_dir`/`--label_dir`/`--ckpt_path`/`--output`)는
-  하나도 안 바꿈.
+  하나도 안 바꿈. **이 PR(#31)에 들어 있는 `scripts/mission2_inference.py`는 여전히 L1 전용이고,
+  CNN 경로는 main에도 아직 없다.**
 - **확인한 것**: 합성 데이터로 만든 테스트 4개 통과, 그리고 실제로 저장돼 있는 체크포인트
   두 개(`m2_cnn_large.pt`, `m2_baseline_lgbm_tuned_postfix2.pkl`)를 이 스크립트로 직접
   실행해서 둘 다 정상적으로 발화당 결과 한 줄씩 나오는 것까지 확인함(fallback 0건).
@@ -52,9 +59,12 @@
 - **이유**: 대회 제출은 되돌리기 어려운 행위라, "코드가 도는 걸 확인했다"와 "제출해도 되는
   정확도가 나온다"를 구분해서 확인하는 게 안전함.
 - **후속 조치**: (1) 공식 Validation으로 이 스크립트를 실행해 90.88%와 비교, (2)
-  `gwanghee/mission2-l2-cnn-clean`을 main에 합치기(팀원 리뷰 필요, 셀프 머지 금지), (3) 확인되면
-  2026-09-23 결정("제출 우선순위 L1로 되돌림")을 다시 L2로 전환할지 판단.
-- **관련**: M2-AUDIT-003, M2-AUDIT-004(`docs/experiment_log.md`).
+  `gwanghee/mission2-l2-cnn-clean`을 main에 합치기 — 이 브랜치의 예전 PR #17은 2026-09-17에 병합
+  없이 닫혔고 2026-09-28 기준 열린 PR이 없으므로 새 PR이 필요함(팀원 리뷰 필요, 셀프 머지 금지),
+  (3) 확인되면 2026-09-23 결정("제출 우선순위 L1로 되돌림")을 다시 L2로 전환할지 판단.
+- **관련**: M2-AUDIT-003, M2-AUDIT-004(`docs/experiment_log.md`), 코드:
+  [`scripts/mission2_inference.py`†][l2clean-inference], [`tests/test_mission2_inference.py`†][l2clean-inference-test]
+  (둘 다 `d40531f` 시점).
 
 ## 2026-09-27 — [M2] 주파수 해상도(n_mels) 확대도 기각 — "입력 해상도 올리기" 방향 세 번 다 실패
 
@@ -208,8 +218,8 @@
   또한 `mission2-l2-cnn-clean` 브랜치(L2 재개용)에도 라벨 수정 내용이 파일만 가져오는
   과정(cherry-pick)에서 빠진 걸 확인 — L2 재개 전에 다시 반영해야 함.
 - **관련**: `scripts/build_mission2_dataset.py`, PR #19,
-  [`m2_l1_official_validation_results.md`](../reports/mission2/m2_l1_official_validation_results.md),
-  [`m2_l2_cnn_results.md`](../reports/mission2/m2_l2_cnn_results.md) §"여기서 발생한 프로세스 문제".
+  [`m2_l1_official_validation_results.md`†][pr18-m2_l1_official_validation_results],
+  [`m2_l2_cnn_results.md`†][pr18-m2_l2_cnn_results] §"여기서 발생한 프로세스 문제".
 
 ## 2026-09-18 — [M2] 공식 Validation은 최종 후보를 정할 때 딱 한 번만 확인하기로 함
 
@@ -222,7 +232,7 @@
 - **이유**: 자꾸 확인하면 사실상 공식 Validation을 두 번째 튜닝용 데이터로 쓰는 셈이 되어서
   검증의 의미가 없어짐. 팀원 yeonwoo가 쓴 "1단계(작게 확인) → 2단계(전체로 순위 매기기) → 후보
   하나로 확정 → 공식 Validation 한 번 확인"이라는 순서를 참고해서 우리도 이렇게 정함.
-- **관련**: [`m2_l1_official_validation_results.md`](../reports/mission2/m2_l1_official_validation_results.md).
+- **관련**: [`m2_l1_official_validation_results.md`†][pr18-m2_l1_official_validation_results].
 
 ## 2026-09-18 — [M2] 대회 채점은 정확도 하나만 봄 — 격차를 줄이려는 실험은 기각
 
@@ -236,7 +246,7 @@
   이유가 없음 — 숫자로 확인된 트레이드오프를 알고도 안 쓰는 것도 하나의 판단.
 - **2026-09-28 주석**: 여기서 시험한 threshold 조정(0.5→0.75)은 이제 정확도 손해와 별개로 규정상
   쓸 수 없다(위 2026-09-28 항목). 지금의 이유는 "정확도를 깎으니까 안 쓴다"가 아니라 "쓸 수 없다"다.
-- **관련**: [`m2_l1_daewon_recall_push_results.md`](../reports/mission2/m2_l1_daewon_recall_push_results.md).
+- **관련**: [`m2_l1_daewon_recall_push_results.md`†][pr18-m2_l1_daewon_recall_push_results].
 
 ## 2026-09-18 — [M2] 같은 통화 내 다른 발화와 비교하는 피처, 규정 위반이라 되돌림
 
@@ -249,7 +259,7 @@
 - **이유**: 대회 규정 위반은 성능이 얼마나 좋아지든 상관없이 실격 사유라서, 정확도보다 항상
   우선. 되돌린 뒤 다시 확인해보니 순정 53차원에서도 하이퍼파라미터 튜닝 개선폭(84.59%→86.77%)이
   오염된 기준(→86.9%)과 거의 똑같이 재현돼서, 실제 손해는 거의 없었음.
-- **관련**: [`m2_l1_model_comparison_results.md`](../reports/mission2/m2_l1_model_comparison_results.md).
+- **관련**: [`m2_l1_model_comparison_results.md`†][pr18-m2_l1_model_comparison_results].
 
 ## 2026-09-18 — [M2] L1을 먼저 끝내고 L2(CNN)는 잠깐 미룸
 
@@ -266,8 +276,8 @@
 - **담당/완료 조건**: L2를 다시 시작할 때 확인할 것: (1) hop-length 실험 재학습/평가, (2)
   `mission2-l2-cnn-clean` 브랜치에 빠진 라벨 수정 반영, (3) 공식 Validation 한 번 확인, (4)
   main에 합칠지 결정.
-- **관련**: [`m2_l2_cnn_results.md`](../reports/mission2/m2_l2_cnn_results.md),
-  [`m2_progress_narrative.md`](../reports/mission2/m2_progress_narrative.md).
+- **관련**: [`m2_l2_cnn_results.md`†][pr18-m2_l2_cnn_results],
+  [`m2_progress_narrative.md`†][pr18-m2_progress_narrative].
 
 ## 2026-09-16(발생)/09-18(기록) — [M2] 새 브랜치는 항상 main에서 시작하기 + 파일 옮길 때 내용까지 옮겨졌는지 확인하기
 
@@ -283,7 +293,7 @@
   계속 어려워지는 걸 막으려면 지금 원칙을 세우는 게 손해 없이 바로잡을 수 있는 시점이라고 판단.
 - **담당/완료 조건**: `mission2-l2-cnn-clean`에 라벨 수정 내용 다시 반영 — L2를 재개하기 전에
   반드시 해야 함.
-- **관련**: [`m2_l2_cnn_results.md`](../reports/mission2/m2_l2_cnn_results.md)
+- **관련**: [`m2_l2_cnn_results.md`†][pr18-m2_l2_cnn_results]
   §"여기서 발생한 프로세스 문제".
 
 ## 2026-09-15 — [M2] 라벨이 뒤바뀐 것 같은 통화, 직접 들어봐야 하나 (해결됨 — 듣는 대신 대화 내용을 읽어서 확인)
@@ -305,7 +315,7 @@
   패턴을 보는 자동 탐지기로 **일부만 뒤집힌 통화 2건** 추가 발견·수정. 담당 김광희, 자세한
   근거는 관련 링크 참조.
 - **관련**: [`m2_error_analysis.md`](../reports/mission2/m2_error_analysis.md) 2절,
-  [`m2_label_swap_audit.md`](../reports/mission2/m2_label_swap_audit.md).
+  [`m2_label_swap_audit.md`†][pr18-m2_label_swap_audit].
 
 ## 2026-09-15 — [M2] 분류할 때 볼 수 있는 건 그 발화 하나뿐 — 같은 통화의 다른 발화 정보는 전부 금지
 
@@ -318,7 +328,7 @@
   (사람이 라벨이 맞는지 확인하려고 읽은 것은 팀 내부 판단이고 운영진 확인 전 — 아래 2026-09-10 항목).
 - **이유**: 대회 규정은 애매하게 해석하지 않고 보수적으로 지키는 게 안전함 — 실격 위험이 정확도
   개선보다 항상 우선.
-- **관련**: [`m2_l1_model_candidates.md`](../reports/mission2/m2_l1_model_candidates.md) §0.
+- **관련**: [`m2_l1_model_candidates.md`†][pr18-m2_l1_model_candidates] §0.
 
 ## 2026-09-15 — [M2] 통화 9,000건 결과를 채택, 전체 29,200건은 오류 분석용으로만 사용
 
@@ -364,7 +374,7 @@
   설명하지 않는다.
 - **후속 조치 (아직 안 함)**: (1) 운영진에 문의해서 이 사용이 괜찮은지 확인하거나, (2) 텍스트 없이
   음성만으로 라벨을 고친 근거를 다시 확인해 본다.
-- **관련**: [`m2_label_swap_audit.md`](../reports/mission2/m2_label_swap_audit.md)
+- **관련**: [`m2_label_swap_audit.md`†][pr18-m2_label_swap_audit]
   §"확인 방법: 오디오 대신 텍스트".
 
 ## 2026-09-10 — [M1] GBM과 LR 비교, LR을 1차 후보로 정함
@@ -398,3 +408,14 @@
 ---
 
 새 결정은 첫 번째 결정 항목 위에 추가합니다.
+
+[pr18-m2_progress_narrative]: https://github.com/eigensinn-dcc2026/prelim/blob/c9afba622fedc7cad7b451bc35f3b9d868a51c8b/reports/mission2/m2_progress_narrative.md
+[pr18-m2_label_swap_audit]: https://github.com/eigensinn-dcc2026/prelim/blob/c9afba622fedc7cad7b451bc35f3b9d868a51c8b/reports/mission2/m2_label_swap_audit.md
+[pr18-m2_l1_model_comparison_results]: https://github.com/eigensinn-dcc2026/prelim/blob/c9afba622fedc7cad7b451bc35f3b9d868a51c8b/reports/mission2/m2_l1_model_comparison_results.md
+[pr18-m2_l1_daewon_recall_push_results]: https://github.com/eigensinn-dcc2026/prelim/blob/c9afba622fedc7cad7b451bc35f3b9d868a51c8b/reports/mission2/m2_l1_daewon_recall_push_results.md
+[pr18-m2_l1_official_validation_results]: https://github.com/eigensinn-dcc2026/prelim/blob/c9afba622fedc7cad7b451bc35f3b9d868a51c8b/reports/mission2/m2_l1_official_validation_results.md
+[pr18-m2_l2_cnn_results]: https://github.com/eigensinn-dcc2026/prelim/blob/c9afba622fedc7cad7b451bc35f3b9d868a51c8b/reports/mission2/m2_l2_cnn_results.md
+[pr18-m2_l1_model_candidates]: https://github.com/eigensinn-dcc2026/prelim/blob/c9afba622fedc7cad7b451bc35f3b9d868a51c8b/reports/mission2/m2_l1_model_candidates.md
+[l2clean-inference-commit]: https://github.com/eigensinn-dcc2026/prelim/commit/d40531f49a69698d5ccfc5bf66432cca13e208a8
+[l2clean-inference]: https://github.com/eigensinn-dcc2026/prelim/blob/d40531f49a69698d5ccfc5bf66432cca13e208a8/scripts/mission2_inference.py
+[l2clean-inference-test]: https://github.com/eigensinn-dcc2026/prelim/blob/d40531f49a69698d5ccfc5bf66432cca13e208a8/tests/test_mission2_inference.py
