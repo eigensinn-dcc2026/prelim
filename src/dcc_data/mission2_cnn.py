@@ -97,6 +97,17 @@ def collate_batch_with_duration(
     return padded, durations_tensor, labels_tensor
 
 
+def collate_batch_with_lengths(batch: list[tuple[torch.Tensor, int]]) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Like collate_batch, plus each spectrogram's own frame count (before
+    padding) as a (batch,) long tensor -- what SpeakerCNNLargeMasked needs to
+    tell real frames from padding.
+    """
+
+    padded, labels = collate_batch(batch)
+    lengths = torch.tensor([spec.shape[1] for spec, _ in batch], dtype=torch.long)
+    return padded, lengths, labels
+
+
 class SpeakerCNN(nn.Module):
     def __init__(self, n_mels: int = N_MELS) -> None:
         super().__init__()
@@ -233,6 +244,111 @@ class SpeakerCNNLargeWithDuration(nn.Module):
         x = self.flatten(x)
         duration_feature = torch.log1p(duration.to(x.dtype)).unsqueeze(1)
         x = torch.cat([x, duration_feature], dim=1)
+        return self.classifier(x)
+
+
+class SpeakerCNNLargeMasked(SpeakerCNNLarge):
+    """SpeakerCNNLarge, but the final average over time skips padded frames.
+
+    SpeakerCNNLarge's AdaptiveAvgPool2d averages over every time step of the
+    batch tensor, so a short utterance's pooled feature is diluted by however
+    much padding its batch neighbours forced on it -- and training (padded to
+    the batch max) sees different padding than one-utterance-at-a-time
+    inference does. That mismatch is what cost 89.73% vs 90.89% in
+    M2-VAL-004/005 until inference padded to a fixed 300 frames. Here the
+    pool only averages the ``lengths``-derived valid time steps, so the
+    result no longer depends on how much padding follows the utterance
+    (convolutions near the boundary still see a few padded frames; BatchNorm
+    running stats still include them).
+
+    Same modules as SpeakerCNNLarge (only forward differs), so a
+    SpeakerCNNLarge checkpoint loads into it directly. ``lengths`` are each
+    spectrogram's own frame counts -- see collate_batch_with_lengths; it is
+    the current utterance's own frame count, so this stays within the
+    isolated-fragment rule (see [[project-dcc2026-contest-rules]]).
+    """
+
+    # Each of features' 3 MaxPool2d(2, ceil_mode=True) maps a valid length L to
+    # ceil(L/2), and ceil(ceil(ceil(L/2)/2)/2) == ceil(L/8).
+    TIME_DOWNSAMPLE = 8
+
+    def forward(self, x: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+        x = self.features(x)
+        valid_steps = ((lengths + self.TIME_DOWNSAMPLE - 1) // self.TIME_DOWNSAMPLE).clamp(min=1)
+        positions = torch.arange(x.shape[3], device=x.device)
+        mask = (positions[None, :] < valid_steps[:, None].to(x.device)).to(x.dtype)[:, None, None, :]
+        pooled = (x * mask).sum(dim=(2, 3)) / (mask.sum(dim=(2, 3)) * x.shape[2])
+        return self.classifier(pooled)
+
+
+class _ResidualBlock(nn.Module):
+    """Two 3x3 convs plus a shortcut. ``stride`` 2 halves both axes with
+    ceil semantics (out = ceil(in/2)), matching MaxPool2d(2, ceil_mode=True),
+    so a stack of these downsamples by the same factor as SpeakerCNNLarge.
+    """
+
+    def __init__(self, in_channels: int, out_channels: int, stride: int) -> None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        if stride != 1 or in_channels != out_channels:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(out_channels),
+            )
+        else:
+            self.shortcut = nn.Identity()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = torch.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        return torch.relu(out + self.shortcut(x))
+
+
+class SpeakerResNet(nn.Module):
+    """A small ResNet over the same log-mel input as SpeakerCNNLarge.
+
+    Same widths (32->64->128->256) and same 8x downsampling as
+    SpeakerCNNLarge, but each stage is a residual block (two convs + a
+    shortcut) instead of one conv, and downsampling is a stride-2 conv
+    instead of MaxPool. The stem is a plain stride-1 3x3 conv with no pooling
+    ("small stem"): eunkyo00's team reported that swapping ResNet18's 7x7
+    stride-2 stem + maxpool for this took an ImageNet-init ResNet18 from
+    88.60% to 90.25% on official Validation (their own numbers; the 90.25%
+    epoch and threshold were picked on Validation) -- a spectrogram this
+    small (40 mels, tens of frames) can't afford the early 4x reduction.
+    Trained from scratch here (no ImageNet weights). About 3x
+    SpeakerCNNLarge's parameters (1.26M vs 0.42M), so a win here is depth +
+    shortcuts + capacity together, not shortcuts alone.
+    Same head as SpeakerCNNLarge. A separate class so no existing checkpoint
+    is affected; --model resnet in scripts/train_mission2_cnn.py.
+    """
+
+    def __init__(self, n_mels: int = N_MELS) -> None:
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            _ResidualBlock(32, 32, stride=1),
+            _ResidualBlock(32, 64, stride=2),
+            _ResidualBlock(64, 128, stride=2),
+            _ResidualBlock(128, 256, stride=2),
+        )
+        self.pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 2),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.features(x)
+        x = self.pool(x)
         return self.classifier(x)
 
 

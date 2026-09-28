@@ -58,23 +58,45 @@ from sklearn.metrics import confusion_matrix, recall_score  # noqa: E402
 from dcc_data.mission2_cnn import (  # noqa: E402
     SpeakerCNN,
     SpeakerCNNLarge,
+    SpeakerCNNLargeMasked,
     SpeakerCNNLargeWithDuration,
+    SpeakerResNet,
     SpectrogramDataset,
     SpectrogramWithDurationDataset,
     collate_batch,
     collate_batch_with_duration,
+    collate_batch_with_lengths,
     evaluate,
     move_optimizer_state_to_device,
     train_with_best_checkpoint,
 )
 from dcc_data.mission2_train import make_group_split  # noqa: E402
 
-MODEL_CLASSES = {"small": SpeakerCNN, "large": SpeakerCNNLarge, "large-duration": SpeakerCNNLargeWithDuration}
-# large-duration's loader yields (specs, duration, label) instead of (specs,
-# label) -- see SpeakerCNNLargeWithDuration's docstring -- so its Dataset/
-# collate_fn differ too; every other model shares the plain pair.
-DATASET_CLASSES = {"small": SpectrogramDataset, "large": SpectrogramDataset, "large-duration": SpectrogramWithDurationDataset}
-COLLATE_FNS = {"small": collate_batch, "large": collate_batch, "large-duration": collate_batch_with_duration}
+MODEL_CLASSES = {
+    "small": SpeakerCNN,
+    "large": SpeakerCNNLarge,
+    "large-duration": SpeakerCNNLargeWithDuration,
+    "resnet": SpeakerResNet,
+    "large-masked": SpeakerCNNLargeMasked,
+}
+# large-duration's loader yields (specs, duration, label) and large-masked's
+# yields (specs, lengths, label) instead of (specs, label) -- see
+# SpeakerCNNLargeWithDuration's and SpeakerCNNLargeMasked's docstrings -- so
+# their Dataset/collate_fn differ too; every other model shares the plain pair.
+DATASET_CLASSES = {
+    "small": SpectrogramDataset,
+    "large": SpectrogramDataset,
+    "large-duration": SpectrogramWithDurationDataset,
+    "resnet": SpectrogramDataset,
+    "large-masked": SpectrogramDataset,
+}
+COLLATE_FNS = {
+    "small": collate_batch,
+    "large": collate_batch,
+    "large-duration": collate_batch_with_duration,
+    "resnet": collate_batch,
+    "large-masked": collate_batch_with_lengths,
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -99,7 +121,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model", type=str, default="small", choices=list(MODEL_CLASSES),
         help="small=SpeakerCNN (25.7k params), large=SpeakerCNNLarge (422k params), "
-        "large-duration=SpeakerCNNLarge + this utterance's own duration_sec as an explicit input",
+        "large-duration=SpeakerCNNLarge + this utterance's own duration_sec as an explicit input, "
+        "resnet=SpeakerResNet (1.26M params, residual blocks, same input), "
+        "large-masked=SpeakerCNNLarge with the final time-average skipping padded frames (same 422k params)",
     )
     parser.add_argument("--model-output", type=Path, default=Path("checkpoints/mission2/m2_cnn.pt"))
     parser.add_argument("--resume", action="store_true", help="continue from --model-output instead of a fresh model")

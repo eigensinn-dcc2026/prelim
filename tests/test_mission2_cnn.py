@@ -11,11 +11,14 @@ import torch
 from dcc_data.mission2_cnn import (
     SpeakerCNN,
     SpeakerCNNLarge,
+    SpeakerCNNLargeMasked,
     SpeakerCNNLargeWithDuration,
+    SpeakerResNet,
     SpectrogramDataset,
     SpectrogramWithDurationDataset,
     collate_batch,
     collate_batch_with_duration,
+    collate_batch_with_lengths,
     evaluate,
     move_optimizer_state_to_device,
     predict_with_confidence,
@@ -206,6 +209,143 @@ def test_train_one_epoch_and_evaluate_work_with_a_duration_conditioned_model(tmp
     loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=collate_batch_with_duration)
 
     model = SpeakerCNNLargeWithDuration()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+    loss = train_one_epoch(model, loader, optimizer, device="cpu")
+    assert np.isfinite(loss)
+
+    acc, preds, labels = evaluate(model, loader, device="cpu")
+    assert 0.0 <= acc <= 1.0
+    assert preds.shape == labels.shape == (3,)
+
+
+def test_collate_batch_with_lengths_returns_each_spectrograms_own_frame_count(tmp_path) -> None:
+    index_df, frame_counts = _make_index_and_specs(tmp_path)
+    dataset = SpectrogramDataset(index_df, tmp_path)
+    batch = [dataset[i] for i in range(3)]
+
+    specs, lengths, labels = collate_batch_with_lengths(batch)
+
+    assert specs.shape == (3, 1, N_MELS, max(frame_counts))
+    assert lengths.dtype == torch.long
+    assert lengths.tolist() == frame_counts
+    assert labels.shape == (3,)
+
+
+def test_speaker_resnet_forward_pass_shape_for_variable_length_batch(tmp_path) -> None:
+    index_df, _ = _make_index_and_specs(tmp_path)
+    dataset = SpectrogramDataset(index_df, tmp_path)
+    specs, _ = collate_batch([dataset[i] for i in range(3)])
+
+    model = SpeakerResNet()
+    logits = model(specs)
+
+    assert logits.shape == (3, 2)
+    assert torch.isfinite(logits).all()
+
+
+def test_speaker_resnet_handles_a_very_short_single_frame_spectrogram() -> None:
+    model = SpeakerResNet()
+    model.eval()
+    logits = model(torch.zeros(1, 1, N_MELS, 1))
+    assert logits.shape == (1, 2)
+    assert torch.isfinite(logits).all()
+
+
+def test_speaker_cnn_large_masked_forward_pass_shape_for_variable_length_batch(tmp_path) -> None:
+    index_df, _ = _make_index_and_specs(tmp_path)
+    dataset = SpectrogramDataset(index_df, tmp_path)
+    specs, lengths, _ = collate_batch_with_lengths([dataset[i] for i in range(3)])
+
+    model = SpeakerCNNLargeMasked()
+    logits = model(specs, lengths)
+
+    assert logits.shape == (3, 2)
+    assert torch.isfinite(logits).all()
+
+
+def test_speaker_cnn_large_masked_handles_a_very_short_single_frame_spectrogram() -> None:
+    model = SpeakerCNNLargeMasked()
+    model.eval()
+    logits = model(torch.zeros(1, 1, N_MELS, 1), torch.tensor([1]))
+    assert logits.shape == (1, 2)
+    assert torch.isfinite(logits).all()
+
+
+def test_speaker_cnn_large_masked_ignores_how_much_padding_follows_the_utterance() -> None:
+    # The whole point of masked pooling: the same utterance must get the same
+    # logits whether it sits in a batch padded to 60 frames or to 100. Padding
+    # amounts are chosen far past the 4-layer conv stack's receptive field
+    # (~19 frames either side) so conv boundary effects can't reach the valid
+    # positions -- any remaining difference would be the pooling itself.
+    true_frames = 10
+    spec = torch.from_numpy(np.random.default_rng(0).uniform(-40, 0, size=(N_MELS, true_frames)).astype(np.float32))
+
+    def pad_to(total_frames: int) -> torch.Tensor:
+        padded = torch.full((1, 1, N_MELS, total_frames), SPEC_FLOOR_DB)
+        padded[0, 0, :, :true_frames] = spec
+        return padded
+
+    lengths = torch.tensor([true_frames])
+    masked = SpeakerCNNLargeMasked()
+    masked.eval()
+    unmasked = SpeakerCNNLarge()
+    unmasked.eval()
+    with torch.no_grad():
+        masked_short_pad = masked(pad_to(60), lengths)
+        masked_long_pad = masked(pad_to(100), lengths)
+        unmasked_short_pad = unmasked(pad_to(60))
+        unmasked_long_pad = unmasked(pad_to(100))
+
+    assert torch.allclose(masked_short_pad, masked_long_pad, atol=1e-5)
+    # Guard: this fixture really is sensitive to padding amount -- the
+    # unmasked model, which averages over the padded tail, does not pass it.
+    assert not torch.allclose(unmasked_short_pad, unmasked_long_pad, atol=1e-5)
+
+
+def test_speaker_cnn_large_masked_actually_uses_the_lengths_input(tmp_path) -> None:
+    index_df, frame_counts = _make_index_and_specs(tmp_path)
+    dataset = SpectrogramDataset(index_df, tmp_path)
+    specs, lengths, _ = collate_batch_with_lengths([dataset[i] for i in range(3)])
+
+    model = SpeakerCNNLargeMasked()
+    model.eval()
+    with torch.no_grad():
+        logits_true_lengths = model(specs, lengths)
+        logits_full_lengths = model(specs, torch.full((3,), max(frame_counts)))
+
+    # Same tensor, only the lengths differ -- if they weren't read, identical.
+    assert not torch.allclose(logits_true_lengths, logits_full_lengths)
+
+
+def test_speaker_cnn_large_masked_loads_a_speaker_cnn_large_state_dict() -> None:
+    # Same conv stack + classifier, only the pooling differs -- so an existing
+    # SpeakerCNNLarge checkpoint can be re-scored with masked pooling.
+    SpeakerCNNLargeMasked().load_state_dict(SpeakerCNNLarge().state_dict())
+
+
+def test_train_one_epoch_and_evaluate_work_with_a_length_masked_model(tmp_path) -> None:
+    index_df, _ = _make_index_and_specs(tmp_path)
+    dataset = SpectrogramDataset(index_df, tmp_path)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=collate_batch_with_lengths)
+
+    model = SpeakerCNNLargeMasked()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+    loss = train_one_epoch(model, loader, optimizer, device="cpu")
+    assert np.isfinite(loss)
+
+    acc, preds, labels = evaluate(model, loader, device="cpu")
+    assert 0.0 <= acc <= 1.0
+    assert preds.shape == labels.shape == (3,)
+
+
+def test_train_one_epoch_and_evaluate_work_with_speaker_resnet(tmp_path) -> None:
+    index_df, _ = _make_index_and_specs(tmp_path)
+    dataset = SpectrogramDataset(index_df, tmp_path)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=collate_batch)
+
+    model = SpeakerResNet()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     loss = train_one_epoch(model, loader, optimizer, device="cpu")
