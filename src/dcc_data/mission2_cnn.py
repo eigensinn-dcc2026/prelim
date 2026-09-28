@@ -12,6 +12,7 @@ only with tiny CPU-only smoke tests, see tests/test_mission2_cnn.py).
 
 from __future__ import annotations
 
+from collections import deque
 from pathlib import Path
 
 import numpy as np
@@ -41,6 +42,71 @@ class SpectrogramDataset(torch.utils.data.Dataset):
         row = self.index_df.iloc[idx]
         spec = np.load(self.spectrogram_dir / row["npy_path"])
         return torch.from_numpy(spec), int(row["speaker"])
+
+
+def spec_augment(
+    spec: torch.Tensor,
+    *,
+    freq_mask_width: int = 8,
+    n_freq_masks: int = 2,
+    time_mask_frac: float = 0.15,
+    n_time_masks: int = 2,
+    max_time_mask_frames: int = 20,
+) -> torch.Tensor:
+    """SpecAugment (frequency + time masking) on one ``(n_mels, n_frames)``
+    log-mel spectrogram; returns a new tensor and leaves ``spec`` untouched.
+
+    Masked cells are set to ``SPEC_FLOOR_DB`` -- the same "silence" value
+    collate_batch pads with, so a masked band/gap reads as "no energy
+    there", never as a spurious loud region.
+
+    Mask sizes are drawn per utterance from torch's *global* RNG (so
+    ``--torch-seed`` reproduces them, and DataLoader workers each get their
+    own derived seed). Frequency masks are up to ``freq_mask_width`` mel
+    bins wide. Time masks are capped at ``time_mask_frac`` of THIS
+    utterance's own frames (and ``max_time_mask_frames``), so a 0.3 s
+    utterance (~15 frames) loses at most 2 frames per mask instead of a
+    fixed 20 that would erase most of it -- the short "네"/"예" utterances
+    are the ones this model is worst at, and blanking them out would only
+    teach it to guess. Only this utterance's own spectrogram is used.
+    """
+
+    out = spec.clone()
+    n_mels, n_frames = out.shape
+    max_freq = min(freq_mask_width, n_mels)
+    if max_freq >= 1:
+        for _ in range(n_freq_masks):
+            width = int(torch.randint(0, max_freq + 1, (1,)))
+            if width == 0:
+                continue
+            start = int(torch.randint(0, n_mels - width + 1, (1,)))
+            out[start : start + width, :] = SPEC_FLOOR_DB
+    max_time = min(max_time_mask_frames, int(time_mask_frac * n_frames))
+    if max_time >= 1:
+        for _ in range(n_time_masks):
+            width = int(torch.randint(0, max_time + 1, (1,)))
+            if width == 0:
+                continue
+            start = int(torch.randint(0, n_frames - width + 1, (1,)))
+            out[:, start : start + width] = SPEC_FLOOR_DB
+    return out
+
+
+class AugmentedSpectrogramDataset(SpectrogramDataset):
+    """SpectrogramDataset whose ``__getitem__`` applies ``spec_augment``.
+
+    Training only -- build the validation/evaluation dataset from plain
+    SpectrogramDataset so held-out accuracy is measured on untouched input.
+    ``augment_kwargs`` is passed straight to ``spec_augment``.
+    """
+
+    def __init__(self, index_df: pd.DataFrame, spectrogram_dir: str | Path, **augment_kwargs) -> None:
+        super().__init__(index_df, spectrogram_dir)
+        self.augment_kwargs = augment_kwargs
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
+        spec, label = super().__getitem__(idx)
+        return spec_augment(spec, **self.augment_kwargs), label
 
 
 def collate_batch(batch: list[tuple[torch.Tensor, int]]) -> tuple[torch.Tensor, torch.Tensor]:
@@ -234,6 +300,59 @@ class SpeakerCNNLargeWithDuration(nn.Module):
         duration_feature = torch.log1p(duration.to(x.dtype)).unsqueeze(1)
         x = torch.cat([x, duration_feature], dim=1)
         return self.classifier(x)
+
+
+class RecentWeightAverager:
+    """Keeps the model weights from the last ``k`` epochs and averages them.
+
+    Late in training the weights wander around a minimum and val accuracy
+    swings by a few tenths of a point from epoch to epoch (see
+    train_with_best_checkpoint); their mean is usually a bit steadier than
+    any single epoch. The result is ONE model, so inference cost and file
+    size are unchanged. Call ``add(model)`` once per finished epoch.
+
+    Averages every floating-point entry of the state_dict (BatchNorm's
+    running mean/var included); integer entries (``num_batches_tracked``)
+    take the newest value. Averaged BatchNorm statistics are only an
+    approximation -- call ``recalibrate_batch_norm`` on the averaged model.
+    """
+
+    def __init__(self, k: int) -> None:
+        if k < 1:
+            raise ValueError("k must be >= 1")
+        self.k = k
+        self._states: deque[dict] = deque(maxlen=k)
+
+    def __len__(self) -> int:
+        return len(self._states)
+
+    def add(self, model: nn.Module) -> None:
+        self._states.append({name: value.detach().cpu().clone() for name, value in model.state_dict().items()})
+
+    def averaged_state(self) -> dict:
+        if not self._states:
+            raise ValueError("no epochs recorded yet")
+        newest = self._states[-1]
+        averaged = {}
+        for name, value in newest.items():
+            if value.is_floating_point():
+                averaged[name] = torch.stack([state[name] for state in self._states]).mean(dim=0)
+            else:
+                averaged[name] = value.clone()
+        return averaged
+
+
+@torch.no_grad()
+def recalibrate_batch_norm(model: nn.Module, loader, device: str) -> None:
+    """Re-estimate BatchNorm running statistics with one pass over ``loader``
+    (forward only, no weight changes). Needed after averaging weights, since
+    the averaged weights produce different activations than any single epoch
+    did. ``loader`` must yield ``(specs, labels)`` pairs (the plain-model
+    loader); only ``specs`` is fed to the model.
+    """
+
+    model.to(device)
+    torch.optim.swa_utils.update_bn(loader, model, device=device)
 
 
 def move_optimizer_state_to_device(optimizer: torch.optim.Optimizer, device: str) -> None:

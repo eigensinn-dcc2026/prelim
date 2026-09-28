@@ -56,6 +56,8 @@ import torch  # noqa: E402
 from sklearn.metrics import confusion_matrix, recall_score  # noqa: E402
 
 from dcc_data.mission2_cnn import (  # noqa: E402
+    AugmentedSpectrogramDataset,
+    RecentWeightAverager,
     SpeakerCNN,
     SpeakerCNNLarge,
     SpeakerCNNLargeWithDuration,
@@ -65,6 +67,7 @@ from dcc_data.mission2_cnn import (  # noqa: E402
     collate_batch_with_duration,
     evaluate,
     move_optimizer_state_to_device,
+    recalibrate_batch_norm,
     train_with_best_checkpoint,
 )
 from dcc_data.mission2_train import make_group_split  # noqa: E402
@@ -101,6 +104,25 @@ def parse_args() -> argparse.Namespace:
         help="small=SpeakerCNN (25.7k params), large=SpeakerCNNLarge (422k params), "
         "large-duration=SpeakerCNNLarge + this utterance's own duration_sec as an explicit input",
     )
+    parser.add_argument(
+        "--specaug", action="store_true",
+        help="train-time SpecAugment: mask random mel-bin bands and time spans of each training utterance's OWN "
+        "spectrogram (masked cells = the silence floor). Validation input is never augmented. Only for "
+        "--model small/large (plain (specs, labels) loader).",
+    )
+    parser.add_argument("--specaug-freq-width", type=int, default=8, help="max width of one frequency mask, in mel bins")
+    parser.add_argument(
+        "--specaug-time-frac", type=float, default=0.15,
+        help="max width of one time mask as a fraction of THAT utterance's own frames (also capped at 20 frames), "
+        "so short utterances are never blanked out",
+    )
+    parser.add_argument(
+        "--swa-last-k", type=int, default=0,
+        help="if > 0, also average the weights of this invocation's last K epochs into one model (BatchNorm "
+        "statistics re-estimated with one forward pass over the train set) and report/save its val accuracy "
+        "next to the best-epoch and last-epoch ones. Only for --model small/large. With --resume the average "
+        "covers only this invocation's epochs (fewer than K if it ran fewer).",
+    )
     parser.add_argument("--model-output", type=Path, default=Path("checkpoints/mission2/m2_cnn.pt"))
     parser.add_argument("--resume", action="store_true", help="continue from --model-output instead of a fresh model")
     return parser.parse_args()
@@ -125,10 +147,21 @@ def main() -> int:
     val_df = df.iloc[val_idx]
     print(f"train={len(train_df)} val={len(val_df)} train_calls={train_df['call_id'].nunique()} val_calls={val_df['call_id'].nunique()}")
 
+    if (args.specaug or args.swa_last_k > 0) and args.model not in ("small", "large"):
+        raise SystemExit("--specaug/--swa-last-k only support --model small/large (plain (specs, labels) loader)")
+
     dataset_cls = DATASET_CLASSES[args.model]
     collate_fn = COLLATE_FNS[args.model]
+    if args.specaug:
+        train_dataset = AugmentedSpectrogramDataset(
+            train_df, args.spectrogram_dir,
+            freq_mask_width=args.specaug_freq_width, time_mask_frac=args.specaug_time_frac,
+        )
+        print(f"SpecAugment ON: freq_mask_width={args.specaug_freq_width} time_mask_frac={args.specaug_time_frac}")
+    else:
+        train_dataset = dataset_cls(train_df, args.spectrogram_dir)
     train_loader = torch.utils.data.DataLoader(
-        dataset_cls(train_df, args.spectrogram_dir),
+        train_dataset,
         batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=args.num_workers,
         generator=train_shuffle_generator,
     )
@@ -178,7 +211,11 @@ def main() -> int:
             f"standing best val_acc={prev_best_val_acc:.4f} (epoch {prev_best_epoch})"
         )
 
+    averager = RecentWeightAverager(args.swa_last_k) if args.swa_last_k > 0 else None
+
     def on_epoch_end(record: dict) -> None:
+        if averager is not None:
+            averager.add(model)
         lr = optimizer.param_groups[0]["lr"]
         absolute_epoch = epochs_already_trained + record["epoch"]
         print(f"epoch {absolute_epoch:3d}  train_loss={record['train_loss']:.4f}  val_acc={record['val_acc']:.4f}  lr={lr:.2e}")
@@ -203,9 +240,30 @@ def main() -> int:
         best_epoch = prev_best_epoch
         best_preds = best_labels = None
 
+    last_epoch_val_acc = result["history"][-1]["val_acc"]
+    swa_extra: dict = {}
+    if averager is not None:
+        swa_model = model_cls()
+        swa_model.load_state_dict(averager.averaged_state())
+        recalibrate_batch_norm(swa_model, train_loader, args.device)
+        swa_val_acc, _, _ = evaluate(swa_model, val_loader, device=args.device)
+        print(
+            f"SWA (mean of last {len(averager)} epochs, BN re-estimated): val_acc={swa_val_acc:.4f}  "
+            f"| last epoch={last_epoch_val_acc:.4f}  best epoch={best_val_acc:.4f}"
+        )
+        if len(averager) < args.swa_last_k:
+            print(f"WARNING: only {len(averager)} epochs available for --swa-last-k {args.swa_last_k}")
+        swa_extra = {
+            "swa_model_state_dict": {k: v.detach().cpu().clone() for k, v in swa_model.state_dict().items()},
+            "swa_val_acc": swa_val_acc,
+            "swa_num_epochs_averaged": len(averager),
+        }
+
     args.model_output.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
+            **swa_extra,
+            "last_val_acc": last_epoch_val_acc,
             "best_model_state_dict": best_model_state,
             "best_val_acc": best_val_acc,
             "best_epoch": best_epoch,
