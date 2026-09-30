@@ -9,8 +9,10 @@ lose exactly the information those stats discard.
 """
 from __future__ import annotations
 
+import ast
 import importlib
 import json
+import re
 import sys
 import wave
 from pathlib import Path
@@ -335,6 +337,24 @@ def test_training_guard_refuses_an_index_without_provenance_and_says_how_to_fix_
     for column in INDEX_PROVENANCE_COLUMNS:
         assert column in message
     assert "build_mission2_spectrograms.py" in message
+
+
+def test_the_restamp_advice_in_the_refusal_message_really_makes_a_legacy_index_pass() -> None:
+    legacy = pd.DataFrame(
+        {"call_id": ["a", "a"], "utt_idx": [0, 1], "speaker": [0, 1], "duration_sec": [1.0, 2.0],
+         "n_frames": [10, 20], "npy_path": ["a/0.npy", "a/1.npy"]}
+    )
+    with pytest.raises(SplitContaminationError) as excinfo:
+        assert_training_spectrogram_index(legacy)
+
+    # take the one-liner the message prints, exactly as printed, and apply it
+    advice = re.search(r"df\.assign\((.*?)\)\.to_parquet", str(excinfo.value)).group(1)
+    call = ast.parse(f"assign({advice})", mode="eval").body
+    stamped = legacy.assign(**{keyword.arg: ast.literal_eval(keyword.value) for keyword in call.keywords})
+
+    assert assert_training_spectrogram_index(stamped) == {
+        "split": "Training", "n_mels": N_MELS, "hop_length": HOP_LENGTH, "n_fft": N_FFT, "sample_rate": SAMPLE_RATE,
+    }
 
 
 def test_training_guard_refuses_an_index_with_only_some_provenance_columns(tmp_path: Path) -> None:
