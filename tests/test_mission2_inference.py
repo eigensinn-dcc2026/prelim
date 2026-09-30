@@ -212,3 +212,171 @@ def test_main_falls_back_to_majority_class_when_audio_is_unreadable(tmp_path: Pa
     assert len(rows) == 2
     for row in rows:
         assert row["speaker"] == expected_fallback
+
+
+# ---------------------------------------------------------------------------
+# Input completeness: a partial CSV must never look like a successful run
+# ---------------------------------------------------------------------------
+
+
+def _run_inference_expecting_failure(audio_dir: Path, label_dir: Path, ckpt_path: Path, output_path: Path):
+    old_argv = sys.argv
+    sys.argv = [
+        "mission2_inference.py",
+        "--audio_dir", str(audio_dir),
+        "--label_dir", str(label_dir),
+        "--ckpt_path", str(ckpt_path),
+        "--output", str(output_path),
+    ]
+    try:
+        with pytest.raises(ValueError) as excinfo:
+            mission2_inference.main()
+    finally:
+        sys.argv = old_argv
+    return excinfo.value
+
+
+def _nothing_written(output_path: Path) -> bool:
+    return not output_path.exists() and not list(output_path.parent.glob(".*.tmp"))
+
+
+def test_pair_by_stem_strict_returns_what_pair_by_stem_returns_when_everything_lines_up(tmp_path: Path) -> None:
+    from dcc_data.mission2_features import pair_by_stem
+
+    audio_dir = tmp_path / "audio"
+    label_dir = tmp_path / "labels"
+    _write_call(audio_dir, label_dir, "call_b", [(0, 500)], seed=0)
+    _write_call(audio_dir, label_dir, "call_a", [(0, 500)], seed=1)
+
+    assert mission2_inference.pair_by_stem_strict(audio_dir, label_dir) == pair_by_stem(audio_dir, label_dir)
+
+
+def test_pair_by_stem_strict_accepts_nested_folders_when_the_stems_are_unique(tmp_path: Path) -> None:
+    _write_wav(tmp_path / "audio" / "part1" / "call1.wav", 1.0, seed=0)
+    _write_wav(tmp_path / "audio" / "part2" / "call2.wav", 1.0, seed=1)
+    for stem in ("call1", "call2"):
+        (tmp_path / "labels" / "x").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "labels" / "x" / f"{stem}.json").write_text(json.dumps({"utterances": []}), encoding="utf-8")
+
+    pairs = mission2_inference.pair_by_stem_strict(tmp_path / "audio", tmp_path / "labels")
+
+    assert [stem for stem, _, _ in pairs] == ["call1", "call2"]
+
+
+def test_pair_by_stem_strict_names_a_wav_without_a_label_and_a_label_without_a_wav(tmp_path: Path) -> None:
+    audio_dir = tmp_path / "audio"
+    label_dir = tmp_path / "labels"
+    _write_call(audio_dir, label_dir, "both", [(0, 500)], seed=0)
+    _write_wav(audio_dir / "wav_only.wav", 1.0, seed=1)
+    (label_dir / "json_only.json").write_text(json.dumps({"utterances": []}), encoding="utf-8")
+
+    with pytest.raises(ValueError) as excinfo:
+        mission2_inference.pair_by_stem_strict(audio_dir, label_dir)
+
+    message = str(excinfo.value)
+    assert "1 WAV stem(s) have no label JSON: wav_only" in message
+    assert "1 label JSON stem(s) have no WAV: json_only" in message
+
+
+def test_pair_by_stem_strict_rejects_a_repeated_stem_instead_of_letting_one_overwrite_the_other(
+    tmp_path: Path,
+) -> None:
+    audio_dir = tmp_path / "audio"
+    label_dir = tmp_path / "labels"
+    _write_call(audio_dir, label_dir, "call1", [(0, 500)], seed=0)
+    _write_wav(audio_dir / "elsewhere" / "call1.wav", 1.0, seed=1)
+    (label_dir / "elsewhere").mkdir(parents=True)
+    (label_dir / "elsewhere" / "call1.json").write_text(json.dumps({"utterances": []}), encoding="utf-8")
+
+    with pytest.raises(ValueError) as excinfo:
+        mission2_inference.pair_by_stem_strict(audio_dir, label_dir)
+
+    message = str(excinfo.value)
+    assert "1 WAV stem(s) appear more than once: call1" in message
+    assert "1 label JSON stem(s) appear more than once: call1" in message
+
+
+def test_pair_by_stem_strict_rejects_empty_inputs(tmp_path: Path) -> None:
+    (tmp_path / "audio").mkdir()
+    (tmp_path / "labels").mkdir()
+
+    with pytest.raises(ValueError, match="no .wav files"):
+        mission2_inference.pair_by_stem_strict(tmp_path / "audio", tmp_path / "labels")
+
+
+def test_main_refuses_a_wav_without_its_label_and_writes_no_csv(tmp_path: Path, l1_checkpoint: Path) -> None:
+    audio_dir = tmp_path / "audio"
+    label_dir = tmp_path / "labels"
+    _write_call(audio_dir, label_dir, "call1", [(0, 90), (200, 1800)], seed=0)
+    _write_wav(audio_dir / "call2.wav", 1.0, seed=1)  # its label JSON never arrived
+    output_path = tmp_path / "out" / "mission2.csv"
+
+    error = _run_inference_expecting_failure(audio_dir, label_dir, l1_checkpoint, output_path)
+
+    assert "call2" in str(error)
+    assert _nothing_written(output_path)
+
+
+def test_main_refuses_a_label_without_its_wav_and_writes_no_csv(tmp_path: Path, l1_checkpoint: Path) -> None:
+    audio_dir = tmp_path / "audio"
+    label_dir = tmp_path / "labels"
+    _write_call(audio_dir, label_dir, "call1", [(0, 90), (200, 1800)], seed=0)
+    (label_dir / "call2.json").write_text(json.dumps({"utterances": [{"startAt": 0, "endAt": 500}]}), encoding="utf-8")
+    output_path = tmp_path / "out" / "mission2.csv"
+
+    error = _run_inference_expecting_failure(audio_dir, label_dir, l1_checkpoint, output_path)
+
+    assert "call2" in str(error)
+    assert _nothing_written(output_path)
+
+
+def test_main_refuses_a_repeated_stem_and_writes_no_csv(tmp_path: Path, l1_checkpoint: Path) -> None:
+    audio_dir = tmp_path / "audio"
+    label_dir = tmp_path / "labels"
+    _write_call(audio_dir, label_dir, "call1", [(0, 90)], seed=0)
+    _write_wav(audio_dir / "copy" / "call1.wav", 1.0, seed=1)
+    output_path = tmp_path / "out" / "mission2.csv"
+
+    error = _run_inference_expecting_failure(audio_dir, label_dir, l1_checkpoint, output_path)
+
+    assert "more than once: call1" in str(error)
+    assert _nothing_written(output_path)
+
+
+def test_main_accepts_a_call_whose_label_has_no_utterances(tmp_path: Path, l1_checkpoint: Path) -> None:
+    audio_dir = tmp_path / "audio"
+    label_dir = tmp_path / "labels"
+    _write_call(audio_dir, label_dir, "call1", [(0, 90), (200, 1800)], seed=0)
+    _write_wav(audio_dir / "empty.wav", 1.0, seed=1)
+    (label_dir / "empty.json").write_text(json.dumps({"_id": "empty", "utterances": []}), encoding="utf-8")
+
+    output_path = tmp_path / "out" / "mission2.csv"
+    _run_inference(audio_dir, label_dir, l1_checkpoint, output_path)
+
+    assert len(_read_rows(output_path)) == 2
+
+
+def test_verify_output_complete_accepts_a_matching_run_and_refuses_any_shortfall() -> None:
+    rows = [{"speaker": 0}] * 4
+
+    mission2_inference.verify_output_complete(expected_calls=2, calls_seen=2, expected_rows=4, rows=rows)
+    with pytest.raises(ValueError, match="incomplete"):
+        mission2_inference.verify_output_complete(expected_calls=2, calls_seen=2, expected_rows=5, rows=rows)
+    with pytest.raises(ValueError, match="incomplete"):
+        mission2_inference.verify_output_complete(expected_calls=3, calls_seen=2, expected_rows=4, rows=rows)
+
+
+def test_main_refuses_to_write_when_the_row_count_disagrees_with_the_labels(
+    tmp_path: Path, l1_checkpoint: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    audio_dir = tmp_path / "audio"
+    label_dir = tmp_path / "labels"
+    _write_call(audio_dir, label_dir, "call1", [(0, 90), (200, 1800)], seed=0)
+    # as if a code change made the loop drop a row: the independent count says 3, the loop produces 2
+    monkeypatch.setattr(mission2_inference, "count_label_utterances", lambda paths: 3)
+    output_path = tmp_path / "out" / "mission2.csv"
+
+    error = _run_inference_expecting_failure(audio_dir, label_dir, l1_checkpoint, output_path)
+
+    assert "output is incomplete" in str(error)
+    assert _nothing_written(output_path)

@@ -8,8 +8,14 @@
 audio_dir/label_dir are paired by filename stem with no Training/Validation
 subfolder assumption, since the grader hands us a flat folder (this is why
 dcc_data.manifest.build_manifest -- which requires exactly one Training or
-Validation path component -- is not used here; see
-dcc_data.mission2_features.pair_by_stem).
+Validation path component -- is not used here; see pair_by_stem_strict below,
+which is dcc_data.mission2_features.pair_by_stem plus the checks a submission
+needs).
+
+The run fails, without writing a CSV, if a WAV has no label JSON (or the
+reverse), if a stem appears twice, or if the finished output does not have one
+row per labelled utterance -- a partial CSV must never look like a successful
+run.
 
 Row order follows each label file's own utterance order, and startAt/endAt
 are copied through unmodified, per the contest's output format
@@ -66,7 +72,6 @@ if str(SOURCE_ROOT) not in sys.path:
 from dcc_data.mission2_features import (  # noqa: E402
     FEATURE_COLUMNS,
     N_FFT,
-    pair_by_stem,
     read_call_waveform,
     slice_and_pad,
     utterance_feature_vector,
@@ -98,6 +103,69 @@ def pad_spectrogram_to_min_frames(spectrogram: np.ndarray, min_frames: int = L2_
         return spectrogram
     padding = np.full((n_mels, min_frames - n_frames), SPEC_FLOOR_DB, dtype=spectrogram.dtype)
     return np.concatenate([spectrogram, padding], axis=1)
+
+
+def _index_by_stem(root: Path, pattern: str) -> dict[str, list[Path]]:
+    found: dict[str, list[Path]] = {}
+    for path in sorted(Path(root).rglob(pattern)):
+        found.setdefault(path.stem, []).append(path)
+    return found
+
+
+def _preview(items, limit: int = 5) -> str:
+    items = list(items)
+    shown = ", ".join(str(item) for item in items[:limit])
+    return f"{shown}, ... (+{len(items) - limit} more)" if len(items) > limit else shown
+
+
+def pair_by_stem_strict(audio_dir: Path, label_dir: Path) -> list[tuple[str, Path, Path]]:
+    """What dcc_data.mission2_features.pair_by_stem returns, or a ValueError naming every problem.
+
+    pair_by_stem keeps only the stems present in *both* folders and lets a repeated stem silently
+    overwrite another, which is fine for building training data but not for a submission: a WAV without
+    its label JSON (or the reverse) would just vanish from the CSV and the run would still exit 0.
+    """
+
+    wavs = _index_by_stem(audio_dir, "*.wav")
+    jsons = _index_by_stem(label_dir, "*.json")
+
+    problems = []
+    if not wavs and not jsons:
+        problems.append(f"no .wav files under {audio_dir} and no .json files under {label_dir}")
+    duplicated_wavs = sorted(stem for stem, paths in wavs.items() if len(paths) > 1)
+    if duplicated_wavs:
+        problems.append(f"{len(duplicated_wavs)} WAV stem(s) appear more than once: {_preview(duplicated_wavs)}")
+    duplicated_jsons = sorted(stem for stem, paths in jsons.items() if len(paths) > 1)
+    if duplicated_jsons:
+        problems.append(f"{len(duplicated_jsons)} label JSON stem(s) appear more than once: {_preview(duplicated_jsons)}")
+    wav_only = sorted(set(wavs) - set(jsons))
+    if wav_only:
+        problems.append(f"{len(wav_only)} WAV stem(s) have no label JSON: {_preview(wav_only)}")
+    json_only = sorted(set(jsons) - set(wavs))
+    if json_only:
+        problems.append(f"{len(json_only)} label JSON stem(s) have no WAV: {_preview(json_only)}")
+    if problems:
+        raise ValueError(
+            f"audio/label inputs do not line up ({len(wavs)} WAV stems, {len(jsons)} label stems) -- "
+            "refusing to write a partial CSV:\n  - " + "\n  - ".join(problems)
+        )
+    return [(stem, wavs[stem][0], jsons[stem][0]) for stem in sorted(wavs)]
+
+
+def count_label_utterances(json_paths) -> int:
+    total = 0
+    for json_path in json_paths:
+        with Path(json_path).open("r", encoding="utf-8") as stream:
+            total += len(json.load(stream).get("utterances", []))
+    return total
+
+
+def verify_output_complete(*, expected_calls: int, calls_seen: int, expected_rows: int, rows: list) -> None:
+    if calls_seen != expected_calls or len(rows) != expected_rows:
+        raise ValueError(
+            f"output is incomplete: processed {calls_seen} of {expected_calls} calls and produced "
+            f"{len(rows)} rows for {expected_rows} labelled utterances -- refusing to write a partial CSV"
+        )
 
 
 def _load_l1_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
@@ -164,14 +232,15 @@ def main() -> int:
     args = parse_args()
     predict, fallback_speaker = load_predictor(args.ckpt_path)
 
-    pairs = pair_by_stem(args.audio_dir, args.label_dir)
-    if not pairs:
-        print(f"[warn] no matching audio/label stem pairs under {args.audio_dir} / {args.label_dir}", file=sys.stderr)
+    pairs = pair_by_stem_strict(args.audio_dir, args.label_dir)
+    expected_rows = count_label_utterances(json_path for _, _, json_path in pairs)
 
     rows: list[dict] = []
     failure_count = 0
+    calls_seen = 0
 
     for stem, wav_path, json_path in pairs:
+        calls_seen += 1
         with json_path.open("r", encoding="utf-8") as stream:
             document = json.load(stream)
         utterances = document.get("utterances", [])
@@ -212,6 +281,8 @@ def main() -> int:
                     "speaker": speaker,
                 }
             )
+
+    verify_output_complete(expected_calls=len(pairs), calls_seen=calls_seen, expected_rows=expected_rows, rows=rows)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(prefix=f".{args.output.name}.", suffix=".tmp", dir=args.output.parent)
