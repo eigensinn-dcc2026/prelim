@@ -63,13 +63,15 @@ TRAINING_PROVENANCE = {
 }
 
 
-def _run_train(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, index_path: Path, spectrogram_dir: Path) -> Path:
+def _run_train(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, index_path: Path, spectrogram_dir: Path, *, model: str = "small"
+) -> Path:
     model_output = tmp_path / "out" / "m2_cnn.pt"
     monkeypatch.setattr(
         sys, "argv",
         [
             "train_mission2_cnn.py", "--index", str(index_path), "--spectrogram-dir", str(spectrogram_dir),
-            "--model", "small", "--epochs", "1", "--batch-size", "4", "--model-output", str(model_output),
+            "--model", model, "--epochs", "1", "--batch-size", "4", "--model-output", str(model_output),
         ],
     )
     assert train_mission2_cnn.main() == 0
@@ -104,3 +106,62 @@ def test_training_refuses_an_index_with_no_provenance_and_saves_nothing(
         _run_train(monkeypatch, tmp_path, index_path, spectrogram_dir)
 
     assert not (tmp_path / "out").exists()
+
+
+# ---------------------------------------------------------------------------
+# The checkpoint records what it was trained with
+# ---------------------------------------------------------------------------
+
+
+def test_the_checkpoint_records_the_model_the_mel_settings_the_split_and_the_seeds(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import torch
+
+    index_path, spectrogram_dir = _write_cache(tmp_path, provenance=TRAINING_PROVENANCE)
+
+    model_output = _run_train(monkeypatch, tmp_path, index_path, spectrogram_dir)
+
+    checkpoint = torch.load(model_output, map_location="cpu", weights_only=True)  # plain values only
+    assert checkpoint["metadata"] == {
+        "metadata_version": 1,
+        "model_name": "small",
+        "model_class": "SpeakerCNN",
+        "index_split": "Training",
+        "n_mels": N_MELS,
+        "hop_length": HOP_LENGTH,
+        "n_fft": N_FFT,
+        "sample_rate": 8000,
+        "split_seed": 42,
+        "test_size": 0.2,
+        "torch_seed": 42,  # --torch-seed defaults to --seed
+    }
+    assert checkpoint["best_epoch"] == 1 and checkpoint["total_epochs_trained"] == 1
+
+
+def test_a_large_checkpoint_from_the_trainer_loads_into_the_submission_predictor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mission2_inference = importlib.import_module("mission2_inference")
+    index_path, spectrogram_dir = _write_cache(tmp_path, provenance=TRAINING_PROVENANCE)
+
+    model_output = _run_train(monkeypatch, tmp_path, index_path, spectrogram_dir, model="large")
+
+    predict, fallback_speaker = mission2_inference.load_predictor(model_output)  # no registry entry needed
+    segment = np.random.default_rng(0).standard_normal(4000).astype(np.float32)
+    assert predict(segment, 8000, 0.5) in (0, 1)
+    assert fallback_speaker in (0, 1)
+
+
+def test_a_checkpoint_of_another_model_from_the_trainer_is_refused_by_the_submission_predictor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from dcc_data.mission2_checkpoint import CheckpointConfigError
+
+    mission2_inference = importlib.import_module("mission2_inference")
+    index_path, spectrogram_dir = _write_cache(tmp_path, provenance=TRAINING_PROVENANCE)
+
+    model_output = _run_train(monkeypatch, tmp_path, index_path, spectrogram_dir, model="small")
+
+    with pytest.raises(CheckpointConfigError, match="model_name: checkpoint recorded 'small'"):
+        mission2_inference.load_predictor(model_output)

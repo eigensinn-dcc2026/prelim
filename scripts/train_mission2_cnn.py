@@ -69,6 +69,7 @@ from dcc_data.mission2_cnn import (  # noqa: E402
     move_optimizer_state_to_device,
     train_with_best_checkpoint,
 )
+from dcc_data.mission2_checkpoint import build_checkpoint_metadata  # noqa: E402
 from dcc_data.mission2_spectrogram import assert_training_spectrogram_index  # noqa: E402
 from dcc_data.mission2_train import make_group_split  # noqa: E402
 
@@ -220,6 +221,16 @@ def main() -> int:
             "optimizer_state_dict": optimizer.state_dict(),
             "scheduler_state_dict": scheduler.state_dict(),
             "total_epochs_trained": total_epochs_trained,
+            # What this checkpoint was trained with -- scripts/mission2_inference.py refuses to run it if
+            # that differs from how it would run it (see dcc_data.mission2_checkpoint).
+            "metadata": build_checkpoint_metadata(
+                model_name=args.model,
+                model_class=model_cls.__name__,
+                index_provenance=index_provenance,
+                split_seed=args.seed,
+                test_size=args.test_size,
+                torch_seed=torch_seed,
+            ),
         },
         args.model_output,
     )

@@ -1,0 +1,181 @@
+"""Tests for dcc_data.mission2_checkpoint: what an L2 checkpoint records about how it was trained, and
+the checks scripts/mission2_inference.py runs against it.
+
+A SpeakerCNNLarge-shaped state_dict loads into any SpeakerCNNLarge, whatever it was trained as, so these
+checks are the only thing standing between a wrong checkpoint and a silently worse submission.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import re
+from pathlib import Path
+
+import pytest
+import torch
+
+from dcc_data.mission2_checkpoint import (
+    LEGACY_L2_CHECKPOINTS,
+    REQUIRED_METADATA_KEYS,
+    CheckpointConfigError,
+    build_checkpoint_metadata,
+    checkpoint_sha256,
+    require_l2_inference_config,
+    resolve_l2_checkpoint_metadata,
+)
+from dcc_data.mission2_features import HOP_LENGTH, N_FFT
+from dcc_data.mission2_spectrogram import N_MELS
+
+PROVENANCE = {"split": "Training", "n_mels": N_MELS, "hop_length": HOP_LENGTH, "n_fft": N_FFT, "sample_rate": 8000}
+
+
+def _metadata(**overrides) -> dict:
+    metadata = build_checkpoint_metadata(
+        model_name="large", model_class="SpeakerCNNLarge", index_provenance=PROVENANCE,
+        split_seed=42, test_size=0.2, torch_seed=7,
+    )
+    metadata.update(overrides)
+    return metadata
+
+
+def test_checkpoint_sha256_is_the_sha256_of_the_file_bytes(tmp_path: Path) -> None:
+    path = tmp_path / "ckpt.pt"
+    path.write_bytes(b"abc" * 1_000_000)  # spans several read chunks
+
+    assert checkpoint_sha256(path) == hashlib.sha256(b"abc" * 1_000_000).hexdigest()
+
+
+def test_build_checkpoint_metadata_records_the_training_config() -> None:
+    metadata = _metadata()
+
+    assert set(metadata) == set(REQUIRED_METADATA_KEYS)
+    assert metadata["model_name"] == "large"
+    assert metadata["model_class"] == "SpeakerCNNLarge"
+    assert metadata["index_split"] == "Training"
+    assert (metadata["n_mels"], metadata["hop_length"], metadata["n_fft"], metadata["sample_rate"]) == (
+        N_MELS, HOP_LENGTH, N_FFT, 8000,
+    )
+    assert (metadata["split_seed"], metadata["test_size"], metadata["torch_seed"]) == (42, 0.2, 7)
+
+
+def test_metadata_survives_torch_save_and_a_weights_only_load(tmp_path: Path) -> None:
+    path = tmp_path / "ckpt.pt"
+    torch.save({"best_model_state_dict": {"w": torch.zeros(1)}, "metadata": _metadata()}, path)
+
+    loaded = torch.load(path, map_location="cpu", weights_only=True)
+
+    assert loaded["metadata"] == _metadata()
+
+
+def test_embedded_metadata_is_used_and_needs_no_registry_entry(tmp_path: Path) -> None:
+    path = tmp_path / "ckpt.pt"
+    path.write_bytes(b"not in the registry")
+
+    metadata, source = resolve_l2_checkpoint_metadata({"metadata": _metadata()}, path)
+
+    assert metadata == _metadata()
+    assert "embedded" in source
+
+
+def test_incomplete_embedded_metadata_is_refused(tmp_path: Path) -> None:
+    incomplete = _metadata()
+    del incomplete["n_mels"]
+
+    with pytest.raises(CheckpointConfigError, match="incomplete, missing: \\['n_mels'\\]"):
+        resolve_l2_checkpoint_metadata({"metadata": incomplete}, tmp_path / "ckpt.pt")
+
+
+def test_a_checkpoint_with_no_metadata_and_no_registry_entry_is_refused_with_the_way_out(tmp_path: Path) -> None:
+    path = tmp_path / "ckpt.pt"
+    path.write_bytes(b"some unknown weights")
+
+    with pytest.raises(CheckpointConfigError) as excinfo:
+        resolve_l2_checkpoint_metadata({"best_model_state_dict": {}}, path)
+
+    message = str(excinfo.value)
+    assert checkpoint_sha256(path) in message
+    assert "train_mission2_cnn.py" in message
+    assert "LEGACY_L2_CHECKPOINTS" in message
+
+
+def test_a_registered_legacy_checkpoint_gets_its_registered_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "old.pt"
+    path.write_bytes(b"an old checkpoint")
+    registered = {"description": "an old file", "metadata": _metadata(torch_seed=None)}
+    monkeypatch.setitem(LEGACY_L2_CHECKPOINTS, checkpoint_sha256(path), registered)
+
+    metadata, source = resolve_l2_checkpoint_metadata({"best_model_state_dict": {}}, path)
+
+    assert metadata == registered["metadata"]
+    assert "legacy registry" in source and "an old file" in source
+
+
+def test_a_changed_file_is_no_longer_the_registered_legacy_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "old.pt"
+    path.write_bytes(b"an old checkpoint")
+    monkeypatch.setitem(
+        LEGACY_L2_CHECKPOINTS, checkpoint_sha256(path), {"description": "x", "metadata": _metadata()}
+    )
+    path.write_bytes(b"an old checkpoint, re-saved with different bytes")
+
+    with pytest.raises(CheckpointConfigError, match="not a registered legacy"):
+        resolve_l2_checkpoint_metadata({"best_model_state_dict": {}}, path)
+
+
+def test_the_config_check_accepts_a_checkpoint_trained_for_this_inference_setup() -> None:
+    require_l2_inference_config(_metadata())
+
+
+@pytest.mark.parametrize(
+    ("override", "fragment"),
+    [
+        ({"model_name": "large-masked"}, "model_name: checkpoint recorded 'large-masked'"),
+        ({"model_name": "small"}, "model_name: checkpoint recorded 'small'"),
+        ({"n_mels": N_MELS * 2}, f"n_mels: checkpoint recorded {N_MELS * 2}"),
+        ({"hop_length": HOP_LENGTH // 2}, f"hop_length: checkpoint recorded {HOP_LENGTH // 2}"),
+        ({"n_fft": N_FFT * 2}, f"n_fft: checkpoint recorded {N_FFT * 2}"),
+        ({"index_split": "Validation"}, "index_split: checkpoint recorded 'Validation'"),
+    ],
+)
+def test_the_config_check_refuses_each_setting_that_differs(override: dict, fragment: str) -> None:
+    with pytest.raises(CheckpointConfigError) as excinfo:
+        require_l2_inference_config(_metadata(**override))
+
+    assert fragment in str(excinfo.value)
+
+
+def test_the_config_check_reports_every_difference_at_once() -> None:
+    with pytest.raises(CheckpointConfigError) as excinfo:
+        require_l2_inference_config(_metadata(model_name="large-masked", n_mels=80))
+
+    message = str(excinfo.value)
+    assert "model_name" in message and "n_mels" in message
+
+
+def test_the_registered_legacy_checkpoint_entry_is_well_formed_and_runs_under_the_current_defaults() -> None:
+    assert LEGACY_L2_CHECKPOINTS, "the shipped 90.89% checkpoint must stay registered"
+    for digest, entry in LEGACY_L2_CHECKPOINTS.items():
+        assert re.fullmatch(r"[0-9a-f]{64}", digest)
+        assert set(REQUIRED_METADATA_KEYS) <= set(entry["metadata"])
+        # If a module default ever changes, the shipped checkpoint must be refused (loudly), not relabelled:
+        # this is the test that fails first.
+        require_l2_inference_config(entry["metadata"])
+
+
+def test_the_shipped_checkpoint_is_registered_with_the_values_read_from_the_file() -> None:
+    entry = LEGACY_L2_CHECKPOINTS["04c0cc04e2c9f4033db4f28164b4c3c888b6642588728bc3ea1b3b73ce406189"]
+
+    assert (entry["best_epoch"], entry["total_epochs_trained"]) == (21, 30)
+    assert entry["best_val_acc"] == pytest.approx(0.91225, abs=1e-5)
+    metadata = entry["metadata"]
+    assert (metadata["model_name"], metadata["model_class"], metadata["index_split"]) == (
+        "large", "SpeakerCNNLarge", "Training",
+    )
+    assert (metadata["n_mels"], metadata["hop_length"], metadata["n_fft"], metadata["sample_rate"]) == (
+        40, 160, 512, 8000,
+    )
+    assert (metadata["split_seed"], metadata["test_size"], metadata["torch_seed"]) == (42, 0.2, None)

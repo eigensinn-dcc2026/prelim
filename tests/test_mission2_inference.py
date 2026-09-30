@@ -98,16 +98,43 @@ def l1_checkpoint(tmp_path: Path) -> Path:
     return ckpt_path
 
 
-@pytest.fixture()
-def l2_checkpoint(tmp_path: Path) -> Path:
+def _l2_metadata(**overrides) -> dict:
+    """The config train_mission2_cnn.py would have embedded for a default ``--model large`` run."""
+
+    from dcc_data.mission2_checkpoint import build_checkpoint_metadata
+    from dcc_data.mission2_features import HOP_LENGTH, N_FFT
+    from dcc_data.mission2_spectrogram import N_MELS
+
+    metadata = build_checkpoint_metadata(
+        model_name="large",
+        model_class="SpeakerCNNLarge",
+        index_provenance={
+            "split": "Training", "n_mels": N_MELS, "hop_length": HOP_LENGTH, "n_fft": N_FFT,
+            "sample_rate": SAMPLE_RATE,
+        },
+        split_seed=42,
+        test_size=0.2,
+        torch_seed=42,
+    )
+    metadata.update(overrides)
+    return metadata
+
+
+def _save_l2_checkpoint(ckpt_path: Path, metadata: dict | None):
     import torch
 
     from dcc_data.mission2_cnn import SpeakerCNNLarge
 
-    model = SpeakerCNNLarge()
-    ckpt_path = tmp_path / "l2_model.pt"
-    torch.save({"best_model_state_dict": model.state_dict(), "best_val_acc": 0.0, "best_epoch": 0}, ckpt_path)
+    checkpoint = {"best_model_state_dict": SpeakerCNNLarge().state_dict(), "best_val_acc": 0.0, "best_epoch": 0}
+    if metadata is not None:
+        checkpoint["metadata"] = metadata
+    torch.save(checkpoint, ckpt_path)
     return ckpt_path
+
+
+@pytest.fixture()
+def l2_checkpoint(tmp_path: Path) -> Path:
+    return _save_l2_checkpoint(tmp_path / "l2_model.pt", _l2_metadata())
 
 
 def test_pad_spectrogram_pads_short_utterances_with_the_floor_value_only() -> None:
@@ -379,4 +406,86 @@ def test_main_refuses_to_write_when_the_row_count_disagrees_with_the_labels(
     error = _run_inference_expecting_failure(audio_dir, label_dir, l1_checkpoint, output_path)
 
     assert "output is incomplete" in str(error)
+    assert _nothing_written(output_path)
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint config: a wrong checkpoint must fail, not silently predict worse
+# ---------------------------------------------------------------------------
+
+
+def _one_call(tmp_path: Path) -> tuple[Path, Path, Path]:
+    audio_dir = tmp_path / "audio"
+    label_dir = tmp_path / "labels"
+    _write_call(audio_dir, label_dir, "call1", [(0, 90), (200, 1800)], seed=0)
+    return audio_dir, label_dir, tmp_path / "out" / "mission2.csv"
+
+
+def test_an_l2_checkpoint_without_any_recorded_config_is_refused(tmp_path: Path) -> None:
+    from dcc_data.mission2_checkpoint import CheckpointConfigError
+
+    audio_dir, label_dir, output_path = _one_call(tmp_path)
+    ckpt_path = _save_l2_checkpoint(tmp_path / "unknown.pt", None)
+
+    error = _run_inference_expecting_failure(audio_dir, label_dir, ckpt_path, output_path)
+
+    assert isinstance(error, CheckpointConfigError)
+    assert "records no training config" in str(error)
+    assert _nothing_written(output_path)
+
+
+@pytest.mark.parametrize(
+    ("override", "fragment"),
+    [
+        ({"model_name": "large-masked"}, "model_name"),  # same modules as SpeakerCNNLarge: loads without any error
+        ({"n_mels": 80}, "n_mels"),
+        ({"hop_length": 80}, "hop_length"),
+        ({"index_split": "Validation"}, "index_split"),
+    ],
+)
+def test_an_l2_checkpoint_trained_differently_is_refused_even_though_its_weights_would_load(
+    tmp_path: Path, override: dict, fragment: str
+) -> None:
+    from dcc_data.mission2_checkpoint import CheckpointConfigError
+
+    audio_dir, label_dir, output_path = _one_call(tmp_path)
+    ckpt_path = _save_l2_checkpoint(tmp_path / "other.pt", _l2_metadata(**override))
+
+    error = _run_inference_expecting_failure(audio_dir, label_dir, ckpt_path, output_path)
+
+    assert isinstance(error, CheckpointConfigError)
+    assert fragment in str(error)
+    assert _nothing_written(output_path)
+
+
+def test_a_registered_legacy_l2_checkpoint_runs_with_its_registered_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dcc_data import mission2_checkpoint
+
+    audio_dir, label_dir, output_path = _one_call(tmp_path)
+    ckpt_path = _save_l2_checkpoint(tmp_path / "legacy.pt", None)
+    monkeypatch.setitem(
+        mission2_checkpoint.LEGACY_L2_CHECKPOINTS,
+        mission2_checkpoint.checkpoint_sha256(ckpt_path),
+        {"description": "test legacy checkpoint", "metadata": _l2_metadata(torch_seed=None)},
+    )
+
+    _run_inference(audio_dir, label_dir, ckpt_path, output_path)
+
+    assert len(_read_rows(output_path)) == 2
+
+
+def test_audio_at_another_sample_rate_stops_the_run_instead_of_falling_back_to_the_majority_class(
+    tmp_path: Path,
+) -> None:
+    from dcc_data.mission2_checkpoint import CheckpointConfigError
+
+    audio_dir, label_dir, output_path = _one_call(tmp_path)  # 8 kHz WAVs
+    ckpt_path = _save_l2_checkpoint(tmp_path / "other_rate.pt", _l2_metadata(sample_rate=16000))
+
+    error = _run_inference_expecting_failure(audio_dir, label_dir, ckpt_path, output_path)
+
+    assert isinstance(error, CheckpointConfigError)
+    assert "8000 Hz" in str(error) and "16000 Hz" in str(error)
     assert _nothing_written(output_path)

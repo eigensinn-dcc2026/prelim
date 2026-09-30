@@ -39,10 +39,12 @@ unchanged either way:
   defaults (``N_MELS``, and ``mission2_features.HOP_LENGTH``) -- these must
   match whatever the checkpoint was actually trained with, since a mismatch
   would not raise (``SpeakerCNNLarge`` accepts any spectrogram size via
-  ``AdaptiveAvgPool2d``), it would just quietly degrade predictions. Every
-  resolution change tried so far (M2-CNN-005/007) was rejected, so the
-  defaults are exactly what the shipped checkpoint used as of this writing --
-  if that ever changes, update the checkpoint and these defaults together.
+  ``AdaptiveAvgPool2d``), it would just quietly degrade predictions. So the
+  checkpoint's recorded training config (``checkpoint["metadata"]``, or the
+  legacy registry for a file trained before that existed -- see
+  ``dcc_data.mission2_checkpoint``) is checked against them first, and the
+  run fails if the model kind, mel settings or training split differ, or if
+  the audio's sample rate isn't the one it was trained on.
 
 Development note: this currently lives under scripts/ rather than as a
 top-level inference.py because this repository holds all three missions and
@@ -76,6 +78,11 @@ from dcc_data.mission2_features import (  # noqa: E402
     slice_and_pad,
     utterance_feature_vector,
     utterance_frame_range,
+)
+from dcc_data.mission2_checkpoint import (  # noqa: E402
+    CheckpointConfigError,
+    require_l2_inference_config,
+    resolve_l2_checkpoint_metadata,
 )
 from dcc_data.mission2_train import load_model  # noqa: E402
 
@@ -192,6 +199,11 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
     from dcc_data.mission2_spectrogram import mel_spectrogram
 
     checkpoint = torch.load(ckpt_path, map_location="cpu")
+    # A SpeakerCNNLarge-shaped state_dict loads without error whatever it was trained as, so check what
+    # the checkpoint says it was trained with before trusting it (see dcc_data.mission2_checkpoint).
+    metadata, _source = resolve_l2_checkpoint_metadata(checkpoint, ckpt_path)
+    require_l2_inference_config(metadata)
+    expected_sample_rate = int(metadata["sample_rate"])
     model = SpeakerCNNLarge()
     model.load_state_dict(checkpoint["best_model_state_dict"])
     model.eval()
@@ -203,6 +215,10 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
 
     @torch.no_grad()
     def predict(segment: np.ndarray, sample_rate: int, duration_sec: float) -> int:
+        if sample_rate != expected_sample_rate:
+            raise CheckpointConfigError(
+                f"audio is {sample_rate} Hz but this checkpoint was trained on {expected_sample_rate} Hz audio"
+            )
         spectrogram = pad_spectrogram_to_min_frames(mel_spectrogram(segment, sample_rate))
         batch = torch.from_numpy(spectrogram).unsqueeze(0).unsqueeze(0)  # (1, 1, n_mels, n_frames)
         logits = model(batch)
@@ -263,6 +279,8 @@ def main() -> int:
                     segment = slice_and_pad(waveform, start_frame, end_frame, N_FFT)
                     duration_sec = (float(end_at) - float(start_at)) / 1000.0
                     speaker = predict(segment, sample_rate, duration_sec)
+                except CheckpointConfigError:
+                    raise  # a checkpoint/input mismatch is a setup error, never one bad utterance to paper over
                 except Exception as exc:  # noqa: BLE001 - fall back to majority class, log, keep the row
                     failure_count += 1
                     print(
