@@ -9,17 +9,24 @@ lose exactly the information those stats discard.
 """
 from __future__ import annotations
 
+import importlib
 import json
+import sys
 import wave
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
+import pytest
 
+from dcc_data.guards import SplitContaminationError
 from dcc_data.manifest import ManifestRow
-from dcc_data.mission2_features import HOP_LENGTH
+from dcc_data.mission2_features import HOP_LENGTH, N_FFT
 from dcc_data.mission2_spectrogram import (
+    INDEX_PROVENANCE_COLUMNS,
     N_MELS,
     SPEC_FLOOR_DB,
+    assert_training_spectrogram_index,
     build_seoul_training_spectrograms,
     build_seoul_validation_spectrograms,
     mel_spectrogram,
@@ -226,3 +233,172 @@ def test_build_seoul_training_spectrograms_n_mels_controls_frequency_bins(tmp_pa
         assert spec.shape[0] == N_MELS * 2
         # n_frames in the index tracks the time axis (shape[1]), unaffected by n_mels
         assert spec.shape[1] == entry["n_frames"]
+
+
+# ---------------------------------------------------------------------------
+# Provenance: which split an index came from, and what it was built with
+# ---------------------------------------------------------------------------
+
+SCRIPTS_ROOT = Path(__file__).resolve().parents[1] / "scripts"
+
+
+def _training_and_validation_rows(tmp_path: Path):
+    root = tmp_path / "raw"
+    utterances = [(0, 90, 0), (200, 1800, 1)]
+    train_wav = "chunk/Training/1.원천데이터/TS_서울_구급/call_train.wav"
+    train_json = "chunk/Training/2.라벨링데이터/TL_서울_구급/call_train.json"
+    _write_call(root, train_wav, train_json, utterances, seed=0)
+    val_wav = "chunk/Validation/1.원천데이터/VS_서울_구급/call_val.wav"
+    val_json = "chunk/Validation/2.라벨링데이터/VL_서울_구급/call_val.json"
+    _write_call(root, val_wav, val_json, utterances, seed=1)
+    rows = [
+        ManifestRow("Training", "call_train", train_wav, train_json),
+        ManifestRow("Validation", "call_val", val_wav, val_json),
+    ]
+    return root, rows
+
+
+def test_training_builder_stamps_every_index_row_with_its_split_and_build_settings(tmp_path: Path) -> None:
+    root, rows = _training_and_validation_rows(tmp_path)
+
+    index_rows, failures = build_seoul_training_spectrograms(rows, root, tmp_path / "specs", n_calls=0, seed=42)
+
+    assert failures == []
+    assert len(index_rows) == 2
+    for entry in index_rows:
+        assert entry["split"] == "Training"
+        assert entry["n_mels"] == N_MELS
+        assert entry["hop_length"] == HOP_LENGTH
+        assert entry["n_fft"] == N_FFT
+        assert entry["sample_rate"] == SAMPLE_RATE
+
+
+def test_validation_builder_stamps_rows_as_validation(tmp_path: Path) -> None:
+    root, rows = _training_and_validation_rows(tmp_path)
+
+    index_rows, failures = build_seoul_validation_spectrograms(rows, root, tmp_path / "specs", n_calls=0, seed=42)
+
+    assert failures == []
+    assert {entry["split"] for entry in index_rows} == {"Validation"}
+
+
+def test_index_records_non_default_resolution_settings(tmp_path: Path) -> None:
+    root, rows = _training_and_validation_rows(tmp_path)
+
+    index_rows, _ = build_seoul_training_spectrograms(
+        rows, root, tmp_path / "specs", n_calls=0, seed=42, hop_length=HOP_LENGTH // 2, n_mels=N_MELS * 2
+    )
+
+    assert {(entry["n_mels"], entry["hop_length"]) for entry in index_rows} == {(N_MELS * 2, HOP_LENGTH // 2)}
+
+
+def test_training_guard_accepts_a_training_built_index_and_returns_its_settings(tmp_path: Path) -> None:
+    root, rows = _training_and_validation_rows(tmp_path)
+    index_rows, _ = build_seoul_training_spectrograms(rows, root, tmp_path / "specs", n_calls=0, seed=42)
+
+    provenance = assert_training_spectrogram_index(pd.DataFrame(index_rows))
+
+    assert provenance == {
+        "split": "Training", "n_mels": N_MELS, "hop_length": HOP_LENGTH, "n_fft": N_FFT, "sample_rate": SAMPLE_RATE,
+    }
+    # plain Python values, so they can go into a checkpoint that torch.load reads with weights_only=True
+    assert all(type(value) in (int, str) for value in provenance.values())
+
+
+def test_training_guard_refuses_a_validation_built_index(tmp_path: Path) -> None:
+    root, rows = _training_and_validation_rows(tmp_path)
+    index_rows, _ = build_seoul_validation_spectrograms(rows, root, tmp_path / "specs", n_calls=0, seed=42)
+
+    with pytest.raises(SplitContaminationError, match="non-Training"):
+        assert_training_spectrogram_index(pd.DataFrame(index_rows))
+
+
+def test_training_guard_refuses_an_index_that_mixes_training_and_validation_rows(tmp_path: Path) -> None:
+    root, rows = _training_and_validation_rows(tmp_path)
+    train_rows, _ = build_seoul_training_spectrograms(rows, root, tmp_path / "specs_t", n_calls=0, seed=42)
+    val_rows, _ = build_seoul_validation_spectrograms(rows, root, tmp_path / "specs_v", n_calls=0, seed=42)
+
+    with pytest.raises(SplitContaminationError, match="non-Training"):
+        assert_training_spectrogram_index(pd.DataFrame(train_rows + val_rows))
+
+
+def test_training_guard_refuses_an_index_without_provenance_and_says_how_to_fix_it() -> None:
+    legacy = pd.DataFrame(
+        {"call_id": ["a", "a"], "utt_idx": [0, 1], "speaker": [0, 1], "duration_sec": [1.0, 2.0],
+         "n_frames": [10, 20], "npy_path": ["a/0.npy", "a/1.npy"]}
+    )
+
+    with pytest.raises(SplitContaminationError, match="no build provenance") as excinfo:
+        assert_training_spectrogram_index(legacy)
+
+    message = str(excinfo.value)
+    for column in INDEX_PROVENANCE_COLUMNS:
+        assert column in message
+    assert "build_mission2_spectrograms.py" in message
+
+
+def test_training_guard_refuses_an_index_with_only_some_provenance_columns(tmp_path: Path) -> None:
+    root, rows = _training_and_validation_rows(tmp_path)
+    index_rows, _ = build_seoul_training_spectrograms(rows, root, tmp_path / "specs", n_calls=0, seed=42)
+
+    with pytest.raises(SplitContaminationError, match="missing column"):
+        assert_training_spectrogram_index(pd.DataFrame(index_rows).drop(columns=["split"]))
+
+
+def test_training_guard_refuses_an_index_built_with_mixed_settings(tmp_path: Path) -> None:
+    root, rows = _training_and_validation_rows(tmp_path)
+    index_rows, _ = build_seoul_training_spectrograms(rows, root, tmp_path / "specs", n_calls=0, seed=42)
+    frame = pd.DataFrame(index_rows)
+    frame.loc[frame.index[0], "hop_length"] = HOP_LENGTH // 2
+
+    with pytest.raises(ValueError, match="mixes several hop_length"):
+        assert_training_spectrogram_index(frame)
+
+
+def test_training_guard_refuses_an_empty_index(tmp_path: Path) -> None:
+    root, rows = _training_and_validation_rows(tmp_path)
+    index_rows, _ = build_seoul_training_spectrograms(rows, root, tmp_path / "specs", n_calls=0, seed=42)
+
+    with pytest.raises(ValueError, match="empty"):
+        assert_training_spectrogram_index(pd.DataFrame(index_rows).iloc[0:0])
+
+
+def _parse_build_args(monkeypatch: pytest.MonkeyPatch, *extra: str):
+    monkeypatch.syspath_prepend(str(SCRIPTS_ROOT))
+    build_script = importlib.import_module("build_mission2_spectrograms")
+    monkeypatch.setattr(
+        sys, "argv", ["build_mission2_spectrograms.py", "--manifest", "m.csv", "--data-root", "raw", *extra]
+    )
+    return build_script.parse_args()
+
+
+def test_build_script_keeps_the_training_default_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    args = _parse_build_args(monkeypatch)
+
+    assert args.output_dir == Path("data/m2_spectrograms")
+    assert args.index_output == Path("data/m2_spectrogram_index.parquet")
+    assert args.failures_log == Path("data/m2_spectrogram_build_failures.jsonl")
+
+
+def test_build_script_defaults_validation_to_paths_that_never_collide_with_training(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    training = _parse_build_args(monkeypatch, "--split", "training")
+    validation = _parse_build_args(monkeypatch, "--split", "validation")
+
+    assert validation.output_dir == Path("data/m2_spectrograms_validation")
+    assert validation.index_output == Path("data/m2_spectrogram_index_validation.parquet")
+    assert validation.failures_log == Path("data/m2_spectrogram_build_failures_validation.jsonl")
+    assert {validation.output_dir, validation.index_output, validation.failures_log}.isdisjoint(
+        {training.output_dir, training.index_output, training.failures_log}
+    )
+
+
+def test_build_script_still_honours_explicit_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    args = _parse_build_args(
+        monkeypatch, "--split", "validation", "--output-dir", "x/specs", "--index-output", "x/idx.parquet"
+    )
+
+    assert args.output_dir == Path("x/specs")
+    assert args.index_output == Path("x/idx.parquet")
+    assert args.failures_log == Path("data/m2_spectrogram_build_failures_validation.jsonl")

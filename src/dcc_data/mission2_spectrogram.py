@@ -19,11 +19,12 @@ build_utterance_records) rather than re-deriving any of it.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import TYPE_CHECKING, Callable, Iterable
 
 import numpy as np
 import librosa
 
+from .guards import TRAINING, SplitContaminationError
 from .manifest import ManifestRow
 from .mission2_features import (
     HOP_LENGTH,
@@ -37,6 +38,9 @@ from .mission2_features import (
     utterance_frame_range,
 )
 
+if TYPE_CHECKING:
+    import pandas as pd
+
 N_MELS = 40
 # librosa.power_to_db's own default clip range (top_db=80, relative to the
 # spectrogram's own max) -- pad frames get set to exactly this floor so a
@@ -44,6 +48,49 @@ N_MELS = 40
 # (naively padding with 0.0 would do the opposite: 0 dB is this utterance's
 # *loudest* frame under the ref=np.max normalization below).
 SPEC_FLOOR_DB = -80.0
+
+# Every index row records where its spectrogram came from (the manifest split of its call) and the
+# settings it was built with, so a training run can prove its input is Training-only and the checkpoint
+# can record what it was trained on. See assert_training_spectrogram_index().
+INDEX_PROVENANCE_COLUMNS = ("split", "n_mels", "hop_length", "n_fft", "sample_rate")
+
+
+def assert_training_spectrogram_index(index_df: "pd.DataFrame") -> dict:
+    """Fail unless every row of a spectrogram index is stamped as built from Training.
+
+    Returns the single ``{split, n_mels, hop_length, n_fft, sample_rate}`` the index was built with.
+    An index without the stamp (built before the stamp existed) cannot be shown to be Training-only, so
+    it is refused rather than trusted -- the official Validation folder must never reach a training loop,
+    and a Validation index built into the same paths as the Training one would look identical otherwise.
+    """
+
+    missing = [column for column in INDEX_PROVENANCE_COLUMNS if column not in index_df.columns]
+    if missing:
+        raise SplitContaminationError(
+            f"spectrogram index has no build provenance (missing column(s): {missing}), so it cannot be shown "
+            "to come from Training only. Rebuild it with scripts/build_mission2_spectrograms.py, or, if you "
+            "know it is a Training cache built with the default settings, stamp it once: "
+            f"df.assign(split={TRAINING!r}, n_mels={N_MELS}, hop_length={HOP_LENGTH}, n_fft={N_FFT}, "
+            "sample_rate=8000).to_parquet(path, index=False)"
+        )
+    if len(index_df) == 0:
+        raise ValueError("spectrogram index is empty")
+
+    foreign = index_df.loc[index_df["split"] != TRAINING, "split"]
+    if len(foreign):
+        counts = foreign.astype(str).value_counts().to_dict()
+        raise SplitContaminationError(
+            f"Training run received {len(foreign)} non-Training spectrogram index row(s): {counts}"
+        )
+
+    provenance = {}
+    for column in INDEX_PROVENANCE_COLUMNS:
+        values = index_df[column].unique()
+        if len(values) != 1:
+            raise ValueError(f"spectrogram index mixes several {column} values: {sorted(map(str, values))[:5]}")
+        value = values[0]
+        provenance[column] = value.item() if hasattr(value, "item") else value
+    return provenance
 
 
 def mel_spectrogram(
@@ -143,6 +190,11 @@ def _process_one_call_spectrograms(
                 "duration_sec": record.duration_sec,
                 "n_frames": spec.shape[1],
                 "npy_path": str(path.relative_to(output_dir)),
+                "split": row.split,
+                "n_mels": n_mels,
+                "hop_length": hop_length,
+                "n_fft": N_FFT,
+                "sample_rate": int(sample_rate),
             }
         )
 

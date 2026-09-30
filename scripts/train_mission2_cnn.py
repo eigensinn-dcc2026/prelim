@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Train the Mission 2 L2 model: a small CNN over log-mel spectrograms.
 
-Reads the spectrogram index produced by scripts/build_mission2_spectrograms.py,
+Reads the spectrogram index produced by scripts/build_mission2_spectrograms.py
+(and refuses any index that isn't stamped as built from Training -- see
+dcc_data.mission2_spectrogram.assert_training_spectrogram_index),
 reuses the exact same call_id-grouped 80/20 split as the L1 baseline
 (dcc_data.mission2_train.make_group_split) so accuracy is comparable, and
 trains dcc_data.mission2_cnn.SpeakerCNN.
@@ -67,6 +69,7 @@ from dcc_data.mission2_cnn import (  # noqa: E402
     move_optimizer_state_to_device,
     train_with_best_checkpoint,
 )
+from dcc_data.mission2_spectrogram import assert_training_spectrogram_index  # noqa: E402
 from dcc_data.mission2_train import make_group_split  # noqa: E402
 
 MODEL_CLASSES = {"small": SpeakerCNN, "large": SpeakerCNNLarge, "large-duration": SpeakerCNNLargeWithDuration}
@@ -120,6 +123,10 @@ def main() -> int:
     print(f"torch_seed={torch_seed} (model init + train shuffle order); split seed={args.seed}")
 
     df = pd.read_parquet(args.index)
+    # Refuse anything that isn't stamped as built from Training: the official Validation folder must
+    # never reach the loss/backprop, even by pointing --index at the wrong cache.
+    index_provenance = assert_training_spectrogram_index(df)
+    print(f"index provenance: {index_provenance}")
     train_idx, val_idx = make_group_split(df, seed=args.seed, test_size=args.test_size)
     train_df = df.iloc[train_idx]
     val_df = df.iloc[val_idx]

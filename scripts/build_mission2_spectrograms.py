@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Build the Mission 2 L2 input cache: one log-mel spectrogram .npy per
-utterance, plus an index parquet (call_id, utt_idx, speaker, npy_path).
+utterance, plus an index parquet (call_id, utt_idx, speaker, npy_path, and the
+split / n_mels / hop_length / n_fft / sample_rate it was built with -- the provenance
+train_mission2_cnn.py checks before it will train on an index).
 
 Mirrors scripts/build_mission2_dataset.py's sampling/manifest handling;
 only the output format differs (a spectrogram doesn't fit a flat tabular
@@ -38,6 +40,23 @@ from dcc_data.mission2_spectrogram import (  # noqa: E402
 
 BUILDERS = {"training": build_seoul_training_spectrograms, "validation": build_seoul_validation_spectrograms}
 
+# Where each split's cache goes when --output-dir/--index-output/--failures-log are not given. The two
+# splits must never share a default: a Validation cache written over the Training paths would look like
+# a Training index to anything that reads the default path (see also train_mission2_cnn.py, which
+# refuses an index that isn't stamped as Training).
+DEFAULT_CACHE_PATHS = {
+    "training": {
+        "output_dir": Path("data/m2_spectrograms"),
+        "index_output": Path("data/m2_spectrogram_index.parquet"),
+        "failures_log": Path("data/m2_spectrogram_build_failures.jsonl"),
+    },
+    "validation": {
+        "output_dir": Path("data/m2_spectrograms_validation"),
+        "index_output": Path("data/m2_spectrogram_index_validation.parquet"),
+        "failures_log": Path("data/m2_spectrogram_build_failures_validation.jsonl"),
+    },
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -48,11 +67,23 @@ def parse_args() -> argparse.Namespace:
         help="training (default, unchanged behavior) or validation -- the official Validation "
         "folder, eval-only, never for a training loop's .fit()/backprop.",
     )
-    parser.add_argument("--output-dir", type=Path, default=Path("data/m2_spectrograms"))
+    parser.add_argument(
+        "--output-dir", type=Path, default=None,
+        help=f"default per split: {DEFAULT_CACHE_PATHS['training']['output_dir']} (training) / "
+        f"{DEFAULT_CACHE_PATHS['validation']['output_dir']} (validation)",
+    )
     parser.add_argument("--n-calls", type=int, default=3000)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--index-output", type=Path, default=Path("data/m2_spectrogram_index.parquet"))
-    parser.add_argument("--failures-log", type=Path, default=Path("data/m2_spectrogram_build_failures.jsonl"))
+    parser.add_argument(
+        "--index-output", type=Path, default=None,
+        help=f"default per split: {DEFAULT_CACHE_PATHS['training']['index_output']} (training) / "
+        f"{DEFAULT_CACHE_PATHS['validation']['index_output']} (validation)",
+    )
+    parser.add_argument(
+        "--failures-log", type=Path, default=None,
+        help=f"default per split: {DEFAULT_CACHE_PATHS['training']['failures_log']} (training) / "
+        f"{DEFAULT_CACHE_PATHS['validation']['failures_log']} (validation)",
+    )
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument(
         "--hop-length", type=int, default=HOP_LENGTH,
@@ -66,7 +97,11 @@ def parse_args() -> argparse.Namespace:
         "frequency resolution for the same audio -- pass a distinct --output-dir/--index-output "
         "so this doesn't overwrite the default-resolution set.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    for name, default in DEFAULT_CACHE_PATHS[args.split].items():
+        if getattr(args, name) is None:
+            setattr(args, name, default)
+    return args
 
 
 def main() -> int:
