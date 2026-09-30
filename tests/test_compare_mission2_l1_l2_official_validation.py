@@ -143,7 +143,13 @@ class _StubL1Model:
         return np.array([0, 0, 1, 0])[: len(features)]
 
 
-def _write_main_inputs(tmp_path: Path, *, l2_frame: pd.DataFrame) -> list[str]:
+def _write_main_inputs(
+    tmp_path: Path, *, l2_frame: pd.DataFrame, subset_size: bool = True, explicit_outputs: bool = True
+) -> list[str]:
+    """argv for main() on the 4-utterance / 2-call synthetic inputs. ``subset_size`` adds the flags that
+    declare that size (without them main() expects the official Validation size); ``explicit_outputs``
+    adds explicit --output/--summary-output paths (without them main() would use the official ones)."""
+
     features = pd.DataFrame({**_key_columns(), "speaker": SPEAKERS})
     for column in compare.FEATURE_COLUMNS:
         features[column] = 0.0
@@ -156,15 +162,21 @@ def _write_main_inputs(tmp_path: Path, *, l2_frame: pd.DataFrame) -> list[str]:
 
     l2_frame.rename(columns={"l2_pred": "predicted"}).to_csv(tmp_path / "l2_predictions.csv", index=False)
 
-    return [
+    argv = [
         "compare_mission2_l1_l2_official_validation.py",
         "--l1-ckpt", str(tmp_path / "unused.pkl"),
         "--l1-features", str(tmp_path / "l1_features.parquet"),
         "--l2-predictions-csv", str(tmp_path / "l2_predictions.csv"),
         "--utterance-index", str(tmp_path / "utterance_index.parquet"),
-        "--output", str(tmp_path / "out" / "comparison.csv"),
-        "--summary-output", str(tmp_path / "out" / "comparison.json"),
     ]
+    if subset_size:
+        argv += ["--expected-utterances", "4", "--expected-calls", "2"]
+    if explicit_outputs:
+        argv += [
+            "--output", str(tmp_path / "out" / "comparison.csv"),
+            "--summary-output", str(tmp_path / "out" / "comparison.json"),
+        ]
+    return argv
 
 
 @pytest.fixture
@@ -198,6 +210,118 @@ def test_main_saves_nothing_when_l2_is_missing_an_utterance(
 
     assert not (tmp_path / "out" / "comparison.csv").exists()
     assert not (tmp_path / "out" / "comparison.json").exists()
+
+
+def test_official_validation_size_constants_match_the_saved_official_results() -> None:
+    root = Path(__file__).resolve().parents[1] / "reports" / "mission2"
+    for name in ("m2_l1_official_validation_result_postfix2.json", "m2_l2_official_validation_result_colab_gpu.json"):
+        saved = json.loads((root / name).read_text(encoding="utf-8"))
+        assert saved["n_utterances"] == compare.OFFICIAL_VALIDATION_UTTERANCES == 111_947
+        assert saved["n_calls"] == compare.OFFICIAL_VALIDATION_CALLS == 3_640
+
+
+def _joined() -> pd.DataFrame:
+    return compare.build_comparison_frame(_l1(), _l2(), _utt_index(), _overlap())
+
+
+def test_verify_expected_size_accepts_exactly_the_expected_utterances_and_calls() -> None:
+    compare.verify_expected_size(_joined(), 4, 2)
+
+
+@pytest.mark.parametrize(
+    ("expected_utterances", "expected_calls"),
+    [(5, 2), (3, 2), (4, 3), (4, 1)],
+)
+def test_verify_expected_size_refuses_any_other_size(expected_utterances: int, expected_calls: int) -> None:
+    with pytest.raises(ValueError, match="joined result has 4 utterances from 2 calls") as excinfo:
+        compare.verify_expected_size(_joined(), expected_utterances, expected_calls)
+
+    assert "111947" in str(excinfo.value) and "3640" in str(excinfo.value)
+
+
+def test_main_refuses_inputs_that_agree_with_each_other_but_are_not_the_whole_official_validation_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stub_l1_checkpoint: None
+) -> None:
+    # every input covers the same 4 utterances of 2 calls: consistent, but nowhere near 111,947 / 3,640
+    monkeypatch.setattr(sys, "argv", _write_main_inputs(tmp_path, l2_frame=_l2(), subset_size=False))
+
+    with pytest.raises(ValueError, match="expected 111947 utterances from 3640 calls"):
+        compare.main()
+
+    assert not (tmp_path / "out" / "comparison.csv").exists()
+    assert not (tmp_path / "out" / "comparison.json").exists()
+
+
+def test_a_subset_comparison_must_not_be_written_over_the_official_comparison_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stub_l1_checkpoint: None
+) -> None:
+    argv = _write_main_inputs(tmp_path, l2_frame=_l2(), subset_size=True, explicit_outputs=False)
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with pytest.raises(SystemExit) as excinfo:
+        compare.main()
+
+    assert excinfo.value.code == 2  # argparse usage error, raised before any prediction runs
+
+
+def test_a_subset_comparison_with_one_official_path_left_at_its_default_is_also_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stub_l1_checkpoint: None
+) -> None:
+    argv = _write_main_inputs(tmp_path, l2_frame=_l2(), subset_size=True, explicit_outputs=False)
+    argv += ["--output", str(tmp_path / "out" / "comparison.csv")]  # --summary-output stays the official default
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with pytest.raises(SystemExit):
+        compare.main()
+
+
+@pytest.mark.parametrize(
+    ("which", "column", "value"),
+    [
+        ("l1", "l1_pred", None),
+        ("l1", "speaker", None),
+        ("l2", "l2_pred", None),
+        ("l2", "speaker", None),
+        ("index", "duration_sec", None),
+        ("index", "speaker", None),
+        ("overlap", "overlaps_other", None),
+    ],
+)
+def test_build_comparison_frame_refuses_a_missing_required_value(which: str, column: str, value) -> None:
+    frames = {"l1": _l1(), "l2": _l2(), "index": _utt_index(), "overlap": _overlap()}
+    frames[which] = frames[which].astype({column: "object"})
+    frames[which].loc[1, column] = value
+
+    with pytest.raises(ValueError, match=r"missing value\(s\)"):
+        compare.build_comparison_frame(frames["l1"], frames["l2"], frames["index"], frames["overlap"])
+
+
+@pytest.mark.parametrize(
+    ("which", "column", "expected_name"),
+    [
+        ("l1", "l1_pred", "l1_pred"),
+        ("l1", "speaker", "speaker"),
+        ("l2", "l2_pred", "l2_pred"),
+        ("l2", "speaker", "l2_speaker"),
+        ("index", "speaker", "index_speaker"),
+    ],
+)
+def test_build_comparison_frame_refuses_a_speaker_or_prediction_that_is_not_0_or_1(
+    which: str, column: str, expected_name: str
+) -> None:
+    frames = {"l1": _l1(), "l2": _l2(), "index": _utt_index(), "overlap": _overlap()}
+    frames[which].loc[1, column] = 2
+
+    with pytest.raises(ValueError, match=rf"{expected_name} must be 0 or 1, found \[2\]"):
+        compare.build_comparison_frame(frames["l1"], frames["l2"], frames["index"], frames["overlap"])
+
+
+def test_build_comparison_frame_refuses_predictions_that_are_labels_not_numbers() -> None:
+    l1 = _l1().astype({"l1_pred": "object"})
+    l1.loc[0, "l1_pred"] = "대원"
+
+    with pytest.raises(ValueError, match="l1_pred must be 0 or 1"):
+        compare.build_comparison_frame(l1, _l2(), _utt_index(), _overlap())
 
 
 def test_main_saves_nothing_when_saved_official_result_does_not_match(
