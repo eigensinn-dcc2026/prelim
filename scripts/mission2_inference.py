@@ -112,6 +112,16 @@ def pad_spectrogram_to_min_frames(spectrogram: np.ndarray, min_frames: int = L2_
     return np.concatenate([spectrogram, padding], axis=1)
 
 
+def _speaker_from_logits(logits) -> int:
+    """The contest's decision rule for one utterance's two logits: class 1 iff P(speaker=1) >= 0.5.
+
+    For two logits that is ``logit1 >= logit0``. ``argmax`` differs only at an exact tie, where it returns
+    class 0 -- so use this instead of ``logits.argmax``.
+    """
+
+    return int((logits[0, 1] >= logits[0, 0]).item())
+
+
 def _index_by_stem(root: Path, pattern: str) -> dict[str, list[Path]]:
     found: dict[str, list[Path]] = {}
     for path in sorted(Path(root).rglob(pattern)):
@@ -221,8 +231,7 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
             )
         spectrogram = pad_spectrogram_to_min_frames(mel_spectrogram(segment, sample_rate))
         batch = torch.from_numpy(spectrogram).unsqueeze(0).unsqueeze(0)  # (1, 1, n_mels, n_frames)
-        logits = model(batch)
-        return int(logits.argmax(dim=1).item())
+        return _speaker_from_logits(model(batch))
 
     return predict, fallback_speaker
 

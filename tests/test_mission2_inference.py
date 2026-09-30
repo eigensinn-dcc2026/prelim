@@ -489,3 +489,40 @@ def test_audio_at_another_sample_rate_stops_the_run_instead_of_falling_back_to_t
     assert isinstance(error, CheckpointConfigError)
     assert "8000 Hz" in str(error) and "16000 Hz" in str(error)
     assert _nothing_written(output_path)
+
+
+# ---------------------------------------------------------------------------
+# Decision rule: class 1 iff P(speaker=1) >= 0.5, so an exact tie is class 1
+# ---------------------------------------------------------------------------
+
+
+def test_speaker_from_logits_follows_p_speaker_1_at_least_one_half() -> None:
+    import torch
+
+    assert mission2_inference._speaker_from_logits(torch.tensor([[0.2, 1.7]])) == 1
+    assert mission2_inference._speaker_from_logits(torch.tensor([[1.7, 0.2]])) == 0
+    assert mission2_inference._speaker_from_logits(torch.tensor([[3.0, 3.0]])) == 1  # tie: P(1) is exactly 0.5
+    assert mission2_inference._speaker_from_logits(torch.tensor([[3.0, 3.0]])).__class__ is int
+    # argmax would have said 0 here -- the case this rule exists for
+    assert int(torch.tensor([[3.0, 3.0]]).argmax(dim=1).item()) == 0
+
+
+def test_a_model_whose_two_logits_always_tie_predicts_class_1_end_to_end(tmp_path: Path) -> None:
+    import torch
+
+    from dcc_data.mission2_cnn import SpeakerCNNLarge
+
+    model = SpeakerCNNLarge()
+    with torch.no_grad():
+        model.classifier[-1].weight.zero_()  # final Linear: both logits become the same bias for any input
+        model.classifier[-1].bias.zero_()
+    ckpt_path = tmp_path / "tied.pt"
+    torch.save(
+        {"best_model_state_dict": model.state_dict(), "best_val_acc": 0.0, "best_epoch": 0, "metadata": _l2_metadata()},
+        ckpt_path,
+    )
+
+    predict, _ = mission2_inference.load_predictor(ckpt_path)
+    segment = np.random.default_rng(0).standard_normal(4000).astype(np.float32)
+
+    assert predict(segment, SAMPLE_RATE, 0.5) == 1
