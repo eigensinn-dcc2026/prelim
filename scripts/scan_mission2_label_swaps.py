@@ -37,9 +37,18 @@ if str(SOURCE_ROOT) not in sys.path:
 
 from dcc_data.manifest import load_manifest  # noqa: E402
 from dcc_data.mission2_analysis import find_label_swap_candidates  # noqa: E402
-from dcc_data.mission2_features import (  # noqa: E402
-    CONFIRMED_LABEL_SWAPPED_CALL_IDS,
-    select_seoul_training_rows,
+from dcc_data.mission2_features import select_seoul_training_rows  # noqa: E402
+
+# Calls already known to look swapped (listed in reports/mission2/m2_label_noise_suspected_calls.md). They are only
+# left out of this scan's candidate list so they are not reported twice; nothing here changes a label -- the
+# organizers ruled (2026-10-01) that labels must be used as provided.
+KNOWN_SUSPECTED_CALL_IDS = frozenset(
+    {
+        "651e5550bfd63782eb3866a5",
+        "651e4b1829d82455557a23b2",
+        "651e50c72f06ed4a6e31e3d4",
+        "651e4c754428de718c773dab",
+    }
 )
 
 
@@ -81,13 +90,13 @@ def main() -> int:
     path_by_call_id = {call_id: (wav_path, json_path) for call_id, _, wav_path, json_path in loaded}
     calls_for_scan = [(call_id, utterances) for call_id, utterances, _, _ in loaded]
 
-    candidates = find_label_swap_candidates(calls_for_scan, exclude_call_ids=CONFIRMED_LABEL_SWAPPED_CALL_IDS)
+    candidates = find_label_swap_candidates(calls_for_scan, exclude_call_ids=KNOWN_SUSPECTED_CALL_IDS)
     for candidate in candidates:
         wav_path, json_path = path_by_call_id[candidate["call_id"]]
         candidate["wav_path"] = wav_path
         candidate["json_path"] = json_path
 
-    print(f"checked={len(loaded)} candidates={len(candidates)} (already-fixed calls excluded)")
+    print(f"checked={len(loaded)} candidates={len(candidates)} (already-known suspected calls excluded)")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(candidates, ensure_ascii=False, indent=2), encoding="utf-8")
