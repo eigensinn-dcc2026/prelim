@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Build the Mission 2 L2 input cache: one log-mel spectrogram .npy per
-utterance, plus an index parquet (call_id, utt_idx, speaker, npy_path, and the
+"""Build the Mission 2 L2 input cache: one log-spectrogram .npy per
+utterance (mel-scale by default, or linear-Hz via --freq-scale), plus an
+index parquet (call_id, utt_idx, speaker, npy_path, and the
 split / n_mels / hop_length / n_fft / sample_rate it was built with -- the provenance
 train_mission2_cnn.py checks before it will train on an index).
 
@@ -93,9 +94,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--n-mels", type=int, default=N_MELS,
-        help=f"number of mel frequency bands (default {N_MELS}). A larger value gives more "
-        "frequency resolution for the same audio -- pass a distinct --output-dir/--index-output "
-        "so this doesn't overwrite the default-resolution set.",
+        help=f"number of frequency bands (default {N_MELS}), for either --freq-scale. A larger "
+        "value gives more frequency resolution for the same audio -- pass a distinct "
+        "--output-dir/--index-output so this doesn't overwrite the default-resolution set.",
+    )
+    parser.add_argument(
+        "--freq-scale", choices=["mel", "linear"], default="mel",
+        help="mel (default, unchanged behavior) spaces bands on a mel scale (most bands at low "
+        "frequency); linear spaces them uniformly in Hz, giving the 2-4kHz band more resolution "
+        "-- see dcc_data.mission2_spectrogram.linear_spectrogram's docstring. Pass a distinct "
+        "--output-dir/--index-output so this doesn't overwrite the mel cache.",
     )
     args = parser.parse_args()
     for name, default in DEFAULT_CACHE_PATHS[args.split].items():
@@ -133,6 +141,7 @@ def main() -> int:
         max_workers=args.workers,
         hop_length=args.hop_length,
         n_mels=args.n_mels,
+        freq_scale=args.freq_scale,
     )
     if bar is not None:
         bar.close()

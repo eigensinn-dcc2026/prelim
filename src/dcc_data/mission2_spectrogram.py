@@ -121,6 +121,55 @@ def mel_spectrogram(
     return np.nan_to_num(log_mel, nan=SPEC_FLOOR_DB, neginf=SPEC_FLOOR_DB).astype(np.float32)
 
 
+def linear_spectrogram(
+    segment: np.ndarray, sample_rate: int, *, n_bins: int = N_MELS, hop_length: int = HOP_LENGTH
+) -> np.ndarray:
+    """Log spectrogram on a uniform (linear) Hz scale, shape (n_bins, n_frames).
+
+    A mel filterbank spends most of its bins on low frequencies and gives
+    high frequencies fewer, wider bins. muju0629's forensic analysis (see
+    reports/미션2 화자 분류 해결 방식 조사.md) found a single 2.2-3.6kHz vs
+    0.3-2kHz energy-ratio feature alone reaches 70.1% speaker-role accuracy --
+    exactly the band a 40-band mel scale resolves most coarsely. This keeps
+    the same band count but spaces bins uniformly in Hz instead, so that band
+    gets proportionally more resolution. Same per-utterance peak
+    normalization and floor as mel_spectrogram, so the two are drop-in
+    interchangeable for the rest of the pipeline (same shape, same value
+    range).
+    """
+
+    if len(segment) < N_FFT:
+        segment = np.pad(segment, (0, N_FFT - len(segment)))
+    segment = segment.astype(np.float32, copy=False)
+
+    stft_power = np.abs(librosa.stft(segment, n_fft=N_FFT, hop_length=hop_length)) ** 2
+    binned = np.stack([group.mean(axis=0) for group in np.array_split(stft_power, n_bins, axis=0)])
+    log_spec = librosa.power_to_db(binned, ref=np.max, top_db=-SPEC_FLOOR_DB)
+    return np.nan_to_num(log_spec, nan=SPEC_FLOOR_DB, neginf=SPEC_FLOOR_DB).astype(np.float32)
+
+
+FREQ_SCALES = {"mel": mel_spectrogram, "linear": linear_spectrogram}
+
+
+def compute_spectrogram(
+    segment: np.ndarray, sample_rate: int, *, freq_scale: str, n_mels: int, hop_length: int
+) -> np.ndarray:
+    """Dispatch to mel_spectrogram or linear_spectrogram by name.
+
+    Both take the band count as their second keyword (``n_mels``/``n_bins``
+    respectively) -- unified here under the ``n_mels`` CLI/call-site name so
+    build_mission2_spectrograms.py doesn't need a scale-specific flag.
+    """
+
+    try:
+        spectrogram_fn = FREQ_SCALES[freq_scale]
+    except KeyError:
+        raise ValueError(f"unknown freq_scale {freq_scale!r}, expected one of {sorted(FREQ_SCALES)}") from None
+    if spectrogram_fn is mel_spectrogram:
+        return spectrogram_fn(segment, sample_rate, n_mels=n_mels, hop_length=hop_length)
+    return spectrogram_fn(segment, sample_rate, n_bins=n_mels, hop_length=hop_length)
+
+
 # ---------------------------------------------------------------------------
 # Orchestration: sample calls, slice each utterance, save one .npy per
 # utterance + an index of what was saved (mirrors
@@ -137,7 +186,12 @@ def _spectrogram_path(output_dir: Path, call_id: str, utt_idx: int) -> Path:
 
 
 def _process_one_call_spectrograms(
-    row: ManifestRow, data_root: Path, output_dir: Path, hop_length: int = HOP_LENGTH, n_mels: int = N_MELS
+    row: ManifestRow,
+    data_root: Path,
+    output_dir: Path,
+    hop_length: int = HOP_LENGTH,
+    n_mels: int = N_MELS,
+    freq_scale: str = "mel",
 ) -> tuple[list[dict], list[dict]]:
     """Process exactly one call: slice every utterance, save its spectrogram.
 
@@ -172,7 +226,7 @@ def _process_one_call_spectrograms(
         try:
             start_frame, end_frame = utterance_frame_range(record.start_at, record.end_at, sample_rate, total_frames)
             segment = slice_and_pad(waveform, start_frame, end_frame, N_FFT)
-            spec = mel_spectrogram(segment, sample_rate, hop_length=hop_length, n_mels=n_mels)
+            spec = compute_spectrogram(segment, sample_rate, freq_scale=freq_scale, n_mels=n_mels, hop_length=hop_length)
         except Exception as exc:  # noqa: BLE001
             failures.append(
                 {"stage": "spectrogram", "call_id": record.call_id, "utt_idx": record.utt_idx, "error_type": type(exc).__name__, "error_message": str(exc)}
@@ -195,6 +249,7 @@ def _process_one_call_spectrograms(
                 "hop_length": hop_length,
                 "n_fft": N_FFT,
                 "sample_rate": int(sample_rate),
+                "freq_scale": freq_scale,
             }
         )
 
@@ -215,6 +270,7 @@ def _build_seoul_spectrograms(
     max_workers: int = 1,
     hop_length: int = HOP_LENGTH,
     n_mels: int = N_MELS,
+    freq_scale: str = "mel",
 ) -> tuple[list[dict], list[dict]]:
     """Shared implementation behind build_seoul_training_spectrograms and
     build_seoul_validation_spectrograms -- only which rows are eligible
@@ -231,7 +287,9 @@ def _build_seoul_spectrograms(
 
     if max_workers <= 1:
         for call_number, row in enumerate(sampled_rows, start=1):
-            index_rows, failures = _process_one_call_spectrograms(row, data_root, output_dir, hop_length, n_mels)
+            index_rows, failures = _process_one_call_spectrograms(
+                row, data_root, output_dir, hop_length, n_mels, freq_scale
+            )
             index_sink.extend(index_rows)
             failure_sink.extend(failures)
             if on_call_done:
@@ -241,7 +299,7 @@ def _build_seoul_spectrograms(
 
         with ProcessPoolExecutor(max_workers=max_workers) as pool:
             futures = [
-                pool.submit(_process_one_call_spectrograms, row, data_root, output_dir, hop_length, n_mels)
+                pool.submit(_process_one_call_spectrograms, row, data_root, output_dir, hop_length, n_mels, freq_scale)
                 for row in sampled_rows
             ]
             for call_number, future in enumerate(as_completed(futures), start=1):
@@ -267,6 +325,7 @@ def build_seoul_training_spectrograms(
     max_workers: int = 1,
     hop_length: int = HOP_LENGTH,
     n_mels: int = N_MELS,
+    freq_scale: str = "mel",
 ) -> tuple[list[dict], list[dict]]:
     """Sample Seoul/Training calls and save one spectrogram .npy per utterance.
 
@@ -279,6 +338,8 @@ def build_seoul_training_spectrograms(
     set into a different ``output_dir`` -- see mel_spectrogram()'s docstring.
     ``n_mels`` defaults to N_MELS (unchanged behavior); pass a larger value
     for a higher frequency-resolution set, same ``output_dir`` caveat.
+    ``freq_scale`` is ``"mel"`` (unchanged behavior) or ``"linear"`` -- see
+    linear_spectrogram()'s docstring; also use a different ``output_dir``.
     """
 
     return _build_seoul_spectrograms(
@@ -294,6 +355,7 @@ def build_seoul_training_spectrograms(
         max_workers=max_workers,
         hop_length=hop_length,
         n_mels=n_mels,
+        freq_scale=freq_scale,
     )
 
 
@@ -310,6 +372,7 @@ def build_seoul_validation_spectrograms(
     max_workers: int = 1,
     hop_length: int = HOP_LENGTH,
     n_mels: int = N_MELS,
+    freq_scale: str = "mel",
 ) -> tuple[list[dict], list[dict]]:
     """Same as build_seoul_training_spectrograms, but over the official
     Validation split (dcc_data.mission2_features.select_seoul_validation_rows)
@@ -329,4 +392,5 @@ def build_seoul_validation_spectrograms(
         max_workers=max_workers,
         hop_length=hop_length,
         n_mels=n_mels,
+        freq_scale=freq_scale,
     )

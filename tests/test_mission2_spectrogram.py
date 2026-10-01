@@ -17,6 +17,7 @@ import sys
 import wave
 from pathlib import Path
 
+import librosa
 import numpy as np
 import pandas as pd
 import pytest
@@ -31,6 +32,7 @@ from dcc_data.mission2_spectrogram import (
     assert_training_spectrogram_index,
     build_seoul_training_spectrograms,
     build_seoul_validation_spectrograms,
+    linear_spectrogram,
     mel_spectrogram,
 )
 
@@ -111,6 +113,88 @@ def test_mel_spectrogram_is_near_silent_for_pure_silence() -> None:
     # ref=np.max degenerates to 0 energy everywhere -> librosa's power_to_db
     # floor kicks in uniformly; just check it doesn't blow up.
     assert np.isfinite(spec).all()
+
+
+# ---------------------------------------------------------------------------
+# linear_spectrogram: same per-utterance peak normalization/floor as
+# mel_spectrogram, but bins are spaced uniformly in Hz instead of on a mel
+# scale -- see reports/미션2 화자 분류 해결 방식 조사.md's muju0629 finding that a
+# single 2.2-3.6kHz vs 0.3-2kHz energy-ratio feature alone reaches 70.1%
+# accuracy, exactly the band a mel scale gives the fewest/widest bins.
+# ---------------------------------------------------------------------------
+
+
+def test_linear_spectrogram_has_n_bins_rows() -> None:
+    segment = _tone(150.0, 1.0)
+    spec = linear_spectrogram(segment, 8000)
+    assert spec.shape[0] == N_MELS  # same default band count as mel_spectrogram
+    assert spec.shape[1] > 1
+
+
+def test_linear_spectrogram_is_finite_and_bounded_by_the_floor() -> None:
+    segment = _tone(150.0, 1.0)
+    spec = linear_spectrogram(segment, 8000)
+    assert np.isfinite(spec).all()
+    assert spec.max() <= 1e-6  # normalized relative to its own max -> ~0 dB ceiling
+    assert spec.min() >= SPEC_FLOOR_DB - 1e-3
+
+
+def test_linear_spectrogram_handles_segment_shorter_than_n_fft() -> None:
+    rng = np.random.default_rng(0)
+    short_segment = rng.standard_normal(50).astype(np.float32)
+    spec = linear_spectrogram(short_segment, 8000)
+    assert spec.shape[0] == N_MELS
+    assert np.isfinite(spec).all()
+
+
+def test_linear_spectrogram_n_bins_controls_frequency_bins_only() -> None:
+    segment = _tone(150.0, 1.0)
+    default_spec = linear_spectrogram(segment, 8000, n_bins=N_MELS)
+    finer_spec = linear_spectrogram(segment, 8000, n_bins=N_MELS * 2)
+    assert finer_spec.shape[0] == N_MELS * 2
+    assert finer_spec.shape[1] == default_spec.shape[1]  # time axis unaffected
+
+
+def test_linear_spectrogram_same_time_axis_as_mel_for_same_hop_length() -> None:
+    # The two representations must be drop-in compatible with the same CNN
+    # input pipeline -- only the frequency axis's meaning differs.
+    segment = _tone(150.0, 1.0)
+    mel_spec = mel_spectrogram(segment, 8000)
+    linear_spec = linear_spectrogram(segment, 8000)
+    assert linear_spec.shape == mel_spec.shape
+
+
+def test_linear_bins_are_uniform_in_hz_unlike_mel_bins() -> None:
+    # The actual mechanism this representation is for: with the same band
+    # count, mel bin edges get wider (lower resolution) at higher
+    # frequency, while linear bin edges stay a constant width throughout --
+    # so the 2-4kHz region gets more, narrower bins than mel gives it.
+    sample_rate = 8000
+    n_bins = N_MELS
+
+    mel_edges_hz = librosa.mel_frequencies(n_mels=n_bins + 2, fmin=0, fmax=sample_rate / 2)
+    mel_widths = np.diff(mel_edges_hz)
+    # mel bin width grows monotonically (allowing for float noise) -- not
+    # uniform, and widest at the top of the band.
+    assert mel_widths[-1] > mel_widths[0] * 3
+
+    n_fft = 512
+    n_freq = n_fft // 2 + 1
+    linear_hz = np.linspace(0, sample_rate / 2, n_freq)
+    group_edges = [len(group) for group in np.array_split(linear_hz, n_bins)]
+    # array_split's group sizes differ by at most 1 bin -> each linear bin
+    # spans essentially the same Hz width, unlike the mel case above.
+    assert max(group_edges) - min(group_edges) <= 1
+
+    # The band muju0629 flagged (2.2-3.6kHz) gets strictly more of the 40
+    # linear bins than it gets of the 40 mel bins.
+    def bins_covering(edges_hz: np.ndarray, lo: float, hi: float) -> int:
+        return int(np.sum((edges_hz[:-1] < hi) & (edges_hz[1:] > lo)))
+
+    linear_bin_edges_hz = np.linspace(0, sample_rate / 2, n_bins + 1)
+    mel_bin_edges_hz = librosa.mel_frequencies(n_mels=n_bins + 2, fmin=0, fmax=sample_rate / 2)[1:-1]
+    mel_bin_edges_hz = np.concatenate([[0.0], mel_bin_edges_hz, [sample_rate / 2]])
+    assert bins_covering(linear_bin_edges_hz, 2200, 3600) > bins_covering(mel_bin_edges_hz, 2200, 3600)
 
 
 def _write_wav(path: Path, duration_s: float, *, seed: int) -> None:
@@ -235,6 +319,49 @@ def test_build_seoul_training_spectrograms_n_mels_controls_frequency_bins(tmp_pa
         assert spec.shape[0] == N_MELS * 2
         # n_frames in the index tracks the time axis (shape[1]), unaffected by n_mels
         assert spec.shape[1] == entry["n_frames"]
+
+
+def test_build_seoul_training_spectrograms_freq_scale_linear(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    utterances = [(0, 90, 0), (200, 1800, 1), (1900, 3400, 0)]
+    wav_relative = "chunk/Training/1.원천데이터/TS_서울_구급/call1.wav"
+    json_relative = "chunk/Training/2.라벨링데이터/TL_서울_구급/call1.json"
+    _write_call(root, wav_relative, json_relative, utterances, seed=0)
+    row = ManifestRow("Training", "call1", wav_relative, json_relative)
+
+    mel_rows, _ = build_seoul_training_spectrograms(
+        [row], root, tmp_path / "specs_mel", n_calls=1, seed=42
+    )
+    linear_rows, _ = build_seoul_training_spectrograms(
+        [row], root, tmp_path / "specs_linear", n_calls=1, seed=42, freq_scale="linear"
+    )
+
+    assert len(mel_rows) == len(linear_rows) == 3
+    for mel_entry, linear_entry in zip(
+        sorted(mel_rows, key=lambda e: e["utt_idx"]), sorted(linear_rows, key=lambda e: e["utt_idx"])
+    ):
+        assert mel_entry["freq_scale"] == "mel"
+        assert linear_entry["freq_scale"] == "linear"
+        mel_spec = np.load(tmp_path / "specs_mel" / mel_entry["npy_path"])
+        linear_spec = np.load(tmp_path / "specs_linear" / linear_entry["npy_path"])
+        assert linear_spec.shape == mel_spec.shape  # same band/frame count, different values
+        assert not np.array_equal(mel_spec, linear_spec)
+
+
+def test_build_seoul_training_spectrograms_rejects_unknown_freq_scale(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    utterances = [(0, 90, 0)]
+    wav_relative = "chunk/Training/1.원천데이터/TS_서울_구급/call1.wav"
+    json_relative = "chunk/Training/2.라벨링데이터/TL_서울_구급/call1.json"
+    _write_call(root, wav_relative, json_relative, utterances, seed=0)
+    row = ManifestRow("Training", "call1", wav_relative, json_relative)
+
+    index_rows, failures = build_seoul_training_spectrograms(
+        [row], root, tmp_path / "specs", n_calls=1, seed=42, freq_scale="bogus"
+    )
+    assert index_rows == []
+    assert len(failures) == 1
+    assert failures[0]["error_type"] == "ValueError"
 
 
 # ---------------------------------------------------------------------------
