@@ -1,0 +1,2909 @@
+{
+  "meta": {
+    "generated_at": "2026-09-21T05:31:49.497103+00:00",
+    "seed": 42,
+    "manifest_path": "data/manifests/dcc_manifest_v1.csv",
+    "data_root_redacted": true,
+    "legacy_eda_path": "reports/eda/eda_summary.json",
+    "legacy_eda_recomputed": false,
+    "training_scope": {
+      "mode": "full",
+      "n_manifest": 29200,
+      "n_used": 29200,
+      "json_max": null
+    },
+    "validation_scope": {
+      "mode": "full",
+      "n_manifest": 3640,
+      "n_used": 3640,
+      "json_max": null
+    },
+    "wav_header_cache_path": "reports/eda/wav_header_cache.csv",
+    "wav_header_cache_run": {
+      "n_requested": 32840,
+      "n_reused": 20,
+      "n_computed": 32820,
+      "n_error": 0,
+      "rebuild": false
+    },
+    "waveform_sampling": {
+      "strategy": "proportional gender stratification within split",
+      "training_requested": 1000,
+      "validation_requested": 400
+    }
+  },
+  "training": {
+    "common": {
+      "manifest_rows": 29200,
+      "json_parsed": 29200,
+      "json_read_failures": {},
+      "field_completeness": {
+        "_id": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "audioPath": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "recordId": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "status": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "startAt": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "endAt": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "utterances": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "mediaType": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "gender": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "address": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "disasterLarge": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "disasterMedium": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "urgencyLevel": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "sentiment": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "symptom": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "triage": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        }
+      },
+      "invalid_type_counts": {},
+      "identifiers": {
+        "stem": {
+          "non_null_count": 29200,
+          "distinct_count": 29200,
+          "duplicate_groups": 0,
+          "duplicate_rows_beyond_first": 0
+        },
+        "_id": {
+          "non_null_count": 29200,
+          "distinct_count": 29200,
+          "duplicate_groups": 0,
+          "duplicate_rows_beyond_first": 0
+        },
+        "recordId": {
+          "non_null_count": 29200,
+          "distinct_count": 29200,
+          "duplicate_groups": 0,
+          "duplicate_rows_beyond_first": 0
+        }
+      },
+      "call_duration_s": {
+        "n": 29200,
+        "min": 30.0,
+        "mean": 72.185018,
+        "std": 28.870459,
+        "p1": 31.92,
+        "p5": 37.2,
+        "p25": 50.88,
+        "p50": 65.64,
+        "p75": 86.64,
+        "p90": 112.68,
+        "p95": 131.52,
+        "p99": 163.2012,
+        "max": 180.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "call_duration_histogram": {
+        "edges": [
+          0.0,
+          30.0,
+          45.0,
+          60.0,
+          90.0,
+          120.0,
+          180.0,
+          300.0
+        ],
+        "counts": [
+          0,
+          4429,
+          7464,
+          10783,
+          4280,
+          2241,
+          3
+        ],
+        "unit": "seconds"
+      },
+      "utterances_per_call": {
+        "n": 29200,
+        "min": 2.0,
+        "mean": 30.457466,
+        "std": 11.382736,
+        "p1": 12.0,
+        "p5": 16.0,
+        "p25": 22.0,
+        "p50": 29.0,
+        "p75": 36.0,
+        "p90": 46.0,
+        "p95": 52.0,
+        "p99": 65.0,
+        "max": 98.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "utterance_duration_s": {
+        "n": 889358,
+        "min": 0.009,
+        "mean": 1.976963,
+        "std": 1.647838,
+        "p1": 0.292,
+        "p5": 0.43,
+        "p25": 0.846,
+        "p50": 1.44,
+        "p75": 2.55,
+        "p90": 4.183,
+        "p95": 5.418,
+        "p99": 7.977,
+        "max": 24.172,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "wav": {
+        "channels": {
+          "1": 29200
+        },
+        "sample_rates_hz": {
+          "8000": 29200
+        },
+        "sample_width_bytes": {
+          "2": 29200
+        },
+        "read_errors": {},
+        "duration_s": {
+          "n": 29200,
+          "min": 30.0,
+          "mean": 72.185018,
+          "std": 28.870459,
+          "p1": 31.92,
+          "p5": 37.2,
+          "p25": 50.88,
+          "p50": 65.64,
+          "p75": 86.64,
+          "p90": 112.68,
+          "p95": 131.52,
+          "p99": 163.2012,
+          "max": 180.0,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "seconds"
+        },
+        "json_minus_wav_duration_ms": {
+          "n": 29200,
+          "min": 0.0,
+          "mean": 0.0,
+          "std": 0.0,
+          "p1": 0.0,
+          "p5": 0.0,
+          "p25": 0.0,
+          "p50": 0.0,
+          "p75": 0.0,
+          "p90": 0.0,
+          "p95": 0.0,
+          "p99": 0.0,
+          "max": 0.0,
+          "zero_count": 29200,
+          "negative_count": 0,
+          "unit": "milliseconds"
+        }
+      },
+      "timestamp_issue_counts": {
+        "calls_with_overlapping_utterances": 28659
+      },
+      "context_distributions": {
+        "mediaType": {
+          "Mobile": {
+            "count": 29200,
+            "pct": 100.0
+          }
+        },
+        "status": {
+          "12": {
+            "count": 29200,
+            "pct": 100.0
+          }
+        },
+        "disasterLarge": {
+          "구급": {
+            "count": 29200,
+            "pct": 100.0
+          }
+        },
+        "disasterMedium": {
+          "기타구급": {
+            "count": 83,
+            "pct": 0.284
+          },
+          "부상": {
+            "count": 2905,
+            "pct": 9.949
+          },
+          "사고": {
+            "count": 80,
+            "pct": 0.274
+          },
+          "심정지": {
+            "count": 34,
+            "pct": 0.116
+          },
+          "약물중독": {
+            "count": 21,
+            "pct": 0.072
+          },
+          "임산부": {
+            "count": 78,
+            "pct": 0.267
+          },
+          "질병(중증 외)": {
+            "count": 20185,
+            "pct": 69.127
+          },
+          "질병(중증)": {
+            "count": 5814,
+            "pct": 19.911
+          }
+        },
+        "urgencyLevel": {
+          "상": {
+            "count": 7679,
+            "pct": 26.298
+          },
+          "중": {
+            "count": 11594,
+            "pct": 39.705
+          },
+          "하": {
+            "count": 9927,
+            "pct": 33.997
+          }
+        },
+        "sentiment": {
+          "기타부정": {
+            "count": 378,
+            "pct": 1.295
+          },
+          "당황/난처": {
+            "count": 7654,
+            "pct": 26.212
+          },
+          "불안/걱정": {
+            "count": 19928,
+            "pct": 68.247
+          },
+          "중립": {
+            "count": 1240,
+            "pct": 4.247
+          }
+        },
+        "triage": {
+          "": {
+            "count": 284,
+            "pct": 0.973
+          },
+          "대상외": {
+            "count": 507,
+            "pct": 1.736
+          },
+          "사망": {
+            "count": 2,
+            "pct": 0.007
+          },
+          "사망추정": {
+            "count": 1,
+            "pct": 0.003
+          },
+          "응급증상": {
+            "count": 3731,
+            "pct": 12.777
+          },
+          "잠재응급증상": {
+            "count": 17215,
+            "pct": 58.955
+          },
+          "준응급증상": {
+            "count": 7460,
+            "pct": 25.548
+          }
+        }
+      }
+    },
+    "mission1": {
+      "gender_distribution": {
+        "F": {
+          "count": 15542,
+          "pct": 53.226
+        },
+        "M": {
+          "count": 13658,
+          "pct": 46.774
+        }
+      },
+      "caller_duration_s": {
+        "n": 29200,
+        "min": 0.872,
+        "mean": 33.486717,
+        "std": 15.086588,
+        "p1": 10.16597,
+        "p5": 15.274,
+        "p25": 22.77775,
+        "p50": 30.216,
+        "p75": 41.17725,
+        "p90": 53.7204,
+        "p95": 62.79155,
+        "p99": 82.03307,
+        "max": 129.168,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "caller_utterances_per_call": {
+        "n": 29200,
+        "min": 1.0,
+        "mean": 15.828664,
+        "std": 6.094405,
+        "p1": 6.0,
+        "p5": 8.0,
+        "p25": 12.0,
+        "p50": 15.0,
+        "p75": 19.0,
+        "p90": 24.0,
+        "p95": 27.0,
+        "p99": 35.0,
+        "max": 60.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "caller_share_of_call": {
+        "n": 29200,
+        "min": 0.018443,
+        "mean": 0.467105,
+        "std": 0.107584,
+        "p1": 0.206257,
+        "p5": 0.289876,
+        "p25": 0.396044,
+        "p50": 0.468127,
+        "p75": 0.539722,
+        "p90": 0.604119,
+        "p95": 0.641991,
+        "p99": 0.710437,
+        "max": 0.885169,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "caller_within_speaker_overlap_ratio": {
+        "n": 29200,
+        "min": 0.0,
+        "mean": 0.001502,
+        "std": 0.006229,
+        "p1": 0.0,
+        "p5": 0.0,
+        "p25": 0.0,
+        "p50": 0.0,
+        "p75": 0.000902,
+        "p90": 0.002437,
+        "p95": 0.004987,
+        "p99": 0.030152,
+        "max": 0.226784,
+        "zero_count": 16666,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "by_gender": {
+        "F": {
+          "n_calls": 15542,
+          "call_duration_s": {
+            "n": 15542,
+            "min": 30.0,
+            "mean": 73.005909,
+            "std": 28.867947,
+            "p1": 32.16,
+            "p5": 37.92,
+            "p25": 51.84,
+            "p50": 66.6,
+            "p75": 87.6,
+            "p90": 113.52,
+            "p95": 132.114,
+            "p99": 162.9108,
+            "max": 180.0,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "seconds"
+          },
+          "caller_duration_s": {
+            "n": 15542,
+            "min": 0.872,
+            "mean": 34.639327,
+            "std": 15.375242,
+            "p1": 10.95341,
+            "p5": 16.0121,
+            "p25": 23.799,
+            "p50": 31.325,
+            "p75": 42.409,
+            "p90": 55.3089,
+            "p95": 64.36965,
+            "p99": 84.70187,
+            "max": 129.168,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "seconds"
+          },
+          "caller_utterances": {
+            "n": 15542,
+            "min": 1.0,
+            "mean": 16.017115,
+            "std": 6.083881,
+            "p1": 6.0,
+            "p5": 8.0,
+            "p25": 12.0,
+            "p50": 15.0,
+            "p75": 19.0,
+            "p90": 24.0,
+            "p95": 28.0,
+            "p99": 35.0,
+            "max": 56.0,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "count"
+          },
+          "caller_share": {
+            "n": 15542,
+            "min": 0.018443,
+            "mean": 0.477674,
+            "std": 0.107146,
+            "p1": 0.222667,
+            "p5": 0.300761,
+            "p25": 0.406197,
+            "p50": 0.479501,
+            "p75": 0.55059,
+            "p90": 0.613809,
+            "p95": 0.650806,
+            "p99": 0.720167,
+            "max": 0.885169,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "ratio"
+          }
+        },
+        "M": {
+          "n_calls": 13658,
+          "call_duration_s": {
+            "n": 13658,
+            "min": 30.0,
+            "mean": 71.250892,
+            "std": 28.844912,
+            "p1": 31.68,
+            "p5": 36.72,
+            "p25": 49.92,
+            "p50": 64.68,
+            "p75": 85.44,
+            "p90": 111.6,
+            "p95": 130.68,
+            "p99": 163.44,
+            "max": 180.0,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "seconds"
+          },
+          "caller_duration_s": {
+            "n": 13658,
+            "min": 1.134,
+            "mean": 32.175115,
+            "std": 14.641284,
+            "p1": 9.48214,
+            "p5": 14.6248,
+            "p25": 21.6815,
+            "p50": 28.9685,
+            "p75": 39.56275,
+            "p90": 51.9826,
+            "p95": 60.76275,
+            "p99": 79.66184,
+            "max": 122.477,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "seconds"
+          },
+          "caller_utterances": {
+            "n": 13658,
+            "min": 2.0,
+            "mean": 15.614219,
+            "std": 6.099281,
+            "p1": 6.0,
+            "p5": 8.0,
+            "p25": 11.0,
+            "p50": 14.0,
+            "p75": 19.0,
+            "p90": 24.0,
+            "p95": 27.0,
+            "p99": 35.0,
+            "max": 60.0,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "count"
+          },
+          "caller_share": {
+            "n": 13658,
+            "min": 0.025317,
+            "mean": 0.455077,
+            "std": 0.106815,
+            "p1": 0.195708,
+            "p5": 0.278459,
+            "p25": 0.385415,
+            "p50": 0.455159,
+            "p75": 0.526864,
+            "p90": 0.590777,
+            "p95": 0.631045,
+            "p99": 0.699682,
+            "max": 0.823363,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "ratio"
+          }
+        }
+      }
+    },
+    "mission2": {
+      "utterance_count_by_speaker": {
+        "0": {
+          "count": 427161,
+          "pct": 48.03
+        },
+        "1": {
+          "count": 462197,
+          "pct": 51.97
+        }
+      },
+      "utterance_duration_total_by_speaker": {
+        "0": {
+          "count": 778814393,
+          "pct": 44.295
+        },
+        "1": {
+          "count": 979413667,
+          "pct": 55.705
+        }
+      },
+      "utterance_duration_s_by_speaker": {
+        "0": {
+          "n": 427161,
+          "min": 0.01,
+          "mean": 1.823234,
+          "std": 1.412818,
+          "p1": 0.29,
+          "p5": 0.428,
+          "p25": 0.883,
+          "p50": 1.402,
+          "p75": 2.308,
+          "p90": 3.64,
+          "p95": 4.699,
+          "p99": 7.1,
+          "max": 19.802,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "seconds"
+        },
+        "1": {
+          "n": 462197,
+          "min": 0.009,
+          "mean": 2.119039,
+          "std": 1.827055,
+          "p1": 0.3,
+          "p5": 0.43,
+          "p25": 0.809,
+          "p50": 1.49,
+          "p75": 2.826,
+          "p90": 4.661,
+          "p95": 5.9652,
+          "p99": 8.501,
+          "max": 24.172,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "seconds"
+        }
+      },
+      "duration_bucket_count_by_speaker": {
+        "0": {
+          "<0.5s": 33553,
+          "0.5-1s": 98055,
+          "1-2s": 161756,
+          "2-4s": 100003,
+          ">=4s": 33794
+        },
+        "1": {
+          "<0.5s": 36962,
+          "0.5-1s": 117722,
+          "1-2s": 132032,
+          "2-4s": 110718,
+          ">=4s": 64763
+        }
+      },
+      "speaker_1_duration_share_per_call": {
+        "n": 29200,
+        "min": 0.070617,
+        "mean": 0.559062,
+        "std": 0.103375,
+        "p1": 0.301587,
+        "p5": 0.38706,
+        "p25": 0.49129,
+        "p50": 0.560674,
+        "p75": 0.629059,
+        "p90": 0.690017,
+        "p95": 0.726034,
+        "p99": 0.788688,
+        "max": 0.927175,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "speaker_alternations_per_call": {
+        "n": 29200,
+        "min": 1.0,
+        "mean": 23.779247,
+        "std": 9.121856,
+        "p1": 8.99,
+        "p5": 12.0,
+        "p25": 17.0,
+        "p50": 22.0,
+        "p75": 29.0,
+        "p90": 36.0,
+        "p95": 41.0,
+        "p99": 51.0,
+        "max": 80.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "overlap_pairs_per_call": {
+        "n": 29200,
+        "min": 0.0,
+        "mean": 7.784726,
+        "std": 5.339478,
+        "p1": 0.0,
+        "p5": 1.0,
+        "p25": 4.0,
+        "p50": 7.0,
+        "p75": 10.0,
+        "p90": 15.0,
+        "p95": 18.0,
+        "p99": 25.0,
+        "max": 50.0,
+        "zero_count": 541,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "overlap_excess_s_per_call": {
+        "n": 29200,
+        "min": 0.0,
+        "mean": 3.351402,
+        "std": 3.058323,
+        "p1": 0.0,
+        "p5": 0.064,
+        "p25": 1.162,
+        "p50": 2.575,
+        "p75": 4.649,
+        "p90": 7.2801,
+        "p95": 9.185,
+        "p99": 14.06805,
+        "max": 37.453,
+        "zero_count": 541,
+        "negative_count": 0,
+        "unit": "seconds"
+      }
+    },
+    "mission3": {
+      "target_symptom_prevalence": {
+        "고열": {
+          "count": 5186,
+          "pct_of_calls": 17.76
+        },
+        "구토": {
+          "count": 4463,
+          "pct_of_calls": 15.284
+        },
+        "두통": {
+          "count": 2905,
+          "pct_of_calls": 9.949
+        },
+        "복통": {
+          "count": 6771,
+          "pct_of_calls": 23.188
+        },
+        "어지러움": {
+          "count": 6334,
+          "pct_of_calls": 21.692
+        },
+        "열상": {
+          "count": 3465,
+          "pct_of_calls": 11.866
+        },
+        "오심": {
+          "count": 3341,
+          "pct_of_calls": 11.442
+        },
+        "전신쇠약": {
+          "count": 5310,
+          "pct_of_calls": 18.185
+        },
+        "호흡곤란": {
+          "count": 3927,
+          "pct_of_calls": 13.449
+        }
+      },
+      "label_cardinality": {
+        "n": 29200,
+        "min": 1.0,
+        "mean": 1.428151,
+        "std": 0.683095,
+        "p1": 1.0,
+        "p5": 1.0,
+        "p25": 1.0,
+        "p50": 1.0,
+        "p75": 2.0,
+        "p90": 2.0,
+        "p95": 3.0,
+        "p99": 4.0,
+        "max": 5.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "labels_per_call"
+      },
+      "label_density_mean": 0.158683,
+      "zero_target_symptom_calls": 0,
+      "duplicate_labels_within_calls": 0,
+      "unknown_symptom_labels": {
+        "기타": 3353,
+        "기타통증": 2618,
+        "설사": 1522,
+        "기침": 1025,
+        "의식장애": 687,
+        "찰과상": 683,
+        "그 밖의출혈": 679,
+        "흉통": 542,
+        "실신": 527,
+        "타박상": 484,
+        "가슴불편감": 454,
+        "경련/발작": 447,
+        "요통": 427,
+        "혈변": 265,
+        "마비": 243,
+        "심계항진": 177,
+        "배뇨장애": 154,
+        "토혈": 153,
+        "변비": 130,
+        "그밖의통증기타": 122,
+        "정신장애": 101,
+        "비출혈": 95,
+        "골절": 90,
+        "질출혈": 54,
+        "객혈": 49,
+        "염좌": 25,
+        "심정지": 21,
+        "호흡정지": 20,
+        "저체온증": 16,
+        "기도이물": 14,
+        "기타이물질": 9,
+        "분만진통": 7,
+        "탈구": 6,
+        "경추통증": 6,
+        "압궤손상": 5,
+        "화상": 4,
+        "절단": 4
+      },
+      "cooccurrence": {
+        "고열": {
+          "고열": 5186,
+          "구토": 473,
+          "두통": 377,
+          "복통": 440,
+          "어지러움": 294,
+          "열상": 31,
+          "오심": 251,
+          "전신쇠약": 937,
+          "호흡곤란": 554
+        },
+        "구토": {
+          "고열": 473,
+          "구토": 4463,
+          "두통": 391,
+          "복통": 1431,
+          "어지러움": 1442,
+          "열상": 29,
+          "오심": 1291,
+          "전신쇠약": 409,
+          "호흡곤란": 146
+        },
+        "두통": {
+          "고열": 377,
+          "구토": 391,
+          "두통": 2905,
+          "복통": 181,
+          "어지러움": 565,
+          "열상": 115,
+          "오심": 447,
+          "전신쇠약": 248,
+          "호흡곤란": 115
+        },
+        "복통": {
+          "고열": 440,
+          "구토": 1431,
+          "두통": 181,
+          "복통": 6771,
+          "어지러움": 456,
+          "열상": 4,
+          "오심": 843,
+          "전신쇠약": 312,
+          "호흡곤란": 176
+        },
+        "어지러움": {
+          "고열": 294,
+          "구토": 1442,
+          "두통": 565,
+          "복통": 456,
+          "어지러움": 6334,
+          "열상": 123,
+          "오심": 1629,
+          "전신쇠약": 773,
+          "호흡곤란": 265
+        },
+        "열상": {
+          "고열": 31,
+          "구토": 29,
+          "두통": 115,
+          "복통": 4,
+          "어지러움": 123,
+          "열상": 3465,
+          "오심": 34,
+          "전신쇠약": 24,
+          "호흡곤란": 6
+        },
+        "오심": {
+          "고열": 251,
+          "구토": 1291,
+          "두통": 447,
+          "복통": 843,
+          "어지러움": 1629,
+          "열상": 34,
+          "오심": 3341,
+          "전신쇠약": 364,
+          "호흡곤란": 125
+        },
+        "전신쇠약": {
+          "고열": 937,
+          "구토": 409,
+          "두통": 248,
+          "복통": 312,
+          "어지러움": 773,
+          "열상": 24,
+          "오심": 364,
+          "전신쇠약": 5310,
+          "호흡곤란": 439
+        },
+        "호흡곤란": {
+          "고열": 554,
+          "구토": 146,
+          "두통": 115,
+          "복통": 176,
+          "어지러움": 265,
+          "열상": 6,
+          "오심": 125,
+          "전신쇠약": 439,
+          "호흡곤란": 3927
+        }
+      },
+      "text_length_chars": {
+        "n": 889358,
+        "min": 0.0,
+        "mean": 14.304834,
+        "std": 13.595313,
+        "p1": 1.0,
+        "p5": 2.0,
+        "p25": 6.0,
+        "p50": 9.0,
+        "p75": 19.0,
+        "p90": 33.0,
+        "p95": 43.0,
+        "p99": 63.0,
+        "max": 198.0,
+        "zero_count": 1,
+        "negative_count": 0,
+        "unit": "characters"
+      },
+      "text_length_chars_by_speaker": {
+        "0": {
+          "n": 427161,
+          "min": 0.0,
+          "mean": 15.03362,
+          "std": 13.623332,
+          "p1": 1.0,
+          "p5": 2.0,
+          "p25": 6.0,
+          "p50": 11.0,
+          "p75": 20.0,
+          "p90": 33.0,
+          "p95": 43.0,
+          "p99": 65.0,
+          "max": 187.0,
+          "zero_count": 1,
+          "negative_count": 0,
+          "unit": "characters"
+        },
+        "1": {
+          "n": 462197,
+          "min": 1.0,
+          "mean": 13.631294,
+          "std": 13.534519,
+          "p1": 1.0,
+          "p5": 2.0,
+          "p25": 5.0,
+          "p50": 8.0,
+          "p75": 18.0,
+          "p90": 33.0,
+          "p95": 42.0,
+          "p99": 62.0,
+          "max": 198.0,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "characters"
+        }
+      },
+      "blank_text_utterances": 1,
+      "privacy_marker_utterances": 107268,
+      "privacy_marker_utterance_pct": 12.061,
+      "token_count": 3405705,
+      "vocabulary_size": 146445
+    }
+  },
+  "validation": {
+    "common": {
+      "manifest_rows": 3640,
+      "json_parsed": 3640,
+      "json_read_failures": {},
+      "field_completeness": {
+        "_id": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "audioPath": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "recordId": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "status": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "startAt": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "endAt": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "utterances": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "mediaType": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "gender": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "address": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "disasterLarge": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "disasterMedium": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "urgencyLevel": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "sentiment": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "symptom": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        },
+        "triage": {
+          "missing": 0,
+          "null": 0,
+          "non_null_pct": 100.0
+        }
+      },
+      "invalid_type_counts": {},
+      "identifiers": {
+        "stem": {
+          "non_null_count": 3640,
+          "distinct_count": 3640,
+          "duplicate_groups": 0,
+          "duplicate_rows_beyond_first": 0
+        },
+        "_id": {
+          "non_null_count": 3640,
+          "distinct_count": 3640,
+          "duplicate_groups": 0,
+          "duplicate_rows_beyond_first": 0
+        },
+        "recordId": {
+          "non_null_count": 3640,
+          "distinct_count": 3640,
+          "duplicate_groups": 0,
+          "duplicate_rows_beyond_first": 0
+        }
+      },
+      "call_duration_s": {
+        "n": 3640,
+        "min": 30.0,
+        "mean": 72.598286,
+        "std": 29.058742,
+        "p1": 31.56,
+        "p5": 37.08,
+        "p25": 51.24,
+        "p50": 65.76,
+        "p75": 87.24,
+        "p90": 114.252,
+        "p95": 131.886,
+        "p99": 161.166,
+        "max": 180.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "call_duration_histogram": {
+        "edges": [
+          0.0,
+          30.0,
+          45.0,
+          60.0,
+          90.0,
+          120.0,
+          180.0,
+          300.0
+        ],
+        "counts": [
+          0,
+          541,
+          894,
+          1376,
+          531,
+          297,
+          1
+        ],
+        "unit": "seconds"
+      },
+      "utterances_per_call": {
+        "n": 3640,
+        "min": 3.0,
+        "mean": 30.75467,
+        "std": 11.517473,
+        "p1": 12.0,
+        "p5": 16.0,
+        "p25": 22.0,
+        "p50": 29.0,
+        "p75": 37.0,
+        "p90": 47.0,
+        "p95": 53.0,
+        "p99": 64.0,
+        "max": 95.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "utterance_duration_s": {
+        "n": 111947,
+        "min": 0.09,
+        "mean": 1.972872,
+        "std": 1.648407,
+        "p1": 0.291,
+        "p5": 0.429,
+        "p25": 0.84,
+        "p50": 1.436,
+        "p75": 2.55,
+        "p90": 4.182,
+        "p95": 5.4084,
+        "p99": 8.02562,
+        "max": 18.451,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "wav": {
+        "channels": {
+          "1": 3640
+        },
+        "sample_rates_hz": {
+          "8000": 3640
+        },
+        "sample_width_bytes": {
+          "2": 3640
+        },
+        "read_errors": {},
+        "duration_s": {
+          "n": 3640,
+          "min": 30.0,
+          "mean": 72.598286,
+          "std": 29.058742,
+          "p1": 31.56,
+          "p5": 37.08,
+          "p25": 51.24,
+          "p50": 65.76,
+          "p75": 87.24,
+          "p90": 114.252,
+          "p95": 131.886,
+          "p99": 161.166,
+          "max": 180.0,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "seconds"
+        },
+        "json_minus_wav_duration_ms": {
+          "n": 3640,
+          "min": 0.0,
+          "mean": 0.0,
+          "std": 0.0,
+          "p1": 0.0,
+          "p5": 0.0,
+          "p25": 0.0,
+          "p50": 0.0,
+          "p75": 0.0,
+          "p90": 0.0,
+          "p95": 0.0,
+          "p99": 0.0,
+          "max": 0.0,
+          "zero_count": 3640,
+          "negative_count": 0,
+          "unit": "milliseconds"
+        }
+      },
+      "timestamp_issue_counts": {
+        "calls_with_overlapping_utterances": 3559
+      },
+      "context_distributions": {
+        "mediaType": {
+          "Mobile": {
+            "count": 3640,
+            "pct": 100.0
+          }
+        },
+        "status": {
+          "12": {
+            "count": 3640,
+            "pct": 100.0
+          }
+        },
+        "disasterLarge": {
+          "구급": {
+            "count": 3640,
+            "pct": 100.0
+          }
+        },
+        "disasterMedium": {
+          "기타구급": {
+            "count": 11,
+            "pct": 0.302
+          },
+          "부상": {
+            "count": 379,
+            "pct": 10.412
+          },
+          "사고": {
+            "count": 7,
+            "pct": 0.192
+          },
+          "심정지": {
+            "count": 5,
+            "pct": 0.137
+          },
+          "약물중독": {
+            "count": 2,
+            "pct": 0.055
+          },
+          "임산부": {
+            "count": 11,
+            "pct": 0.302
+          },
+          "질병(중증 외)": {
+            "count": 2496,
+            "pct": 68.571
+          },
+          "질병(중증)": {
+            "count": 729,
+            "pct": 20.027
+          }
+        },
+        "urgencyLevel": {
+          "상": {
+            "count": 958,
+            "pct": 26.319
+          },
+          "중": {
+            "count": 1397,
+            "pct": 38.379
+          },
+          "하": {
+            "count": 1285,
+            "pct": 35.302
+          }
+        },
+        "sentiment": {
+          "기타부정": {
+            "count": 36,
+            "pct": 0.989
+          },
+          "당황/난처": {
+            "count": 984,
+            "pct": 27.033
+          },
+          "불안/걱정": {
+            "count": 2455,
+            "pct": 67.445
+          },
+          "중립": {
+            "count": 165,
+            "pct": 4.533
+          }
+        },
+        "triage": {
+          "": {
+            "count": 29,
+            "pct": 0.797
+          },
+          "대상외": {
+            "count": 64,
+            "pct": 1.758
+          },
+          "응급증상": {
+            "count": 462,
+            "pct": 12.692
+          },
+          "잠재응급증상": {
+            "count": 2137,
+            "pct": 58.709
+          },
+          "준응급증상": {
+            "count": 948,
+            "pct": 26.044
+          }
+        }
+      }
+    },
+    "mission1": {
+      "gender_distribution": {
+        "F": {
+          "count": 1959,
+          "pct": 53.819
+        },
+        "M": {
+          "count": 1681,
+          "pct": 46.181
+        }
+      },
+      "caller_duration_s": {
+        "n": 3640,
+        "min": 0.78,
+        "mean": 33.704361,
+        "std": 15.34418,
+        "p1": 9.50589,
+        "p5": 15.08935,
+        "p25": 23.035,
+        "p50": 30.4995,
+        "p75": 41.00875,
+        "p90": 54.6402,
+        "p95": 64.4617,
+        "p99": 81.80624,
+        "max": 115.291,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "caller_utterances_per_call": {
+        "n": 3640,
+        "min": 2.0,
+        "mean": 15.962088,
+        "std": 6.177964,
+        "p1": 6.0,
+        "p5": 8.0,
+        "p25": 12.0,
+        "p50": 15.0,
+        "p75": 19.0,
+        "p90": 24.0,
+        "p95": 28.0,
+        "p99": 34.0,
+        "max": 52.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "caller_share_of_call": {
+        "n": 3640,
+        "min": 0.025794,
+        "mean": 0.46623,
+        "std": 0.106959,
+        "p1": 0.198647,
+        "p5": 0.288936,
+        "p25": 0.397946,
+        "p50": 0.466725,
+        "p75": 0.536969,
+        "p90": 0.602591,
+        "p95": 0.643375,
+        "p99": 0.70556,
+        "max": 0.811917,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "caller_within_speaker_overlap_ratio": {
+        "n": 3640,
+        "min": 0.0,
+        "mean": 0.001601,
+        "std": 0.006129,
+        "p1": 0.0,
+        "p5": 0.0,
+        "p25": 0.0,
+        "p50": 0.0,
+        "p75": 0.000931,
+        "p90": 0.002592,
+        "p95": 0.005704,
+        "p99": 0.030877,
+        "max": 0.098382,
+        "zero_count": 2069,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "by_gender": {
+        "F": {
+          "n_calls": 1959,
+          "call_duration_s": {
+            "n": 1959,
+            "min": 30.24,
+            "mean": 74.188729,
+            "std": 29.996907,
+            "p1": 32.16,
+            "p5": 37.8,
+            "p25": 52.14,
+            "p50": 66.96,
+            "p75": 89.4,
+            "p90": 117.6,
+            "p95": 135.324,
+            "p99": 166.1424,
+            "max": 180.0,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "seconds"
+          },
+          "caller_duration_s": {
+            "n": 1959,
+            "min": 1.592,
+            "mean": 35.107276,
+            "std": 15.983187,
+            "p1": 10.5306,
+            "p5": 15.8688,
+            "p25": 23.9825,
+            "p50": 31.744,
+            "p75": 42.4595,
+            "p90": 57.295,
+            "p95": 67.0469,
+            "p99": 85.86374,
+            "max": 109.768,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "seconds"
+          },
+          "caller_utterances": {
+            "n": 1959,
+            "min": 2.0,
+            "mean": 16.25268,
+            "std": 6.253286,
+            "p1": 6.0,
+            "p5": 8.0,
+            "p25": 12.0,
+            "p50": 15.0,
+            "p75": 20.0,
+            "p90": 25.0,
+            "p95": 28.0,
+            "p99": 35.0,
+            "max": 47.0,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "count"
+          },
+          "caller_share": {
+            "n": 1959,
+            "min": 0.042796,
+            "mean": 0.475566,
+            "std": 0.106452,
+            "p1": 0.208502,
+            "p5": 0.310933,
+            "p25": 0.404365,
+            "p50": 0.476316,
+            "p75": 0.546112,
+            "p90": 0.611692,
+            "p95": 0.650651,
+            "p99": 0.709559,
+            "max": 0.811917,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "ratio"
+          }
+        },
+        "M": {
+          "n_calls": 1681,
+          "call_duration_s": {
+            "n": 1681,
+            "min": 30.0,
+            "mean": 70.744819,
+            "std": 27.811163,
+            "p1": 31.392,
+            "p5": 36.72,
+            "p25": 49.92,
+            "p50": 64.8,
+            "p75": 84.48,
+            "p90": 110.76,
+            "p95": 128.16,
+            "p99": 158.112,
+            "max": 177.96,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "seconds"
+          },
+          "caller_duration_s": {
+            "n": 1681,
+            "min": 0.78,
+            "mean": 32.069435,
+            "std": 14.392645,
+            "p1": 8.2152,
+            "p5": 14.628,
+            "p25": 22.213,
+            "p50": 29.201,
+            "p75": 38.888,
+            "p90": 51.994,
+            "p95": 60.383,
+            "p99": 74.3252,
+            "max": 115.291,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "seconds"
+          },
+          "caller_utterances": {
+            "n": 1681,
+            "min": 2.0,
+            "mean": 15.623438,
+            "std": 6.071487,
+            "p1": 6.0,
+            "p5": 8.0,
+            "p25": 11.0,
+            "p50": 15.0,
+            "p75": 19.0,
+            "p90": 24.0,
+            "p95": 27.0,
+            "p99": 33.0,
+            "max": 52.0,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "count"
+          },
+          "caller_share": {
+            "n": 1681,
+            "min": 0.025794,
+            "mean": 0.45535,
+            "std": 0.10652,
+            "p1": 0.18276,
+            "p5": 0.276323,
+            "p25": 0.388057,
+            "p50": 0.45619,
+            "p75": 0.52539,
+            "p90": 0.591908,
+            "p95": 0.630051,
+            "p99": 0.687797,
+            "max": 0.757485,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "ratio"
+          }
+        }
+      }
+    },
+    "mission2": {
+      "utterance_count_by_speaker": {
+        "0": {
+          "count": 53845,
+          "pct": 48.099
+        },
+        "1": {
+          "count": 58102,
+          "pct": 51.901
+        }
+      },
+      "utterance_duration_total_by_speaker": {
+        "0": {
+          "count": 97961862,
+          "pct": 44.355
+        },
+        "1": {
+          "count": 122895241,
+          "pct": 55.645
+        }
+      },
+      "utterance_duration_s_by_speaker": {
+        "0": {
+          "n": 53845,
+          "min": 0.1,
+          "mean": 1.819331,
+          "std": 1.411552,
+          "p1": 0.29,
+          "p5": 0.4242,
+          "p25": 0.88,
+          "p50": 1.399,
+          "p75": 2.306,
+          "p90": 3.638,
+          "p95": 4.673,
+          "p99": 7.07112,
+          "max": 17.152,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "seconds"
+        },
+        "1": {
+          "n": 58102,
+          "min": 0.09,
+          "mean": 2.115164,
+          "std": 1.82943,
+          "p1": 0.29901,
+          "p5": 0.43,
+          "p25": 0.806,
+          "p50": 1.485,
+          "p75": 2.824,
+          "p90": 4.6719,
+          "p95": 5.9519,
+          "p99": 8.49199,
+          "max": 18.451,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "seconds"
+        }
+      },
+      "duration_bucket_count_by_speaker": {
+        "0": {
+          "<0.5s": 4289,
+          "0.5-1s": 12532,
+          "1-2s": 20192,
+          "2-4s": 12596,
+          ">=4s": 4236
+        },
+        "1": {
+          "<0.5s": 4665,
+          "0.5-1s": 14860,
+          "1-2s": 16666,
+          "2-4s": 13740,
+          ">=4s": 8171
+        }
+      },
+      "speaker_1_duration_share_per_call": {
+        "n": 3640,
+        "min": 0.078458,
+        "mean": 0.557619,
+        "std": 0.10449,
+        "p1": 0.29549,
+        "p5": 0.383117,
+        "p25": 0.489113,
+        "p50": 0.558126,
+        "p75": 0.629412,
+        "p90": 0.692634,
+        "p95": 0.725546,
+        "p99": 0.780682,
+        "max": 0.900222,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "speaker_alternations_per_call": {
+        "n": 3640,
+        "min": 2.0,
+        "mean": 23.950275,
+        "std": 9.151893,
+        "p1": 8.0,
+        "p5": 11.0,
+        "p25": 17.0,
+        "p50": 23.0,
+        "p75": 29.0,
+        "p90": 37.0,
+        "p95": 41.0,
+        "p99": 49.0,
+        "max": 66.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "overlap_pairs_per_call": {
+        "n": 3640,
+        "min": 0.0,
+        "mean": 7.816758,
+        "std": 5.22454,
+        "p1": 0.0,
+        "p5": 1.0,
+        "p25": 4.0,
+        "p50": 7.0,
+        "p75": 11.0,
+        "p90": 15.0,
+        "p95": 18.0,
+        "p99": 24.0,
+        "max": 38.0,
+        "zero_count": 81,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "overlap_excess_s_per_call": {
+        "n": 3640,
+        "min": 0.0,
+        "mean": 3.399045,
+        "std": 3.024267,
+        "p1": 0.0,
+        "p5": 0.06795,
+        "p25": 1.21175,
+        "p50": 2.6435,
+        "p75": 4.79325,
+        "p90": 7.4235,
+        "p95": 9.29245,
+        "p99": 13.91414,
+        "max": 24.882,
+        "zero_count": 81,
+        "negative_count": 0,
+        "unit": "seconds"
+      }
+    },
+    "mission3": {
+      "target_symptom_prevalence": {
+        "고열": {
+          "count": 678,
+          "pct_of_calls": 18.626
+        },
+        "구토": {
+          "count": 537,
+          "pct_of_calls": 14.753
+        },
+        "두통": {
+          "count": 374,
+          "pct_of_calls": 10.275
+        },
+        "복통": {
+          "count": 838,
+          "pct_of_calls": 23.022
+        },
+        "어지러움": {
+          "count": 774,
+          "pct_of_calls": 21.264
+        },
+        "열상": {
+          "count": 463,
+          "pct_of_calls": 12.72
+        },
+        "오심": {
+          "count": 429,
+          "pct_of_calls": 11.786
+        },
+        "전신쇠약": {
+          "count": 651,
+          "pct_of_calls": 17.885
+        },
+        "호흡곤란": {
+          "count": 492,
+          "pct_of_calls": 13.516
+        }
+      },
+      "label_cardinality": {
+        "n": 3640,
+        "min": 1.0,
+        "mean": 1.438462,
+        "std": 0.694605,
+        "p1": 1.0,
+        "p5": 1.0,
+        "p25": 1.0,
+        "p50": 1.0,
+        "p75": 2.0,
+        "p90": 2.0,
+        "p95": 3.0,
+        "p99": 4.0,
+        "max": 5.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "labels_per_call"
+      },
+      "label_density_mean": 0.159829,
+      "zero_target_symptom_calls": 0,
+      "duplicate_labels_within_calls": 0,
+      "unknown_symptom_labels": {
+        "기타": 385,
+        "기타통증": 316,
+        "설사": 168,
+        "기침": 132,
+        "찰과상": 95,
+        "그 밖의출혈": 85,
+        "흉통": 84,
+        "의식장애": 81,
+        "실신": 64,
+        "경련/발작": 63,
+        "타박상": 56,
+        "요통": 51,
+        "가슴불편감": 46,
+        "마비": 36,
+        "혈변": 31,
+        "배뇨장애": 23,
+        "심계항진": 22,
+        "토혈": 20,
+        "비출혈": 17,
+        "변비": 15,
+        "정신장애": 14,
+        "객혈": 9,
+        "골절": 8,
+        "그밖의통증기타": 8,
+        "질출혈": 5,
+        "화상": 2,
+        "기타이물질": 2,
+        "탈구": 2,
+        "저체온증": 2,
+        "염좌": 1,
+        "경추통증": 1,
+        "압궤손상": 1,
+        "절단": 1,
+        "심정지": 1,
+        "호흡정지": 1,
+        "기도이물": 1
+      },
+      "cooccurrence": {
+        "고열": {
+          "고열": 678,
+          "구토": 60,
+          "두통": 50,
+          "복통": 73,
+          "어지러움": 37,
+          "열상": 6,
+          "오심": 38,
+          "전신쇠약": 126,
+          "호흡곤란": 65
+        },
+        "구토": {
+          "고열": 60,
+          "구토": 537,
+          "두통": 52,
+          "복통": 164,
+          "어지러움": 204,
+          "열상": 2,
+          "오심": 168,
+          "전신쇠약": 56,
+          "호흡곤란": 12
+        },
+        "두통": {
+          "고열": 50,
+          "구토": 52,
+          "두통": 374,
+          "복통": 22,
+          "어지러움": 66,
+          "열상": 13,
+          "오심": 67,
+          "전신쇠약": 27,
+          "호흡곤란": 19
+        },
+        "복통": {
+          "고열": 73,
+          "구토": 164,
+          "두통": 22,
+          "복통": 838,
+          "어지러움": 49,
+          "열상": 1,
+          "오심": 98,
+          "전신쇠약": 42,
+          "호흡곤란": 27
+        },
+        "어지러움": {
+          "고열": 37,
+          "구토": 204,
+          "두통": 66,
+          "복통": 49,
+          "어지러움": 774,
+          "열상": 11,
+          "오심": 212,
+          "전신쇠약": 94,
+          "호흡곤란": 32
+        },
+        "열상": {
+          "고열": 6,
+          "구토": 2,
+          "두통": 13,
+          "복통": 1,
+          "어지러움": 11,
+          "열상": 463,
+          "오심": 3,
+          "전신쇠약": 1,
+          "호흡곤란": 0
+        },
+        "오심": {
+          "고열": 38,
+          "구토": 168,
+          "두통": 67,
+          "복통": 98,
+          "어지러움": 212,
+          "열상": 3,
+          "오심": 429,
+          "전신쇠약": 51,
+          "호흡곤란": 15
+        },
+        "전신쇠약": {
+          "고열": 126,
+          "구토": 56,
+          "두통": 27,
+          "복통": 42,
+          "어지러움": 94,
+          "열상": 1,
+          "오심": 51,
+          "전신쇠약": 651,
+          "호흡곤란": 63
+        },
+        "호흡곤란": {
+          "고열": 65,
+          "구토": 12,
+          "두통": 19,
+          "복통": 27,
+          "어지러움": 32,
+          "열상": 0,
+          "오심": 15,
+          "전신쇠약": 63,
+          "호흡곤란": 492
+        }
+      },
+      "text_length_chars": {
+        "n": 111947,
+        "min": 1.0,
+        "mean": 14.239408,
+        "std": 13.497783,
+        "p1": 1.0,
+        "p5": 2.0,
+        "p25": 6.0,
+        "p50": 9.0,
+        "p75": 19.0,
+        "p90": 33.0,
+        "p95": 42.0,
+        "p99": 63.0,
+        "max": 126.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "characters"
+      },
+      "text_length_chars_by_speaker": {
+        "0": {
+          "n": 53845,
+          "min": 1.0,
+          "mean": 14.959718,
+          "std": 13.522963,
+          "p1": 1.0,
+          "p5": 2.0,
+          "p25": 6.0,
+          "p50": 11.0,
+          "p75": 20.0,
+          "p90": 33.0,
+          "p95": 43.0,
+          "p99": 64.0,
+          "max": 126.0,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "characters"
+        },
+        "1": {
+          "n": 58102,
+          "min": 1.0,
+          "mean": 13.571874,
+          "std": 13.439985,
+          "p1": 1.0,
+          "p5": 2.0,
+          "p25": 5.0,
+          "p50": 8.0,
+          "p75": 18.0,
+          "p90": 32.9,
+          "p95": 42.0,
+          "p99": 62.0,
+          "max": 122.0,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "characters"
+        }
+      },
+      "blank_text_utterances": 0,
+      "privacy_marker_utterances": 13736,
+      "privacy_marker_utterance_pct": 12.27,
+      "token_count": 425990,
+      "vocabulary_size": 38837
+    }
+  },
+  "cross_split": {
+    "identifier_overlap_count": {
+      "stem": 0,
+      "_id": 0,
+      "recordId": 0
+    },
+    "exact_transcript_hash_overlap_count": 1,
+    "validation_token_oov": {
+      "token_occurrences": 425990,
+      "oov_occurrences": 13229,
+      "oov_rate": 0.031055
+    },
+    "gender_total_variation": 0.005927,
+    "symptom_prevalence_delta_percentage_points": {
+      "고열": 0.866,
+      "구토": -0.531,
+      "두통": 0.326,
+      "복통": -0.166,
+      "어지러움": -0.428,
+      "열상": 0.853,
+      "오심": 0.344,
+      "전신쇠약": -0.3,
+      "호흡곤란": 0.068
+    },
+    "gender_delta_percentage_points": {
+      "F": 0.593,
+      "M": -0.593
+    }
+  },
+  "waveform_sample": {
+    "skipped": false,
+    "cache_path": "reports/eda/waveform_sample_features.parquet",
+    "training": {
+      "selected_calls": 1000,
+      "successful_calls": 1000,
+      "feature_rows": 2000,
+      "failures": 0,
+      "failure_types": {},
+      "feature_dimension": 53,
+      "feature_backend": "bounded NumPy MFCC/RMS/ZCR/spectral profile",
+      "feature_audio_max_seconds_per_speaker": 15.0,
+      "by_speaker": {
+        "0": {
+          "n_feature_rows": 1000,
+          "features": {
+            "duration_sec": {
+              "n": 1000,
+              "min": 3.12,
+              "mean": 26.715214,
+              "std": 13.342393,
+              "p1": 8.31152,
+              "p5": 10.92065,
+              "p25": 17.40575,
+              "p50": 23.7715,
+              "p75": 32.507499,
+              "p90": 44.890601,
+              "p95": 53.118801,
+              "p99": 71.87056,
+              "max": 97.481003,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "ratio"
+            },
+            "rms_mean": {
+              "n": 1000,
+              "min": 0.003578,
+              "mean": 0.06699,
+              "std": 0.037274,
+              "p1": 0.009641,
+              "p5": 0.017396,
+              "p25": 0.036982,
+              "p50": 0.06051,
+              "p75": 0.091312,
+              "p90": 0.117919,
+              "p95": 0.137382,
+              "p99": 0.166732,
+              "max": 0.227571,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "zcr_mean": {
+              "n": 1000,
+              "min": 0.113634,
+              "mean": 0.204256,
+              "std": 0.044228,
+              "p1": 0.133189,
+              "p5": 0.153523,
+              "p25": 0.177054,
+              "p50": 0.195189,
+              "p75": 0.21796,
+              "p90": 0.258572,
+              "p95": 0.302885,
+              "p99": 0.359438,
+              "max": 0.402536,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "spectral_centroid_mean": {
+              "n": 1000,
+              "min": 717.15094,
+              "mean": 1078.505891,
+              "std": 152.008944,
+              "p1": 795.656809,
+              "p5": 874.827588,
+              "p25": 976.556351,
+              "p50": 1060.124268,
+              "p75": 1142.593597,
+              "p90": 1271.516809,
+              "p95": 1382.537848,
+              "p99": 1561.962993,
+              "max": 1765.575195,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "spectral_flatness_mean": {
+              "n": 1000,
+              "min": 0.182158,
+              "mean": 0.369786,
+              "std": 0.065254,
+              "p1": 0.219189,
+              "p5": 0.265586,
+              "p25": 0.328322,
+              "p50": 0.367397,
+              "p75": 0.408151,
+              "p90": 0.455083,
+              "p95": 0.483388,
+              "p99": 0.547112,
+              "max": 0.599189,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "silence_ratio_abs_le_0_01": {
+              "n": 1000,
+              "min": 0.09215,
+              "mean": 0.389581,
+              "std": 0.144217,
+              "p1": 0.157036,
+              "p5": 0.198991,
+              "p25": 0.282319,
+              "p50": 0.364838,
+              "p75": 0.46995,
+              "p90": 0.607468,
+              "p95": 0.671439,
+              "p99": 0.786131,
+              "max": 0.870844,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "ratio"
+            },
+            "peak_abs": {
+              "n": 1000,
+              "min": 0.130615,
+              "mean": 0.783489,
+              "std": 0.194761,
+              "p1": 0.266433,
+              "p5": 0.398962,
+              "p25": 0.661377,
+              "p50": 0.827515,
+              "p75": 0.950378,
+              "p90": 0.999756,
+              "p95": 1.0,
+              "p99": 1.0,
+              "max": 1.0,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "clipping_ratio_abs_ge_0_999": {
+              "n": 1000,
+              "min": 0.0,
+              "mean": 7e-06,
+              "std": 5.4e-05,
+              "p1": 0.0,
+              "p5": 0.0,
+              "p25": 0.0,
+              "p50": 0.0,
+              "p75": 0.0,
+              "p90": 6e-06,
+              "p95": 1.7e-05,
+              "p99": 0.000119,
+              "max": 0.001234,
+              "zero_count": 851,
+              "negative_count": 0,
+              "unit": "ratio"
+            }
+          }
+        },
+        "1": {
+          "n_feature_rows": 1000,
+          "features": {
+            "duration_sec": {
+              "n": 1000,
+              "min": 2.982,
+              "mean": 33.475739,
+              "std": 15.189397,
+              "p1": 9.53611,
+              "p5": 14.76695,
+              "p25": 22.875751,
+              "p50": 29.8615,
+              "p75": 41.59675,
+              "p90": 53.621099,
+              "p95": 62.366699,
+              "p99": 83.469132,
+              "max": 104.302002,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "ratio"
+            },
+            "rms_mean": {
+              "n": 1000,
+              "min": 0.009555,
+              "mean": 0.076899,
+              "std": 0.040829,
+              "p1": 0.018013,
+              "p5": 0.025675,
+              "p25": 0.049405,
+              "p50": 0.066042,
+              "p75": 0.097549,
+              "p90": 0.131619,
+              "p95": 0.157995,
+              "p99": 0.204324,
+              "max": 0.255364,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "zcr_mean": {
+              "n": 1000,
+              "min": 0.105455,
+              "mean": 0.16951,
+              "std": 0.02056,
+              "p1": 0.127065,
+              "p5": 0.13865,
+              "p25": 0.156432,
+              "p50": 0.168155,
+              "p75": 0.180921,
+              "p90": 0.19339,
+              "p95": 0.206883,
+              "p99": 0.22935,
+              "max": 0.25975,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "spectral_centroid_mean": {
+              "n": 1000,
+              "min": 626.96051,
+              "mean": 894.786292,
+              "std": 102.225693,
+              "p1": 685.076962,
+              "p5": 737.274802,
+              "p25": 823.626801,
+              "p50": 888.91748,
+              "p75": 954.844543,
+              "p90": 1030.232751,
+              "p95": 1073.670435,
+              "p99": 1172.29342,
+              "max": 1243.160278,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "spectral_flatness_mean": {
+              "n": 1000,
+              "min": 0.004975,
+              "mean": 0.284474,
+              "std": 0.061239,
+              "p1": 0.126435,
+              "p5": 0.179829,
+              "p25": 0.24455,
+              "p50": 0.288403,
+              "p75": 0.323191,
+              "p90": 0.357495,
+              "p95": 0.378362,
+              "p99": 0.422359,
+              "max": 0.481482,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "silence_ratio_abs_le_0_01": {
+              "n": 1000,
+              "min": 0.065021,
+              "mean": 0.335156,
+              "std": 0.094973,
+              "p1": 0.143034,
+              "p5": 0.195224,
+              "p25": 0.269237,
+              "p50": 0.329115,
+              "p75": 0.389801,
+              "p90": 0.456994,
+              "p95": 0.509855,
+              "p99": 0.593633,
+              "max": 0.717329,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "ratio"
+            },
+            "peak_abs": {
+              "n": 1000,
+              "min": 0.094421,
+              "mean": 0.819564,
+              "std": 0.187161,
+              "p1": 0.261418,
+              "p5": 0.42644,
+              "p25": 0.712402,
+              "p50": 0.865479,
+              "p75": 0.999756,
+              "p90": 1.0,
+              "p95": 1.0,
+              "p99": 1.0,
+              "max": 1.0,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "clipping_ratio_abs_ge_0_999": {
+              "n": 1000,
+              "min": 0.0,
+              "mean": 6.3e-05,
+              "std": 0.000417,
+              "p1": 0.0,
+              "p5": 0.0,
+              "p25": 0.0,
+              "p50": 0.0,
+              "p75": 4e-06,
+              "p90": 4.8e-05,
+              "p95": 0.000184,
+              "p99": 0.001639,
+              "max": 0.007648,
+              "zero_count": 722,
+              "negative_count": 0,
+              "unit": "ratio"
+            }
+          }
+        }
+      },
+      "caller_by_gender": {
+        "F": {
+          "n": 532,
+          "rms_mean": {
+            "n": 532,
+            "min": 0.011297,
+            "mean": 0.073786,
+            "std": 0.038421,
+            "p1": 0.018826,
+            "p5": 0.026317,
+            "p25": 0.049327,
+            "p50": 0.063636,
+            "p75": 0.091247,
+            "p90": 0.123117,
+            "p95": 0.153619,
+            "p99": 0.203053,
+            "max": 0.236176,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "spectral_centroid_mean": {
+            "n": 532,
+            "min": 645.623657,
+            "mean": 896.678956,
+            "std": 98.103514,
+            "p1": 706.972081,
+            "p5": 752.802396,
+            "p25": 826.159454,
+            "p50": 888.594788,
+            "p75": 955.429794,
+            "p90": 1030.948279,
+            "p95": 1070.307123,
+            "p99": 1166.137303,
+            "max": 1186.305542,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "mfcc_mean_0": {
+            "n": 532,
+            "min": -661.417908,
+            "mean": -283.179342,
+            "std": 92.423164,
+            "p1": -579.017677,
+            "p5": -450.551358,
+            "p25": -337.098419,
+            "p50": -268.589539,
+            "p75": -220.075031,
+            "p90": -175.536638,
+            "p95": -150.186101,
+            "p99": -107.143038,
+            "max": -79.560104,
+            "zero_count": 0,
+            "negative_count": 532,
+            "unit": "feature_value"
+          }
+        },
+        "M": {
+          "n": 468,
+          "rms_mean": {
+            "n": 468,
+            "min": 0.009555,
+            "mean": 0.080437,
+            "std": 0.043131,
+            "p1": 0.017458,
+            "p5": 0.025174,
+            "p25": 0.0497,
+            "p50": 0.070327,
+            "p75": 0.105182,
+            "p90": 0.140593,
+            "p95": 0.159616,
+            "p99": 0.208779,
+            "max": 0.255364,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "spectral_centroid_mean": {
+            "n": 468,
+            "min": 626.96051,
+            "mean": 892.634802,
+            "std": 106.677612,
+            "p1": 680.340289,
+            "p5": 722.76322,
+            "p25": 821.369263,
+            "p50": 889.166321,
+            "p75": 954.103638,
+            "p90": 1026.198096,
+            "p95": 1072.334137,
+            "p99": 1205.48936,
+            "max": 1243.160278,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "mfcc_mean_0": {
+            "n": 468,
+            "min": -757.940613,
+            "mean": -269.55724,
+            "std": 98.810041,
+            "p1": -546.658408,
+            "p5": -457.436119,
+            "p25": -321.37484,
+            "p50": -251.72493,
+            "p75": -198.869755,
+            "p90": -158.73535,
+            "p95": -137.731776,
+            "p99": -104.27475,
+            "max": -84.158783,
+            "zero_count": 0,
+            "negative_count": 468,
+            "unit": "feature_value"
+          }
+        }
+      }
+    },
+    "validation": {
+      "selected_calls": 400,
+      "successful_calls": 400,
+      "feature_rows": 800,
+      "failures": 0,
+      "failure_types": {},
+      "feature_dimension": 53,
+      "feature_backend": "bounded NumPy MFCC/RMS/ZCR/spectral profile",
+      "feature_audio_max_seconds_per_speaker": 15.0,
+      "by_speaker": {
+        "0": {
+          "n_feature_rows": 400,
+          "features": {
+            "duration_sec": {
+              "n": 400,
+              "min": 5.047,
+              "mean": 26.562622,
+              "std": 12.900679,
+              "p1": 7.08299,
+              "p5": 11.038,
+              "p25": 17.91775,
+              "p50": 23.508,
+              "p75": 31.818,
+              "p90": 44.1479,
+              "p95": 48.966552,
+              "p99": 71.064598,
+              "max": 92.526001,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "ratio"
+            },
+            "rms_mean": {
+              "n": 400,
+              "min": 0.003419,
+              "mean": 0.063465,
+              "std": 0.03577,
+              "p1": 0.010141,
+              "p5": 0.017311,
+              "p25": 0.034432,
+              "p50": 0.055972,
+              "p75": 0.089194,
+              "p90": 0.118097,
+              "p95": 0.128431,
+              "p99": 0.148583,
+              "max": 0.173708,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "zcr_mean": {
+              "n": 400,
+              "min": 0.116573,
+              "mean": 0.204943,
+              "std": 0.040406,
+              "p1": 0.139585,
+              "p5": 0.15699,
+              "p25": 0.180585,
+              "p50": 0.197425,
+              "p75": 0.21663,
+              "p90": 0.266676,
+              "p95": 0.287773,
+              "p99": 0.350156,
+              "max": 0.368608,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "spectral_centroid_mean": {
+              "n": 400,
+              "min": 723.704102,
+              "mean": 1084.200703,
+              "std": 143.198596,
+              "p1": 817.122042,
+              "p5": 890.308917,
+              "p25": 987.71843,
+              "p50": 1068.379639,
+              "p75": 1146.127075,
+              "p90": 1275.05813,
+              "p95": 1341.331555,
+              "p99": 1530.12787,
+              "max": 1607.385376,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "spectral_flatness_mean": {
+              "n": 400,
+              "min": 0.175416,
+              "mean": 0.375214,
+              "std": 0.064276,
+              "p1": 0.228571,
+              "p5": 0.267683,
+              "p25": 0.332552,
+              "p50": 0.377375,
+              "p75": 0.414927,
+              "p90": 0.456928,
+              "p95": 0.47571,
+              "p99": 0.531012,
+              "max": 0.58784,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "silence_ratio_abs_le_0_01": {
+              "n": 400,
+              "min": 0.146248,
+              "mean": 0.404105,
+              "std": 0.145746,
+              "p1": 0.166906,
+              "p5": 0.203932,
+              "p25": 0.291057,
+              "p50": 0.38711,
+              "p75": 0.493079,
+              "p90": 0.611124,
+              "p95": 0.663518,
+              "p99": 0.7744,
+              "max": 0.905412,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "ratio"
+            },
+            "peak_abs": {
+              "n": 400,
+              "min": 0.104736,
+              "mean": 0.763124,
+              "std": 0.208823,
+              "p1": 0.191309,
+              "p5": 0.354395,
+              "p25": 0.628174,
+              "p50": 0.80127,
+              "p75": 0.945801,
+              "p90": 1.0,
+              "p95": 1.0,
+              "p99": 1.0,
+              "max": 1.0,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "clipping_ratio_abs_ge_0_999": {
+              "n": 400,
+              "min": 0.0,
+              "mean": 1.6e-05,
+              "std": 0.000129,
+              "p1": 0.0,
+              "p5": 0.0,
+              "p25": 0.0,
+              "p50": 0.0,
+              "p75": 0.0,
+              "p90": 1e-05,
+              "p95": 3.1e-05,
+              "p99": 0.000257,
+              "max": 0.001999,
+              "zero_count": 331,
+              "negative_count": 0,
+              "unit": "ratio"
+            }
+          }
+        },
+        "1": {
+          "n_feature_rows": 400,
+          "features": {
+            "duration_sec": {
+              "n": 400,
+              "min": 5.57,
+              "mean": 34.534175,
+              "std": 16.371422,
+              "p1": 8.46647,
+              "p5": 14.76945,
+              "p25": 23.0245,
+              "p50": 31.077,
+              "p75": 42.091,
+              "p90": 57.472999,
+              "p95": 67.609998,
+              "p99": 82.311519,
+              "max": 115.310997,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "ratio"
+            },
+            "rms_mean": {
+              "n": 400,
+              "min": 0.007531,
+              "mean": 0.076793,
+              "std": 0.04288,
+              "p1": 0.015181,
+              "p5": 0.024595,
+              "p25": 0.047607,
+              "p50": 0.06548,
+              "p75": 0.095804,
+              "p90": 0.14127,
+              "p95": 0.15506,
+              "p99": 0.213592,
+              "max": 0.272478,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "zcr_mean": {
+              "n": 400,
+              "min": 0.106786,
+              "mean": 0.171435,
+              "std": 0.023637,
+              "p1": 0.125573,
+              "p5": 0.138694,
+              "p25": 0.156343,
+              "p50": 0.168913,
+              "p75": 0.18277,
+              "p90": 0.201572,
+              "p95": 0.214194,
+              "p99": 0.240356,
+              "max": 0.272375,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "spectral_centroid_mean": {
+              "n": 400,
+              "min": 678.000671,
+              "mean": 906.108057,
+              "std": 109.236605,
+              "p1": 694.862017,
+              "p5": 749.374103,
+              "p25": 825.045135,
+              "p50": 898.642426,
+              "p75": 972.582291,
+              "p90": 1041.556274,
+              "p95": 1096.900073,
+              "p99": 1193.33469,
+              "max": 1330.309448,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "spectral_flatness_mean": {
+              "n": 400,
+              "min": 0.057327,
+              "mean": 0.29055,
+              "std": 0.062493,
+              "p1": 0.124488,
+              "p5": 0.185055,
+              "p25": 0.250729,
+              "p50": 0.291451,
+              "p75": 0.328564,
+              "p90": 0.362899,
+              "p95": 0.38838,
+              "p99": 0.436543,
+              "max": 0.514529,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "silence_ratio_abs_le_0_01": {
+              "n": 400,
+              "min": 0.106575,
+              "mean": 0.339159,
+              "std": 0.099997,
+              "p1": 0.142229,
+              "p5": 0.18872,
+              "p25": 0.269113,
+              "p50": 0.340434,
+              "p75": 0.39555,
+              "p90": 0.465245,
+              "p95": 0.502345,
+              "p99": 0.607184,
+              "max": 0.870346,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "ratio"
+            },
+            "peak_abs": {
+              "n": 400,
+              "min": 0.128906,
+              "mean": 0.804388,
+              "std": 0.200548,
+              "p1": 0.211379,
+              "p5": 0.4271,
+              "p25": 0.688538,
+              "p50": 0.845581,
+              "p75": 1.0,
+              "p90": 1.0,
+              "p95": 1.0,
+              "p99": 1.0,
+              "max": 1.0,
+              "zero_count": 0,
+              "negative_count": 0,
+              "unit": "feature_value"
+            },
+            "clipping_ratio_abs_ge_0_999": {
+              "n": 400,
+              "min": 0.0,
+              "mean": 8.8e-05,
+              "std": 0.000533,
+              "p1": 0.0,
+              "p5": 0.0,
+              "p25": 0.0,
+              "p50": 0.0,
+              "p75": 5e-06,
+              "p90": 8.1e-05,
+              "p95": 0.000198,
+              "p99": 0.001345,
+              "max": 0.007358,
+              "zero_count": 281,
+              "negative_count": 0,
+              "unit": "ratio"
+            }
+          }
+        }
+      },
+      "caller_by_gender": {
+        "F": {
+          "n": 215,
+          "rms_mean": {
+            "n": 215,
+            "min": 0.007531,
+            "mean": 0.072465,
+            "std": 0.043213,
+            "p1": 0.012854,
+            "p5": 0.021049,
+            "p25": 0.044578,
+            "p50": 0.059046,
+            "p75": 0.090055,
+            "p90": 0.13774,
+            "p95": 0.161567,
+            "p99": 0.215704,
+            "max": 0.234369,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "spectral_centroid_mean": {
+            "n": 215,
+            "min": 681.786011,
+            "mean": 911.954789,
+            "std": 114.101517,
+            "p1": 702.646794,
+            "p5": 748.67229,
+            "p25": 830.311432,
+            "p50": 910.026611,
+            "p75": 972.755554,
+            "p90": 1058.27998,
+            "p95": 1112.59939,
+            "p99": 1265.209397,
+            "max": 1330.309448,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "mfcc_mean_0": {
+            "n": 215,
+            "min": -704.853088,
+            "mean": -282.331532,
+            "std": 98.40194,
+            "p1": -522.373168,
+            "p5": -466.672644,
+            "p25": -334.33107,
+            "p50": -267.789948,
+            "p75": -216.592117,
+            "p90": -167.245392,
+            "p95": -136.856911,
+            "p99": -101.392574,
+            "max": -90.900215,
+            "zero_count": 0,
+            "negative_count": 215,
+            "unit": "feature_value"
+          }
+        },
+        "M": {
+          "n": 185,
+          "rms_mean": {
+            "n": 185,
+            "min": 0.016198,
+            "mean": 0.081823,
+            "std": 0.041933,
+            "p1": 0.021086,
+            "p5": 0.028109,
+            "p25": 0.049599,
+            "p50": 0.071243,
+            "p75": 0.10675,
+            "p90": 0.14254,
+            "p95": 0.152192,
+            "p99": 0.192524,
+            "max": 0.272478,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "spectral_centroid_mean": {
+            "n": 185,
+            "min": 678.000671,
+            "mean": 899.313207,
+            "std": 102.878692,
+            "p1": 687.877678,
+            "p5": 752.767371,
+            "p25": 822.436401,
+            "p50": 891.204834,
+            "p75": 971.981567,
+            "p90": 1034.618408,
+            "p95": 1077.059741,
+            "p99": 1133.912603,
+            "max": 1238.904419,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "mfcc_mean_0": {
+            "n": 185,
+            "min": -550.419373,
+            "mean": -261.591147,
+            "std": 94.714028,
+            "p1": -494.342368,
+            "p5": -435.544415,
+            "p25": -318.807678,
+            "p50": -246.732407,
+            "p75": -198.310577,
+            "p90": -148.704257,
+            "p95": -130.102853,
+            "p99": -88.571898,
+            "max": -70.968414,
+            "zero_count": 0,
+            "negative_count": 185,
+            "unit": "feature_value"
+          }
+        }
+      }
+    }
+  }
+}

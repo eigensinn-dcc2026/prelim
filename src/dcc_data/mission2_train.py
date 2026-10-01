@@ -58,12 +58,34 @@ class BaselineResult:
     val_call_ids: int
 
 
+def make_group_split(
+    df: pd.DataFrame, *, seed: int, test_size: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return (train_idx, val_idx) for call_id-grouped 80/20 split.
+
+    Deterministic given the same ``df`` row order, ``seed`` and
+    ``test_size`` -- callers outside training (e.g. an error-analysis
+    script re-loading the same features parquet) can call this directly
+    to reproduce exactly which rows were held out, instead of duplicating
+    the GroupShuffleSplit call and risking it drifting out of sync with
+    ``fit_baseline``.
+    """
+
+    if df["call_id"].nunique() < 2:
+        raise ValueError("need at least 2 distinct call_id values for GroupShuffleSplit")
+    groups = df["call_id"].to_numpy()
+    splitter = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
+    # GroupShuffleSplit only uses len(X) and groups, never X's/y's values, so a
+    # cheap placeholder array is exactly equivalent to passing the real X, y.
+    placeholder = np.zeros(len(df))
+    train_idx, val_idx = next(splitter.split(placeholder, placeholder, groups))
+    return train_idx, val_idx
+
+
 def fit_baseline(df: pd.DataFrame, *, seed: int = 42, test_size: float = 0.2) -> BaselineResult:
     missing = [column for column in FEATURE_COLUMNS if column not in df.columns]
     if missing:
         raise ValueError(f"missing feature columns: {missing}")
-    if df["call_id"].nunique() < 2:
-        raise ValueError("need at least 2 distinct call_id values for GroupShuffleSplit")
 
     X = df[list(FEATURE_COLUMNS)].to_numpy(dtype=np.float64)
     y = df["speaker"].to_numpy(dtype=int)
@@ -72,8 +94,7 @@ def fit_baseline(df: pd.DataFrame, *, seed: int = 42, test_size: float = 0.2) ->
     majority_class = int(round(y.mean()))
     majority_class_accuracy = float(max(y.mean(), 1 - y.mean()))
 
-    group_splitter = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
-    train_idx, val_idx = next(group_splitter.split(X, y, groups))
+    train_idx, val_idx = make_group_split(df, seed=seed, test_size=test_size)
 
     train_ids = set(groups[train_idx])
     val_ids = set(groups[val_idx])

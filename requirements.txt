@@ -6,3 +6,7 @@ scikit-learn
 lightgbm
 tqdm
 pytest
+iterative-stratification
+matplotlib
+torch
+transformers
