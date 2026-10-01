@@ -10,104 +10,104 @@
   "기각 기준": "GroupSplit accuracy < 0.60 (-> L2 딥러닝 경로로 조기 전환)",
   "verdict": null,
   "measured": {
-    "group_split_accuracy": 0.8694481452125178,
-    "random_split_accuracy": 0.8691868309795808,
-    "leakage_gap_random_minus_group": -0.00026131423293696,
-    "majority_class_accuracy_this_sample": 0.5197041011606125,
+    "group_split_accuracy": 0.8693132311359203,
+    "random_split_accuracy": 0.8688326436988396,
+    "leakage_gap_random_minus_group": -0.00048058743708068175,
+    "majority_class_accuracy_this_sample": 0.519697354721046,
     "n_train_utterances": 711467,
     "n_val_utterances": 177891,
     "n_train_calls": 23360,
     "n_val_calls": 5840,
     "confusion_matrix_val_group_split": [
       [
-        70416,
-        14935
+        70459,
+        14892
       ],
       [
-        8289,
-        84251
+        8356,
+        84184
       ]
     ],
     "feature_importance_top20": [
       [
         "duration_sec",
-        10203.0
+        10148.0
       ],
       [
         "mfcc_mean_2",
-        9519.0
-      ],
-      [
-        "rms_std",
-        9395.0
+        9536.0
       ],
       [
         "mfcc_std_0",
-        9393.0
+        9306.0
+      ],
+      [
+        "rms_std",
+        9281.0
       ],
       [
         "mfcc_mean_5",
-        9033.0
+        9125.0
       ],
       [
         "mfcc_mean_4",
-        8908.0
+        8844.0
       ],
       [
         "mfcc_std_2",
-        8007.0
+        8075.0
       ],
       [
         "mfcc_mean_6",
-        7535.0
+        7590.0
       ],
       [
         "zcr_mean",
-        7423.0
+        7411.0
       ],
       [
         "mfcc_std_3",
-        7178.0
-      ],
-      [
-        "mfcc_std_1",
-        7002.0
-      ],
-      [
-        "mfcc_mean_3",
-        6982.0
+        7214.0
       ],
       [
         "spectral_bandwidth_std",
-        6851.0
+        7004.0
       ],
       [
-        "spectral_centroid_mean",
-        6499.0
+        "mfcc_std_1",
+        6968.0
+      ],
+      [
+        "mfcc_mean_3",
+        6894.0
       ],
       [
         "spectral_flatness_std",
-        6455.0
+        6502.0
+      ],
+      [
+        "spectral_centroid_mean",
+        6409.0
       ],
       [
         "mfcc_mean_0",
-        6215.0
+        6369.0
       ],
       [
         "zcr_std",
-        6031.0
+        6020.0
       ],
       [
         "rms_mean",
-        6024.0
+        5968.0
+      ],
+      [
+        "spectral_flatness_mean",
+        5947.0
       ],
       [
         "mfcc_mean_10",
-        5920.0
-      ],
-      [
-        "mfcc_std_4",
-        5881.0
+        5910.0
       ]
     ]
   }
