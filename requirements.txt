@@ -4,8 +4,9 @@ pyarrow
 librosa
 scikit-learn
 lightgbm
-torch
 tqdm
 pytest
 iterative-stratification
 matplotlib
+torch
+transformers
