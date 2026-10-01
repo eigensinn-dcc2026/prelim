@@ -15,8 +15,8 @@ utterance/feature table alike: anything with ``call_id``, ``utt_idx`` and ``spea
     # train_mission2_cnn.py will accept it); --stamp-training-defaults is only for a cache built before
     # provenance existed that you know is a Training-only, default-settings cache
     python scripts/verify_mission2_raw_labels.py \\
-        --index m2_spec_index_full_train.parquet --label-root .../Training/2.라벨링데이터 \\
-        --output m2_spec_index_full_train_provided_labels.parquet --stamp-training-defaults
+        --index m2_spectrogram_index_full.parquet --label-root .../Training/2.라벨링데이터 \\
+        --output m2_spectrogram_index_full_provided_labels.parquet --stamp-training-defaults
 
 Only ``_id`` and ``speaker`` are read from the label files, never ``text``; the report names call ids and
 counts only. Reading the full Training folder (29,200 label files) takes several minutes.
