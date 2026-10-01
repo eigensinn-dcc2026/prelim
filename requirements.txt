@@ -8,3 +8,5 @@ tqdm
 pytest
 iterative-stratification
 matplotlib
+torch
+transformers
