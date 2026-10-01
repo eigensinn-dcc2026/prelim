@@ -34,10 +34,16 @@ of re-running CNN inference locally):
 
 Nothing is written unless the inputs line up exactly. The L1 / L2 / utterance-index /
 overlap-flag tables must each have one row per (call_id, utt_idx), all four must cover the
-same utterances, and the ground-truth speaker carried by L1, L2 and the utterance index must
-agree row by row. Pass --l1-result-json / --l2-result-json (the separately saved official
-Validation evaluation results) to also require that the joined predictions reproduce their
-n_utterances and confusion_matrix exactly.
+same utterances, the ground-truth speaker carried by L1, L2 and the utterance index must
+agree row by row, every speaker/prediction must be 0 or 1, and no required value may be
+missing. The joined result must also be the whole official Validation set: 111,947
+utterances from 3,640 calls, checked before anything is written -- inputs that agree with
+each other but hold only part of the data are refused. (--expected-utterances/--expected-calls
+change that size for a deliberate subset comparison, and a subset result must then be written
+to explicit --output/--summary-output paths, never over the official comparison files.)
+Pass --l1-result-json / --l2-result-json (the separately saved official Validation evaluation
+results) to also require that the joined predictions reproduce their n_utterances and
+confusion_matrix exactly.
 
 Only the --l2-predictions-csv path runs on the code in this branch. The
 evaluate_mission2_l{1,2}_on_official_validation.py scripts and dcc_data.mission2_cnn used by
@@ -66,6 +72,16 @@ from dcc_data.mission2_train import load_model  # noqa: E402
 
 KEY_COLUMNS = ["call_id", "utt_idx"]
 
+# The official Validation set: 3,640 calls / 111,947 utterances (dcc_data.mission2_features'
+# EXPECTED_UTTERANCE_COUNTS, and every saved official-Validation result).
+OFFICIAL_VALIDATION_UTTERANCES = 111_947
+OFFICIAL_VALIDATION_CALLS = 3_640
+DEFAULT_OUTPUT = Path("reports/mission2/m2_l1_l2_official_validation_comparison.csv")
+DEFAULT_SUMMARY_OUTPUT = Path("reports/mission2/m2_l1_l2_official_validation_comparison.json")
+
+BINARY_COLUMNS = ("speaker", "l2_speaker", "index_speaker", "l1_pred", "l2_pred")
+REQUIRED_COLUMNS = (*BINARY_COLUMNS, "duration_sec", "overlaps_other")
+
 
 def _require_unique_keys(frame: pd.DataFrame, name: str) -> None:
     duplicated = frame.duplicated(KEY_COLUMNS, keep=False)
@@ -92,6 +108,30 @@ def _require_same_speaker(merged: pd.DataFrame, column: str, name: str) -> None:
         raise ValueError(f"{name} speaker disagrees with L1 speaker for {mismatched} of {len(merged)} utterances")
 
 
+def _require_complete_and_binary(merged: pd.DataFrame) -> None:
+    for column in REQUIRED_COLUMNS:
+        missing = int(merged[column].isna().sum())
+        if missing:
+            raise ValueError(f"{column} has {missing} missing value(s) among {len(merged)} joined utterances")
+    for column in BINARY_COLUMNS:
+        outside = [value.item() if hasattr(value, "item") else value for value in set(merged[column].unique()) - {0, 1}]
+        if outside:
+            raise ValueError(f"{column} must be 0 or 1, found {sorted(outside, key=str)[:5]}")
+
+
+def verify_expected_size(merged: pd.DataFrame, expected_utterances: int, expected_calls: int) -> None:
+    """Refuse a joined frame that is not exactly the expected number of utterances and calls."""
+
+    utterances, calls = len(merged), int(merged["call_id"].nunique())
+    if utterances != expected_utterances or calls != expected_calls:
+        raise ValueError(
+            f"joined result has {utterances} utterances from {calls} calls, expected {expected_utterances} "
+            f"utterances from {expected_calls} calls (the official Validation set is "
+            f"{OFFICIAL_VALIDATION_UTTERANCES} / {OFFICIAL_VALIDATION_CALLS}) -- refusing to write a comparison "
+            "of only part of it"
+        )
+
+
 def build_comparison_frame(
     l1_result: pd.DataFrame, l2_result: pd.DataFrame, utt_index: pd.DataFrame, overlap_df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -100,6 +140,7 @@ def build_comparison_frame(
     Row order follows ``l1_result``. Anything short of an exact one-to-one join (duplicate or
     missing utterances, or ground-truth speakers that disagree between sources) means the two
     models were not scored on the same utterances, so the caller must not write a comparison.
+    Every speaker/prediction must also be 0 or 1 and no required value may be missing.
     """
 
     inputs = {"L1": l1_result, "L2": l2_result, "utterance index": utt_index, "overlap flags": overlap_df}
@@ -120,6 +161,7 @@ def build_comparison_frame(
     )
     merged = merged.merge(overlap_df[KEY_COLUMNS + ["overlaps_other"]], on=KEY_COLUMNS, how="left", validate="one_to_one")
 
+    _require_complete_and_binary(merged)
     _require_same_speaker(merged, "l2_speaker", "L2")
     _require_same_speaker(merged, "index_speaker", "utterance index")
     return merged.drop(columns=["l2_speaker", "index_speaker"])
@@ -169,12 +211,26 @@ def parse_args() -> argparse.Namespace:
         help="same as --l1-result-json, for the L2 predictions",
     )
     parser.add_argument(
-        "--output", type=Path, default=Path("reports/mission2/m2_l1_l2_official_validation_comparison.csv")
+        "--expected-utterances", type=int, default=OFFICIAL_VALIDATION_UTTERANCES,
+        help="how many utterances the joined result must have (default: the whole official Validation set, "
+        f"{OFFICIAL_VALIDATION_UTTERANCES}); change only for a deliberate subset comparison",
     )
     parser.add_argument(
-        "--summary-output", type=Path, default=Path("reports/mission2/m2_l1_l2_official_validation_comparison.json")
+        "--expected-calls", type=int, default=OFFICIAL_VALIDATION_CALLS,
+        help=f"how many calls the joined result must cover (default: {OFFICIAL_VALIDATION_CALLS})",
     )
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--summary-output", type=Path, default=DEFAULT_SUMMARY_OUTPUT)
     args = parser.parse_args()
+
+    is_subset = (args.expected_utterances, args.expected_calls) != (
+        OFFICIAL_VALIDATION_UTTERANCES, OFFICIAL_VALIDATION_CALLS,
+    )
+    if is_subset and (args.output == DEFAULT_OUTPUT or args.summary_output == DEFAULT_SUMMARY_OUTPUT):
+        parser.error(
+            "a subset comparison (--expected-utterances/--expected-calls below the official size) must be "
+            "written to explicit --output and --summary-output paths, not over the official comparison files"
+        )
 
     uses_csv = args.l2_predictions_csv is not None
     uses_local_ckpt = args.l2_ckpt is not None or args.l2_index is not None or args.l2_spectrogram_dir is not None
@@ -242,6 +298,7 @@ def main() -> int:
 
     # --- join everything ------------------------------------------------
     merged = build_comparison_frame(l1_result, l2_result, utt_index, overlap_df)
+    verify_expected_size(merged, args.expected_utterances, args.expected_calls)
     if args.l1_result_json is not None:
         check_against_saved_result(merged, "l1_pred", args.l1_result_json, "L1")
     if args.l2_result_json is not None:
