@@ -159,84 +159,6 @@ class UtteranceRecord:
     speaker: int
 
 
-# Calls whose speaker=0/1 labels are confirmed swapped for the *entire* call
-# (the source JSON's 대원/신고자 roles are reversed on every utterance) --
-# see reports/mission2/m2_label_swap_audit.md for the transcript evidence
-# (each call's dispatcher-only lines, e.g. the fixed "119입니다" greeting or
-# a closing "출동할게요", are attributed to speaker 1 instead of the usual 0).
-# Corrected here, on read, rather than editing the team's copy of the source
-# JSON, so the fix stays auditable/reversible and the raw AI-Hub download is
-# never mutated. Keyed by the JSON's own "_id" field (not the filename stem,
-# which carries an extra "_<date>" suffix "_id" does not have).
-CONFIRMED_LABEL_SWAPPED_CALL_IDS: frozenset[str] = frozenset(
-    {
-        "651e5550bfd63782eb3866a5",
-        "651e4b1829d82455557a23b2",
-        "651e50c72f06ed4a6e31e3d4",
-        "651e4c754428de718c773dab",
-    }
-)
-
-# Calls where only *part* of the call is mislabeled -- every utterance from
-# the given utt_idx onward needs its speaker flipped, not the whole call.
-# Found by dcc_data.mission2_analysis.find_label_discontinuity_candidates()
-# against the L2 CNN's held-out val predictions: for these calls, no single
-# whole-call flip explains the errors, but a flip starting partway through
-# does, at ~100% corrected accuracy -- the model confidently agrees with
-# the label up to that utt_idx and confidently disagrees from it on, with a
-# single clean boundary (see reports/mission2/m2_label_swap_audit.md).
-PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX: dict[str, int] = {
-    "651e4e712e98ee712096903c": 5,
-}
-
-# Same idea, opposite polarity: every utterance *before* the given utt_idx
-# needs its speaker flipped, everything from utt_idx onward is already
-# correct as raw.
-#
-# 651e4c754428de718c773b56 was originally in CONFIRMED_LABEL_SWAPPED_CALL_IDS
-# (whole-call swap). best_flip_point's k=6 was computed relative to *that*
-# swapped label, not the raw one: "flip the current (already-swapped) label
-# from k onward" means the correct final value is swap-for-idx<6,
-# raw-for-idx>=6. When this call was moved out of the whole-call-swap set
-# into its own boundary entry, the boundary got applied with
-# PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX's polarity by mistake -- flipping
-# idx>=6 and leaving idx<6 as raw, exactly backwards. Caught by manually
-# reading the full transcript against expected 대원/신고자 dialogue patterns
-# ("네, 119입니다" at utt_idx 0 is an unmistakable dispatcher greeting, but
-# was raw speaker=1 and left unflipped by the old logic; "이 사람이 가슴이
-# 답답하다... 어떻게 하면 돼요?" at utt_idx 6 is unmistakably the reporter
-# describing a third party's symptoms and asking for guidance, but was
-# flipped to 대원 by the old logic) -- all 21 utterances of this call are
-# consistent with flip-before-6 and contradict flip-from-6, with zero
-# ambiguous cases.
-PARTIAL_LABEL_SWAP_FLIP_BEFORE_UTT_IDX: dict[str, int] = {
-    "651e4c754428de718c773b56": 6,
-}
-
-
-def corrected_speaker(call_id: str, utt_idx: int, speaker: int) -> int:
-    """Apply CONFIRMED_LABEL_SWAPPED_CALL_IDS/PARTIAL_LABEL_SWAP_FLIP_FROM_
-    UTT_IDX/PARTIAL_LABEL_SWAP_FLIP_BEFORE_UTT_IDX to one utterance's raw
-    speaker value.
-
-    Pulled out of build_utterance_records() so an already-built index
-    (e.g. the L2 spectrogram index, which stores speaker as a plain column
-    rather than re-deriving it from source JSON) can be patched in place --
-    see scripts/apply_mission2_label_fixes.py -- without re-reading audio
-    or the source JSON, which for the L2 index would mean re-running the
-    ~80-minute full spectrogram build for a fix that only changes a
-    handful of calls' speaker labels.
-    """
-
-    if call_id in CONFIRMED_LABEL_SWAPPED_CALL_IDS:
-        return 1 - speaker
-    if utt_idx >= PARTIAL_LABEL_SWAP_FLIP_FROM_UTT_IDX.get(call_id, float("inf")):
-        return 1 - speaker
-    if utt_idx < PARTIAL_LABEL_SWAP_FLIP_BEFORE_UTT_IDX.get(call_id, -1):
-        return 1 - speaker
-    return speaker
-
-
 def _load_call_utterances(json_path: Path) -> tuple[str, list[dict]]:
     with json_path.open("r", encoding="utf-8") as stream:
         document = json.load(stream)
@@ -252,6 +174,10 @@ def build_utterance_records(row: ManifestRow, data_root: Path) -> list[Utterance
 
     Only ``startAt``/``endAt``/``speaker`` are read from each utterance --
     never ``text`` (Mission 2 forbids using transcript content as a feature).
+
+    ``speaker`` is used exactly as the provided label file has it. The organizers ruled (2026-10-01) that
+    speaker labels may not be corrected, or training data selected, on the basis of ``text``; suspected
+    label errors are listed in reports/mission2/m2_label_noise_suspected_calls.md instead of being fixed.
     """
 
     json_path = data_root / row.json_path
@@ -276,7 +202,6 @@ def build_utterance_records(row: ManifestRow, data_root: Path) -> list[Utterance
             )
         if speaker not in (0, 1):
             raise ValueError(f"speaker must be 0 or 1: {json_path}[{idx}] got {speaker!r}")
-        speaker = corrected_speaker(call_id, idx, int(speaker))
         records.append(
             UtteranceRecord(
                 call_id=call_id,
@@ -287,7 +212,7 @@ def build_utterance_records(row: ManifestRow, data_root: Path) -> list[Utterance
                 start_at=float(start_at),
                 end_at=float(end_at),
                 duration_sec=(float(end_at) - float(start_at)) / 1000.0,
-                speaker=speaker,
+                speaker=int(speaker),
             )
         )
     return records
@@ -610,7 +535,7 @@ def build_seoul_validation_dataset(
     """Sample Seoul/Validation calls and build the utterance index + feature cache.
 
     Same extraction pipeline as ``build_seoul_training_dataset`` (same 53
-    feature columns, same ``corrected_speaker`` label fixes), gated on
+    feature columns, labels as provided), gated on
     ``select_seoul_validation_rows`` instead -- for evaluation only, per the
     contest rules (see that function's docstring). ``n_calls=-1`` (default)
     takes every available Validation call rather than truncating, since

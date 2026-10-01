@@ -20,7 +20,7 @@ from pathlib import Path
 
 from .guards import TRAINING
 from .mission2_features import HOP_LENGTH, N_FFT
-from .mission2_spectrogram import N_MELS
+from .mission2_spectrogram import ALLOWED_LABEL_SOURCES, N_MELS
 
 METADATA_VERSION = 1
 
@@ -32,6 +32,7 @@ REQUIRED_METADATA_KEYS = (
     "model_name",
     "model_class",
     "index_split",
+    "label_source",
     "n_mels",
     "hop_length",
     "n_fft",
@@ -79,6 +80,7 @@ def build_checkpoint_metadata(
         "model_name": model_name,
         "model_class": model_class,
         "index_split": index_provenance["split"],
+        "label_source": index_provenance["label_source"],
         "n_mels": index_provenance["n_mels"],
         "hop_length": index_provenance["hop_length"],
         "n_fft": index_provenance["n_fft"],
@@ -89,40 +91,18 @@ def build_checkpoint_metadata(
     }
 
 
-# Checkpoints trained before metadata existed, keyed by the sha256 of the file. The values below are the
-# settings that were in force, written out literally (not read from the module defaults) so that changing
-# a default later makes inference refuse the old file instead of silently re-labelling it.
+# Checkpoints trained before metadata existed, keyed by the sha256 of the file, with the settings that were in
+# force written out literally (not read from the module defaults), so that changing a default later makes
+# inference refuse the old file instead of silently re-labelling it.
 #
-# m2_cnn_large.pt is the checkpoint behind the official-Validation results (M2-VAL-003/004/005 in
-# docs/experiment_log.md, PR #31). best_epoch, total_epochs_trained, best_val_acc and the parameter shapes
-# were read from the file itself; the mel settings, the training split and the split seed are the project's
-# record of how it was trained (they are not stored in the file) and are supported indirectly: the official
-# Validation score is reproduced (90.88-90.89%) when the file is run with exactly these settings, and a mel
-# mismatch would have degraded it. ``torch_seed`` is None because it predates ``--torch-seed``.
-#
-# To register another file: compute checkpoint_sha256(), read best_epoch/total_epochs_trained from it, and
-# only write down settings you can vouch for -- or retrain with the current train_mission2_cnn.py instead.
-LEGACY_L2_CHECKPOINTS: dict[str, dict] = {
-    "04c0cc04e2c9f4033db4f28164b4c3c888b6642588728bc3ea1b3b73ce406189": {
-        "description": "m2_cnn_large.pt (best epoch 21 of 30, internal val 91.22%; official Validation 90.88-90.89%)",
-        "best_epoch": 21,
-        "total_epochs_trained": 30,
-        "best_val_acc": 0.9122496360130642,
-        "metadata": {
-            "metadata_version": METADATA_VERSION,
-            "model_name": "large",
-            "model_class": "SpeakerCNNLarge",
-            "index_split": "Training",
-            "n_mels": 40,
-            "hop_length": 160,
-            "n_fft": 512,
-            "sample_rate": 8000,
-            "split_seed": 42,
-            "test_size": 0.2,
-            "torch_seed": None,
-        },
-    },
-}
+# Deliberately EMPTY. The one checkpoint that used to be registered here (m2_cnn_large.pt, the 90.89%
+# official-Validation result of M2-VAL-003, sha256 04c0cc04e2c9f4033db4f28164b4c3c888b6642588728bc3ea1b3b73ce406189)
+# was trained on an index whose speaker labels had been corrected for six Training calls after reading their
+# ``text``. The organizers ruled (2026-10-01) that training must use the provided labels as they are, so that
+# file must not be submitted and is no longer accepted. Only register a file here when you know -- not
+# assume -- that it was trained on the provided labels as they are; otherwise retrain with
+# scripts/train_mission2_cnn.py, which records ``label_source`` in the checkpoint itself.
+LEGACY_L2_CHECKPOINTS: dict[str, dict] = {}
 
 
 def _require_complete(metadata: dict, where: str) -> None:
@@ -150,8 +130,9 @@ def resolve_l2_checkpoint_metadata(checkpoint: dict, ckpt_path: str | Path) -> t
             f"{ckpt_path} records no training config and its sha256 ({digest}) is not a registered legacy "
             "checkpoint, so nothing says which model or mel settings it was trained with (a SpeakerCNNLarge-"
             "shaped state_dict loads into the wrong variant without any error). Retrain with the current "
-            "scripts/train_mission2_cnn.py, which embeds the config, or register the file in "
-            "dcc_data.mission2_checkpoint.LEGACY_L2_CHECKPOINTS after confirming how it was trained."
+            "scripts/train_mission2_cnn.py, which embeds the config. (dcc_data.mission2_checkpoint."
+            "LEGACY_L2_CHECKPOINTS is for files known to have been trained on the provided labels as they are; "
+            "the earlier m2_cnn_large.pt was trained on corrected labels and is deliberately not in it.)"
         )
     _require_complete(legacy["metadata"], "legacy registry")
     return dict(legacy["metadata"]), f"legacy registry: {legacy['description']}"
@@ -161,7 +142,7 @@ def require_l2_inference_config(metadata: dict) -> None:
     """Raise CheckpointConfigError unless the checkpoint suits what scripts/mission2_inference.py runs.
 
     It builds SpeakerCNNLarge and the log-mel spectrogram with the current module defaults, and the
-    checkpoint must have been trained on Training only.
+    checkpoint must have been trained on Training only, on the speaker labels exactly as provided.
     """
 
     expected = {
@@ -176,6 +157,11 @@ def require_l2_inference_config(metadata: dict) -> None:
         for key, value in expected.items()
         if metadata[key] != value
     ]
+    if metadata["label_source"] not in ALLOWED_LABEL_SOURCES:
+        mismatches.append(
+            f"label_source: checkpoint recorded {metadata['label_source']!r}, but Mission 2 training must use "
+            f"the provided speaker labels as they are (one of {', '.join(ALLOWED_LABEL_SOURCES)})"
+        )
     if mismatches:
         raise CheckpointConfigError(
             "checkpoint was not trained for this inference setup -- " + "; ".join(mismatches)

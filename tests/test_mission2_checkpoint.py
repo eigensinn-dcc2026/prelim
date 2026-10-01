@@ -24,9 +24,12 @@ from dcc_data.mission2_checkpoint import (
     resolve_l2_checkpoint_metadata,
 )
 from dcc_data.mission2_features import HOP_LENGTH, N_FFT
-from dcc_data.mission2_spectrogram import N_MELS
+from dcc_data.mission2_spectrogram import LABEL_SOURCE_PROVIDED, LABEL_SOURCE_VERIFIED, N_MELS
 
-PROVENANCE = {"split": "Training", "n_mels": N_MELS, "hop_length": HOP_LENGTH, "n_fft": N_FFT, "sample_rate": 8000}
+PROVENANCE = {
+    "split": "Training", "n_mels": N_MELS, "hop_length": HOP_LENGTH, "n_fft": N_FFT, "sample_rate": 8000,
+    "label_source": LABEL_SOURCE_PROVIDED,
+}
 
 
 def _metadata(**overrides) -> dict:
@@ -52,6 +55,7 @@ def test_build_checkpoint_metadata_records_the_training_config() -> None:
     assert metadata["model_name"] == "large"
     assert metadata["model_class"] == "SpeakerCNNLarge"
     assert metadata["index_split"] == "Training"
+    assert metadata["label_source"] == LABEL_SOURCE_PROVIDED
     assert (metadata["n_mels"], metadata["hop_length"], metadata["n_fft"], metadata["sample_rate"]) == (
         N_MELS, HOP_LENGTH, N_FFT, 8000,
     )
@@ -139,6 +143,7 @@ def test_the_config_check_accepts_a_checkpoint_trained_for_this_inference_setup(
         ({"hop_length": HOP_LENGTH // 2}, f"hop_length: checkpoint recorded {HOP_LENGTH // 2}"),
         ({"n_fft": N_FFT * 2}, f"n_fft: checkpoint recorded {N_FFT * 2}"),
         ({"index_split": "Validation"}, "index_split: checkpoint recorded 'Validation'"),
+        ({"label_source": "corrected_after_reading_text"}, "label_source: checkpoint recorded 'corrected_after_reading_text'"),
     ],
 )
 def test_the_config_check_refuses_each_setting_that_differs(override: dict, fragment: str) -> None:
@@ -156,26 +161,27 @@ def test_the_config_check_reports_every_difference_at_once() -> None:
     assert "model_name" in message and "n_mels" in message
 
 
-def test_the_registered_legacy_checkpoint_entry_is_well_formed_and_runs_under_the_current_defaults() -> None:
-    assert LEGACY_L2_CHECKPOINTS, "the shipped 90.89% checkpoint must stay registered"
+def test_every_registered_legacy_checkpoint_entry_is_well_formed_and_runs_under_the_current_defaults() -> None:
     for digest, entry in LEGACY_L2_CHECKPOINTS.items():
         assert re.fullmatch(r"[0-9a-f]{64}", digest)
         assert set(REQUIRED_METADATA_KEYS) <= set(entry["metadata"])
-        # If a module default ever changes, the shipped checkpoint must be refused (loudly), not relabelled:
+        # If a module default ever changes, a registered checkpoint must be refused (loudly), not relabelled:
         # this is the test that fails first.
         require_l2_inference_config(entry["metadata"])
 
 
-def test_the_shipped_checkpoint_is_registered_with_the_values_read_from_the_file() -> None:
-    entry = LEGACY_L2_CHECKPOINTS["04c0cc04e2c9f4033db4f28164b4c3c888b6642588728bc3ea1b3b73ce406189"]
+def test_the_checkpoint_trained_on_corrected_labels_is_not_registered_and_is_therefore_refused(tmp_path: Path) -> None:
+    # m2_cnn_large.pt (M2-VAL-003) was trained after six Training calls' speaker labels were corrected on the
+    # strength of reading their ``text``; the organizers ruled (2026-10-01) that training must use the provided
+    # labels as they are. If this hash ever comes back into the registry, someone must have decided on purpose.
+    shipped = "04c0cc04e2c9f4033db4f28164b4c3c888b6642588728bc3ea1b3b73ce406189"
+    assert shipped not in LEGACY_L2_CHECKPOINTS
 
-    assert (entry["best_epoch"], entry["total_epochs_trained"]) == (21, 30)
-    assert entry["best_val_acc"] == pytest.approx(0.91225, abs=1e-5)
-    metadata = entry["metadata"]
-    assert (metadata["model_name"], metadata["model_class"], metadata["index_split"]) == (
-        "large", "SpeakerCNNLarge", "Training",
-    )
-    assert (metadata["n_mels"], metadata["hop_length"], metadata["n_fft"], metadata["sample_rate"]) == (
-        40, 160, 512, 8000,
-    )
-    assert (metadata["split_seed"], metadata["test_size"], metadata["torch_seed"]) == (42, 0.2, None)
+    path = tmp_path / "ckpt.pt"
+    path.write_bytes(b"stands in for a checkpoint with no recorded config")
+    with pytest.raises(CheckpointConfigError, match="records no training config"):
+        resolve_l2_checkpoint_metadata({"best_model_state_dict": {}}, path)
+
+
+def test_the_verified_label_source_is_accepted_too() -> None:
+    require_l2_inference_config(_metadata(label_source=LABEL_SOURCE_VERIFIED))

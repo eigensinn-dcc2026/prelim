@@ -1,11 +1,21 @@
 # Mission 2 L2 (Mel-spectrogram + CNN) 결과
 
+> **2026-10-02 주의 -- 이 문서의 전체 규모(29,200통화) 학습 결과는 제출에 쓸 수 없다.** 아래 숫자(소형 89.71%,
+> 대형 내부 검증 91.22%, 공식 Validation 90.88~90.89%)는 Training 6통화(발화 109개)의 speaker 라벨을 대화
+> 내용(`text`)을 읽고 교정한 인덱스로 학습한 모델의 결과다(소형은 교정이 단계적으로 반영된 인덱스, 대형은
+> 교정이 모두 반영된 인덱스로 처음부터). 운영진이 2026-10-01에 "`text`를 근거로 라벨을 수정하거나 학습
+> 데이터를 골라서 학습에 반영하는 것은 허용되지 않으니 제공된 speaker 라벨을 그대로 쓰라"고 답했다.
+> 그래서 이 숫자들은 과거 기록으로만 남기고, 이 체크포인트(`m2_cnn_large.pt`)는 제출하지 않는다. 제공된 라벨
+> 그대로 다시 학습한 결과가 나오면 이 문서를 갱신한다. 교정하지 않고 따로 정리해 둔 의심 사례는
+> [`m2_label_noise_suspected_calls.md`](m2_label_noise_suspected_calls.md)에 있다.
+
 ## 배경
 
 L1(53~64차원 통계 + LightGBM)이 전체 데이터 기준 ~86.9%에서 정체됐고, 피처 3종(pitch/
 energy, call-relative, harmonicity)을 추가해봐도 목표였던 두 문제 -- 대원/신고자
 duration-bucket 편향, 발화 겹침 정확도 격차 -- 를 못 고쳤다(PR #11). 통계로 요약하는
-대신 원본 log-mel spectrogram을 그대로 작은 CNN에 넣는 L2로 전환했다(PR #14).
+대신 원본 log-mel spectrogram을 그대로 작은 CNN에 넣는 L2로 전환했다(PR #14). (이 중 call-relative는
+같은 통화의 다른 발화 정보를 쓴다는 이유로 이후 대회 규정 위반 판정을 받아 철회됐다.)
 
 ## 학습 경과
 
@@ -39,7 +49,7 @@ call_id 기준 GroupShuffleSplit 8:2, seed=42 -- L1과 동일한 split이라 정
 
 ### 전체 29,200통화, SpeakerCNNLarge(큰 모델, 4 conv 블록, 421,954 파라미터)
 
-작은 모델이 수렴한 뒤 모델을 키워서 처음부터 재학습(같은, 라벨 수정 반영된 인덱스 사용).
+작은 모델이 수렴한 뒤 모델을 키워서 처음부터 재학습(같은 인덱스 -- 라벨 교정이 반영된 것이라 위 주의 참고).
 
 | 누적 에포크 | val acc | 대원 recall | 신고자 recall | 격차 |
 |---|---|---|---|---|
@@ -54,7 +64,7 @@ call_id 기준 GroupShuffleSplit 8:2, seed=42 -- L1과 동일한 split이라 정
 #### 최종 체크포인트 (best 에포크 21 / 총 30에포크)
 
 이어서 학습해 총 30에포크를 돌렸고, 내부 검증 정확도가 가장 높았던 **21번째 에포크**를 제출 후보로
-저장했다. 파일은 `checkpoints/mission2/m2_cnn_large.pt`이고, `checkpoints/`는 정책상 git에서 제외라
+저장했었다(위 주의대로 지금은 제출하지 않는다). 파일은 `checkpoints/mission2/m2_cnn_large.pt`이고, `checkpoints/`는 정책상 git에서 제외라
 이 저장소에는 없다.
 
 | 항목 | 값 | 출처 |
@@ -66,6 +76,7 @@ call_id 기준 GroupShuffleSplit 8:2, seed=42 -- L1과 동일한 split이라 정
 | mel 설정 | `n_mels=40`, `hop_length=160`, `n_fft=512`, `sample_rate=8000` | 파일에는 저장돼 있지 않음 -- 당시 코드 기본값(팀 기록). 아래 공식 Validation 결과가 이 설정으로 재현돼 간접적으로 확인됨 |
 | 학습 데이터 / 분할 | Training만, `call_id` 기준 GroupShuffleSplit 8:2, `seed=42` | 파일에는 저장돼 있지 않음 -- 팀 기록 |
 | torch seed | 기록 없음 | `--torch-seed` 도입 전에 학습한 파일이라 남아 있지 않음 |
+| speaker 라벨 | **교정본**(Training 6통화 109발화 반전) | 팀 기록(`docs/decisions.md` 2026-09-10, M2-VAL-003). 이 점 때문에 제출 불가 |
 
 같은 파일로 잰 공식 Validation(3,640통화 / 111,947발화) 결과. 다른 평가 방식으로 잰 값이니 섞어 읽지
 않는다. 출처는 PR #31의 `docs/experiment_log.md`(M2-VAL-003/004/005)이고 아직 main에는 없다.
@@ -76,11 +87,11 @@ call_id 기준 GroupShuffleSplit 8:2, seed=42 -- L1과 동일한 split이라 정
 | 제출용 `mission2_inference.py`, 발화 하나씩, 채우기 없음 | 89.73% |
 | 제출용 `mission2_inference.py`, 발화 자기 자신만 300프레임까지 채움(`L2_MIN_FRAMES`, 이 브랜치) | **90.89%** (101,750 / 111,947) |
 
-`scripts/mission2_inference.py`는 이 체크포인트의 설정을 `dcc_data.mission2_checkpoint`의
-`LEGACY_L2_CHECKPOINTS`(위 sha256으로 등록)에서 읽어 확인하고 실행한다. 새로 학습하는 체크포인트는
-`train_mission2_cnn.py`가 위 표의 설정을 파일 안에 직접 저장하므로 등록이 필요 없다. **같은 가중치라도
-다시 저장해서 바이트가 달라지면 등록되지 않은 파일로 보고 거부한다** -- 제출 패키지에는 이 파일을
-그대로(복사만) 넣어야 한다.
+`scripts/mission2_inference.py`는 체크포인트에 저장된 학습 설정(`train_mission2_cnn.py`가 `checkpoint["metadata"]`에
+기록: 모델, mel 설정, 학습 분할, **speaker 라벨 출처** 등)을 읽어 현재 실행 설정과 맞는지 확인하고, 다르면
+실행을 멈춘다. 이 체크포인트(`m2_cnn_large.pt`)는 설정이 파일에 저장돼 있지 않은 옛 파일이고, 교정된 라벨로
+학습했기 때문에 `dcc_data.mission2_checkpoint`의 `LEGACY_L2_CHECKPOINTS`(옛 파일 등록부)에 **등록하지 않았다**
+-- 이 파일을 넣으면 추론 스크립트가 거부한다.
 
 ### 3,000통화 (L1과 비교용 표본, train 73,374 / val 18,134, SpeakerCNN 소형)
 
@@ -120,28 +131,34 @@ spectrogram을 직접 보는 게 요약통계보다 겹친 목소리를 잘 구�
 반면 **발화 길이(0.5~1초) 문제는 L1과 마찬가지로 L2 소형 모델에서도 여전히 병목이었다**
 -- SpeakerCNNLarge에서 이 병목이 줄었는지는 아직 확인 전.
 
-## 라벨 스왑/불연속 수정
+## 라벨 오류 의심 사례 (수정하지 않음)
 
-오류 분석에서 대원/신고자 라벨이 통화 단위 또는 통화 중간부터 뒤바뀐 경우를 다수
-발견하고 수정했다 -- 상세 내역은 `reports/mission2/m2_label_swap_audit.md` 참고.
-`dcc_data.mission2_analysis.find_label_discontinuity_candidates()`가 모델의
-held-out 예측 패턴("특정 지점부터 confident하게 정답과 반대로 예측")으로 이런 오류를
-자동으로 찾아내는데, val 통화만 스캔 가능하다는 한계가 있다(train 쪽은 모델이 그
-라벨로 직접 학습해서 같은 방법이 안 통함).
+오류 분석에서 모델의 예측이 제공된 라벨과 정반대로 나오는 통화가 몇 개 보였고, 원본 라벨의 대원/신고자가
+통화 전체 또는 중간부터 뒤바뀐 것으로 의심됐다. 한때 이 중 6개 통화(109개 발화)의 라벨을 대화 내용을
+읽고 교정해서 학습했지만, 운영진이 2026-10-01에 그렇게 하면 안 된다고 답했다(`text`는 오류 분석을 위해
+읽는 것까지만 허용, 라벨 수정이나 데이터 선별을 학습에 반영하는 것은 불허). 지금은 어떤 라벨도 고치지
+않고 제공된 라벨 그대로 학습한다. 의심 사례는 데이터의 한계로 따로 정리했다 --
+[`m2_label_noise_suspected_calls.md`](m2_label_noise_suspected_calls.md).
+
+모델 예측이 정답과 크게 어긋나는 통화를 찾아보는 것은 오류 분석이라 계속 할 수 있다. 다만 그 결과로
+라벨을 바꾸거나 통화를 학습에서 빼는 일은 하지 않는다.
 
 ## 재현 방법
 
-`scripts/build_mission2_spectrograms.py`로 스펙트로그램 캐시 생성 →
-`scripts/apply_mission2_label_fixes.py`로 라벨 수정 반영 →
-`scripts/train_mission2_cnn.py --model {small,large} --resume`로 필요한 만큼 이어서
-학습. Colab 실행 순서는 PR #14 설명 참고.
+`scripts/build_mission2_spectrograms.py`로 스펙트로그램 캐시 생성(인덱스에 `label_source`가 찍힌다) →
+`scripts/train_mission2_cnn.py --model {small,large} --resume`로 필요한 만큼 이어서 학습. Colab 실행 순서는
+PR #14 설명 참고.
+
+예전에 만든 캐시를 쓸 때는 먼저 라벨을 확인해야 한다 -- 교정된 라벨이 들어 있을 수 있다.
+`scripts/verify_mission2_raw_labels.py --index <캐시 parquet> --label-root <Training 라벨 폴더>`로 한 줄씩
+제공된 라벨과 대조하고, `--output`을 주면 제공된 라벨로 되돌린 복사본을 쓴다(찍힌 표시가 없는 옛 인덱스는
+`--stamp-training-defaults`로 한 번에 표시까지). `train_mission2_cnn.py`는 `label_source`가 없는 인덱스를
+거부한다.
 
 ## 다음 단계
 
-- (완료) SpeakerCNNLarge 계속 학습해서 어디서 수렴하는지 확인 -- 총 30에포크, best 에포크 21에서 내부 검증 91.22% ("최종 체크포인트" 참고)
+- **제공된 라벨 그대로 SpeakerCNNLarge를 다시 학습**하고 공식 Validation으로 한 번 다시 평가 -- 위 주의 참고.
+  그 결과로 이 문서의 숫자를 갱신한다.
 - 수렴 후 SpeakerCNNLarge로 오류 분석 재실행 -- duration bucket 병목이 줄었는지 확인
-- `651e537c201879a4721c618c`(부분 구간만 뒤바뀐 케이스, 11개 발화) 실제 청음 확인
-- `find_label_discontinuity_candidates()`를 train 쪽까지 적용하려면 cross-validation
-  기반 재실행 검토
-- L1의 확정된 개선(하이퍼파라미터 재튜닝, call-relative 피처, PR #11)은 여전히 별도로
-  파이프라인 기본값에 반영 필요 -- L2와는 독립적인 트랙
+- L1의 확정된 개선 중 하이퍼파라미터 재튜닝은 L2와 독립적인 트랙으로 파이프라인 기본값에 반영 필요.
+  (call-relative 피처는 같은 통화의 다른 발화 정보를 쓴다는 이유로 규정 위반이라 철회됐고 다시 넣으면 안 된다.)

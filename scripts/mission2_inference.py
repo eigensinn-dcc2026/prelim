@@ -33,18 +33,21 @@ unchanged either way:
   ``.pkl`` (``dcc_data.mission2_train.save_model``'s pickle format).
 - L2 (CNN over a log-mel spectrogram, ``dcc_data.mission2_cnn.SpeakerCNNLarge``):
   ``.pt``/``.pth``/``.ckpt``, matching ``scripts/train_mission2_cnn.py``'s
-  ``--model large`` checkpoint format (e.g. ``checkpoints/mission2/m2_cnn_large.pt``,
-  the 90.88% official-Validation checkpoint -- see M2-VAL-003). The spectrogram
+  ``--model large`` checkpoint format. The spectrogram
   is built here with ``dcc_data.mission2_spectrogram``'s current module-level
   defaults (``N_MELS``, and ``mission2_features.HOP_LENGTH``) -- these must
   match whatever the checkpoint was actually trained with, since a mismatch
   would not raise (``SpeakerCNNLarge`` accepts any spectrogram size via
   ``AdaptiveAvgPool2d``), it would just quietly degrade predictions. So the
-  checkpoint's recorded training config (``checkpoint["metadata"]``, or the
-  legacy registry for a file trained before that existed -- see
-  ``dcc_data.mission2_checkpoint``) is checked against them first, and the
-  run fails if the model kind, mel settings or training split differ, or if
-  the audio's sample rate isn't the one it was trained on.
+  checkpoint's recorded training config (``checkpoint["metadata"]``, written by
+  the trainer; ``dcc_data.mission2_checkpoint``) is checked against them first,
+  and the run fails if the model kind, mel settings or training split differ,
+  if the audio's sample rate isn't the one it was trained on, or if the
+  checkpoint was not trained on the provided speaker labels as they are (the
+  organizers' 2026-10-01 ruling: no label correction on the basis of ``text``).
+  A checkpoint with no recorded config is refused too. The earlier
+  ``m2_cnn_large.pt`` (M2-VAL-003) was trained on corrected labels, so it is
+  deliberately not accepted any more.
 
 Development note: this currently lives under scripts/ rather than as a
 top-level inference.py because this repository holds all three missions and

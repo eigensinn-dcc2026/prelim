@@ -103,14 +103,14 @@ def _l2_metadata(**overrides) -> dict:
 
     from dcc_data.mission2_checkpoint import build_checkpoint_metadata
     from dcc_data.mission2_features import HOP_LENGTH, N_FFT
-    from dcc_data.mission2_spectrogram import N_MELS
+    from dcc_data.mission2_spectrogram import LABEL_SOURCE_PROVIDED, N_MELS
 
     metadata = build_checkpoint_metadata(
         model_name="large",
         model_class="SpeakerCNNLarge",
         index_provenance={
             "split": "Training", "n_mels": N_MELS, "hop_length": HOP_LENGTH, "n_fft": N_FFT,
-            "sample_rate": SAMPLE_RATE,
+            "sample_rate": SAMPLE_RATE, "label_source": LABEL_SOURCE_PROVIDED,
         },
         split_seed=42,
         test_size=0.2,
@@ -441,6 +441,7 @@ def test_an_l2_checkpoint_without_any_recorded_config_is_refused(tmp_path: Path)
         ({"n_mels": 80}, "n_mels"),
         ({"hop_length": 80}, "hop_length"),
         ({"index_split": "Validation"}, "index_split"),
+        ({"label_source": "corrected_after_reading_text"}, "label_source"),  # not the provided speaker labels
     ],
 )
 def test_an_l2_checkpoint_trained_differently_is_refused_even_though_its_weights_would_load(

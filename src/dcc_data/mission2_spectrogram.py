@@ -49,29 +49,43 @@ N_MELS = 40
 # *loudest* frame under the ref=np.max normalization below).
 SPEC_FLOOR_DB = -80.0
 
-# Every index row records where its spectrogram came from (the manifest split of its call) and the
-# settings it was built with, so a training run can prove its input is Training-only and the checkpoint
-# can record what it was trained on. See assert_training_spectrogram_index().
-INDEX_PROVENANCE_COLUMNS = ("split", "n_mels", "hop_length", "n_fft", "sample_rate")
+# How an index's ``speaker`` column relates to the provided label files. The organizers ruled (2026-10-01)
+# that Mission 2 training must use the provided speaker labels as they are: no correction, and no data
+# selection, on the basis of ``text``. So an index has to say its labels are the provided ones.
+LABEL_SOURCE_PROVIDED = "provided_json"  # written by the builder straight from the provided label JSON
+LABEL_SOURCE_VERIFIED = "verified_against_provided_json"  # re-checked row by row by scripts/verify_mission2_raw_labels.py
+ALLOWED_LABEL_SOURCES = (LABEL_SOURCE_PROVIDED, LABEL_SOURCE_VERIFIED)
+
+# Every index row records where its spectrogram came from (the manifest split of its call), the settings it
+# was built with and where its labels came from, so a training run can prove its input is Training-only with
+# the provided labels and the checkpoint can record what it was trained on. See
+# assert_training_spectrogram_index().
+INDEX_PROVENANCE_COLUMNS = ("split", "n_mels", "hop_length", "n_fft", "sample_rate", "label_source")
+
+
+class LabelProvenanceError(ValueError):
+    """A spectrogram index does not say its speaker labels are the provided ones."""
 
 
 def assert_training_spectrogram_index(index_df: "pd.DataFrame") -> dict:
-    """Fail unless every row of a spectrogram index is stamped as built from Training.
+    """Fail unless every row of a spectrogram index is stamped as built from Training, with provided labels.
 
-    Returns the single ``{split, n_mels, hop_length, n_fft, sample_rate}`` the index was built with.
-    An index without the stamp (built before the stamp existed) cannot be shown to be Training-only, so
-    it is refused rather than trusted -- the official Validation folder must never reach a training loop,
-    and a Validation index built into the same paths as the Training one would look identical otherwise.
+    Returns the single ``{split, n_mels, hop_length, n_fft, sample_rate, label_source}`` the index was built
+    with. An index without the stamp (built before the stamp existed) cannot be shown to be Training-only or
+    to carry the provided speaker labels, so it is refused rather than trusted -- the official Validation
+    folder must never reach a training loop, a Validation index built into the same paths as the Training
+    one would look identical otherwise, and a cache whose labels were edited would train on them silently.
     """
 
     missing = [column for column in INDEX_PROVENANCE_COLUMNS if column not in index_df.columns]
     if missing:
         raise SplitContaminationError(
             f"spectrogram index has no build provenance (missing column(s): {missing}), so it cannot be shown "
-            "to come from Training only. Rebuild it with scripts/build_mission2_spectrograms.py, or, if you "
-            "know it is a Training cache built with the default settings, stamp it once: "
-            f"df.assign(split={TRAINING!r}, n_mels={N_MELS}, hop_length={HOP_LENGTH}, n_fft={N_FFT}, "
-            "sample_rate=8000).to_parquet(path, index=False)"
+            "to come from Training only with the provided speaker labels. Rebuild it with "
+            "scripts/build_mission2_spectrograms.py, or, for a cache you know is a Training-only, "
+            "default-settings one, run scripts/verify_mission2_raw_labels.py --index <index> --label-root "
+            "<Training label folder> --output <new index> --stamp-training-defaults -- it checks every speaker "
+            "label against the provided label files, restores any that differ, and writes the stamp."
         )
     if len(index_df) == 0:
         raise ValueError("spectrogram index is empty")
@@ -90,6 +104,12 @@ def assert_training_spectrogram_index(index_df: "pd.DataFrame") -> dict:
             raise ValueError(f"spectrogram index mixes several {column} values: {sorted(map(str, values))[:5]}")
         value = values[0]
         provenance[column] = value.item() if hasattr(value, "item") else value
+    if provenance["label_source"] not in ALLOWED_LABEL_SOURCES:
+        raise LabelProvenanceError(
+            f"spectrogram index label_source is {provenance['label_source']!r}; training needs the provided "
+            f"speaker labels as they are ({', '.join(ALLOWED_LABEL_SOURCES)}). Rebuild the index, or check and "
+            "restore its labels with scripts/verify_mission2_raw_labels.py."
+        )
     return provenance
 
 
@@ -195,6 +215,7 @@ def _process_one_call_spectrograms(
                 "hop_length": hop_length,
                 "n_fft": N_FFT,
                 "sample_rate": int(sample_rate),
+                "label_source": LABEL_SOURCE_PROVIDED,
             }
         )
 

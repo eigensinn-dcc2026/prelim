@@ -9,10 +9,8 @@ lose exactly the information those stats discard.
 """
 from __future__ import annotations
 
-import ast
 import importlib
 import json
-import re
 import sys
 import wave
 from pathlib import Path
@@ -26,8 +24,10 @@ from dcc_data.manifest import ManifestRow
 from dcc_data.mission2_features import HOP_LENGTH, N_FFT
 from dcc_data.mission2_spectrogram import (
     INDEX_PROVENANCE_COLUMNS,
+    LABEL_SOURCE_PROVIDED,
     N_MELS,
     SPEC_FLOOR_DB,
+    LabelProvenanceError,
     assert_training_spectrogram_index,
     build_seoul_training_spectrograms,
     build_seoul_validation_spectrograms,
@@ -302,6 +302,7 @@ def test_training_guard_accepts_a_training_built_index_and_returns_its_settings(
 
     assert provenance == {
         "split": "Training", "n_mels": N_MELS, "hop_length": HOP_LENGTH, "n_fft": N_FFT, "sample_rate": SAMPLE_RATE,
+        "label_source": LABEL_SOURCE_PROVIDED,
     }
     # plain Python values, so they can go into a checkpoint that torch.load reads with weights_only=True
     assert all(type(value) in (int, str) for value in provenance.values())
@@ -339,7 +340,9 @@ def test_training_guard_refuses_an_index_without_provenance_and_says_how_to_fix_
     assert "build_mission2_spectrograms.py" in message
 
 
-def test_the_restamp_advice_in_the_refusal_message_really_makes_a_legacy_index_pass() -> None:
+def test_the_refusal_message_sends_a_legacy_index_through_the_label_check_not_a_bare_restamp() -> None:
+    # A bare "stamp it as Training" one-liner would let an index whose labels were edited train as if it were
+    # clean; the only advice offered must be the tool that also checks the labels (see the raw-label tests).
     legacy = pd.DataFrame(
         {"call_id": ["a", "a"], "utt_idx": [0, 1], "speaker": [0, 1], "duration_sec": [1.0, 2.0],
          "n_frames": [10, 20], "npy_path": ["a/0.npy", "a/1.npy"]}
@@ -347,14 +350,28 @@ def test_the_restamp_advice_in_the_refusal_message_really_makes_a_legacy_index_p
     with pytest.raises(SplitContaminationError) as excinfo:
         assert_training_spectrogram_index(legacy)
 
-    # take the one-liner the message prints, exactly as printed, and apply it
-    advice = re.search(r"df\.assign\((.*?)\)\.to_parquet", str(excinfo.value)).group(1)
-    call = ast.parse(f"assign({advice})", mode="eval").body
-    stamped = legacy.assign(**{keyword.arg: ast.literal_eval(keyword.value) for keyword in call.keywords})
+    message = str(excinfo.value)
+    assert "verify_mission2_raw_labels.py" in message and "--stamp-training-defaults" in message
+    assert "df.assign" not in message and "to_parquet" not in message
 
-    assert assert_training_spectrogram_index(stamped) == {
-        "split": "Training", "n_mels": N_MELS, "hop_length": HOP_LENGTH, "n_fft": N_FFT, "sample_rate": SAMPLE_RATE,
-    }
+
+def test_training_guard_refuses_an_index_whose_labels_are_not_the_provided_ones(tmp_path: Path) -> None:
+    root, rows = _training_and_validation_rows(tmp_path)
+    index_rows, _ = build_seoul_training_spectrograms(rows, root, tmp_path / "specs", n_calls=0, seed=42)
+    frame = pd.DataFrame(index_rows).assign(label_source="corrected_after_reading_text")
+
+    with pytest.raises(LabelProvenanceError, match="provided speaker labels"):
+        assert_training_spectrogram_index(frame)
+
+
+def test_training_guard_refuses_an_index_that_mixes_label_sources(tmp_path: Path) -> None:
+    root, rows = _training_and_validation_rows(tmp_path)
+    index_rows, _ = build_seoul_training_spectrograms(rows, root, tmp_path / "specs", n_calls=0, seed=42)
+    frame = pd.DataFrame(index_rows)
+    frame.loc[frame.index[0], "label_source"] = "corrected_after_reading_text"
+
+    with pytest.raises(ValueError, match="mixes several label_source"):
+        assert_training_spectrogram_index(frame)
 
 
 def test_training_guard_refuses_an_index_with_only_some_provenance_columns(tmp_path: Path) -> None:

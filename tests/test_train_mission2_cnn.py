@@ -60,6 +60,7 @@ def _write_cache(tmp_path: Path, *, provenance: dict | None) -> tuple[Path, Path
 
 TRAINING_PROVENANCE = {
     "split": "Training", "n_mels": N_MELS, "hop_length": HOP_LENGTH, "n_fft": N_FFT, "sample_rate": 8000,
+    "label_source": "provided_json",
 }
 
 
@@ -108,6 +109,34 @@ def test_training_refuses_an_index_with_no_provenance_and_saves_nothing(
     assert not (tmp_path / "out").exists()
 
 
+def test_training_refuses_an_index_that_does_not_say_its_labels_are_the_provided_ones_and_saves_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from dcc_data.mission2_spectrogram import LabelProvenanceError
+
+    index_path, spectrogram_dir = _write_cache(
+        tmp_path, provenance={**TRAINING_PROVENANCE, "label_source": "corrected_after_reading_text"}
+    )
+
+    with pytest.raises(LabelProvenanceError, match="provided speaker labels"):
+        _run_train(monkeypatch, tmp_path, index_path, spectrogram_dir)
+
+    assert not (tmp_path / "out").exists()
+
+
+def test_training_refuses_an_index_stamped_before_label_provenance_existed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # the five columns the first version of the stamp had -- everything but ``label_source``
+    old_stamp = {name: value for name, value in TRAINING_PROVENANCE.items() if name != "label_source"}
+    index_path, spectrogram_dir = _write_cache(tmp_path, provenance=old_stamp)
+
+    with pytest.raises(SplitContaminationError, match="label_source"):
+        _run_train(monkeypatch, tmp_path, index_path, spectrogram_dir)
+
+    assert not (tmp_path / "out").exists()
+
+
 # ---------------------------------------------------------------------------
 # The checkpoint records what it was trained with
 # ---------------------------------------------------------------------------
@@ -128,6 +157,7 @@ def test_the_checkpoint_records_the_model_the_mel_settings_the_split_and_the_see
         "model_name": "small",
         "model_class": "SpeakerCNN",
         "index_split": "Training",
+        "label_source": "provided_json",
         "n_mels": N_MELS,
         "hop_length": HOP_LENGTH,
         "n_fft": N_FFT,
