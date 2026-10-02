@@ -120,6 +120,37 @@ python scripts/mission3_baseline.py --help
 
 실행 전에는 해당 스크립트가 요구하는 데이터 split과 출력 경로를 확인합니다. Validation 데이터는 모델 학습이나 scaler 통계 계산에 사용하지 않습니다.
 
+### 로컬 데이터 경로
+
+공식 Drive에서 받은 데이터는 로컬에 보관해 실행할 수 있습니다. 데이터 출처 제한과 실행 시 저장 위치는 별개입니다. 기본 원본 위치는 저장소의 `data/raw_original`이며 다음 구조를 사용합니다.
+
+```text
+data/raw_original/
+├── Training/1.원천데이터/TS_서울_구급/       # WAV
+├── Training/2.라벨링데이터/TL_서울_구급/     # JSON
+├── Validation/1.원천데이터/VS_서울_구급/     # WAV
+└── Validation/2.라벨링데이터/VL_서울_구급/   # JSON
+```
+
+`eda_dcc_dataset.py`, `analyze_mission1_validation_errors.py`, `verify_timestamps.py`의 원본 경로 우선순위는 `--data-root` → `DCC_DATA_ROOT` → 저장소의 `data/raw_original`입니다. PowerShell에서 환경변수를 설정할 수 있습니다.
+
+```powershell
+$env:DCC_DATA_ROOT = 'D:\공식 데이터\raw_original'
+```
+
+세 스크립트는 필요한 manifest가 없으면 중단합니다. 원본 폴더를 확인한 뒤 저장소 루트에서 다음 명령으로 manifest를 별도로 준비하세요. 기존 manifest는 자동으로 덮어쓰지 않습니다.
+
+```bash
+python scripts/build_manifest.py --data-root data/raw_original --output data/manifests/dcc_manifest_v1.csv
+python scripts/verify_timestamps.py --data-root data/raw_original --manifest data/manifests/dcc_manifest_v1.csv --output reports/eda/phase2a_check.json
+```
+
+외부 원본 폴더를 사용하는 경우 위 명령의 `--data-root`도 같은 폴더로 지정하세요. EDA와 Mission 1 오류 분석에는 기존 feature·checkpoint·평가 로그 등 각 스크립트의 추가 입력도 필요합니다. 일부 Mission 2 Notebook은 `tmp/mission2_eda`의 manifest와 `data/processed`의 지정된 캐시를 요구하며, 원본 폴더만 준비했다고 실행 준비가 완료되지는 않습니다. 캐시와 provenance 검증 실패를 우회하거나 캐시 metadata를 수정하지 마세요.
+
+`notebooks/mission2_local.ipynb`은 저장소 안에서 실행하며 `DATA_MODE="existing"`이 기본입니다. `DCC_DATA_ROOT`를 지원하고, ZIP 준비는 `DATA_MODE="zip"`과 별도 `ZIP_DIR`·`EXTRACT_DIR`를 지정한 경우에만 수행합니다. ZIP 모드의 기존 Validation 50통화 표본 조건은 유지됩니다. `reports/M3_baseline.ipynb`도 로컬을 기본으로 지원하며 Colab에서는 기존 Drive 경로를 사용합니다. 두 Notebook의 CLI Python은 현재 커널의 `sys.executable`을 사용하고 필요하면 `DCC_PYTHON`에 실행 파일의 전체 경로를 지정합니다. 설정 셀은 추출·학습·추론을 실행하지 않으며 이후 실행 셀은 작업을 수행하므로 필요한 단계만 실행하세요.
+
+`notebooks/mission2_egemaps_colab_resume.ipynb`은 수동 검증 절차를 가진 Colab 전용 재개 도구로 유지합니다. `scripts/audit_dcc_dataset.py`는 원격 Drive와 로컬을 비교하는 도구이므로 원격 접근이 필요합니다.
+
 ### Colab 사용
 
 Colab에서도 최신 `main`을 clone한 뒤 의존성을 설치합니다. 특정 과거 작업 브랜치를 checkout할 필요는 없습니다.

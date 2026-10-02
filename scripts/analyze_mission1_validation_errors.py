@@ -19,13 +19,14 @@ Usage:
         --lr-ckpt checkpoints/mission1/m1_baseline_lr.pkl \\
         --eval-log reports/mission1/m1_val_eval.json \\
         --manifest data/manifests/dcc_manifest_v1.csv \\
-        --data-root data/raw
+        --data-root data/raw_original
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -73,7 +74,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lr-ckpt", type=Path, default=Path("checkpoints/mission1/m1_baseline_lr.pkl"))
     parser.add_argument("--eval-log", type=Path, default=Path("reports/mission1/m1_val_eval.json"))
     parser.add_argument("--manifest", type=Path, default=Path("data/manifests/dcc_manifest_v1.csv"))
-    parser.add_argument("--data-root", type=Path, default=Path("data/raw"))
+    parser.add_argument("--data-root", type=Path, default=Path(os.environ.get("DCC_DATA_ROOT", REPOSITORY_ROOT / "data/raw_original")))
     parser.add_argument(
         "--rows-output",
         type=Path,
@@ -507,6 +508,11 @@ def _lr_abs_coefficients(pipeline: Pipeline) -> list[dict[str, object]]:
 
 def main() -> int:
     args = parse_args()
+    args.data_root = args.data_root.expanduser().resolve()
+    if not args.data_root.is_dir():
+        raise FileNotFoundError(f"Data directory not found: {args.data_root}")
+    if not args.manifest.is_file():
+        raise FileNotFoundError(f"Manifest not found: {args.manifest}; prepare it with scripts/build_manifest.py")
     df = pd.read_parquet(args.features)
     if "split" in df.columns:
         foreign = df.loc[df["split"] != VALIDATION, "split"]

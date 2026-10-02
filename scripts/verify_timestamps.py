@@ -33,16 +33,27 @@ random sampling이 아니라는 점을 감안해서 결과를 읽어야 한다 �
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
+import os
 import statistics
 import wave
 from datetime import datetime, timezone
 from pathlib import Path
 
-MANIFEST_PATH = Path("data/manifests/dcc_manifest_v1.csv")
-DATA_ROOT = Path("data/raw")
-OUTPUT_PATH = Path("reports/eda/phase2a_check.json")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+MANIFEST_PATH = REPO_ROOT / "data/manifests/dcc_manifest_v1.csv"
+DATA_ROOT = REPO_ROOT / "data/raw_original"
+OUTPUT_PATH = REPO_ROOT / "reports/eda/phase2a_check.json"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Check JSON timestamps against WAV durations (sample audit).")
+    parser.add_argument("--data-root", type=Path, default=Path(os.environ.get("DCC_DATA_ROOT", DATA_ROOT)))
+    parser.add_argument("--manifest", type=Path, default=MANIFEST_PATH)
+    parser.add_argument("--output", type=Path, default=OUTPUT_PATH)
+    return parser.parse_args()
 
 # eda_summary.json과 동일한 검증 범위 (scripts/eda_dcc_dataset.py의 limit_rows와 동일 로직)
 N_TRAIN = 800
@@ -51,9 +62,9 @@ N_VAL = 250
 TOLERANCE_MS = 50  # 인코딩/반올림 오차를 감안한 허용치
 
 
-def load_manifest_rows(split: str, limit: int) -> list[dict]:
+def load_manifest_rows(split: str, limit: int, manifest_path: Path = MANIFEST_PATH) -> list[dict]:
     rows = []
-    with open(MANIFEST_PATH, encoding="utf-8") as f:
+    with open(manifest_path, encoding="utf-8") as f:
         for row in csv.DictReader(f):
             if row["split"] == split:
                 rows.append(row)
@@ -80,7 +91,7 @@ def stats(values: list[float]) -> dict:
     }
 
 
-def check_split(rows: list[dict], split_label: str) -> dict:
+def check_split(rows: list[dict], split_label: str, data_root: Path = DATA_ROOT) -> dict:
     diffs_call: list[float] = []
     diffs_utt: list[float] = []
     violations: list[dict] = []
@@ -92,8 +103,8 @@ def check_split(rows: list[dict], split_label: str) -> dict:
     }
 
     for row in rows:
-        json_path = DATA_ROOT / row["json_path"]
-        wav_path = DATA_ROOT / row["wav_path"]
+        json_path = data_root / row["json_path"]
+        wav_path = data_root / row["wav_path"]
 
         try:
             with open(json_path, encoding="utf-8") as f:
@@ -151,11 +162,17 @@ def check_split(rows: list[dict], split_label: str) -> dict:
 
 
 def main() -> None:
-    train_rows = load_manifest_rows("Training", N_TRAIN)
-    val_rows = load_manifest_rows("Validation", N_VAL)
+    args = parse_args()
+    data_root = args.data_root.expanduser().resolve()
+    if not data_root.is_dir():
+        raise FileNotFoundError(f"Data directory not found: {data_root}")
+    if not args.manifest.is_file():
+        raise FileNotFoundError(f"Manifest not found: {args.manifest}; prepare it with scripts/build_manifest.py")
+    train_rows = load_manifest_rows("Training", N_TRAIN, args.manifest)
+    val_rows = load_manifest_rows("Validation", N_VAL, args.manifest)
 
-    train_result = check_split(train_rows, "Training")
-    val_result = check_split(val_rows, "Validation")
+    train_result = check_split(train_rows, "Training", data_root)
+    val_result = check_split(val_rows, "Validation", data_root)
 
     result = {
         "meta": {
@@ -172,13 +189,13 @@ def main() -> None:
         "validation": val_result,
     }
 
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    with open(args.output, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
     print(f"Training: {train_result['n_checked']}건 확인, 위반 {train_result['violation_count']}건")
     print(f"Validation: {val_result['n_checked']}건 확인, 위반 {val_result['violation_count']}건")
-    print(f"결과 저장: {OUTPUT_PATH}")
+    print(f"결과 저장: {args.output}")
 
 
 if __name__ == "__main__":
