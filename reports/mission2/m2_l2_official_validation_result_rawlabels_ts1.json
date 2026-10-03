@@ -1,0 +1,18 @@
+{
+  "n_utterances": 111947,
+  "n_calls": 3640,
+  "model": "large",
+  "checkpoint": "m2_cache/m2_raw_label_models/m2_cnn_large_raw_ts1.pt",
+  "label_source": "verified_against_provided_json",
+  "torch_seed": 1,
+  "best_epoch": 23,
+  "total_epochs_trained": 30,
+  "inference_script": "scripts/mission2_inference.py (one utterance at a time, own-utterance 300-frame padding)",
+  "accuracy": 0.9097787345797564,
+  "recall_daewon_0": 0.8707586591141239,
+  "recall_singoja_1": 0.9459398987986645,
+  "confusion_matrix": [
+    [46886, 6959],
+    [3141, 54961]
+  ]
+}
