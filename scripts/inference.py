@@ -123,7 +123,7 @@ def predict(
             f"증상 {len(target_symptoms)}개 / 모델 출력 {probabilities.shape[1]}개"
         )
 
-    # 기본값 0.5 이상인 증상만 1로 선택합니다.
+    # 공식 규정에 따라 모든 class에 동일한 0.5를 적용합니다.
     binary = (probabilities >= threshold).astype(np.int8)
 
     predictions: list[list[str]] = []
