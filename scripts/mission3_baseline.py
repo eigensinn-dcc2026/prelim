@@ -39,6 +39,8 @@ except ImportError:
 DECISION_THRESHOLD = 0.5
 
 # Mission 3 평가 대상 9개 증상
+OFFICIAL_DECISION_THRESHOLD = 0.5
+
 TARGET_SYMPTOMS = [
     "고열",
     "구토",
@@ -320,7 +322,7 @@ def train_baseline(
         "vectorizer": vectorizer,
         "classifier": classifier,
         "target_symptoms": TARGET_SYMPTOMS,
-        "threshold": float(threshold),
+        "threshold": float(OFFICIAL_DECISION_THRESHOLD),
         "seed": int(seed),
         "model_name": "tfidf_word_1_2gram_ovr_logistic_regression",
     }
@@ -334,7 +336,7 @@ def train_baseline(
         "validation_sample_count": int(len(valid_df)),
         "macro_f1": macro_f1,
         "micro_f1": micro_f1,
-        "threshold": float(threshold),
+        "threshold": float(OFFICIAL_DECISION_THRESHOLD),
         "test_size": float(test_size),
         "seed": int(seed),
         "total_sample_count": int(len(df)),
