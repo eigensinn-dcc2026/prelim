@@ -611,3 +611,23 @@ def test_a_model_whose_two_logits_always_tie_predicts_class_1_end_to_end(tmp_pat
     segment = np.random.default_rng(0).standard_normal(4000).astype(np.float32)
 
     assert predict(segment, SAMPLE_RATE, 0.5) == 1
+
+
+def test_an_ensemble_checkpoint_missing_a_member_stops_the_run_and_writes_nothing(tmp_path: Path) -> None:
+    import torch
+
+    from dcc_data.mission2_checkpoint import ENSEMBLE_STATE_DICTS_KEY, CheckpointConfigError, build_ensemble_metadata
+    from dcc_data.mission2_cnn import SpeakerCNNLarge
+
+    audio_dir, label_dir, output_path = _one_call(tmp_path)
+    metadata = build_ensemble_metadata([_l2_metadata(torch_seed=seed) for seed in (1, 2, 3)])  # declares 3 members
+    ckpt_path = tmp_path / "short_ensemble.pt"
+    torch.save(
+        {ENSEMBLE_STATE_DICTS_KEY: [SpeakerCNNLarge().state_dict() for _ in range(2)], "metadata": metadata}, ckpt_path
+    )  # ... but only two sets of weights are in the file
+
+    error = _run_inference_expecting_failure(audio_dir, label_dir, ckpt_path, output_path)
+
+    assert isinstance(error, CheckpointConfigError)
+    assert "declares 3 model" in str(error) and "holds 2 set" in str(error)
+    assert _nothing_written(output_path)

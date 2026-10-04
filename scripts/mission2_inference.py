@@ -94,6 +94,7 @@ from dcc_data.mission2_features import (  # noqa: E402
 )
 from dcc_data.mission2_checkpoint import (  # noqa: E402
     CheckpointConfigError,
+    l2_member_state_dicts,
     require_l2_inference_config,
     resolve_l2_checkpoint_metadata,
 )
@@ -219,7 +220,6 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
     import torch
     import torch.nn.functional as torch_functional
 
-    from dcc_data.mission2_checkpoint import ENSEMBLE_STATE_DICTS_KEY
     from dcc_data.mission2_cnn import SpeakerCNNLarge
     from dcc_data.mission2_spectrogram import mel_spectrogram
 
@@ -233,9 +233,8 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
     # An ensemble checkpoint (scripts/pack_mission2_l2_ensemble.py) bundles several members' weights under
     # one key instead of a single "best_model_state_dict" -- everything else about it (one --ckpt_path
     # file, same mel settings) is unchanged, so this is the only branch point.
-    state_dicts = checkpoint.get(ENSEMBLE_STATE_DICTS_KEY) or [checkpoint["best_model_state_dict"]]
     models = []
-    for state_dict in state_dicts:
+    for state_dict in l2_member_state_dicts(checkpoint, metadata):
         model = SpeakerCNNLarge()
         model.load_state_dict(state_dict)
         model.eval()

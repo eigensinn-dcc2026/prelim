@@ -195,3 +195,155 @@ def test_a_checkpoint_of_another_model_from_the_trainer_is_refused_by_the_submis
 
     with pytest.raises(CheckpointConfigError, match="model_name: checkpoint recorded 'small'"):
         mission2_inference.load_predictor(model_output)
+
+
+# ---------------------------------------------------------------------------
+# --resume must prove the checkpoint it continues from was trained with the same setup
+#
+# The checkpoint a resumed run saves is stamped from the *current* index. Without a check, weights trained on
+# other labels would come out stamped with today's provenance and pass scripts/mission2_inference.py.
+# ---------------------------------------------------------------------------
+
+
+def _resume_train(
+    monkeypatch: pytest.MonkeyPatch, model_output: Path, index_path: Path, spectrogram_dir: Path, *extra: str,
+    model: str = "small",
+) -> int:
+    monkeypatch.setattr(
+        sys, "argv",
+        [
+            "train_mission2_cnn.py", "--index", str(index_path), "--spectrogram-dir", str(spectrogram_dir),
+            "--model", model, "--epochs", "1", "--batch-size", "4", "--model-output", str(model_output),
+            "--resume", *extra,
+        ],
+    )
+    return train_mission2_cnn.main()
+
+
+def _trained_checkpoint(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    index_path, spectrogram_dir = _write_cache(tmp_path, provenance=TRAINING_PROVENANCE)
+    model_output = _run_train(monkeypatch, tmp_path, index_path, spectrogram_dir)
+    return index_path, spectrogram_dir, model_output
+
+
+def _rewrite_checkpoint(path: Path, edit) -> bytes:
+    import torch
+
+    checkpoint = torch.load(path, map_location="cpu")
+    edit(checkpoint)
+    torch.save(checkpoint, path)
+    return path.read_bytes()
+
+
+def test_resume_continues_a_checkpoint_made_with_the_same_setup_and_keeps_its_record(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import torch
+
+    index_path, spectrogram_dir, model_output = _trained_checkpoint(monkeypatch, tmp_path)
+    before = torch.load(model_output, map_location="cpu")["metadata"]
+
+    assert _resume_train(monkeypatch, model_output, index_path, spectrogram_dir) == 0
+
+    after = torch.load(model_output, map_location="cpu")
+    assert after["total_epochs_trained"] == 2
+    assert after["metadata"] == before
+
+
+def test_resume_refuses_a_checkpoint_whose_recorded_label_source_is_not_the_one_of_this_index(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from dcc_data.mission2_checkpoint import CheckpointConfigError
+
+    index_path, spectrogram_dir, model_output = _trained_checkpoint(monkeypatch, tmp_path)
+    # weights that were trained on corrected labels, being continued on a clean provided-labels index
+    bytes_before = _rewrite_checkpoint(
+        model_output, lambda ck: ck["metadata"].update(label_source="corrected_after_reading_text")
+    )
+
+    with pytest.raises(CheckpointConfigError, match="label_source: the checkpoint recorded 'corrected_after_reading_text'"):
+        _resume_train(monkeypatch, model_output, index_path, spectrogram_dir)
+
+    assert model_output.read_bytes() == bytes_before  # nothing was overwritten with a fresh stamp
+
+
+def test_resume_refuses_a_checkpoint_that_records_no_config_and_does_not_restamp_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from dcc_data.mission2_checkpoint import CheckpointConfigError
+
+    index_path, spectrogram_dir, model_output = _trained_checkpoint(monkeypatch, tmp_path)
+    bytes_before = _rewrite_checkpoint(model_output, lambda ck: ck.pop("metadata"))
+
+    with pytest.raises(CheckpointConfigError, match="records no training config"):
+        _resume_train(monkeypatch, model_output, index_path, spectrogram_dir)
+
+    assert model_output.read_bytes() == bytes_before
+
+
+def test_resume_refuses_a_checkpoint_from_before_resume_support_existed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import torch
+
+    from dcc_data.mission2_checkpoint import CheckpointConfigError
+
+    index_path, spectrogram_dir, model_output = _trained_checkpoint(monkeypatch, tmp_path)
+    old_format = {"model_state_dict": torch.load(model_output, map_location="cpu")["best_model_state_dict"],
+                  "val_acc": 0.5, "epoch": 3}
+    torch.save(old_format, model_output)
+    bytes_before = model_output.read_bytes()
+
+    with pytest.raises(CheckpointConfigError, match="predates resume support"):
+        _resume_train(monkeypatch, model_output, index_path, spectrogram_dir)
+
+    assert model_output.read_bytes() == bytes_before
+
+
+@pytest.mark.parametrize(
+    ("edit", "recorded_field"),
+    [
+        (lambda ck: ck["metadata"].update(n_mels=80), "n_mels"),
+        (lambda ck: ck["metadata"].update(index_split="Validation"), "index_split"),
+        (lambda ck: ck["metadata"].update(split_seed=7), "split_seed"),
+        (lambda ck: ck["metadata"].update(test_size=0.3), "test_size"),
+        (lambda ck: ck["metadata"].update(torch_seed=99), "torch_seed"),
+        (lambda ck: ck["metadata"].update(sample_rate=16000), "sample_rate"),
+    ],
+)
+def test_resume_refuses_a_checkpoint_recorded_with_any_other_setting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, edit, recorded_field: str
+) -> None:
+    from dcc_data.mission2_checkpoint import CheckpointConfigError
+
+    index_path, spectrogram_dir, model_output = _trained_checkpoint(monkeypatch, tmp_path)
+    bytes_before = _rewrite_checkpoint(model_output, edit)
+
+    with pytest.raises(CheckpointConfigError, match=f"{recorded_field}: the checkpoint recorded"):
+        _resume_train(monkeypatch, model_output, index_path, spectrogram_dir)
+
+    assert model_output.read_bytes() == bytes_before
+
+
+def test_resume_refuses_a_checkpoint_of_another_model(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from dcc_data.mission2_checkpoint import CheckpointConfigError
+
+    index_path, spectrogram_dir, model_output = _trained_checkpoint(monkeypatch, tmp_path)  # a "small" run
+
+    with pytest.raises(CheckpointConfigError, match="model_name: the checkpoint recorded 'small'"):
+        _resume_train(monkeypatch, model_output, index_path, spectrogram_dir, model="large")
+
+
+def test_resume_refuses_a_packed_ensemble_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import torch
+
+    from dcc_data.mission2_checkpoint import ENSEMBLE_STATE_DICTS_KEY, CheckpointConfigError
+
+    index_path, spectrogram_dir, model_output = _trained_checkpoint(monkeypatch, tmp_path)
+    member = torch.load(model_output, map_location="cpu")
+    torch.save(
+        {ENSEMBLE_STATE_DICTS_KEY: [member["best_model_state_dict"]] * 2, "metadata": member["metadata"]}, model_output
+    )
+
+    with pytest.raises(CheckpointConfigError, match="packed ensemble"):
+        _resume_train(monkeypatch, model_output, index_path, spectrogram_dir)

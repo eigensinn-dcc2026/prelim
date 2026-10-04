@@ -19,9 +19,12 @@ from dcc_data.mission2_checkpoint import (
     REQUIRED_METADATA_KEYS,
     CheckpointConfigError,
     build_checkpoint_metadata,
+    ENSEMBLE_STATE_DICTS_KEY,
     build_ensemble_metadata,
     checkpoint_sha256,
+    l2_member_state_dicts,
     require_l2_inference_config,
+    require_resumable_checkpoint,
     resolve_l2_checkpoint_metadata,
 )
 from dcc_data.mission2_features import HOP_LENGTH, N_FFT
@@ -232,3 +235,135 @@ def test_build_ensemble_metadata_requires_complete_member_metadata() -> None:
 
     with pytest.raises(CheckpointConfigError):
         build_ensemble_metadata([_metadata(), incomplete])
+
+
+# ---------------------------------------------------------------------------
+# l2_member_state_dicts: the weights stored must be as many as the metadata says
+# ---------------------------------------------------------------------------
+
+
+def _ensemble_checkpoint(n_stored: int, n_declared: int) -> dict:
+    metadata = build_ensemble_metadata([_metadata(torch_seed=seed) for seed in range(1, n_declared + 1)]) \
+        if n_declared >= 2 else _metadata()
+    return {ENSEMBLE_STATE_DICTS_KEY: [{"w": i} for i in range(n_stored)], "metadata": metadata}
+
+
+def test_a_single_model_checkpoint_gives_its_one_state_dict() -> None:
+    assert l2_member_state_dicts({"best_model_state_dict": {"w": 1}}, _metadata()) == [{"w": 1}]
+
+
+def test_an_ensemble_checkpoint_gives_one_state_dict_per_member() -> None:
+    checkpoint = _ensemble_checkpoint(n_stored=3, n_declared=3)
+
+    assert l2_member_state_dicts(checkpoint, checkpoint["metadata"]) == [{"w": 0}, {"w": 1}, {"w": 2}]
+
+
+@pytest.mark.parametrize(("n_stored", "n_declared"), [(2, 3), (3, 2), (1, 2)])
+def test_an_ensemble_whose_weights_and_recorded_size_disagree_is_refused(n_stored: int, n_declared: int) -> None:
+    checkpoint = _ensemble_checkpoint(n_stored, n_declared)
+
+    with pytest.raises(CheckpointConfigError, match=f"declares {n_declared} model"):
+        l2_member_state_dicts(checkpoint, checkpoint["metadata"])
+
+
+def test_an_empty_ensemble_is_refused_instead_of_falling_back_to_a_single_model() -> None:
+    checkpoint = _ensemble_checkpoint(n_stored=0, n_declared=2)
+    checkpoint["best_model_state_dict"] = {"w": "single"}  # must not be used as a silent fallback
+
+    with pytest.raises(CheckpointConfigError, match="holds 0 set"):
+        l2_member_state_dicts(checkpoint, checkpoint["metadata"])
+
+
+def test_a_single_model_checkpoint_labelled_as_an_ensemble_is_refused() -> None:
+    metadata = build_ensemble_metadata([_metadata(torch_seed=1), _metadata(torch_seed=2)])
+
+    with pytest.raises(CheckpointConfigError, match="declares 2 model"):
+        l2_member_state_dicts({"best_model_state_dict": {"w": 1}}, metadata)
+
+
+def test_an_ensemble_whose_recorded_seed_list_has_another_length_is_refused() -> None:
+    checkpoint = _ensemble_checkpoint(n_stored=2, n_declared=2)
+    checkpoint["metadata"]["ensemble_member_torch_seeds"] = [1]
+
+    with pytest.raises(CheckpointConfigError, match="seeds recorded"):
+        l2_member_state_dicts(checkpoint, checkpoint["metadata"])
+
+
+def test_a_checkpoint_with_no_weights_at_all_is_refused_with_a_clear_message() -> None:
+    with pytest.raises(CheckpointConfigError, match="no weights to run"):
+        l2_member_state_dicts({"metadata": _metadata()}, _metadata())
+
+
+# ---------------------------------------------------------------------------
+# require_resumable_checkpoint: --resume must not re-stamp weights nobody checked
+# ---------------------------------------------------------------------------
+
+
+def _resumable(**metadata_overrides) -> dict:
+    return {"last_model_state_dict": {}, "metadata": _metadata(**metadata_overrides)}
+
+
+def test_a_checkpoint_recording_the_same_setup_may_be_resumed() -> None:
+    require_resumable_checkpoint(_resumable(), _metadata(), "ckpt.pt")
+
+
+def test_a_checkpoint_may_be_resumed_when_it_was_verified_against_the_provided_labels_and_so_is_the_run() -> None:
+    both = {"label_source": LABEL_SOURCE_VERIFIED}
+
+    require_resumable_checkpoint(_resumable(**both), _metadata(**both), "ckpt.pt")
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"label_source": "corrected_after_reading_text"},
+        {"label_source": LABEL_SOURCE_VERIFIED},  # even another *allowed* source: two different indexes are mixed
+        {"n_mels": N_MELS * 2},
+        {"hop_length": HOP_LENGTH // 2},
+        {"n_fft": N_FFT * 2},
+        {"sample_rate": 16000},
+        {"index_split": "Validation"},
+        {"model_name": "large-masked"},
+        {"split_seed": 1},
+        {"test_size": 0.3},
+        {"torch_seed": 8},
+    ],
+)
+def test_resuming_a_checkpoint_recorded_with_any_different_field_is_refused(override: dict) -> None:
+    (key,) = override
+
+    with pytest.raises(CheckpointConfigError, match=f"{key}: the checkpoint recorded"):
+        require_resumable_checkpoint(_resumable(**override), _metadata(), "ckpt.pt")
+
+
+def test_the_refusal_lists_every_field_that_differs_and_names_the_file() -> None:
+    with pytest.raises(CheckpointConfigError) as excinfo:
+        require_resumable_checkpoint(_resumable(n_mels=80, torch_seed=9), _metadata(), "some/ckpt.pt")
+
+    message = str(excinfo.value)
+    assert "some/ckpt.pt" in message and "n_mels" in message and "torch_seed" in message
+
+
+def test_a_checkpoint_without_recorded_metadata_cannot_be_resumed() -> None:
+    with pytest.raises(CheckpointConfigError, match="records no training config"):
+        require_resumable_checkpoint({"last_model_state_dict": {}}, _metadata(), "ckpt.pt")
+
+
+def test_a_checkpoint_without_resume_state_cannot_be_resumed_even_with_metadata() -> None:
+    with pytest.raises(CheckpointConfigError, match="predates resume support"):
+        require_resumable_checkpoint({"metadata": _metadata()}, _metadata(), "ckpt.pt")
+
+
+def test_a_checkpoint_with_incomplete_metadata_cannot_be_resumed() -> None:
+    incomplete = _resumable()
+    del incomplete["metadata"]["label_source"]
+
+    with pytest.raises(CheckpointConfigError, match="incomplete, missing: \\['label_source'\\]"):
+        require_resumable_checkpoint(incomplete, _metadata(), "ckpt.pt")
+
+
+def test_a_packed_ensemble_cannot_be_resumed() -> None:
+    packed = {ENSEMBLE_STATE_DICTS_KEY: [{}, {}], "metadata": _metadata(), "last_model_state_dict": {}}
+
+    with pytest.raises(CheckpointConfigError, match="packed ensemble"):
+        require_resumable_checkpoint(packed, _metadata(), "ckpt.pt")

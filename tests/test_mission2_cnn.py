@@ -309,3 +309,58 @@ def test_train_with_best_checkpoint_reports_the_best_epoch_not_the_last(tmp_path
     # happen to carry some other (e.g. the last, possibly worse) epoch's numbers.
     recomputed_acc = float((result["best_val_preds"] == result["best_val_labels"]).mean())
     assert recomputed_acc == result["best_val_acc"]
+
+
+# ---------------------------------------------------------------------------
+# Decision rule: class 1 iff P(speaker=1) >= 0.5 -- the same one the submission script uses, so an exact tie
+# between the two logits is class 1 (argmax would say class 0)
+# ---------------------------------------------------------------------------
+
+
+class _FixedLogits(torch.nn.Module):
+    """Ignores its input and returns the given (batch, 2) logits, whatever the batch."""
+
+    def __init__(self, logits: torch.Tensor) -> None:
+        super().__init__()
+        self.logits = logits
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.logits[: x.shape[0]]
+
+
+def _tie_loader(labels: list[int]):
+    inputs = torch.zeros(len(labels), 1, N_MELS, 4)
+    return [(inputs, torch.tensor(labels))]
+
+
+def test_predicted_classes_follows_p_speaker_1_at_least_one_half() -> None:
+    from dcc_data.mission2_cnn import predicted_classes
+
+    logits = torch.tensor([[2.0, 1.0], [1.0, 2.0], [0.7, 0.7], [-3.0, -3.0]])
+
+    assert predicted_classes(logits).tolist() == [0, 1, 1, 1]  # the two exact ties are class 1
+    assert logits.argmax(dim=1).tolist() == [0, 1, 0, 0]  # which is what argmax would have said
+
+
+def test_evaluate_decides_an_exact_tie_as_class_1_like_the_submission_script() -> None:
+    model = _FixedLogits(torch.zeros(3, 2))  # both logits equal for every utterance
+    accuracy, preds, labels = evaluate(model, _tie_loader([1, 0, 1]), device="cpu")
+
+    assert preds.tolist() == [1, 1, 1]
+    assert accuracy == 2 / 3
+
+
+def test_predict_with_confidence_decides_an_exact_tie_as_class_1_at_confidence_one_half() -> None:
+    model = _FixedLogits(torch.zeros(2, 2))
+    preds, labels, confidence = predict_with_confidence(model, _tie_loader([0, 1]), device="cpu")
+
+    assert preds.tolist() == [1, 1]
+    assert confidence.tolist() == [0.5, 0.5]
+
+
+def test_evaluate_agrees_with_the_submission_decision_for_untied_logits_too() -> None:
+    logits = torch.tensor([[0.2, 0.9], [1.5, -0.5], [0.0, 0.1]])
+    accuracy, preds, _ = evaluate(_FixedLogits(logits), _tie_loader([1, 0, 0]), device="cpu")
+
+    assert preds.tolist() == [1, 0, 1]
+    assert accuracy == 2 / 3

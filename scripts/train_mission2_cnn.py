@@ -24,6 +24,10 @@ on GPU. The checkpoint carries the *last* epoch's model/optimizer/scheduler
 state (to resume the LR schedule and Adam's momentum exactly where they
 were) separately from the *best* epoch's model state (for inference), so a
 resumed run that doesn't beat the standing best still doesn't overwrite it.
+A resumed run saves a checkpoint stamped with *its* index provenance, so --resume first checks that the
+file it continues from records exactly the same config (model, mel settings, label source, split, seeds --
+dcc_data.mission2_checkpoint.require_resumable_checkpoint) and refuses one that records nothing, e.g. any
+file written before the config was stored.
 
 CPU works for a small smoke run; for anything close to the full dataset,
 run this on Colab GPU (pass --device cuda) the same way the team already
@@ -69,7 +73,7 @@ from dcc_data.mission2_cnn import (  # noqa: E402
     move_optimizer_state_to_device,
     train_with_best_checkpoint,
 )
-from dcc_data.mission2_checkpoint import build_checkpoint_metadata  # noqa: E402
+from dcc_data.mission2_checkpoint import build_checkpoint_metadata, require_resumable_checkpoint  # noqa: E402
 from dcc_data.mission2_spectrogram import assert_training_spectrogram_index  # noqa: E402
 from dcc_data.mission2_train import make_group_split  # noqa: E402
 
@@ -150,6 +154,18 @@ def main() -> int:
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=args.lr_patience)
 
+    # What this run will stamp on the checkpoint it saves. Built up front because --resume must first prove that
+    # the file it continues from was trained with exactly this (see require_resumable_checkpoint): otherwise
+    # old weights trained on other labels/settings would leave this run stamped with today's provenance.
+    checkpoint_metadata = build_checkpoint_metadata(
+        model_name=args.model,
+        model_class=model_cls.__name__,
+        index_provenance=index_provenance,
+        split_seed=args.seed,
+        test_size=args.test_size,
+        torch_seed=torch_seed,
+    )
+
     prev_best_val_acc = -1.0
     prev_best_model_state = None
     prev_best_epoch = 0
@@ -159,28 +175,16 @@ def main() -> int:
         if not args.model_output.exists():
             raise SystemExit(f"--resume given but {args.model_output} does not exist")
         checkpoint = torch.load(args.model_output, map_location="cpu")
-        if "last_model_state_dict" in checkpoint:
-            model.load_state_dict(checkpoint["last_model_state_dict"])
-            model.to(args.device)
-            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-            move_optimizer_state_to_device(optimizer, args.device)
-            scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-            prev_best_val_acc = checkpoint["best_val_acc"]
-            prev_best_model_state = checkpoint["best_model_state_dict"]
-            prev_best_epoch = checkpoint["best_epoch"]
-            epochs_already_trained = checkpoint["total_epochs_trained"]
-        else:
-            # Pre-resume-support checkpoint (only "model_state_dict"/"val_acc"/
-            # "epoch"): weights are usable, optimizer/scheduler state is not,
-            # so Adam/the LR schedule restart fresh -- pass a lower --lr than
-            # the default for this one run to avoid a fresh high-LR optimizer
-            # kicking already-good weights out of their minimum.
-            model.load_state_dict(checkpoint["model_state_dict"])
-            prev_best_val_acc = checkpoint["val_acc"]
-            prev_best_model_state = checkpoint["model_state_dict"]
-            prev_best_epoch = checkpoint["epoch"]
-            epochs_already_trained = checkpoint["epoch"]
-            print(f"NOTE: {args.model_output} predates --resume support -- weights loaded, optimizer/LR-schedule state could not be (restarting fresh).")
+        require_resumable_checkpoint(checkpoint, checkpoint_metadata, args.model_output)
+        model.load_state_dict(checkpoint["last_model_state_dict"])
+        model.to(args.device)
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        move_optimizer_state_to_device(optimizer, args.device)
+        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+        prev_best_val_acc = checkpoint["best_val_acc"]
+        prev_best_model_state = checkpoint["best_model_state_dict"]
+        prev_best_epoch = checkpoint["best_epoch"]
+        epochs_already_trained = checkpoint["total_epochs_trained"]
         print(
             f"Resumed from {args.model_output}: {epochs_already_trained} epochs already trained, "
             f"standing best val_acc={prev_best_val_acc:.4f} (epoch {prev_best_epoch})"
@@ -223,14 +227,7 @@ def main() -> int:
             "total_epochs_trained": total_epochs_trained,
             # What this checkpoint was trained with -- scripts/mission2_inference.py refuses to run it if
             # that differs from how it would run it (see dcc_data.mission2_checkpoint).
-            "metadata": build_checkpoint_metadata(
-                model_name=args.model,
-                model_class=model_cls.__name__,
-                index_provenance=index_provenance,
-                split_seed=args.seed,
-                test_size=args.test_size,
-                torch_seed=torch_seed,
-            ),
+            "metadata": checkpoint_metadata,
         },
         args.model_output,
     )

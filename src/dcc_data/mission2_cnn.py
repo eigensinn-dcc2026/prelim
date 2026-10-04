@@ -280,6 +280,17 @@ def train_one_epoch(model: nn.Module, loader, optimizer, device: str) -> float:
     return total_loss / n
 
 
+def predicted_classes(logits: torch.Tensor) -> torch.Tensor:
+    """The contest's decision rule for a (batch, 2) logit tensor: class 1 iff P(speaker=1) >= 0.5.
+
+    That is ``logit1 >= logit0``. ``argmax`` differs only at an exact tie, where it returns class 0 -- the
+    submission script (scripts/mission2_inference.py) already decides ties as class 1, and the accuracy that
+    picks the best epoch must be computed the same way.
+    """
+
+    return (logits[:, 1] >= logits[:, 0]).long()
+
+
 @torch.no_grad()
 def evaluate(model: nn.Module, loader, device: str) -> tuple[float, np.ndarray, np.ndarray]:
     """See train_one_epoch()'s docstring for ``loader``'s tuple shape."""
@@ -291,7 +302,7 @@ def evaluate(model: nn.Module, loader, device: str) -> tuple[float, np.ndarray, 
     for *inputs, labels in loader:
         inputs = [t.to(device) for t in inputs]
         logits = model(*inputs)
-        all_preds.append(logits.argmax(dim=1).cpu().numpy())
+        all_preds.append(predicted_classes(logits).cpu().numpy())
         all_labels.append(labels.numpy())
     preds = np.concatenate(all_preds)
     labels_arr = np.concatenate(all_labels)
@@ -306,7 +317,7 @@ def predict_with_confidence(model: nn.Module, loader, device: str) -> tuple[np.n
     mirrors L1's predict_proba-based confidence column in
     scripts/analyze_mission2_errors.py, for the same error-analysis use
     (are wrong predictions confidently wrong, or borderline?). Always in
-    [0.5, 1.0] for a 2-class argmax.
+    [0.5, 1.0] for a 2-class decision (an exact tie is class 1, at 0.5).
 
     See train_one_epoch()'s docstring for ``loader``'s tuple shape.
     """
@@ -318,7 +329,7 @@ def predict_with_confidence(model: nn.Module, loader, device: str) -> tuple[np.n
         inputs = [t.to(device) for t in inputs]
         logits = model(*inputs)
         probs = torch.softmax(logits, dim=1)
-        preds = probs.argmax(dim=1)
+        preds = predicted_classes(logits)
         confidence = probs.gather(1, preds.unsqueeze(1)).squeeze(1)
         all_preds.append(preds.cpu().numpy())
         all_labels.append(labels.numpy())

@@ -173,6 +173,70 @@ def build_ensemble_metadata(member_metadata: list[dict]) -> dict:
     return merged
 
 
+def l2_member_state_dicts(checkpoint: dict, metadata: dict) -> list[dict]:
+    """The state_dict(s) scripts/mission2_inference.py runs: one for a single model, one per member for a packed ensemble.
+
+    The weights stored must be as many as the metadata says (``ensemble_size``, 1 when it records none), so a
+    file whose metadata and weights disagree -- an ensemble missing a member, a single model labelled as an
+    ensemble, or the reverse -- is refused instead of being averaged over whatever happens to be inside.
+    """
+
+    if ENSEMBLE_STATE_DICTS_KEY in checkpoint:
+        state_dicts = list(checkpoint[ENSEMBLE_STATE_DICTS_KEY])
+    elif "best_model_state_dict" in checkpoint:
+        state_dicts = [checkpoint["best_model_state_dict"]]
+    else:
+        raise CheckpointConfigError(
+            f"checkpoint has neither {ENSEMBLE_STATE_DICTS_KEY!r} nor 'best_model_state_dict', so there are no weights to run"
+        )
+    declared = metadata.get("ensemble_size", 1)
+    seeds = metadata.get("ensemble_member_torch_seeds")
+    if declared != len(state_dicts) or (seeds is not None and len(seeds) != declared):
+        raise CheckpointConfigError(
+            f"checkpoint metadata declares {declared} model(s) (seeds recorded: {seeds}) but the file holds "
+            f"{len(state_dicts)} set(s) of weights -- refusing to run a checkpoint whose weights and recorded config disagree"
+        )
+    return state_dicts
+
+
+def require_resumable_checkpoint(checkpoint: dict, expected_metadata: dict, ckpt_path: str | Path) -> None:
+    """Refuse to continue training a checkpoint unless it provably came from this same setup.
+
+    ``--resume`` loads the old weights, keeps training and then saves a checkpoint whose ``metadata`` is
+    rebuilt from the *current* run. If the old file was never checked, a model trained on other labels (or
+    other mel settings) would come out the other end stamped as if it had been trained on today's index --
+    which is exactly what scripts/mission2_inference.py trusts. So the file being resumed must record a
+    complete config and every field of it must equal what this run is about to stamp (``torch_seed``
+    included: resuming with another seed would mix two shuffle/initialisation histories under one label).
+    A checkpoint that records nothing (every file written before the config was stored, whatever its
+    weights were trained on) cannot be shown to match and is refused, as is a packed ensemble file, which
+    holds no optimiser state to resume from.
+    """
+
+    if ENSEMBLE_STATE_DICTS_KEY in checkpoint:
+        raise CheckpointConfigError(
+            f"{ckpt_path} is a packed ensemble (scripts/pack_mission2_l2_ensemble.py): it keeps only each member's "
+            "best weights, no optimiser state, so it cannot be resumed -- resume one of the member checkpoints instead"
+        )
+    recorded = checkpoint.get("metadata")
+    if recorded is None or "last_model_state_dict" not in checkpoint:
+        raise CheckpointConfigError(
+            f"cannot resume {ckpt_path}: it records no training config (or predates resume support), so nothing "
+            "shows which labels and settings its weights were trained with, and the checkpoint saved after "
+            "resuming would claim this run's. Start a new run with the current scripts/train_mission2_cnn.py instead"
+        )
+    _require_complete(recorded, f"in the checkpoint being resumed, {ckpt_path}")
+    differences = [
+        f"{key}: the checkpoint recorded {recorded[key]!r}, this run uses {expected_metadata[key]!r}"
+        for key in REQUIRED_METADATA_KEYS
+        if recorded[key] != expected_metadata[key]
+    ]
+    if differences:
+        raise CheckpointConfigError(
+            f"cannot resume {ckpt_path}: it was trained with a different setup -- " + "; ".join(differences)
+        )
+
+
 def require_l2_inference_config(metadata: dict) -> None:
     """Raise CheckpointConfigError unless the checkpoint suits what scripts/mission2_inference.py runs.
 
