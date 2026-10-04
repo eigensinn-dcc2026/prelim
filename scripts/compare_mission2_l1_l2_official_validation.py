@@ -45,6 +45,10 @@ Pass --l1-result-json / --l2-result-json (the separately saved official Validati
 results) to also require that the joined predictions reproduce their n_utterances and
 confusion_matrix exactly.
 
+The local CNN path (--l2-ckpt) scores ONE model and refuses a packed seed ensemble
+(scripts/pack_mission2_l2_ensemble.py); to compare an ensemble, pass its per-utterance
+predictions with --l2-predictions-csv.
+
 Only the --l2-predictions-csv path runs on the code in this branch. The
 evaluate_mission2_l{1,2}_on_official_validation.py scripts and dcc_data.mission2_cnn used by
 the other path live on gwanghee/mission2-l1-model-comparison and gwanghee/mission2-l2-cnn-clean,
@@ -171,6 +175,31 @@ def confusion_matrix_2x2(truth: pd.Series, pred: pd.Series) -> list[list[int]]:
     return [[int(((truth == t) & (pred == p)).sum()) for p in (0, 1)] for t in (0, 1)]
 
 
+# The key scripts/pack_mission2_l2_ensemble.py (PR #32) stores a packed seed ensemble's member weights under,
+# instead of a single model's "best_model_state_dict".
+PACKED_ENSEMBLE_KEY = "ensemble_model_state_dicts"
+
+
+def single_model_state_dict(checkpoint: dict, ckpt_path: Path) -> dict:
+    """The one model's weights in an L2 training checkpoint, or ValueError.
+
+    The local CNN path below scores a single SpeakerCNNLarge. A packed ensemble holds several models' weights under
+    another key, so it must not fall through to a ``KeyError`` (or, worse, be read as one member and reported as
+    "the L2 result"): an ensemble is compared through its per-utterance prediction CSV instead.
+    """
+
+    if PACKED_ENSEMBLE_KEY in checkpoint:
+        raise ValueError(
+            f"{ckpt_path} is a packed seed ensemble ({len(checkpoint[PACKED_ENSEMBLE_KEY])} models); the local CNN "
+            "path of this script scores one model. Compare an ensemble through its per-utterance predictions "
+            "(call_id, utt_idx, speaker, predicted) with --l2-predictions-csv instead."
+        )
+    for key in ("best_model_state_dict", "model_state_dict"):
+        if key in checkpoint:
+            return checkpoint[key]
+    raise ValueError(f"{ckpt_path} holds no model weights ('best_model_state_dict' or 'model_state_dict')")
+
+
 def check_against_saved_result(merged: pd.DataFrame, pred_column: str, result_path: Path, name: str) -> None:
     """Require the joined predictions to reproduce a separately saved official-Validation result."""
 
@@ -273,6 +302,11 @@ def main() -> int:
     else:
         import torch  # local import: only needed for the (slow, CPU-bound) local-inference path
 
+        # Read and check the checkpoint before importing anything that only PR #32 provides, so a packed
+        # ensemble is refused with its explanation wherever this script runs.
+        checkpoint = torch.load(args.l2_ckpt, map_location="cpu")
+        l2_state_dict = single_model_state_dict(checkpoint, args.l2_ckpt)
+
         from dcc_data.mission2_cnn import SpeakerCNNLarge, SpectrogramDataset, collate_batch, evaluate
 
         l2_index_df = pd.read_parquet(args.l2_index)
@@ -281,11 +315,7 @@ def main() -> int:
             batch_size=args.batch_size, shuffle=False, collate_fn=collate_batch, num_workers=0,
         )
         l2_model = SpeakerCNNLarge()
-        checkpoint = torch.load(args.l2_ckpt, map_location="cpu")
-        if "best_model_state_dict" in checkpoint:
-            l2_model.load_state_dict(checkpoint["best_model_state_dict"])
-        else:
-            l2_model.load_state_dict(checkpoint["model_state_dict"])
+        l2_model.load_state_dict(l2_state_dict)
         l2_accuracy, l2_preds, l2_labels = evaluate(l2_model, loader, "cpu")
         print(f"L2: {len(l2_index_df)} utterances, accuracy={l2_accuracy:.4f}")
         if not np.array_equal(l2_labels, l2_index_df["speaker"].to_numpy()):

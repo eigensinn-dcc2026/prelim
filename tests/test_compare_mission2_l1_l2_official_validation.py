@@ -336,3 +336,58 @@ def test_main_saves_nothing_when_saved_official_result_does_not_match(
 
     assert not (tmp_path / "out" / "comparison.csv").exists()
     assert not (tmp_path / "out" / "comparison.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# The local CNN path scores one model: a packed seed ensemble (PR #32) is refused with an explanation
+# ---------------------------------------------------------------------------
+
+
+def test_single_model_state_dict_returns_the_weights_of_a_training_checkpoint() -> None:
+    checkpoint = {"best_model_state_dict": {"w": 1}, "last_model_state_dict": {"w": 2}}
+
+    assert compare.single_model_state_dict(checkpoint, Path("c.pt")) == {"w": 1}
+
+
+def test_single_model_state_dict_still_reads_the_older_checkpoint_format() -> None:
+    assert compare.single_model_state_dict({"model_state_dict": {"w": 3}}, Path("old.pt")) == {"w": 3}
+
+
+def test_single_model_state_dict_refuses_a_packed_ensemble_and_says_what_to_do() -> None:
+    packed = {compare.PACKED_ENSEMBLE_KEY: [{"w": 1}, {"w": 2}, {"w": 3}], "metadata": {}}
+
+    with pytest.raises(ValueError, match=r"packed seed ensemble \(3 models\).*--l2-predictions-csv"):
+        compare.single_model_state_dict(packed, Path("ensemble.pt"))
+
+
+def test_single_model_state_dict_refuses_a_file_without_weights() -> None:
+    with pytest.raises(ValueError, match="holds no model weights"):
+        compare.single_model_state_dict({"metadata": {}}, Path("empty.pt"))
+
+
+def test_the_packed_ensemble_key_is_the_one_the_packing_code_writes() -> None:
+    checkpoint_module = Path(__file__).resolve().parents[1] / "src" / "dcc_data" / "mission2_checkpoint.py"
+    if not checkpoint_module.exists():  # that module comes with PR #32; this PR alone does not have it yet
+        pytest.skip("src/dcc_data/mission2_checkpoint.py is not in this branch")
+
+    assert f'ENSEMBLE_STATE_DICTS_KEY = "{compare.PACKED_ENSEMBLE_KEY}"' in checkpoint_module.read_text(encoding="utf-8")
+
+
+def test_main_stops_before_any_cnn_import_when_the_l2_checkpoint_is_a_packed_ensemble(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stub_l1_checkpoint: None
+) -> None:
+    torch = pytest.importorskip("torch")
+    argv = _write_main_inputs(tmp_path, l2_frame=_l2())
+    csv_flag = argv.index("--l2-predictions-csv")
+    del argv[csv_flag:csv_flag + 2]
+    ensemble = tmp_path / "ensemble.pt"
+    torch.save({compare.PACKED_ENSEMBLE_KEY: [{"w": 1}, {"w": 2}], "metadata": {}}, ensemble)
+    argv += ["--l2-ckpt", str(ensemble), "--l2-index", str(tmp_path / "unused_index.parquet"),
+             "--l2-spectrogram-dir", str(tmp_path)]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with pytest.raises(ValueError, match="packed seed ensemble"):
+        compare.main()
+
+    assert not (tmp_path / "out" / "comparison.csv").exists()
+    assert not (tmp_path / "out" / "comparison.json").exists()
