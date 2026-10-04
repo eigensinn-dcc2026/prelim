@@ -27,6 +27,11 @@ METADATA_VERSION = 1
 # The only L2 model scripts/mission2_inference.py builds (train_mission2_cnn.py's ``--model large``).
 INFERENCE_MODEL_NAME = "large"
 
+# Key an ensemble checkpoint (scripts/pack_mission2_l2_ensemble.py) stores its member state_dicts under,
+# in place of a single-model checkpoint's "best_model_state_dict". scripts/mission2_inference.py checks
+# for this key to decide whether to soft-vote several models instead of running just one.
+ENSEMBLE_STATE_DICTS_KEY = "ensemble_model_state_dicts"
+
 REQUIRED_METADATA_KEYS = (
     "metadata_version",
     "model_name",
@@ -136,6 +141,36 @@ def resolve_l2_checkpoint_metadata(checkpoint: dict, ckpt_path: str | Path) -> t
         )
     _require_complete(legacy["metadata"], "legacy registry")
     return dict(legacy["metadata"]), f"legacy registry: {legacy['description']}"
+
+
+def build_ensemble_metadata(member_metadata: list[dict]) -> dict:
+    """Merge several same-architecture L2 checkpoints' metadata into one ensemble checkpoint's metadata.
+
+    The members must agree on every ``REQUIRED_METADATA_KEYS`` field except ``torch_seed`` -- that is
+    exactly the one thing a seed ensemble is supposed to vary, but everything else (mel settings, label
+    source, split) must match or the members are not fair to average together. The merged dict replaces
+    ``torch_seed`` with ``None`` (no single seed applies) and records every member's seed and count instead.
+    """
+
+    if len(member_metadata) < 2:
+        raise ValueError(f"an ensemble needs at least 2 member checkpoints, got {len(member_metadata)}")
+    for metadata in member_metadata:
+        _require_complete(metadata, "ensemble member")
+
+    merged = dict(member_metadata[0])
+    for key in REQUIRED_METADATA_KEYS:
+        if key == "torch_seed":
+            continue
+        values = {metadata[key] for metadata in member_metadata}
+        if len(values) != 1:
+            raise CheckpointConfigError(
+                f"ensemble members disagree on {key!r}: {sorted(map(str, values))} -- they must be the same "
+                "architecture/training setup, varied only by torch_seed, to be averaged together"
+            )
+    merged["torch_seed"] = None
+    merged["ensemble_member_torch_seeds"] = [metadata["torch_seed"] for metadata in member_metadata]
+    merged["ensemble_size"] = len(member_metadata)
+    return merged
 
 
 def require_l2_inference_config(metadata: dict) -> None:

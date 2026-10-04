@@ -137,6 +137,26 @@ def l2_checkpoint(tmp_path: Path) -> Path:
     return _save_l2_checkpoint(tmp_path / "l2_model.pt", _l2_metadata())
 
 
+def _save_l2_ensemble_checkpoint(ckpt_path: Path, n_members: int = 2) -> Path:
+    import torch
+
+    from dcc_data.mission2_checkpoint import ENSEMBLE_STATE_DICTS_KEY, build_ensemble_metadata
+    from dcc_data.mission2_cnn import SpeakerCNNLarge
+
+    member_metadata = [_l2_metadata(torch_seed=seed) for seed in range(1, n_members + 1)]
+    checkpoint = {
+        ENSEMBLE_STATE_DICTS_KEY: [SpeakerCNNLarge().state_dict() for _ in range(n_members)],
+        "metadata": build_ensemble_metadata(member_metadata),
+    }
+    torch.save(checkpoint, ckpt_path)
+    return ckpt_path
+
+
+@pytest.fixture()
+def l2_ensemble_checkpoint(tmp_path: Path) -> Path:
+    return _save_l2_ensemble_checkpoint(tmp_path / "l2_ensemble.pt")
+
+
 def test_pad_spectrogram_pads_short_utterances_with_the_floor_value_only() -> None:
     from dcc_data.mission2_spectrogram import N_MELS, SPEC_FLOOR_DB
 
@@ -208,6 +228,24 @@ def test_main_l2_checkpoint_produces_one_row_per_utterance(tmp_path: Path, l2_ch
 
     output_path = tmp_path / "out" / "mission2.csv"
     _run_inference(audio_dir, label_dir, l2_checkpoint, output_path)
+
+    rows = _read_rows(output_path)
+    assert len(rows) == 4
+    assert {row["audio_file_name"] for row in rows} == {"call1.wav", "call2.wav"}
+    for row in rows:
+        assert row["speaker"] in ("0", "1")
+
+
+def test_main_l2_ensemble_checkpoint_produces_one_row_per_utterance(
+    tmp_path: Path, l2_ensemble_checkpoint: Path
+) -> None:
+    audio_dir = tmp_path / "audio"
+    label_dir = tmp_path / "labels"
+    _write_call(audio_dir, label_dir, "call1", [(0, 90), (200, 1800), (1900, 3400)], seed=0)
+    _write_call(audio_dir, label_dir, "call2", [(0, 500)], seed=1)
+
+    output_path = tmp_path / "out" / "mission2.csv"
+    _run_inference(audio_dir, label_dir, l2_ensemble_checkpoint, output_path)
 
     rows = _read_rows(output_path)
     assert len(rows) == 4
@@ -506,6 +544,52 @@ def test_speaker_from_logits_follows_p_speaker_1_at_least_one_half() -> None:
     assert mission2_inference._speaker_from_logits(torch.tensor([[3.0, 3.0]])).__class__ is int
     # argmax would have said 0 here -- the case this rule exists for
     assert int(torch.tensor([[3.0, 3.0]]).argmax(dim=1).item()) == 0
+
+
+def test_ensemble_predicts_by_averaging_member_softmax_not_by_any_single_member(tmp_path: Path) -> None:
+    import torch
+
+    from dcc_data.mission2_checkpoint import ENSEMBLE_STATE_DICTS_KEY, build_ensemble_metadata
+    from dcc_data.mission2_cnn import SpeakerCNNLarge
+
+    def _fixed_logit_model(logit0: float, logit1: float) -> SpeakerCNNLarge:
+        model = SpeakerCNNLarge()
+        with torch.no_grad():
+            model.classifier[-1].weight.zero_()  # final Linear: logits become this bias for any input
+            model.classifier[-1].bias.copy_(torch.tensor([logit0, logit1]))
+        return model
+
+    # member_a alone strongly predicts class 0 (softmax ~= [0.9999, 0.0001]).
+    # member_b alone weakly predicts class 1 (softmax ~= [0.40, 0.60]).
+    # Averaged: ~[0.70, 0.30] -- class 0 wins, same call as member_a's alone here, but only because
+    # member_a's confidence dominates the average; this is checking the ensemble actually averages
+    # probabilities (not e.g. always taking the first/last member) via the flipped case below.
+    member_a = _fixed_logit_model(5.0, -5.0)
+    member_b = _fixed_logit_model(-0.2, 0.2)
+    member_metadata = [_l2_metadata(torch_seed=1), _l2_metadata(torch_seed=2)]
+
+    def _save(models: list[SpeakerCNNLarge], name: str) -> Path:
+        path = tmp_path / name
+        torch.save(
+            {
+                ENSEMBLE_STATE_DICTS_KEY: [m.state_dict() for m in models],
+                "metadata": build_ensemble_metadata(member_metadata),
+            },
+            path,
+        )
+        return path
+
+    segment = np.random.default_rng(0).standard_normal(4000).astype(np.float32)
+
+    predict_a_strong, _ = mission2_inference.load_predictor(_save([member_a, member_b], "a_strong.pt"))
+    assert predict_a_strong(segment, SAMPLE_RATE, 0.5) == 0
+
+    # Swap which member is the confident one -- the ensemble must follow whichever member is now
+    # confident, proving it actually re-averages rather than remembering a fixed answer.
+    member_a_weak = _fixed_logit_model(0.2, -0.2)
+    member_b_strong = _fixed_logit_model(-5.0, 5.0)
+    predict_b_strong, _ = mission2_inference.load_predictor(_save([member_a_weak, member_b_strong], "b_strong.pt"))
+    assert predict_b_strong(segment, SAMPLE_RATE, 0.5) == 1
 
 
 def test_a_model_whose_two_logits_always_tie_predicts_class_1_end_to_end(tmp_path: Path) -> None:

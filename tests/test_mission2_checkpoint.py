@@ -19,6 +19,7 @@ from dcc_data.mission2_checkpoint import (
     REQUIRED_METADATA_KEYS,
     CheckpointConfigError,
     build_checkpoint_metadata,
+    build_ensemble_metadata,
     checkpoint_sha256,
     require_l2_inference_config,
     resolve_l2_checkpoint_metadata,
@@ -185,3 +186,49 @@ def test_the_checkpoint_trained_on_corrected_labels_is_not_registered_and_is_the
 
 def test_the_verified_label_source_is_accepted_too() -> None:
     require_l2_inference_config(_metadata(label_source=LABEL_SOURCE_VERIFIED))
+
+
+# ---------------------------------------------------------------------------
+# build_ensemble_metadata: merging several same-architecture checkpoints'
+# metadata into one, for scripts/pack_mission2_l2_ensemble.py.
+# ---------------------------------------------------------------------------
+
+
+def test_build_ensemble_metadata_merges_members_that_only_differ_by_seed() -> None:
+    members = [_metadata(torch_seed=1), _metadata(torch_seed=2), _metadata(torch_seed=3)]
+
+    merged = build_ensemble_metadata(members)
+
+    assert merged["torch_seed"] is None
+    assert merged["ensemble_member_torch_seeds"] == [1, 2, 3]
+    assert merged["ensemble_size"] == 3
+    # every other field matches what a single member would have recorded
+    for key in REQUIRED_METADATA_KEYS:
+        if key == "torch_seed":
+            continue
+        assert merged[key] == members[0][key]
+
+
+def test_build_ensemble_metadata_passes_the_config_check_like_a_single_model_does() -> None:
+    merged = build_ensemble_metadata([_metadata(torch_seed=1), _metadata(torch_seed=2)])
+    require_l2_inference_config(merged)  # must not raise
+
+
+def test_build_ensemble_metadata_rejects_members_that_disagree_on_training_setup() -> None:
+    members = [_metadata(torch_seed=1), _metadata(torch_seed=2, n_mels=80)]
+
+    with pytest.raises(CheckpointConfigError, match="n_mels"):
+        build_ensemble_metadata(members)
+
+
+def test_build_ensemble_metadata_requires_at_least_two_members() -> None:
+    with pytest.raises(ValueError, match="at least 2"):
+        build_ensemble_metadata([_metadata()])
+
+
+def test_build_ensemble_metadata_requires_complete_member_metadata() -> None:
+    incomplete = _metadata()
+    del incomplete["n_mels"]
+
+    with pytest.raises(CheckpointConfigError):
+        build_ensemble_metadata([_metadata(), incomplete])

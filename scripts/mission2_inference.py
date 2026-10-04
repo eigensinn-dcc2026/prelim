@@ -49,6 +49,16 @@ unchanged either way:
   ``m2_cnn_large.pt`` (M2-VAL-003) was trained on corrected labels, so it is
   deliberately not accepted any more.
 
+An L2 ``--ckpt_path`` may also be an *ensemble* checkpoint built by
+``scripts/pack_mission2_l2_ensemble.py`` (several same-architecture, same-mel-
+settings models that only differ by ``--torch-seed``, soft-voted together --
+see M2-ENS-003: +0.50pp over the best single seed on the full official
+Validation set). Still exactly one ``--ckpt_path`` file, so the CLI contract
+is unchanged; the ensemble's member weights are bundled inside that one file
+under ``checkpoint["ensemble_model_state_dicts"]`` instead of a single
+``"best_model_state_dict"``, and ``dcc_data.mission2_checkpoint.
+ENSEMBLE_STATE_DICTS_KEY`` is the key the loader checks for.
+
 Development note: this currently lives under scripts/ rather than as a
 top-level inference.py because this repository holds all three missions and
 the final submission packaging (one inference.py per mission, at whatever
@@ -207,7 +217,9 @@ def _load_l1_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
 
 def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
     import torch
+    import torch.nn.functional as torch_functional
 
+    from dcc_data.mission2_checkpoint import ENSEMBLE_STATE_DICTS_KEY
     from dcc_data.mission2_cnn import SpeakerCNNLarge
     from dcc_data.mission2_spectrogram import mel_spectrogram
 
@@ -217,9 +229,17 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
     metadata, _source = resolve_l2_checkpoint_metadata(checkpoint, ckpt_path)
     require_l2_inference_config(metadata)
     expected_sample_rate = int(metadata["sample_rate"])
-    model = SpeakerCNNLarge()
-    model.load_state_dict(checkpoint["best_model_state_dict"])
-    model.eval()
+
+    # An ensemble checkpoint (scripts/pack_mission2_l2_ensemble.py) bundles several members' weights under
+    # one key instead of a single "best_model_state_dict" -- everything else about it (one --ckpt_path
+    # file, same mel settings) is unchanged, so this is the only branch point.
+    state_dicts = checkpoint.get(ENSEMBLE_STATE_DICTS_KEY) or [checkpoint["best_model_state_dict"]]
+    models = []
+    for state_dict in state_dicts:
+        model = SpeakerCNNLarge()
+        model.load_state_dict(state_dict)
+        model.eval()
+        models.append(model)
     # No stored majority_class for L2 checkpoints (train_mission2_cnn.py
     # doesn't compute one) -- 1 matches load_model's own fallback-of-a-
     # fallback default above, so both backends agree when nothing better is
@@ -234,7 +254,13 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
             )
         spectrogram = pad_spectrogram_to_min_frames(mel_spectrogram(segment, sample_rate))
         batch = torch.from_numpy(spectrogram).unsqueeze(0).unsqueeze(0)  # (1, 1, n_mels, n_frames)
-        return _speaker_from_logits(model(batch))
+        if len(models) == 1:
+            # Bit-for-bit the single-model path this always was -- comparing softmax outputs instead of
+            # raw logits would be mathematically equivalent (softmax is order-preserving) but there is no
+            # reason to touch the already-tested tie-breaking behavior when there is nothing to average.
+            return _speaker_from_logits(models[0](batch))
+        average_probs = sum(torch_functional.softmax(model(batch), dim=1) for model in models) / len(models)
+        return int((average_probs[0, 1] >= average_probs[0, 0]).item())
 
     return predict, fallback_speaker
 
