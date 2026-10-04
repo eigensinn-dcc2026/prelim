@@ -16,6 +16,38 @@
 
 ---
 
+## 2026-10-05 — [M2] 최종 후보(L2 3-seed 앙상블, 91.55%) 규정 준수 종합 검토 — 위반 소지 없음
+
+- **결론**: 공식 출제문제 PDF(12쪽) 원문, 참가자 매뉴얼, 9/15 FAQ, Decision Threshold 공지 메일, 10/01
+  운영진 답변을 기준으로 최종 파이프라인 코드를 조항별로 대조했고, **위반 소지는 없다.**
+- **조항별 확인 방법**:
+  - 외부 데이터·상용 AI API 금지: 최종 파이프라인 8개 파일(`mission2_cnn.py`, `mission2_spectrogram.py`,
+    `mission2_features.py`, `mission2_checkpoint.py`, `mission2_inference.py`, `train_mission2_cnn.py`,
+    `build_mission2_spectrograms.py`, `pack_mission2_l2_ensemble.py`)에서 외부 API·HTTP 호출·사전학습
+    가중치 다운로드 코드를 검색 → 0건. CNN은 처음부터 학습.
+  - Training은 서울만, Validation은 학습 금지: `select_seoul_training_rows`가 Training·서울 경로만 남김.
+    학습기는 Training 표시가 없는 인덱스를 거부. best 에폭은 Training 내부 분할로 고름.
+  - M2 입력 제한(startAt/endAt만, text·순서·같은 통화 다른 발화 금지): 추론 코드가 라벨 JSON에서 읽는 필드는
+    `startAt`, `endAt` 두 개뿐. 발화 하나씩 따로 추론, 정규화·300프레임 패딩 모두 그 조각 자신만 사용,
+    BatchNorm은 `eval()` 상태(학습 때 통계만 사용).
+  - text 근거 라벨 수정 금지: 체크포인트 3개 모두 `label_source=verified_against_provided_json`.
+  - 라벨별·평가 데이터 전용 전처리 금지: 전처리가 모든 발화에 동일. 패딩 길이(300)는 Training 내부 검증으로 결정.
+  - Decision threshold 0.5 고정: 3개 모델 확률 평균 ≥ 0.5 → 신고자. 조정 없음.
+  - 실행 규칙·CSV 형식: 지정된 4개 인자, `audio_file_name,startAt,endAt,speaker`, 111,947발화 = 111,947행.
+- **회색지대(위반 아님, 발표 자료에 투명하게 적기)**:
+  1. 공식 Validation을 여러 번 평가에 씀(ts1/ts2/ts3 단독 + 4개 조합). 규정상 모델 선택·앙상블 결정 용도는
+     허용이지만, 팀 자체 원칙인 "공식 Validation 1회 확인"은 지키지 못했다. 3개 묶음은 파일럿(M2-ENS-002) 때부터
+     계획한 선택이라 결과를 보고 고른 것은 아니나, 91.55%에 약간의 선택 낙관이 섞였을 수 있음을 밝힌다.
+  2. 개발 과정에서 AI 코딩 도구(Claude)를 사용했다(커밋에 `Co-Authored-By` 표기). 규정이 금지하는 것은
+     "별도 개발 없이 상용 AI API로 과제를 푸는 것"이고 제출 코드는 외부 API를 호출하지 않으므로 해당하지 않는다고
+     판단. 확실히 하려면 10/10 멘토링에서 확인.
+- **제출 전 할 일(위반은 아니나 누락 시 감점 위험)**:
+  1. 학습 로그가 남은 `.ipynb`(출제문제 p.12 필수) — ts1/ts2/ts3 Colab 노트북을 출력 포함으로 보존.
+  2. `scripts/mission2_inference.py`를 Mission 2 제출 폴더의 `inference.py`로 정리하고, git에서 제외된
+     `m2_cnn_large_raw_ensemble.pt`를 따로 포함.
+  3. 계산 효율 기재(권장): 파라미터 1,265,862개(421,954 × 3), 추론 환경 로컬 CPU, 배치 크기 1, 공식 Validation
+     전체 추론 약 87분(발화당 평균 약 47ms).
+
 ## 2026-10-04 — [M2] seed 앙상블(M2-ENS-003) 채택, Mission 2 L2는 여기서 마무리
 
 - **결정**: 제공된 라벨로 학습한 CNN 3개(`--torch-seed` 1/2/3)의 소프트보팅(평균 softmax)을 L2 최종
