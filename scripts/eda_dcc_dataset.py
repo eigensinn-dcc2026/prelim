@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import random
 import statistics
 import sys
@@ -65,7 +66,7 @@ def parse_args() -> argparse.Namespace:
         "--manifest",
         default=str(REPO_ROOT / "data" / "manifests" / "dcc_manifest_v1.csv"),
     )
-    parser.add_argument("--data-root", default=str(REPO_ROOT / "data" / "raw"))
+    parser.add_argument("--data-root", default=os.environ.get("DCC_DATA_ROOT", str(REPO_ROOT / "data" / "raw_original")))
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT))
     parser.add_argument("--report-output", default=str(DEFAULT_REPORT))
     parser.add_argument("--figures-dir", default=str(DEFAULT_FIGURES_DIR))
@@ -333,13 +334,17 @@ def _write_waveform_cache(rows: list[dict], output_path: Path) -> None:
 
 def main() -> None:
     args = parse_args()
-    data_root = Path(args.data_root)
+    data_root = Path(args.data_root).expanduser().resolve()
     output_path = Path(args.output)
     report_path = Path(args.report_output)
     figures_dir = Path(args.figures_dir)
     cache_path = Path(args.wav_header_cache)
     waveform_cache_path = Path(args.waveform_cache)
     assert_not_legacy_output(output_path)
+    if not data_root.is_dir():
+        raise FileNotFoundError(f"Data directory not found: {data_root}")
+    if not Path(args.manifest).is_file():
+        raise FileNotFoundError(f"Manifest not found: {args.manifest}; prepare it with scripts/build_manifest.py")
 
     all_rows = load_manifest(args.manifest, validate_paths=False)
     train_rows = [row for row in all_rows if row.split == "Training"]
