@@ -23,20 +23,19 @@ M1·M2는 음성 처리 구조를 가능한 범위에서 공유하고, M3는 텍
 | **M1** | baseline, 공식 Validation, 오류 분석 완료 | LR Accuracy **95.11%**로 1차 제출 후보 선정 | 필요 시 GBM과 paired 비교 검정 |
 | **M2** | L1 음향 통계 baseline, 규모별 오류 분석 완료. feature·모델·표준 표현(`opensmile`) 비교 실험 코드와 raw data EDA도 병합됨 | 3,000통화 **83.78%**, 9,000통화 **84.90%** (`docs/experiment_log.md` 기준) | 병합된 실험의 결과를 `docs/experiment_log.md`에 반영, 공식 Validation 평가는 기록상 미실행 |
 | **M3** | KcBERT baseline, 청크·가중치 실험 기록 병합. 현재 baseline 분할·전처리 기준은 **JSON 샘플 단위 80:20 multilabel stratified split, seed=42, threshold=0.5**로 확정(2026-09-30) | 이전 분할(`recordId` grouping, 90:10 random split)의 점수는 과거 기록이며 최신 기준과 직접 비교하지 않음 | 최신 기준으로 재실행한 결과를 비교 기준으로 확정 |
-| **공통** | 데이터 감사, WAV↔JSON 매칭 검증, 통합 EDA(`reports/eda/eda_report.md`), Mission별 실험·결정 기록 체계가 반영됨 | — | — |
+| **공통** | 데이터 감사, WAV↔JSON 매칭 검증, 통합 EDA와 Mission별 심화 분석(`reports/eda/eda_report.md`의 7장: 분포 이동·겹침·효과크기), Mission별 실험·결정 기록 체계가 반영됨 | — | — |
 
 ### 진행 중 PR
 
 다음 목록은 **2026-10-05 확인 기준**이며, 병합 전 결과는 확정 현황에 포함하지 않습니다. 최신 상태는 [GitHub Pull Requests](https://github.com/eigensinn-dcc2026/prelim/pulls)에서 확인합니다.
 
-- **EDA**: [#36 대회 의사결정용 EDA 심화 분석 (분포 이동·겹침·효과크기)](https://github.com/eigensinn-dcc2026/prelim/pull/36)
 - **Mission 2**:
   [#31 실험·결정 기록 최신화](https://github.com/eigensinn-dcc2026/prelim/pull/31),
   [#32 L2 CNN 파이프라인 반영](https://github.com/eigensinn-dcc2026/prelim/pull/32)
 - **Mission 3**:
   [#34 baseline notebook 데이터 경로·실행 설정 수정](https://github.com/eigensinn-dcc2026/prelim/pull/34)
 
-이전 README에 진행 중으로 적혀 있던 #6, #8, #10, #16, #19, #22, #23, #25는 모두 `main`에 병합되었고, #18은 병합 없이 닫혔습니다.
+이전 README에 진행 중으로 적혀 있던 #6, #8, #10, #16, #19, #22, #23, #25는 모두 `main`에 병합되었고, #18은 병합 없이 닫혔습니다. EDA 심화 분석 [#36](https://github.com/eigensinn-dcc2026/prelim/pull/36)도 병합되었습니다.
 
 ## 팀 역할
 
