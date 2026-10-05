@@ -10,6 +10,30 @@
 
 ---
 
+## 2026-10-05 — [M2] 제출 후보 충돌 정리 필요 (미결, 사령탑 판단 요청)
+
+- **현황**: 후보가 두 갈래다. (a) 스펙상 L1 53D + LightGBM 9k는 내부 84.90%이고 ckpt가 없어 공식 Val 미평가.
+  (b) MLP 트랙(feature·모델 실험)은 공식 Val 85.29%(42D), 내부 87.38%(59D, M04-100)까지 기록됐으나 제출용 ckpt·inference가 정리되지 않음.
+- **비교 불가 사유**: (a)는 call_id GroupSplit 내부 점수, (b)는 공식 Val 또는 다른 내부 split이므로 점수를 직접 비교하지 않음.
+- **결정**: 확정 안 됨. 같은 공식 Val 기준으로 (a)를 채점하거나 (b)를 ckpt로 고정해 비교한 뒤 정함.
+- **관련**: [`m2_official_val_spec.md`](../reports/mission2/m2_official_val_spec.md), [`experiment_log.md`](./experiment_log.md) M2-MODEL·M2-AF.
+
+## 2026-10-05 — [M1] 1차 제출 후보를 LR로 고정, 새 학습 없이 제출 패키징
+
+- **결정**: 공식 Val 95.11%의 LR(`m1_baseline_lr.pkl`)을 제출 후보로 고정하고 새 학습·MFCC/F0 개선은 보류함.
+  제출 CLI(`mission1_inference.py`)와 CSV 열(`audio file name`, `gender`)은 공식 PDF 기준을 따름. Zoom 안내의 startAt/endAt 포함설은 채택하지 않음.
+- **이유**: 남은 기간 대비 안전한 제출본 확보가 우선. ckpt는 Git에 올리지 않고 SHA256만 기록.
+- **한계**: 규정상 가중치 확장자(`.pt/.pth/.ckpt`) 대응과 스모크 테스트가 남아 있음.
+- **관련**: [`m1_submission_checklist.md`](../reports/mission1/m1_submission_checklist.md).
+
+## 2026-10-05 — [M3] 80:20 기준 재평가 순서와 보류 항목 확정
+
+- **결정**: 재평가는 P0 TF-IDF → P1 KcBERT 앞 256 → P2 토큰 청크 vs 턴 청크(동일 조건) → P3 완화 가중 BCE 순.
+  증상별 threshold 재튜닝과 강한 가중 BCE는 보류함. 전사 텍스트만 입력으로 사용함.
+- **이유**: 과거 점수는 분할·Train 비율·임계값이 달라 직접 비교가 안 됨(스펙 표 참조).
+- **상태**: 모두 승인 대기, 미실행.
+- **관련**: [`m3_reeval_spec.md`](../reports/mission3/m3_reeval_spec.md), [`m3_next_experiment_candidates.md`](../reports/mission3/m3_next_experiment_candidates.md).
+
 ## 2026-10-05 — [M2] 같은 통화의 다른 발화 정보 사용 금지 (주최 측 공식 답변)
 
 - **결정**: M2는 분류 대상 발화 조각(startAt~endAt)의 음성 정보만 사용함. 같은 통화의 다른 발화로 계산한
@@ -21,16 +45,14 @@
   사전학습 음성 임베딩 등 이후 실험도 발화별 독립 추론과 Training 고정 통계만 사용함.
 - **관련**: [`mission2_features.py`](../src/dcc_data/mission2_features.py) (`read_call_waveform` → `slice_and_pad`).
 
-## 2026-09-20 — [M3] 양성 손실 가중치를 완화해 후속 실험
+## 2026-10-04 — [M2] 표준 표현(eGeMAPS 88D) 기각, clean 59D 유지
 
-- **결정**: 희소 증상의 낮은 recall을 보완하기 위해 weighted BCE를 사용하되,
-  과다 양성 예측을 줄이도록 `pos_weight_scale=0.25`, 상한 3.0으로 완화함.
-- **이유**: 초기 강한 가중치 모델은 recall은 높아졌지만 precision과 subset accuracy가 낮아져
-  오탐 증가 가능성이 확인됨.
-- **상태/후속**: Training 40%, effective batch size 16, 3 epochs 학습 체크포인트는 생성됨.
-  평가 결과를 확인한 뒤 비가중 모델과 동일 조건으로 비교해야 함.
-- **관련**: [`m3_weighted_diagnosis_sources.json`](../reports/mission3/m3_weighted_diagnosis_sources.json),
-  [`train_weighted_40pct_vscode.py`](../scripts/mission3/train_weighted_40pct_vscode.py).
+- **결정**: eGeMAPSv02 88D는 채택하지 않고 handcrafted 59D를 유지함.
+- **이유**: 같은 M04-100·split에서 87.38% → 86.40%(-0.98%p), speaker0 recall 하락, 고확신 오답 증가.
+  매우 짧은 발화에서는 eGeMAPS가 NaN/inf를 반환함.
+- **한계**: 내부 split 결과이며 공식 Val 재평가는 하지 않음. 최종 모델 확정은 아님.
+- **관련**: [`mission2_standard_representation_comparison.ipynb`](../notebooks/mission2_standard_representation_comparison.ipynb), M2-REP-001.
+
 ## 2026-09-30 — [M3] 현재 baseline 분할·전처리 기준 확정
 
 - **결정**: `recordId` 기반 grouping은 사용하지 않고, JSON 샘플 단위로 **80:20 multilabel stratified split**을 사용함.
@@ -44,6 +66,45 @@
 - **관련**: [`mission3_baseline 최종 수정본.py`](<../scripts/mission3_baseline 최종 수정본.py>),
   [`mission3_jieun_baseline.ipynb`](../notebooks/mission3_jieun_baseline.ipynb).
 
+## 2026-09-27 — [M2] feature 단계 종료: rolloff+zcr 조합(E05)을 42D로 고정
+
+- **결정**: MFCC40에 rolloff·zcr을 더한 42D를 고정하고, 모델 구조만 바꾸는 단계로 이행함. 추가 feature 조합을 공식 Val에서 반복 탐색하지 않음.
+- **이유**: 단일 feature는 rolloff +0.24%p가 최대였고 조합 E05가 +0.40%p. 조합은 Training-only 중복성·오류 보완성 진단 후 Val을 보기 전에 사전 확정함. duration은 효과 없음.
+- **한계**: v1 cache 결과이며 v2 코드로 재평가하지 않음. E05와 E02 차이의 유의성은 미검정.
+- **관련**: M2-FEAT-E01~E05.
+
+## 2026-09-21 — [M2] handcrafted feature 탐색 종료, 59D를 reference로 채택
+
+- **결정**: AF10(speech activity)+AF11(spectral entropy)을 더한 59D를 reference로 채택하고, AF05(delta-MFCC) 추가(61D)는 보류함.
+  AF01·AF03·AF08은 기각, AF07·AF09는 효과가 잡음 수준이라 보류함. 이후 handcrafted 추가 탐색은 중단하고 표준 표현과 비교.
+- **이유**: 52D→59D는 +0.50%p이고 두 speaker recall이 함께 올랐다. 61D는 +0.018%p에 speaker1 recall -1.32%p로 trade-off만 있었음.
+  AF02(pitch/voicing)는 47D 단계에서 +0.67%p로 채택됨.
+- **관련**: M2-AF-R1~R4, [`mission2_acoustic_feature_expansion.ipynb`](../notebooks/mission2_acoustic_feature_expansion.ipynb).
+
+## 2026-09-21 — [M2] 모델을 HGB에서 MLP로 승격
+
+- **결정**: 42D에서 MLP(64 hidden, M04)를 best 후보로 선정함. ExtraTrees·QDA는 기각, LR은 비교점으로 유지.
+- **이유**: 내부 85.80%(HGB 84.19% 대비 +1.61%p)와 공식 Val 85.29%(+1.57%p)의 개선폭이 거의 같아 내부 우연으로 보기 어렵고, speaker 0·1 recall이 모두 상승함.
+- **한계**: 30 epoch에서 미수렴. max_iter 60·100 확장은 +0.08~0.16%p로 효과 작음. 별도 유의성 검정 없음.
+- **관련**: M2-MODEL-M00~M04, M2-MODEL-O.
+
+## 2026-09-21 — [공통] PR 자동 병합 게이트와 기록 운영 원칙
+
+- **결정**: PR마다 CI와 verdict 기록을 거치는 병합 게이트를 도입함(9/21~22). 체크포인트·데이터는 Git에 올리지 않고 SHA256만 기록하며,
+  데이터 루트는 `DCC_DATA_ROOT`(`data/raw_merged`)로 고정함(10/2).
+- **이유**: 여러 담당자가 병렬로 작업하므로 재현성과 규정 준수를 자동 점검하기 위함.
+- **관련**: [`pr-ci.yml`](../.github/workflows/pr-ci.yml), [`WORKFLOW.md`](../WORKFLOW.md).
+
+## 2026-09-20 — [M3] 양성 손실 가중치를 완화해 후속 실험
+
+- **결정**: 희소 증상의 낮은 recall을 보완하기 위해 weighted BCE를 사용하되,
+  과다 양성 예측을 줄이도록 `pos_weight_scale=0.25`, 상한 3.0으로 완화함.
+- **이유**: 초기 강한 가중치 모델은 recall은 높아졌지만 precision과 subset accuracy가 낮아져
+  오탐 증가 가능성이 확인됨.
+- **상태/후속**: Training 40%, effective batch size 16, 3 epochs 학습 체크포인트는 생성됨.
+  평가 결과를 확인한 뒤 비가중 모델과 동일 조건으로 비교해야 함.
+- **관련**: [`m3_weighted_diagnosis_sources.json`](../reports/mission3/m3_weighted_diagnosis_sources.json),
+  [`train_weighted_40pct_vscode.py`](../scripts/mission3/train_weighted_40pct_vscode.py).
 ## 2026-09-19 — [M3] 증상별 임계값 조정을 중단하고 전 증상 임계값을 0.5로 고정
 
 - **결정**: 증상별 임계값 조정을 중단하고 모든 증상의 판정 임계값을 0.5로 고정함.

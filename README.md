@@ -9,7 +9,7 @@
 | Mission | 문제 | 입력 | 평가지표 |
 |---|---|---|---|
 | **M1** | 신고자 성별 분류 | 음성 | Accuracy |
-| **M2** | 신고자 / 119 상황실 구분 | 발화 구간 음성 | Accuracy |
+| **M2** | L1 음향 통계 baseline, 규모별 오류 분석 완료. feature(E01~E05)·모델(M00~M04)·acoustic 확장(AF)·표준 표현(eGeMAPS) 비교 실험이 병합됨. 현재 handcrafted reference는 59D, 모델은 MLP | L1+LGBM 내부 3,000통화 **83.78%** / 9,000통화 **84.90%**. MLP 트랙: 42D 공식 Val **85.29%**, 59D 내부 **87.38%** (`docs/experiment_log.md`, 두 계열은 평가 기준이 달라 직접 비교 불가) | L1-LGBM 9k는 ckpt가 없어 공식 Val 미평가. 제출 후보(L1-LGBM vs MLP) 결정 필요(`docs/decisions.md` 2026-10-05) |
 | **M3** | 증상 다중 레이블 분류 | 전사 텍스트 | Macro F1 |
 
 M1·M2는 음성 처리 구조를 가능한 범위에서 공유하고, M3는 텍스트 파이프라인으로 진행합니다.
@@ -23,7 +23,7 @@ M1·M2는 음성 처리 구조를 가능한 범위에서 공유하고, M3는 텍
 | **M1** | baseline, 공식 Validation, 오류 분석 완료 | LR Accuracy **95.11%**로 1차 제출 후보 선정 | 필요 시 GBM과 paired 비교 검정 |
 | **M2** | L1 음향 통계 baseline, 규모별 오류 분석 완료. feature·모델·표준 표현(`opensmile`) 비교 실험 코드와 raw data EDA도 병합됨 | 3,000통화 **83.78%**, 9,000통화 **84.90%** (`docs/experiment_log.md` 기준) | 병합된 실험의 결과를 `docs/experiment_log.md`에 반영, 공식 Validation 평가는 기록상 미실행 |
 | **M3** | KcBERT baseline, 청크·가중치 실험 기록 병합. 현재 baseline 분할·전처리 기준은 **JSON 샘플 단위 80:20 multilabel stratified split, seed=42, threshold=0.5**로 확정(2026-09-30) | 이전 분할(`recordId` grouping, 90:10 random split)의 점수는 과거 기록이며 최신 기준과 직접 비교하지 않음 | 최신 기준으로 재실행한 결과를 비교 기준으로 확정 |
-| **공통** | 데이터 감사, WAV↔JSON 매칭 검증, 통합 EDA와 Mission별 심화 분석(`reports/eda/eda_report.md`의 7장: 분포 이동·겹침·효과크기), Mission별 실험·결정 기록 체계가 반영됨 | — | — |
+| **공통** | 데이터 감사, WAV↔JSON 매칭 검증, 통합 EDA와 Mission별 심화 분석(`reports/eda/eda_report.md`의 7장: 분포 이동·겹침·효과크기), Mission별 실험·결정 기록 체계가 반영됨(2026-10-05 M2 feature·모델 실험 등 누락분 소급 기록) | — | — |
 
 ### 진행 중 PR
 
