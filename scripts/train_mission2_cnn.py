@@ -42,11 +42,19 @@ Usage:
 
     # continue training the same checkpoint for 20 more epochs:
     python scripts/train_mission2_cnn.py ... --epochs 20 --resume
+
+    # the full-dataset Colab recipe (--packed-spectrograms, --amp, --pad-to-multiple, --early-stop-patience),
+    # one epoch per call so a disconnect loses at most one epoch:
+    python scripts/train_mission2_cnn.py --index data/m2_spectrogram_index_packed.parquet \\
+        --packed-spectrograms data/m2_spectrograms_packed.npy --model large --device cuda \\
+        --amp --pad-to-multiple 8 --cudnn-benchmark --num-workers 2 \\
+        --epochs 1 --early-stop-patience 5 --resume
 """
 
 from __future__ import annotations
 
 import argparse
+import functools
 import random
 import sys
 import time
@@ -64,6 +72,7 @@ from sklearn.metrics import confusion_matrix, recall_score  # noqa: E402
 from dcc_data.mission2_cnn import (  # noqa: E402
     SpeakerCNN,
     SpeakerCNNLarge,
+    PackedSpectrogramDataset,
     SpeakerCNNLargeWithDuration,
     SpectrogramDataset,
     SpectrogramWithDurationDataset,
@@ -111,7 +120,36 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--model-output", type=Path, default=Path("checkpoints/mission2/m2_cnn.pt"))
     parser.add_argument("--resume", action="store_true", help="continue from --model-output instead of a fresh model")
-    return parser.parse_args()
+    parser.add_argument(
+        "--packed-spectrograms", type=Path, default=None,
+        help="read spectrograms from this one packed float16 array (scripts/pack_mission2_spectrograms.py) instead "
+        "of --spectrogram-dir's per-utterance files; --index must then be the packed index it wrote",
+    )
+    parser.add_argument(
+        "--amp", action="store_true",
+        help="mixed precision on cuda (float16 autocast + gradient scaling) -- several times faster on a T4",
+    )
+    parser.add_argument(
+        "--pad-to-multiple", type=int, default=1,
+        help="round each batch's padded length up to a multiple of this (see collate_batch); 1 = exact batch max",
+    )
+    parser.add_argument(
+        "--cudnn-benchmark", action="store_true",
+        help="let cudnn time and cache the fastest conv kernel per input shape (pair with --pad-to-multiple)",
+    )
+    parser.add_argument(
+        "--early-stop-patience", type=int, default=None,
+        help="stop once this many epochs in a row (counted across --resume runs) have not beaten the best "
+        "val_acc; a --resume run that finds the checkpoint already stopped trains nothing and leaves it as is",
+    )
+    args = parser.parse_args()
+    if args.model == "large-duration" and (args.packed_spectrograms is not None or args.pad_to_multiple > 1):
+        parser.error("--packed-spectrograms / --pad-to-multiple support --model small/large only")
+    if args.amp and args.device != "cuda":
+        parser.error("--amp needs --device cuda")
+    if args.pad_to_multiple < 1:
+        parser.error("--pad-to-multiple must be >= 1")
+    return args
 
 
 def _capture_rng_state(train_shuffle_generator: torch.Generator) -> dict:
@@ -144,6 +182,8 @@ def main() -> int:
     train_shuffle_generator.manual_seed(torch_seed)
     print(f"torch_seed={torch_seed} (model init + train shuffle order); split seed={args.seed}")
 
+    torch.backends.cudnn.benchmark = args.cudnn_benchmark
+
     df = pd.read_parquet(args.index)
     # Refuse anything that isn't stamped as built from Training: the official Validation folder must
     # never reach the loss/backprop, even by pointing --index at the wrong cache.
@@ -154,22 +194,29 @@ def main() -> int:
     val_df = df.iloc[val_idx]
     print(f"train={len(train_df)} val={len(val_df)} train_calls={train_df['call_id'].nunique()} val_calls={val_df['call_id'].nunique()}")
 
-    dataset_cls = DATASET_CLASSES[args.model]
+    if args.packed_spectrograms is not None:
+        def make_dataset(part: pd.DataFrame) -> torch.utils.data.Dataset:
+            return PackedSpectrogramDataset(part, args.packed_spectrograms)
+    else:
+        def make_dataset(part: pd.DataFrame) -> torch.utils.data.Dataset:
+            return DATASET_CLASSES[args.model](part, args.spectrogram_dir)
     collate_fn = COLLATE_FNS[args.model]
+    if args.pad_to_multiple > 1:
+        collate_fn = functools.partial(collate_batch, pad_to_multiple=args.pad_to_multiple)
+    loader_options = {
+        "batch_size": args.batch_size, "collate_fn": collate_fn, "num_workers": args.num_workers,
+        "pin_memory": args.device == "cuda", "persistent_workers": args.num_workers > 0,
+    }
     train_loader = torch.utils.data.DataLoader(
-        dataset_cls(train_df, args.spectrogram_dir),
-        batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn, num_workers=args.num_workers,
-        generator=train_shuffle_generator,
+        make_dataset(train_df), shuffle=True, generator=train_shuffle_generator, **loader_options
     )
-    val_loader = torch.utils.data.DataLoader(
-        dataset_cls(val_df, args.spectrogram_dir),
-        batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, num_workers=args.num_workers,
-    )
+    val_loader = torch.utils.data.DataLoader(make_dataset(val_df), shuffle=False, **loader_options)
 
     model_cls = MODEL_CLASSES[args.model]
     model = model_cls()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=args.lr_patience)
+    scaler = torch.amp.GradScaler("cuda") if args.amp else None
 
     # What this run will stamp on the checkpoint it saves. Built up front because --resume must first prove that
     # the file it continues from was trained with exactly this (see require_resumable_checkpoint): otherwise
@@ -202,6 +249,8 @@ def main() -> int:
         prev_best_model_state = checkpoint["best_model_state_dict"]
         prev_best_epoch = checkpoint["best_epoch"]
         epochs_already_trained = checkpoint["total_epochs_trained"]
+        if scaler is not None and checkpoint.get("scaler_state_dict") is not None:
+            scaler.load_state_dict(checkpoint["scaler_state_dict"])
         # Continue the random sequence (shuffle order, dropout) instead of restarting it from torch_seed, which
         # would replay the first run's data order in every resumed chunk.
         if "rng_state" in checkpoint:
@@ -217,19 +266,45 @@ def main() -> int:
             f"Resumed from {args.model_output}: {epochs_already_trained} epochs already trained, "
             f"standing best val_acc={prev_best_val_acc:.4f} (epoch {prev_best_epoch})"
         )
+        if args.early_stop_patience is not None and epochs_already_trained - prev_best_epoch >= args.early_stop_patience:
+            print(
+                f"EARLY STOPPED: no val_acc improvement for {epochs_already_trained - prev_best_epoch} epochs "
+                f"(patience {args.early_stop_patience}) -- not training, {args.model_output} left unchanged"
+            )
+            return 0
+
+    epoch_start = time.time()
 
     def on_epoch_end(record: dict) -> None:
+        nonlocal epoch_start
         lr = optimizer.param_groups[0]["lr"]
         absolute_epoch = epochs_already_trained + record["epoch"]
-        print(f"epoch {absolute_epoch:3d}  train_loss={record['train_loss']:.4f}  val_acc={record['val_acc']:.4f}  lr={lr:.2e}")
+        print(
+            f"epoch {absolute_epoch:3d}  train_loss={record['train_loss']:.4f}  val_acc={record['val_acc']:.4f}  "
+            f"lr={lr:.2e}  time={time.time() - epoch_start:.0f}s"
+        )
+        epoch_start = time.time()
+
+    # Early stopping counts from the best epoch over every run so far, this one included.
+    running_best = {"val_acc": prev_best_val_acc, "epoch": prev_best_epoch}
+
+    def should_stop(record: dict) -> bool:
+        absolute_epoch = epochs_already_trained + record["epoch"]
+        if record["val_acc"] > running_best["val_acc"]:
+            running_best.update(val_acc=record["val_acc"], epoch=absolute_epoch)
+        if args.early_stop_patience is None or absolute_epoch - running_best["epoch"] < args.early_stop_patience:
+            return False
+        print(f"EARLY STOPPED after epoch {absolute_epoch}: best val_acc is still epoch {running_best['epoch']}")
+        return True
 
     start = time.time()
     result = train_with_best_checkpoint(
         model, train_loader, val_loader, optimizer,
         epochs=args.epochs, device=args.device, scheduler=scheduler, on_epoch_end=on_epoch_end,
+        scaler=scaler, should_stop=should_stop,
     )
     elapsed = time.time() - start
-    total_epochs_trained = epochs_already_trained + args.epochs
+    total_epochs_trained = epochs_already_trained + len(result["history"])
 
     improved = result["best_val_acc"] > prev_best_val_acc
     if improved:
@@ -254,6 +329,13 @@ def main() -> int:
             "scheduler_state_dict": scheduler.state_dict(),
             "total_epochs_trained": total_epochs_trained,
             "rng_state": _capture_rng_state(train_shuffle_generator),
+            "scaler_state_dict": scaler.state_dict() if scaler is not None else None,
+            # How this run trained (speed settings, not what the model is) -- a record only, never checked.
+            "training_options": {
+                "amp": args.amp, "pad_to_multiple": args.pad_to_multiple, "batch_size": args.batch_size,
+                "lr": args.lr, "lr_patience": args.lr_patience, "early_stop_patience": args.early_stop_patience,
+                "packed_spectrograms": args.packed_spectrograms is not None,
+            },
             # What this checkpoint was trained with -- scripts/mission2_inference.py refuses to run it if
             # that differs from how it would run it (see dcc_data.mission2_checkpoint).
             "metadata": checkpoint_metadata,
@@ -266,7 +348,7 @@ def main() -> int:
         print("(this run did not beat the standing best -- checkpoint's best/resume state both updated, recall/confusion matrix below are the standing best's)")
         eval_model = model_cls()
         eval_model.load_state_dict(best_model_state)
-        _, best_preds, best_labels = evaluate(eval_model, val_loader, device=args.device)
+        _, best_preds, best_labels = evaluate(eval_model, val_loader, device=args.device, amp=args.amp)
     recall_0 = recall_score(best_labels, best_preds, pos_label=0)
     recall_1 = recall_score(best_labels, best_preds, pos_label=1)
     print(f"Recall 대원(0)={recall_0:.4f} 신고자(1)={recall_1:.4f}")

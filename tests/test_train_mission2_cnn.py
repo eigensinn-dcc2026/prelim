@@ -421,3 +421,169 @@ def test_resume_from_a_checkpoint_without_saved_random_state_does_not_replay_the
     assert len(orders) == 2
     assert orders[0] != orders[1]
     assert torch.load(model_output, map_location="cpu")["total_epochs_trained"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Speed options for the full-dataset rerun: a packed float16 cache, padding to a multiple, early stopping
+#
+# None of them may change what the model learns from, beyond float16 rounding of the input (which --amp's first
+# conv does anyway) and a few extra silent frames.
+# ---------------------------------------------------------------------------
+
+
+def _round_cache_to_float16(index_path: Path, spectrogram_dir: Path) -> None:
+    for npy_path in pd.read_parquet(index_path)["npy_path"]:
+        spec = np.load(spectrogram_dir / npy_path)
+        np.save(spectrogram_dir / npy_path, spec.astype(np.float16).astype(np.float32))
+
+
+def _pack(tmp_path: Path, index_path: Path, spectrogram_dir: Path) -> tuple[Path, Path]:
+    pack_spectrograms = importlib.import_module("pack_mission2_spectrograms").pack_spectrograms
+
+    packed_path = tmp_path / "packed.npy"
+    packed_index_path = tmp_path / "packed_index.parquet"
+    pack_spectrograms(pd.read_parquet(index_path), spectrogram_dir, packed_path).to_parquet(packed_index_path, index=False)
+    return packed_path, packed_index_path
+
+
+def test_the_packed_cache_holds_every_spectrogram_at_its_offset(tmp_path: Path) -> None:
+    import torch
+
+    from dcc_data.mission2_cnn import PackedSpectrogramDataset, SpectrogramDataset
+
+    index_path, spectrogram_dir = _write_cache(tmp_path, provenance=TRAINING_PROVENANCE)
+    shuffled = pd.read_parquet(index_path).sample(frac=1.0, random_state=0)  # as a parallel build may write it
+    shuffled.to_parquet(index_path, index=False)
+    packed_path, packed_index_path = _pack(tmp_path, index_path, spectrogram_dir)
+
+    packed_index = pd.read_parquet(packed_index_path)
+    expected = shuffled.sort_values(["call_id", "utt_idx"]).reset_index(drop=True)
+    assert packed_index.drop(columns="frame_offset").equals(expected)
+    from_files = SpectrogramDataset(packed_index, spectrogram_dir)
+    from_pack = PackedSpectrogramDataset(packed_index, packed_path)
+    assert len(from_pack) == len(from_files)
+    for i in range(len(from_files)):
+        spec, speaker = from_files[i]
+        packed_spec, packed_speaker = from_pack[i]
+        assert packed_speaker == speaker
+        assert packed_spec.dtype == torch.float32
+        assert torch.equal(packed_spec, spec.half().float())
+
+
+def test_packing_refuses_a_file_whose_shape_does_not_match_its_index_row(tmp_path: Path) -> None:
+    index_path, spectrogram_dir = _write_cache(tmp_path, provenance=TRAINING_PROVENANCE)
+    first = pd.read_parquet(index_path)["npy_path"].iloc[0]
+    np.save(spectrogram_dir / first, np.zeros((N_MELS, 3), dtype=np.float32))
+
+    with pytest.raises(ValueError, match="does not match its index row"):
+        _pack(tmp_path, index_path, spectrogram_dir)
+
+    assert not list(tmp_path.glob("packed*.npy"))
+
+
+def test_training_on_the_packed_cache_matches_training_on_the_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import torch
+
+    index_path, spectrogram_dir = _write_cache(tmp_path, provenance=TRAINING_PROVENANCE)
+    _round_cache_to_float16(index_path, spectrogram_dir)  # so float16 packing loses nothing here
+    packed_path, packed_index_path = _pack(tmp_path, index_path, spectrogram_dir)
+
+    from_files = tmp_path / "files" / "m2_cnn.pt"
+    _train_epochs(monkeypatch, from_files, index_path, spectrogram_dir, 2, resume=False)
+    from_pack = tmp_path / "pack" / "m2_cnn.pt"
+    monkeypatch.setattr(
+        sys, "argv",
+        [
+            "train_mission2_cnn.py", "--index", str(packed_index_path), "--packed-spectrograms", str(packed_path),
+            "--model", "small", "--epochs", "2", "--batch-size", "4", "--model-output", str(from_pack),
+            "--torch-seed", "7",
+        ],
+    )
+    assert train_mission2_cnn.main() == 0
+
+    files_checkpoint = torch.load(from_files, map_location="cpu")
+    pack_checkpoint = torch.load(from_pack, map_location="cpu")
+    assert pack_checkpoint["metadata"] == files_checkpoint["metadata"]
+    assert pack_checkpoint["training_options"]["packed_spectrograms"] is True
+    for name, tensor in files_checkpoint["last_model_state_dict"].items():
+        assert torch.equal(tensor, pack_checkpoint["last_model_state_dict"][name]), name
+
+
+def test_pad_to_multiple_rounds_the_batch_length_up_with_silence() -> None:
+    import torch
+
+    from dcc_data.mission2_cnn import collate_batch
+    from dcc_data.mission2_spectrogram import SPEC_FLOOR_DB
+
+    batch = [(torch.zeros(N_MELS, 9), 0), (torch.zeros(N_MELS, 4), 1)]
+
+    exact, _ = collate_batch(batch)
+    rounded, labels = collate_batch(batch, pad_to_multiple=8)
+
+    assert exact.shape == (2, 1, N_MELS, 9)
+    assert rounded.shape == (2, 1, N_MELS, 16)
+    assert torch.equal(rounded[..., :9], exact)
+    assert bool((rounded[..., 9:] == SPEC_FLOOR_DB).all())
+    assert labels.tolist() == [0, 1]
+    assert collate_batch([(torch.zeros(N_MELS, 16), 0)], pad_to_multiple=8)[0].shape[-1] == 16
+
+
+def test_amp_needs_cuda(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    index_path, spectrogram_dir = _write_cache(tmp_path, provenance=TRAINING_PROVENANCE)
+    monkeypatch.setattr(
+        sys, "argv",
+        ["train_mission2_cnn.py", "--index", str(index_path), "--spectrogram-dir", str(spectrogram_dir), "--amp"],
+    )
+    with pytest.raises(SystemExit):
+        train_mission2_cnn.main()
+
+
+def _flat_val_acc(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every epoch scores val_acc 0.0: a fresh run's first epoch is its best, and nothing beats an already trained one."""
+
+    import dcc_data.mission2_cnn as mission2_cnn
+
+    monkeypatch.setattr(
+        mission2_cnn, "evaluate", lambda *args, **kwargs: (0.0, np.array([0, 1]), np.array([1, 0]))
+    )
+
+
+def test_early_stopping_ends_the_run_once_val_acc_stops_improving(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import torch
+
+    index_path, spectrogram_dir = _write_cache(tmp_path, provenance=TRAINING_PROVENANCE)
+    model_output = tmp_path / "out" / "m2_cnn.pt"
+    _flat_val_acc(monkeypatch)
+    monkeypatch.setattr(
+        sys, "argv",
+        [
+            "train_mission2_cnn.py", "--index", str(index_path), "--spectrogram-dir", str(spectrogram_dir),
+            "--model", "small", "--epochs", "10", "--batch-size", "4", "--model-output", str(model_output),
+            "--early-stop-patience", "2",
+        ],
+    )
+
+    assert train_mission2_cnn.main() == 0
+
+    checkpoint = torch.load(model_output, map_location="cpu")
+    assert checkpoint["best_epoch"] == 1
+    assert checkpoint["total_epochs_trained"] == 3  # epochs 2 and 3 did not improve on epoch 1
+
+
+def test_early_stopping_counts_epochs_from_earlier_resumed_runs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import torch
+
+    index_path, spectrogram_dir = _write_cache(tmp_path, provenance=TRAINING_PROVENANCE)
+    model_output = tmp_path / "out" / "m2_cnn.pt"
+    _train_epochs(monkeypatch, model_output, index_path, spectrogram_dir, 1, resume=False)
+    _flat_val_acc(monkeypatch)  # from here on nothing beats epoch 1
+    resume_args = ("--torch-seed", "7", "--early-stop-patience", "2")
+
+    assert _resume_train(monkeypatch, model_output, index_path, spectrogram_dir, *resume_args) == 0
+    assert torch.load(model_output, map_location="cpu")["total_epochs_trained"] == 2
+    assert _resume_train(monkeypatch, model_output, index_path, spectrogram_dir, *resume_args) == 0
+    assert torch.load(model_output, map_location="cpu")["total_epochs_trained"] == 3
+
+    bytes_before = model_output.read_bytes()
+    assert _resume_train(monkeypatch, model_output, index_path, spectrogram_dir, *resume_args) == 0
+    assert model_output.read_bytes() == bytes_before  # already stopped: nothing trained, nothing rewritten
