@@ -43,17 +43,58 @@ class SpectrogramDataset(torch.utils.data.Dataset):
         return torch.from_numpy(spec), int(row["speaker"])
 
 
-def collate_batch(batch: list[tuple[torch.Tensor, int]]) -> tuple[torch.Tensor, torch.Tensor]:
+class PackedSpectrogramDataset(torch.utils.data.Dataset):
+    """SpectrogramDataset's items, read from one packed array instead of one .npy file per utterance.
+
+    ``packed_path`` is the .npy written by scripts/pack_mission2_spectrograms.py: every utterance's
+    spectrogram transposed to (n_frames, n_mels) and stacked along the frame axis, stored as float16.
+    ``index_df`` row i's spectrogram is ``packed[frame_offset : frame_offset + n_frames].T``. One memory-mapped
+    file avoids opening ~700k small files every epoch, and float16 halves it (~7 GB for the full Training set)
+    so it fits in Colab's page cache. float16 costs nothing under --amp, whose first conv rounds its input to
+    float16 anyway.
+
+    Items are returned as float32, exactly the (n_mels, n_frames) tensors SpectrogramDataset returns, so
+    collate_batch and the models are unchanged. The file is opened lazily, in whichever (worker) process
+    first reads from it.
+    """
+
+    def __init__(self, index_df: pd.DataFrame, packed_path: str | Path) -> None:
+        index_df = index_df.reset_index(drop=True)
+        self.frame_offsets = index_df["frame_offset"].to_numpy(dtype=np.int64)
+        self.n_frames = index_df["n_frames"].to_numpy(dtype=np.int64)
+        self.speakers = index_df["speaker"].to_numpy(dtype=np.int64)
+        self.packed_path = Path(packed_path)
+        self._packed: np.ndarray | None = None
+
+    def __len__(self) -> int:
+        return len(self.speakers)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
+        if self._packed is None:
+            self._packed = np.load(self.packed_path, mmap_mode="r")
+        start = self.frame_offsets[idx]
+        frames = self._packed[start : start + self.n_frames[idx]]
+        return torch.from_numpy(np.ascontiguousarray(frames.T, dtype=np.float32)), int(self.speakers[idx])
+
+
+def collate_batch(
+    batch: list[tuple[torch.Tensor, int]], pad_to_multiple: int = 1
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Pad every spectrogram in the batch to the batch's own max frame count.
 
     Padding uses SPEC_FLOOR_DB (silence under mel_spectrogram's own
     normalization), never 0.0 -- 0 dB would read as this utterance's
     *loudest* frame instead of padding.
+
+    ``pad_to_multiple`` > 1 rounds that length up to a multiple of it (at most ``pad_to_multiple - 1`` more
+    silent frames, on batches already padded to ~400 frames on average). Far fewer distinct input shapes is what
+    lets cudnn.benchmark pick and cache a fast kernel per shape; 1 keeps the exact batch max.
     """
 
     specs, labels = zip(*batch)
     n_mels = specs[0].shape[0]
     max_frames = max(spec.shape[1] for spec in specs)
+    max_frames = -(-max_frames // pad_to_multiple) * pad_to_multiple
 
     padded = torch.full((len(specs), 1, n_mels, max_frames), SPEC_FLOOR_DB, dtype=torch.float32)
     for i, spec in enumerate(specs):
@@ -255,29 +296,46 @@ def move_optimizer_state_to_device(optimizer: torch.optim.Optimizer, device: str
                 state[key] = value.to(device)
 
 
-def train_one_epoch(model: nn.Module, loader, optimizer, device: str) -> float:
+def _autocast(device: str, amp: bool):
+    """float16 autocast on cuda when ``amp``; a no-op context otherwise (also on cpu, where it is never used)."""
+
+    return torch.autocast(device_type="cuda", dtype=torch.float16, enabled=amp and device == "cuda")
+
+
+def train_one_epoch(model: nn.Module, loader, optimizer, device: str, scaler=None) -> float:
     """``loader`` yields ``(*model_inputs, labels)`` tuples -- ``(specs,
     labels)`` for SpeakerCNN/SpeakerCNNLarge, or ``(specs, duration,
     labels)`` for SpeakerCNNLargeWithDuration -- and ``model(*model_inputs)``
     is called accordingly, so this one loop drives either.
+
+    ``scaler`` (a torch.amp.GradScaler) turns on mixed precision: the forward pass runs under float16 autocast
+    and the loss is scaled so small float16 gradients don't round to zero. None keeps plain float32.
     """
 
     model.to(device)
     model.train()
     criterion = nn.CrossEntropyLoss()
-    total_loss = 0.0
+    amp = scaler is not None
+    # Summed on the device: a .item() per batch would make the CPU wait for the GPU every step.
+    total_loss = torch.zeros((), dtype=torch.float64, device=device)
     n = 0
     for *inputs, labels in loader:
-        inputs = [t.to(device) for t in inputs]
-        labels = labels.to(device)
+        inputs = [t.to(device, non_blocking=True) for t in inputs]
+        labels = labels.to(device, non_blocking=True)
         optimizer.zero_grad()
-        logits = model(*inputs)
-        loss = criterion(logits, labels)
-        loss.backward()
-        optimizer.step()
-        total_loss += loss.item() * len(labels)
+        with _autocast(device, amp):
+            logits = model(*inputs)
+            loss = criterion(logits, labels)
+        if amp:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            optimizer.step()
+        total_loss += loss.detach().double() * len(labels)
         n += len(labels)
-    return total_loss / n
+    return total_loss.item() / n
 
 
 def predicted_classes(logits: torch.Tensor) -> torch.Tensor:
@@ -292,16 +350,18 @@ def predicted_classes(logits: torch.Tensor) -> torch.Tensor:
 
 
 @torch.no_grad()
-def evaluate(model: nn.Module, loader, device: str) -> tuple[float, np.ndarray, np.ndarray]:
-    """See train_one_epoch()'s docstring for ``loader``'s tuple shape."""
+def evaluate(model: nn.Module, loader, device: str, amp: bool = False) -> tuple[float, np.ndarray, np.ndarray]:
+    """See train_one_epoch()'s docstring for ``loader``'s tuple shape. ``amp`` runs the forward pass under
+    float16 autocast (cuda only), the same as training with a GradScaler does."""
 
     model.to(device)
     model.eval()
     all_preds = []
     all_labels = []
     for *inputs, labels in loader:
-        inputs = [t.to(device) for t in inputs]
-        logits = model(*inputs)
+        inputs = [t.to(device, non_blocking=True) for t in inputs]
+        with _autocast(device, amp):
+            logits = model(*inputs).float()
         all_preds.append(predicted_classes(logits).cpu().numpy())
         all_labels.append(labels.numpy())
     preds = np.concatenate(all_preds)
@@ -347,6 +407,8 @@ def train_with_best_checkpoint(
     device: str,
     scheduler=None,
     on_epoch_end=None,
+    scaler=None,
+    should_stop=None,
 ) -> dict:
     """Train for ``epochs`` epochs, tracking whichever epoch had the best
     val accuracy -- not just the last one.
@@ -366,6 +428,11 @@ def train_with_best_checkpoint(
     wants to print live progress -- this function stays pure/side-effect
     free otherwise, for testability).
 
+    ``scaler`` (a torch.amp.GradScaler) trains and evaluates in mixed precision (see train_one_epoch).
+    ``should_stop``, if given, is called after each epoch (after on_epoch_end) with that epoch's history dict;
+    returning True ends training there, before ``epochs`` -- for early stopping, which needs to know about
+    epochs from earlier resumed runs that this function never sees.
+
     Returns a dict: best_val_acc, best_val_preds, best_val_labels,
     best_epoch, best_model_state (state_dict, CPU tensors), history (list
     of {epoch, train_loss, val_acc}).
@@ -379,8 +446,8 @@ def train_with_best_checkpoint(
     history: list[dict] = []
 
     for epoch in range(1, epochs + 1):
-        train_loss = train_one_epoch(model, train_loader, optimizer, device=device)
-        val_acc, val_preds, val_labels = evaluate(model, val_loader, device=device)
+        train_loss = train_one_epoch(model, train_loader, optimizer, device=device, scaler=scaler)
+        val_acc, val_preds, val_labels = evaluate(model, val_loader, device=device, amp=scaler is not None)
         epoch_record = {"epoch": epoch, "train_loss": train_loss, "val_acc": val_acc}
         history.append(epoch_record)
 
@@ -395,6 +462,9 @@ def train_with_best_checkpoint(
             best_val_labels = val_labels
             best_epoch = epoch
             best_model_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+
+        if should_stop is not None and should_stop(epoch_record):
+            break
 
     return {
         "best_val_acc": best_val_acc,
