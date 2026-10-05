@@ -347,3 +347,77 @@ def test_resume_refuses_a_packed_ensemble_file(monkeypatch: pytest.MonkeyPatch, 
 
     with pytest.raises(CheckpointConfigError, match="packed ensemble"):
         _resume_train(monkeypatch, model_output, index_path, spectrogram_dir)
+
+
+# ---------------------------------------------------------------------------
+# --resume must continue the random sequence, not restart it
+#
+# Every run used to seed the shuffle generator (and dropout) with torch_seed alone, so a run split into
+# chunks replayed the first chunk's data order in every chunk -- and with 1-epoch chunks every epoch would
+# see the batches in the same order. A resumed run must pick up where the previous one left off.
+# ---------------------------------------------------------------------------
+
+
+def _train_epochs(
+    monkeypatch: pytest.MonkeyPatch, model_output: Path, index_path: Path, spectrogram_dir: Path, epochs: int,
+    *, resume: bool,
+) -> None:
+    argv = [
+        "train_mission2_cnn.py", "--index", str(index_path), "--spectrogram-dir", str(spectrogram_dir),
+        "--model", "small", "--epochs", str(epochs), "--batch-size", "4", "--model-output", str(model_output),
+        "--torch-seed", "7",
+    ]
+    if resume:
+        argv.append("--resume")
+    monkeypatch.setattr(sys, "argv", argv)
+    assert train_mission2_cnn.main() == 0
+
+
+def test_two_one_epoch_chunks_train_exactly_like_one_two_epoch_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import torch
+
+    index_path, spectrogram_dir = _write_cache(tmp_path, provenance=TRAINING_PROVENANCE)
+
+    straight = tmp_path / "straight" / "m2_cnn.pt"
+    _train_epochs(monkeypatch, straight, index_path, spectrogram_dir, 2, resume=False)
+
+    chunked = tmp_path / "chunked" / "m2_cnn.pt"
+    _train_epochs(monkeypatch, chunked, index_path, spectrogram_dir, 1, resume=False)
+    _train_epochs(monkeypatch, chunked, index_path, spectrogram_dir, 1, resume=True)
+
+    straight_state = torch.load(straight, map_location="cpu")["last_model_state_dict"]
+    chunked_state = torch.load(chunked, map_location="cpu")["last_model_state_dict"]
+    assert straight_state.keys() == chunked_state.keys()
+    for name in straight_state:
+        assert torch.equal(straight_state[name], chunked_state[name]), f"{name} differs: the resumed run did not continue the random sequence"
+
+
+def test_resume_from_a_checkpoint_without_saved_random_state_does_not_replay_the_first_order(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The ts1/ts2/ts3 checkpoints predate saving the random state: resuming them must still work, and must not
+    simply replay epoch 1's shuffle order (it reseeds with torch_seed + epochs already trained instead)."""
+
+    import torch
+
+    index_path, spectrogram_dir = _write_cache(tmp_path, provenance=TRAINING_PROVENANCE)
+    model_output = tmp_path / "out" / "m2_cnn.pt"
+    _train_epochs(monkeypatch, model_output, index_path, spectrogram_dir, 1, resume=False)
+    _rewrite_checkpoint(model_output, lambda checkpoint: checkpoint.pop("rng_state", None))
+
+    orders: list[list[int]] = []
+    original_iter = torch.utils.data.RandomSampler.__iter__
+
+    def recording_iter(sampler):
+        order = list(original_iter(sampler))
+        orders.append(order)
+        return iter(order)
+
+    monkeypatch.setattr(torch.utils.data.RandomSampler, "__iter__", recording_iter)
+    fresh = tmp_path / "fresh" / "m2_cnn.pt"
+    _train_epochs(monkeypatch, fresh, index_path, spectrogram_dir, 1, resume=False)  # records epoch 1's order
+    _train_epochs(monkeypatch, model_output, index_path, spectrogram_dir, 1, resume=True)  # records the resumed order
+
+    assert len(orders) == 2
+    assert orders[0] != orders[1]
+    assert torch.load(model_output, map_location="cpu")["total_epochs_trained"] == 2

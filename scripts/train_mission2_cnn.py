@@ -114,6 +114,23 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _capture_rng_state(train_shuffle_generator: torch.Generator) -> dict:
+    return {
+        "python": random.getstate(),
+        "torch": torch.get_rng_state(),
+        "cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else [],
+        "train_shuffle": train_shuffle_generator.get_state(),
+    }
+
+
+def _restore_rng_state(state: dict, train_shuffle_generator: torch.Generator) -> None:
+    random.setstate(state["python"])
+    torch.set_rng_state(state["torch"])
+    if state["cuda"] and torch.cuda.is_available():
+        torch.cuda.set_rng_state_all(state["cuda"])
+    train_shuffle_generator.set_state(state["train_shuffle"])
+
+
 def main() -> int:
     args = parse_args()
     if args.device == "cuda" and not torch.cuda.is_available():
@@ -185,6 +202,17 @@ def main() -> int:
         prev_best_model_state = checkpoint["best_model_state_dict"]
         prev_best_epoch = checkpoint["best_epoch"]
         epochs_already_trained = checkpoint["total_epochs_trained"]
+        # Continue the random sequence (shuffle order, dropout) instead of restarting it from torch_seed, which
+        # would replay the first run's data order in every resumed chunk.
+        if "rng_state" in checkpoint:
+            _restore_rng_state(checkpoint["rng_state"], train_shuffle_generator)
+        else:  # saved before the random state was recorded: at least don't replay epoch 1's order
+            resumed_seed = torch_seed + epochs_already_trained
+            random.seed(resumed_seed)
+            torch.manual_seed(resumed_seed)
+            torch.cuda.manual_seed_all(resumed_seed)
+            train_shuffle_generator.manual_seed(resumed_seed)
+            print(f"NOTE: {args.model_output} has no saved random state -- reseeding with {resumed_seed}")
         print(
             f"Resumed from {args.model_output}: {epochs_already_trained} epochs already trained, "
             f"standing best val_acc={prev_best_val_acc:.4f} (epoch {prev_best_epoch})"
@@ -225,6 +253,7 @@ def main() -> int:
             "optimizer_state_dict": optimizer.state_dict(),
             "scheduler_state_dict": scheduler.state_dict(),
             "total_epochs_trained": total_epochs_trained,
+            "rng_state": _capture_rng_state(train_shuffle_generator),
             # What this checkpoint was trained with -- scripts/mission2_inference.py refuses to run it if
             # that differs from how it would run it (see dcc_data.mission2_checkpoint).
             "metadata": checkpoint_metadata,
