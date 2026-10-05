@@ -100,7 +100,12 @@ from pathlib import Path
 import pandas as pd
 
 from dcc_data.eda_deep import build_deep_summary, extract_call_record, load_deep_rows
-from dcc_data.eda_deep_report import FIGURE_NAMES, build_deep_section, render_deep_figures
+from dcc_data.eda_deep_report import (
+    FIGURE_NAMES,
+    build_deep_recommendations,
+    build_deep_section,
+    render_deep_figures,
+)
 from dcc_data.manifest import ManifestRow
 from dcc_data.mission3 import SYMPTOM_CLASSES
 
@@ -222,3 +227,14 @@ def test_build_deep_summary_fails_loudly_without_records() -> None:
 
     with pytest.raises(ValueError, match="no call JSON could be read"):
         build_deep_summary([], {"read_failures": {"FileNotFoundError": 3}}, pd.DataFrame(), {})
+
+
+def test_report_recommendations_follow_the_deep_summary(tmp_path: Path) -> None:
+    _, records, detail, waveform, full_summary = _build_synthetic(tmp_path)
+    summary = build_deep_summary(records, detail, waveform, full_summary)
+
+    recommendations = build_deep_recommendations(summary)
+    assert [line[:2] for line in recommendations] == ["1.", "2.", "3.", "4.", "5."]
+    joined = "\n".join(recommendations)
+    assert "M1" in joined and "M2" in joined and "M3" in joined
+    assert "Training 24" in joined and "Validation 12" in joined  # sample sizes come from the data

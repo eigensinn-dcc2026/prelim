@@ -448,3 +448,83 @@ def build_deep_section(deep: Mapping[str, Any], number: int) -> list[str]:
     )
     lines.append("")
     return lines
+
+
+def build_deep_recommendations(deep: Mapping[str, Any]) -> list[str]:
+    """Return numbered recommendation lines grounded in the deep-dive numbers."""
+
+    acoustic = deep["acoustic_sample"]
+    gender_deltas = [
+        deep["gender"][key]["cliffs_delta_left_minus_right"] for key in GENDER_LABELS
+    ]
+    gender_deltas += [
+        block["cliffs_delta_left_minus_right"]
+        for block in acoustic["caller_gender"].values()
+    ]
+    peak_gender = max(abs(value) for value in gender_deltas)
+    if peak_gender < 0.147:
+        m1 = (
+            f"M1은 통화 길이·발화량·음량·ZCR·spectral centroid의 성별 효과가 모두 무시할 수준"
+            f"(최대 |δ| {peak_gender:.3f})이라 길이 기반 shortcut(본질적인 신호 대신 우연한 쉬운 단서를 "
+            "학습하는 현상) 위험은 낮다고 봅니다. 오류 분석은 통화 길이·신고자 발화 시간 구간별 정확도를 "
+            "확인하는 수준으로 두고, 개선 실험은 MFCC 등 세부 스펙트럼 특징을 우선 시도합니다."
+        )
+    else:
+        m1 = (
+            f"M1은 성별 효과가 작지 않은 변수가 있어(최대 |δ| {peak_gender:.3f}) 성별별 발화량·음향 특징을 "
+            "함께 통제해 길이 기반 shortcut(본질적인 신호 대신 우연한 쉬운 단서를 학습하는 현상) 여부를 점검합니다."
+        )
+
+    overlap = deep["overlap"]["Training"]
+    ratio = overlap["overlap_time_ratio_per_call"]
+    buckets = deep["speaker_utterances"]["Training"]["duration_bucket_pct"]
+    short_half = max(b["lt_0_5s"] for b in buckets.values())
+    short_one = max(b["lt_1s"] for b in buckets.values())
+    feature_delta = {
+        feature: acoustic["by_split"]["Training"][feature]["cliffs_delta_left_minus_right"]
+        for feature in ACOUSTIC_FEATURES
+    }
+    top = max(feature_delta, key=lambda name: abs(feature_delta[name]))
+    m2 = (
+        f"M2는 겹침 유무(통화의 {100 * overlap['calls_with_overlap'] / (overlap['n_calls'] or 1):.0f}%에 해당)가 아니라 "
+        f"통화당 겹침시간 비율 상위 구간(p90 {100 * _num(ratio, 'p90'):.1f}% 이상), "
+        f"0.5초 미만 발화(최대 {short_half:.1f}%)와 1초 미만 발화(최대 {short_one:.1f}%), "
+        "단일 화자 비중이 큰 통화를 고정 오류 슬라이스(특정 조건으로 나눈 오류 분석 구간)로 둡니다. "
+        f"또한 {FEATURE_LABELS[top]}의 화자 효과가 {_effect_label(feature_delta[top])}"
+        f"(δ {feature_delta[top]:+.3f})이므로 해당 특징을 뺀 ablation(특징 제거 비교)으로 모델이 "
+        "녹음 채널 차이에 의존하는지 점검합니다."
+    )
+
+    symptoms = deep["symptoms"]["Combined"]
+    multi = sum(
+        value["pct"]
+        for key, value in symptoms["cardinality_distribution"].items()
+        if int(key) >= 2
+    )
+    pairs = sorted(symptoms["pairwise"].values(), key=lambda item: item["lift"])
+    m3 = (
+        f"M3는 2개 이상 레이블 통화가 {multi:.1f}%이므로 희소 레이블과 공출현 조합을 보존하는 "
+        "multilabel stratification(여러 레이블 조합의 비율을 유지하는 분할 방식)을 유지합니다. "
+        f"공출현이 두드러진 {pairs[-1]['left']}·{pairs[-1]['right']}(Lift {pairs[-1]['lift']:.2f}) 쌍은 "
+        "오류 분석에서 함께 틀리는지 확인하고, 거의 함께 나오지 않는 "
+        f"{pairs[0]['left']}·{pairs[0]['right']}(Lift {pairs[0]['lift']:.2f}) 쌍은 "
+        "상호배타 후처리가 이득인지 Training 교차검증으로 검토합니다(Validation은 반복 조정에 쓰지 않음)."
+    )
+
+    max_ks = max(block["ks_statistic"] for block in deep["split_comparison"].values())
+    quality = deep["existing_quality"]
+    identifier_overlap = sum(quality["identifier_overlap_count"].values())
+    transcript_overlap = quality["exact_transcript_hash_overlap_count"]
+    split = (
+        f"Training↔Validation 분포 차이는 KS 최대 {max_ks:.3f}로 작아 Validation 점수를 Training 분포의 "
+        f"대리 지표로 해석할 수 있습니다. 식별자 중복은 {identifier_overlap}건이고 전사 해시 중복 "
+        f"{transcript_overlap}건은 원문을 노출하지 않는 별도 수동 감사 대상으로 둡니다."
+    )
+
+    selected = acoustic["sample_design"]["selected_calls"]
+    limits = (
+        "본 보고서는 기술통계이며 상관관계를 원인으로 해석하지 않습니다. 음향 효과는 층화 표본"
+        f"(Training {selected['Training']:,} · Validation {selected['Validation']:,}통화, "
+        "통화당 최대 15초) 기준이라 전수 결과로 일반화하지 않습니다."
+    )
+    return [f"{index}. {text}" for index, text in enumerate((m1, m2, m3, split, limits), start=1)]
