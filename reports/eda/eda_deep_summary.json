@@ -1,0 +1,2896 @@
+{
+  "meta": {
+    "seed": 42,
+    "n_calls": 32840,
+    "n_training": 29200,
+    "n_validation": 3640,
+    "raw_transcript_exported": false,
+    "address_exported": false,
+    "json_read_failures": {},
+    "generated_at": "2026-10-05T13:33:40.041102+00:00"
+  },
+  "split_comparison": {
+    "call_duration_s": {
+      "training": {
+        "n": 29200,
+        "min": 30.0,
+        "mean": 72.185018,
+        "std": 28.870459,
+        "p1": 31.92,
+        "p5": 37.2,
+        "p25": 50.88,
+        "p50": 65.64,
+        "p75": 86.64,
+        "p90": 112.68,
+        "p95": 131.52,
+        "p99": 163.2012,
+        "max": 180.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "validation": {
+        "n": 3640,
+        "min": 30.0,
+        "mean": 72.598286,
+        "std": 29.058742,
+        "p1": 31.56,
+        "p5": 37.08,
+        "p25": 51.24,
+        "p50": 65.76,
+        "p75": 87.24,
+        "p90": 114.252,
+        "p95": 131.886,
+        "p99": 161.166,
+        "max": 180.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "ks_statistic": 0.014609,
+      "wasserstein_distance": 0.527645,
+      "standardized_mean_difference_validation_minus_training": 0.014268
+    },
+    "utterance_count": {
+      "training": {
+        "n": 29200,
+        "min": 2.0,
+        "mean": 30.457466,
+        "std": 11.382736,
+        "p1": 12.0,
+        "p5": 16.0,
+        "p25": 22.0,
+        "p50": 29.0,
+        "p75": 36.0,
+        "p90": 46.0,
+        "p95": 52.0,
+        "p99": 65.0,
+        "max": 98.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "validation": {
+        "n": 3640,
+        "min": 3.0,
+        "mean": 30.75467,
+        "std": 11.517473,
+        "p1": 12.0,
+        "p5": 16.0,
+        "p25": 22.0,
+        "p50": 29.0,
+        "p75": 37.0,
+        "p90": 47.0,
+        "p95": 53.0,
+        "p99": 64.0,
+        "max": 95.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "ks_statistic": 0.018046,
+      "wasserstein_distance": 0.341538,
+      "standardized_mean_difference_validation_minus_training": 0.025956
+    },
+    "caller_speaking_share": {
+      "training": {
+        "n": 29200,
+        "min": 0.018443,
+        "mean": 0.467105,
+        "std": 0.107584,
+        "p1": 0.206257,
+        "p5": 0.289876,
+        "p25": 0.396044,
+        "p50": 0.468127,
+        "p75": 0.539722,
+        "p90": 0.604119,
+        "p95": 0.641991,
+        "p99": 0.710437,
+        "max": 0.885169,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "validation": {
+        "n": 3640,
+        "min": 0.025794,
+        "mean": 0.46623,
+        "std": 0.106959,
+        "p1": 0.198647,
+        "p5": 0.288936,
+        "p25": 0.397946,
+        "p50": 0.466725,
+        "p75": 0.536969,
+        "p90": 0.602591,
+        "p95": 0.643375,
+        "p99": 0.70556,
+        "max": 0.811917,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "ks_statistic": 0.012903,
+      "wasserstein_distance": 0.00165,
+      "standardized_mean_difference_validation_minus_training": -0.008152
+    }
+  },
+  "overlap": {
+    "Training": {
+      "n_calls": 29200,
+      "calls_with_overlap": 28659,
+      "calls_with_cross_speaker_overlap": 28159,
+      "pair_count_per_call": {
+        "n": 29200,
+        "min": 0.0,
+        "mean": 7.841473,
+        "std": 5.425912,
+        "p1": 0.0,
+        "p5": 1.0,
+        "p25": 4.0,
+        "p50": 7.0,
+        "p75": 11.0,
+        "p90": 15.0,
+        "p95": 18.0,
+        "p99": 25.0,
+        "max": 52.0,
+        "zero_count": 541,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "overlap_time_s_per_call": {
+        "n": 29200,
+        "min": 0.0,
+        "mean": 3.347182,
+        "std": 3.052365,
+        "p1": 0.0,
+        "p5": 0.064,
+        "p25": 1.162,
+        "p50": 2.5725,
+        "p75": 4.644,
+        "p90": 7.2731,
+        "p95": 9.17615,
+        "p99": 14.05304,
+        "max": 37.453,
+        "zero_count": 541,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "overlap_time_ratio_per_call": {
+        "n": 29200,
+        "min": 0.0,
+        "mean": 0.047208,
+        "std": 0.039834,
+        "p1": 0.0,
+        "p5": 0.001148,
+        "p25": 0.01784,
+        "p50": 0.038223,
+        "p75": 0.06628,
+        "p90": 0.099591,
+        "p95": 0.124065,
+        "p99": 0.181256,
+        "max": 0.363835,
+        "zero_count": 541,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "cross_overlap_ratio_per_call": {
+        "n": 29200,
+        "min": 0.0,
+        "mean": 0.04607,
+        "std": 0.039355,
+        "p1": 0.0,
+        "p5": 0.000537,
+        "p25": 0.017111,
+        "p50": 0.037114,
+        "p75": 0.064805,
+        "p90": 0.098067,
+        "p95": 0.122195,
+        "p99": 0.177655,
+        "max": 0.363835,
+        "zero_count": 1041,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "cross_share_eligible_calls": 28659,
+      "cross_share_of_overlap_per_call": {
+        "n": 28659,
+        "min": 0.0,
+        "mean": 0.945872,
+        "std": 0.162215,
+        "p1": 0.0,
+        "p5": 0.717608,
+        "p25": 0.973551,
+        "p50": 0.996137,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0,
+        "p99": 1.0,
+        "max": 1.0,
+        "zero_count": 500,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "pair_counts": {
+        "all": 228971,
+        "cross_speaker": 187955,
+        "same_speaker": 41016,
+        "micro_le_100ms": 93786,
+        "micro_le_100ms_rate": 0.409598
+      },
+      "range_errors": {
+        "invalid_or_reversed_intervals": 0,
+        "utterances_outside_call": 0
+      }
+    },
+    "Validation": {
+      "n_calls": 3640,
+      "calls_with_overlap": 3559,
+      "calls_with_cross_speaker_overlap": 3503,
+      "pair_count_per_call": {
+        "n": 3640,
+        "min": 0.0,
+        "mean": 7.871978,
+        "std": 5.303284,
+        "p1": 0.0,
+        "p5": 1.0,
+        "p25": 4.0,
+        "p50": 7.0,
+        "p75": 11.0,
+        "p90": 15.0,
+        "p95": 18.0,
+        "p99": 24.61,
+        "max": 39.0,
+        "zero_count": 81,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "overlap_time_s_per_call": {
+        "n": 3640,
+        "min": 0.0,
+        "mean": 3.395533,
+        "std": 3.019056,
+        "p1": 0.0,
+        "p5": 0.06795,
+        "p25": 1.21175,
+        "p50": 2.643,
+        "p75": 4.7815,
+        "p90": 7.414,
+        "p95": 9.24445,
+        "p99": 13.91414,
+        "max": 24.882,
+        "zero_count": 81,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "overlap_time_ratio_per_call": {
+        "n": 3640,
+        "min": 0.0,
+        "mean": 0.047427,
+        "std": 0.038958,
+        "p1": 0.0,
+        "p5": 0.00114,
+        "p25": 0.018625,
+        "p50": 0.038807,
+        "p75": 0.06673,
+        "p90": 0.099605,
+        "p95": 0.123324,
+        "p99": 0.17038,
+        "max": 0.294236,
+        "zero_count": 81,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "cross_overlap_ratio_per_call": {
+        "n": 3640,
+        "min": 0.0,
+        "mean": 0.046222,
+        "std": 0.038479,
+        "p1": 0.0,
+        "p5": 0.000447,
+        "p25": 0.017653,
+        "p50": 0.037785,
+        "p75": 0.065553,
+        "p90": 0.098578,
+        "p95": 0.120495,
+        "p99": 0.16887,
+        "max": 0.279633,
+        "zero_count": 137,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "cross_share_eligible_calls": 3559,
+      "cross_share_of_overlap_per_call": {
+        "n": 3559,
+        "min": 0.0,
+        "mean": 0.945905,
+        "std": 0.161335,
+        "p1": 0.0,
+        "p5": 0.713077,
+        "p25": 0.971838,
+        "p50": 0.996266,
+        "p75": 1.0,
+        "p90": 1.0,
+        "p95": 1.0,
+        "p99": 1.0,
+        "max": 1.0,
+        "zero_count": 56,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "pair_counts": {
+        "all": 28654,
+        "cross_speaker": 23459,
+        "same_speaker": 5195,
+        "micro_le_100ms": 11690,
+        "micro_le_100ms_rate": 0.407971
+      },
+      "range_errors": {
+        "invalid_or_reversed_intervals": 0,
+        "utterances_outside_call": 0
+      }
+    }
+  },
+  "gender": {
+    "call_duration_s": {
+      "left": {
+        "n": 17501,
+        "min": 30.0,
+        "mean": 73.13831,
+        "std": 28.998902,
+        "p1": 32.16,
+        "p5": 37.8,
+        "p25": 51.84,
+        "p50": 66.6,
+        "p75": 87.84,
+        "p90": 113.88,
+        "p95": 132.6,
+        "p99": 163.08,
+        "max": 180.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "right": {
+        "n": 15339,
+        "min": 30.0,
+        "mean": 71.195431,
+        "std": 28.733873,
+        "p1": 31.68,
+        "p5": 36.72,
+        "p25": 49.92,
+        "p50": 64.68,
+        "p75": 85.44,
+        "p90": 111.48,
+        "p95": 130.332,
+        "p99": 162.6744,
+        "max": 180.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "cliffs_delta_left_minus_right": 0.044287,
+      "median_difference_bootstrap_95ci": {
+        "estimate": 1.92,
+        "ci95_low": 1.2,
+        "ci95_high": 2.64,
+        "iterations": 1000,
+        "resampling_unit": "observation"
+      }
+    },
+    "caller_speaking_s": {
+      "left": {
+        "n": 17501,
+        "min": 0.872,
+        "mean": 34.691707,
+        "std": 15.445187,
+        "p1": 10.863,
+        "p5": 15.985,
+        "p25": 23.818,
+        "p50": 31.396,
+        "p75": 42.411,
+        "p90": 55.475,
+        "p95": 64.818,
+        "p99": 84.817,
+        "max": 129.168,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "right": {
+        "n": 15339,
+        "min": 0.78,
+        "mean": 32.163534,
+        "std": 14.61428,
+        "p1": 9.31104,
+        "p5": 14.6252,
+        "p25": 21.7105,
+        "p50": 28.986,
+        "p75": 39.5415,
+        "p90": 51.9844,
+        "p95": 60.7437,
+        "p99": 79.0575,
+        "max": 122.477,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "cliffs_delta_left_minus_right": 0.102812,
+      "median_difference_bootstrap_95ci": {
+        "estimate": 2.41,
+        "ci95_low": 2.038975,
+        "ci95_high": 2.755075,
+        "iterations": 1000,
+        "resampling_unit": "observation"
+      }
+    },
+    "caller_utterance_count": {
+      "left": {
+        "n": 17501,
+        "min": 1.0,
+        "mean": 16.043483,
+        "std": 6.103529,
+        "p1": 6.0,
+        "p5": 8.0,
+        "p25": 12.0,
+        "p50": 15.0,
+        "p75": 19.0,
+        "p90": 24.0,
+        "p95": 28.0,
+        "p99": 35.0,
+        "max": 56.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "right": {
+        "n": 15339,
+        "min": 2.0,
+        "mean": 15.615229,
+        "std": 6.096242,
+        "p1": 6.0,
+        "p5": 8.0,
+        "p25": 11.0,
+        "p50": 14.0,
+        "p75": 19.0,
+        "p90": 24.0,
+        "p95": 27.0,
+        "p99": 34.0,
+        "max": 60.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "count"
+      },
+      "cliffs_delta_left_minus_right": 0.046995,
+      "median_difference_bootstrap_95ci": {
+        "estimate": 1.0,
+        "ci95_low": 0.0,
+        "ci95_high": 1.0,
+        "iterations": 1000,
+        "resampling_unit": "observation"
+      }
+    },
+    "caller_speaking_share": {
+      "left": {
+        "n": 17501,
+        "min": 0.018443,
+        "mean": 0.477438,
+        "std": 0.107071,
+        "p1": 0.221472,
+        "p5": 0.301819,
+        "p25": 0.405997,
+        "p50": 0.478932,
+        "p75": 0.550129,
+        "p90": 0.613728,
+        "p95": 0.650817,
+        "p99": 0.718844,
+        "max": 0.885169,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "right": {
+        "n": 15339,
+        "min": 0.025317,
+        "mean": 0.455107,
+        "std": 0.106782,
+        "p1": 0.194235,
+        "p5": 0.278061,
+        "p25": 0.385781,
+        "p50": 0.455313,
+        "p75": 0.526607,
+        "p90": 0.590991,
+        "p95": 0.630965,
+        "p99": 0.698827,
+        "max": 0.823363,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "ratio"
+      },
+      "cliffs_delta_left_minus_right": 0.118446,
+      "median_difference_bootstrap_95ci": {
+        "estimate": 0.023619,
+        "ci95_low": 0.020822,
+        "ci95_high": 0.026712,
+        "iterations": 1000,
+        "resampling_unit": "observation"
+      }
+    }
+  },
+  "speaker_utterances": {
+    "Training": {
+      "dispatcher": {
+        "n": 427161,
+        "min": 0.01,
+        "mean": 1.823234,
+        "std": 1.412818,
+        "p1": 0.29,
+        "p5": 0.428,
+        "p25": 0.883,
+        "p50": 1.402,
+        "p75": 2.308,
+        "p90": 3.64,
+        "p95": 4.699,
+        "p99": 7.1,
+        "max": 19.802,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "caller": {
+        "n": 462197,
+        "min": 0.009,
+        "mean": 2.119039,
+        "std": 1.827055,
+        "p1": 0.3,
+        "p5": 0.43,
+        "p25": 0.809,
+        "p50": 1.49,
+        "p75": 2.826,
+        "p90": 4.661,
+        "p95": 5.9652,
+        "p99": 8.501,
+        "max": 24.172,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "cliffs_delta_caller_minus_dispatcher": 0.045718,
+      "utterance_weighted_marginal_effect": {
+        "estimand": "P(random caller utterance > random dispatcher utterance) - P(random caller utterance < random dispatcher utterance)",
+        "cliffs_delta": 0.045718
+      },
+      "within_call_median_effect": {
+        "n_calls": 29200,
+        "caller_minus_dispatcher_seconds": {
+          "n": 29200,
+          "min": -6.839,
+          "mean": 0.154176,
+          "std": 0.765151,
+          "p1": -1.632025,
+          "p5": -0.9275,
+          "p25": -0.294,
+          "p50": 0.09,
+          "p75": 0.537,
+          "p90": 1.06005,
+          "p95": 1.465,
+          "p99": 2.44051,
+          "max": 6.246,
+          "zero_count": 22,
+          "negative_count": 12806,
+          "unit": "seconds"
+        },
+        "paired_probability_difference": 0.122123
+      },
+      "duration_bucket_pct": {
+        "dispatcher": {
+          "lt_0_5s": 7.855,
+          "lt_1s": 30.81,
+          "ge_4s": 7.911
+        },
+        "caller": {
+          "lt_0_5s": 7.997,
+          "lt_1s": 33.467,
+          "ge_4s": 14.012
+        }
+      }
+    },
+    "Validation": {
+      "dispatcher": {
+        "n": 53845,
+        "min": 0.1,
+        "mean": 1.819331,
+        "std": 1.411552,
+        "p1": 0.29,
+        "p5": 0.4242,
+        "p25": 0.88,
+        "p50": 1.399,
+        "p75": 2.306,
+        "p90": 3.638,
+        "p95": 4.673,
+        "p99": 7.07112,
+        "max": 17.152,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "caller": {
+        "n": 58102,
+        "min": 0.09,
+        "mean": 2.115164,
+        "std": 1.82943,
+        "p1": 0.29901,
+        "p5": 0.43,
+        "p25": 0.806,
+        "p50": 1.485,
+        "p75": 2.824,
+        "p90": 4.6719,
+        "p95": 5.9519,
+        "p99": 8.49199,
+        "max": 18.451,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "cliffs_delta_caller_minus_dispatcher": 0.045432,
+      "utterance_weighted_marginal_effect": {
+        "estimand": "P(random caller utterance > random dispatcher utterance) - P(random caller utterance < random dispatcher utterance)",
+        "cliffs_delta": 0.045432
+      },
+      "within_call_median_effect": {
+        "n_calls": 3640,
+        "caller_minus_dispatcher_seconds": {
+          "n": 3640,
+          "min": -7.357,
+          "mean": 0.141319,
+          "std": 0.758454,
+          "p1": -1.69699,
+          "p5": -0.892075,
+          "p25": -0.299,
+          "p50": 0.08875,
+          "p75": 0.53,
+          "p90": 1.04415,
+          "p95": 1.415,
+          "p99": 2.384575,
+          "max": 4.8615,
+          "zero_count": 2,
+          "negative_count": 1611,
+          "unit": "seconds"
+        },
+        "paired_probability_difference": 0.114286
+      },
+      "duration_bucket_pct": {
+        "dispatcher": {
+          "lt_0_5s": 7.965,
+          "lt_1s": 31.24,
+          "ge_4s": 7.867
+        },
+        "caller": {
+          "lt_0_5s": 8.029,
+          "lt_1s": 33.605,
+          "ge_4s": 14.063
+        }
+      }
+    }
+  },
+  "symptoms": {
+    "Training": {
+      "n_calls": 29200,
+      "prevalence": {
+        "고열": {
+          "count": 5186,
+          "pct": 17.76
+        },
+        "구토": {
+          "count": 4463,
+          "pct": 15.284
+        },
+        "두통": {
+          "count": 2905,
+          "pct": 9.949
+        },
+        "복통": {
+          "count": 6771,
+          "pct": 23.188
+        },
+        "어지러움": {
+          "count": 6334,
+          "pct": 21.692
+        },
+        "열상": {
+          "count": 3465,
+          "pct": 11.866
+        },
+        "오심": {
+          "count": 3341,
+          "pct": 11.442
+        },
+        "전신쇠약": {
+          "count": 5310,
+          "pct": 18.185
+        },
+        "호흡곤란": {
+          "count": 3927,
+          "pct": 13.449
+        }
+      },
+      "cardinality_distribution": {
+        "1": {
+          "count": 19560,
+          "pct": 66.986
+        },
+        "2": {
+          "count": 7137,
+          "pct": 24.442
+        },
+        "3": {
+          "count": 2161,
+          "pct": 7.401
+        },
+        "4": {
+          "count": 325,
+          "pct": 1.113
+        },
+        "5": {
+          "count": 17,
+          "pct": 0.058
+        }
+      },
+      "top_combinations": [
+        {
+          "labels": [
+            "복통"
+          ],
+          "count": 3962,
+          "pct": 13.568
+        },
+        {
+          "labels": [
+            "열상"
+          ],
+          "count": 3163,
+          "pct": 10.832
+        },
+        {
+          "labels": [
+            "전신쇠약"
+          ],
+          "count": 2713,
+          "pct": 9.291
+        },
+        {
+          "labels": [
+            "고열"
+          ],
+          "count": 2612,
+          "pct": 8.945
+        },
+        {
+          "labels": [
+            "호흡곤란"
+          ],
+          "count": 2511,
+          "pct": 8.599
+        },
+        {
+          "labels": [
+            "어지러움"
+          ],
+          "count": 2432,
+          "pct": 8.329
+        },
+        {
+          "labels": [
+            "두통"
+          ],
+          "count": 1270,
+          "pct": 4.349
+        },
+        {
+          "labels": [
+            "구토",
+            "복통"
+          ],
+          "count": 879,
+          "pct": 3.01
+        },
+        {
+          "labels": [
+            "어지러움",
+            "오심"
+          ],
+          "count": 695,
+          "pct": 2.38
+        },
+        {
+          "labels": [
+            "고열",
+            "전신쇠약"
+          ],
+          "count": 676,
+          "pct": 2.315
+        }
+      ],
+      "pairwise": {
+        "고열__구토": {
+          "left": "고열",
+          "right": "구토",
+          "count": 473,
+          "jaccard": 0.051548,
+          "conditional_right_given_left": 0.091207,
+          "lift": 0.596739,
+          "phi": -0.079599
+        },
+        "고열__두통": {
+          "left": "고열",
+          "right": "두통",
+          "count": 377,
+          "jaccard": 0.048872,
+          "conditional_right_given_left": 0.072696,
+          "lift": 0.730711,
+          "phi": -0.041595
+        },
+        "고열__복통": {
+          "left": "고열",
+          "right": "복통",
+          "count": 440,
+          "jaccard": 0.038204,
+          "conditional_right_given_left": 0.084844,
+          "lift": 0.36589,
+          "phi": -0.161909
+        },
+        "고열__어지러움": {
+          "left": "고열",
+          "right": "어지러움",
+          "count": 294,
+          "jaccard": 0.026189,
+          "conditional_right_given_left": 0.056691,
+          "lift": 0.261348,
+          "phi": -0.180662
+        },
+        "고열__열상": {
+          "left": "고열",
+          "right": "열상",
+          "count": 31,
+          "jaccard": 0.003596,
+          "conditional_right_given_left": 0.005978,
+          "lift": 0.050374,
+          "phi": -0.16193
+        },
+        "고열__오심": {
+          "left": "고열",
+          "right": "오심",
+          "count": 251,
+          "jaccard": 0.030329,
+          "conditional_right_given_left": 0.0484,
+          "lift": 0.423007,
+          "phi": -0.09638
+        },
+        "고열__전신쇠약": {
+          "left": "고열",
+          "right": "전신쇠약",
+          "count": 937,
+          "jaccard": 0.098023,
+          "conditional_right_given_left": 0.180679,
+          "lift": 0.993563,
+          "phi": -0.00141
+        },
+        "고열__호흡곤란": {
+          "left": "고열",
+          "right": "호흡곤란",
+          "count": 554,
+          "jaccard": 0.064727,
+          "conditional_right_given_left": 0.106826,
+          "lift": 0.794327,
+          "phi": -0.037676
+        },
+        "구토__두통": {
+          "left": "구토",
+          "right": "두통",
+          "count": 391,
+          "jaccard": 0.056041,
+          "conditional_right_given_left": 0.087609,
+          "lift": 0.880616,
+          "phi": -0.016855
+        },
+        "구토__복통": {
+          "left": "구토",
+          "right": "복통",
+          "count": 1431,
+          "jaccard": 0.145976,
+          "conditional_right_given_left": 0.320636,
+          "lift": 1.382747,
+          "phi": 0.089325
+        },
+        "구토__어지러움": {
+          "left": "구토",
+          "right": "어지러움",
+          "count": 1442,
+          "jaccard": 0.154142,
+          "conditional_right_given_left": 0.323101,
+          "lift": 1.489509,
+          "phi": 0.109432
+        },
+        "구토__열상": {
+          "left": "구토",
+          "right": "열상",
+          "count": 29,
+          "jaccard": 0.003671,
+          "conditional_right_given_left": 0.006498,
+          "lift": 0.054758,
+          "phi": -0.147324
+        },
+        "구토__오심": {
+          "left": "구토",
+          "right": "오심",
+          "count": 1291,
+          "jaccard": 0.198219,
+          "conditional_right_given_left": 0.289267,
+          "lift": 2.528167,
+          "phi": 0.233315
+        },
+        "구토__전신쇠약": {
+          "left": "구토",
+          "right": "전신쇠약",
+          "count": 409,
+          "jaccard": 0.043678,
+          "conditional_right_given_left": 0.091642,
+          "lift": 0.503947,
+          "phi": -0.099336
+        },
+        "구토__호흡곤란": {
+          "left": "구토",
+          "right": "호흡곤란",
+          "count": 146,
+          "jaccard": 0.01771,
+          "conditional_right_given_left": 0.032713,
+          "lift": 0.243247,
+          "phi": -0.126706
+        },
+        "두통__복통": {
+          "left": "두통",
+          "right": "복통",
+          "count": 181,
+          "jaccard": 0.019063,
+          "conditional_right_given_left": 0.062306,
+          "lift": 0.268697,
+          "phi": -0.133554
+        },
+        "두통__어지러움": {
+          "left": "두통",
+          "right": "어지러움",
+          "count": 565,
+          "jaccard": 0.065137,
+          "conditional_right_given_left": 0.194492,
+          "lift": 0.896617,
+          "phi": -0.018085
+        },
+        "두통__열상": {
+          "left": "두통",
+          "right": "열상",
+          "count": 115,
+          "jaccard": 0.018385,
+          "conditional_right_given_left": 0.039587,
+          "lift": 0.333604,
+          "phi": -0.081275
+        },
+        "두통__오심": {
+          "left": "두통",
+          "right": "오심",
+          "count": 447,
+          "jaccard": 0.077082,
+          "conditional_right_given_left": 0.153873,
+          "lift": 1.344831,
+          "phi": 0.041198
+        },
+        "두통__전신쇠약": {
+          "left": "두통",
+          "right": "전신쇠약",
+          "count": 248,
+          "jaccard": 0.031128,
+          "conditional_right_given_left": 0.08537,
+          "lift": 0.469455,
+          "phi": -0.083138
+        },
+        "두통__호흡곤란": {
+          "left": "두통",
+          "right": "호흡곤란",
+          "count": 115,
+          "jaccard": 0.017121,
+          "conditional_right_given_left": 0.039587,
+          "lift": 0.294357,
+          "phi": -0.092454
+        },
+        "복통__어지러움": {
+          "left": "복통",
+          "right": "어지러움",
+          "count": 456,
+          "jaccard": 0.03605,
+          "conditional_right_given_left": 0.067346,
+          "lift": 0.310468,
+          "phi": -0.199398
+        },
+        "복통__열상": {
+          "left": "복통",
+          "right": "열상",
+          "count": 4,
+          "jaccard": 0.000391,
+          "conditional_right_given_left": 0.000591,
+          "lift": 0.004978,
+          "phi": -0.200606
+        },
+        "복통__오심": {
+          "left": "복통",
+          "right": "오심",
+          "count": 843,
+          "jaccard": 0.090948,
+          "conditional_right_given_left": 0.124502,
+          "lift": 1.088131,
+          "phi": 0.017405
+        },
+        "복통__전신쇠약": {
+          "left": "복통",
+          "right": "전신쇠약",
+          "count": 312,
+          "jaccard": 0.02651,
+          "conditional_right_given_left": 0.046079,
+          "lift": 0.25339,
+          "phi": -0.193399
+        },
+        "복통__호흡곤란": {
+          "left": "복통",
+          "right": "호흡곤란",
+          "count": 176,
+          "jaccard": 0.016727,
+          "conditional_right_given_left": 0.025993,
+          "lift": 0.193278,
+          "phi": -0.174722
+        },
+        "어지러움__열상": {
+          "left": "어지러움",
+          "right": "열상",
+          "count": 123,
+          "jaccard": 0.012712,
+          "conditional_right_given_left": 0.019419,
+          "lift": 0.163646,
+          "phi": -0.161519
+        },
+        "어지러움__오심": {
+          "left": "어지러움",
+          "right": "오심",
+          "count": 1629,
+          "jaccard": 0.202461,
+          "conditional_right_given_left": 0.257183,
+          "lift": 2.247757,
+          "phi": 0.236051
+        },
+        "어지러움__전신쇠약": {
+          "left": "어지러움",
+          "right": "전신쇠약",
+          "count": 773,
+          "jaccard": 0.071107,
+          "conditional_right_given_left": 0.12204,
+          "lift": 0.671104,
+          "phi": -0.08161
+        },
+        "어지러움__호흡곤란": {
+          "left": "어지러움",
+          "right": "호흡곤란",
+          "count": 265,
+          "jaccard": 0.026511,
+          "conditional_right_given_left": 0.041838,
+          "lift": 0.311093,
+          "phi": -0.142925
+        },
+        "열상__오심": {
+          "left": "열상",
+          "right": "오심",
+          "count": 34,
+          "jaccard": 0.005021,
+          "conditional_right_given_left": 0.009812,
+          "lift": 0.085759,
+          "phi": -0.120582
+        },
+        "열상__전신쇠약": {
+          "left": "열상",
+          "right": "전신쇠약",
+          "count": 24,
+          "jaccard": 0.002743,
+          "conditional_right_given_left": 0.006926,
+          "lift": 0.038089,
+          "phi": -0.166404
+        },
+        "열상__호흡곤란": {
+          "left": "열상",
+          "right": "호흡곤란",
+          "count": 6,
+          "jaccard": 0.000812,
+          "conditional_right_given_left": 0.001732,
+          "lift": 0.012876,
+          "phi": -0.142779
+        },
+        "오심__전신쇠약": {
+          "left": "오심",
+          "right": "전신쇠약",
+          "count": 364,
+          "jaccard": 0.043924,
+          "conditional_right_given_left": 0.108949,
+          "lift": 0.599119,
+          "phi": -0.067934
+        },
+        "오심__호흡곤란": {
+          "left": "오심",
+          "right": "호흡곤란",
+          "count": 125,
+          "jaccard": 0.0175,
+          "conditional_right_given_left": 0.037414,
+          "lift": 0.278199,
+          "phi": -0.102271
+        },
+        "전신쇠약__호흡곤란": {
+          "left": "전신쇠약",
+          "right": "호흡곤란",
+          "count": 439,
+          "jaccard": 0.049898,
+          "conditional_right_given_left": 0.082674,
+          "lift": 0.614741,
+          "phi": -0.071597
+        }
+      }
+    },
+    "Validation": {
+      "n_calls": 3640,
+      "prevalence": {
+        "고열": {
+          "count": 678,
+          "pct": 18.626
+        },
+        "구토": {
+          "count": 537,
+          "pct": 14.753
+        },
+        "두통": {
+          "count": 374,
+          "pct": 10.275
+        },
+        "복통": {
+          "count": 838,
+          "pct": 23.022
+        },
+        "어지러움": {
+          "count": 774,
+          "pct": 21.264
+        },
+        "열상": {
+          "count": 463,
+          "pct": 12.72
+        },
+        "오심": {
+          "count": 429,
+          "pct": 11.786
+        },
+        "전신쇠약": {
+          "count": 651,
+          "pct": 17.885
+        },
+        "호흡곤란": {
+          "count": 492,
+          "pct": 13.516
+        }
+      },
+      "cardinality_distribution": {
+        "1": {
+          "count": 2419,
+          "pct": 66.456
+        },
+        "2": {
+          "count": 896,
+          "pct": 24.615
+        },
+        "3": {
+          "count": 280,
+          "pct": 7.692
+        },
+        "4": {
+          "count": 40,
+          "pct": 1.099
+        },
+        "5": {
+          "count": 5,
+          "pct": 0.137
+        }
+      },
+      "top_combinations": [
+        {
+          "labels": [
+            "복통"
+          ],
+          "count": 495,
+          "pct": 13.599
+        },
+        {
+          "labels": [
+            "열상"
+          ],
+          "count": 429,
+          "pct": 11.786
+        },
+        {
+          "labels": [
+            "고열"
+          ],
+          "count": 339,
+          "pct": 9.313
+        },
+        {
+          "labels": [
+            "호흡곤란"
+          ],
+          "count": 316,
+          "pct": 8.681
+        },
+        {
+          "labels": [
+            "전신쇠약"
+          ],
+          "count": 311,
+          "pct": 8.544
+        },
+        {
+          "labels": [
+            "어지러움"
+          ],
+          "count": 284,
+          "pct": 7.802
+        },
+        {
+          "labels": [
+            "두통"
+          ],
+          "count": 149,
+          "pct": 4.093
+        },
+        {
+          "labels": [
+            "구토",
+            "복통"
+          ],
+          "count": 92,
+          "pct": 2.527
+        },
+        {
+          "labels": [
+            "구토",
+            "어지러움"
+          ],
+          "count": 89,
+          "pct": 2.445
+        },
+        {
+          "labels": [
+            "고열",
+            "전신쇠약"
+          ],
+          "count": 86,
+          "pct": 2.363
+        }
+      ],
+      "pairwise": {
+        "고열__구토": {
+          "left": "고열",
+          "right": "구토",
+          "count": 60,
+          "jaccard": 0.051948,
+          "conditional_right_given_left": 0.088496,
+          "lift": 0.599858,
+          "phi": -0.07964
+        },
+        "고열__두통": {
+          "left": "고열",
+          "right": "두통",
+          "count": 50,
+          "jaccard": 0.0499,
+          "conditional_right_given_left": 0.073746,
+          "lift": 0.717745,
+          "phi": -0.045697
+        },
+        "고열__복통": {
+          "left": "고열",
+          "right": "복통",
+          "count": 73,
+          "jaccard": 0.050589,
+          "conditional_right_given_left": 0.10767,
+          "lift": 0.467682,
+          "phi": -0.139278
+        },
+        "고열__어지러움": {
+          "left": "고열",
+          "right": "어지러움",
+          "count": 37,
+          "jaccard": 0.026148,
+          "conditional_right_given_left": 0.054572,
+          "lift": 0.256645,
+          "phi": -0.184821
+        },
+        "고열__열상": {
+          "left": "고열",
+          "right": "열상",
+          "count": 6,
+          "jaccard": 0.005286,
+          "conditional_right_given_left": 0.00885,
+          "lift": 0.069573,
+          "phi": -0.169936
+        },
+        "고열__오심": {
+          "left": "고열",
+          "right": "오심",
+          "count": 38,
+          "jaccard": 0.035547,
+          "conditional_right_given_left": 0.056047,
+          "lift": 0.475552,
+          "phi": -0.091713
+        },
+        "고열__전신쇠약": {
+          "left": "고열",
+          "right": "전신쇠약",
+          "count": 126,
+          "jaccard": 0.104738,
+          "conditional_right_given_left": 0.185841,
+          "lift": 1.039109,
+          "phi": 0.008732
+        },
+        "고열__호흡곤란": {
+          "left": "고열",
+          "right": "호흡곤란",
+          "count": 65,
+          "jaccard": 0.058824,
+          "conditional_right_given_left": 0.09587,
+          "lift": 0.709284,
+          "phi": -0.054987
+        },
+        "구토__두통": {
+          "left": "구토",
+          "right": "두통",
+          "count": 52,
+          "jaccard": 0.060536,
+          "conditional_right_given_left": 0.096834,
+          "lift": 0.942451,
+          "phi": -0.008101
+        },
+        "구토__복통": {
+          "left": "구토",
+          "right": "복통",
+          "count": 164,
+          "jaccard": 0.135425,
+          "conditional_right_given_left": 0.3054,
+          "lift": 1.32656,
+          "phi": 0.074293
+        },
+        "구토__어지러움": {
+          "left": "구토",
+          "right": "어지러움",
+          "count": 204,
+          "jaccard": 0.184282,
+          "conditional_right_given_left": 0.379888,
+          "lift": 1.786555,
+          "phi": 0.170043
+        },
+        "구토__열상": {
+          "left": "구토",
+          "right": "열상",
+          "count": 2,
+          "jaccard": 0.002004,
+          "conditional_right_given_left": 0.003724,
+          "lift": 0.02928,
+          "phi": -0.15416
+        },
+        "구토__오심": {
+          "left": "구토",
+          "right": "오심",
+          "count": 168,
+          "jaccard": 0.210526,
+          "conditional_right_given_left": 0.312849,
+          "lift": 2.654478,
+          "phi": 0.251574
+        },
+        "구토__전신쇠약": {
+          "left": "구토",
+          "right": "전신쇠약",
+          "count": 56,
+          "jaccard": 0.04947,
+          "conditional_right_given_left": 0.104283,
+          "lift": 0.583088,
+          "phi": -0.080941
+        },
+        "구토__호흡곤란": {
+          "left": "구토",
+          "right": "호흡곤란",
+          "count": 12,
+          "jaccard": 0.011799,
+          "conditional_right_given_left": 0.022346,
+          "lift": 0.165327,
+          "phi": -0.137271
+        },
+        "두통__복통": {
+          "left": "두통",
+          "right": "복통",
+          "count": 22,
+          "jaccard": 0.018487,
+          "conditional_right_given_left": 0.058824,
+          "lift": 0.25551,
+          "phi": -0.137776
+        },
+        "두통__어지러움": {
+          "left": "두통",
+          "right": "어지러움",
+          "count": 66,
+          "jaccard": 0.060998,
+          "conditional_right_given_left": 0.176471,
+          "lift": 0.829913,
+          "phi": -0.029911
+        },
+        "두통__열상": {
+          "left": "두통",
+          "right": "열상",
+          "count": 13,
+          "jaccard": 0.015777,
+          "conditional_right_given_left": 0.034759,
+          "lift": 0.27327,
+          "phi": -0.093882
+        },
+        "두통__오심": {
+          "left": "두통",
+          "right": "오심",
+          "count": 67,
+          "jaccard": 0.091033,
+          "conditional_right_given_left": 0.179144,
+          "lift": 1.520013,
+          "phi": 0.064321
+        },
+        "두통__전신쇠약": {
+          "left": "두통",
+          "right": "전신쇠약",
+          "count": 27,
+          "jaccard": 0.027054,
+          "conditional_right_given_left": 0.072193,
+          "lift": 0.403657,
+          "phi": -0.094178
+        },
+        "두통__호흡곤란": {
+          "left": "두통",
+          "right": "호흡곤란",
+          "count": 19,
+          "jaccard": 0.022432,
+          "conditional_right_given_left": 0.050802,
+          "lift": 0.375853,
+          "phi": -0.083499
+        },
+        "복통__어지러움": {
+          "left": "복통",
+          "right": "어지러움",
+          "count": 49,
+          "jaccard": 0.03135,
+          "conditional_right_given_left": 0.058473,
+          "lift": 0.274987,
+          "phi": -0.206047
+        },
+        "복통__열상": {
+          "left": "복통",
+          "right": "열상",
+          "count": 1,
+          "jaccard": 0.000769,
+          "conditional_right_given_left": 0.001193,
+          "lift": 0.009382,
+          "phi": -0.206812
+        },
+        "복통__오심": {
+          "left": "복통",
+          "right": "오심",
+          "count": 98,
+          "jaccard": 0.083832,
+          "conditional_right_given_left": 0.116945,
+          "lift": 0.992262,
+          "phi": -0.001547
+        },
+        "복통__전신쇠약": {
+          "left": "복통",
+          "right": "전신쇠약",
+          "count": 42,
+          "jaccard": 0.029026,
+          "conditional_right_given_left": 0.050119,
+          "lift": 0.280237,
+          "phi": -0.183698
+        },
+        "복통__호흡곤란": {
+          "left": "복통",
+          "right": "호흡곤란",
+          "count": 27,
+          "jaccard": 0.020721,
+          "conditional_right_given_left": 0.03222,
+          "lift": 0.238372,
+          "phi": -0.164663
+        },
+        "어지러움__열상": {
+          "left": "어지러움",
+          "right": "열상",
+          "count": 11,
+          "jaccard": 0.008972,
+          "conditional_right_given_left": 0.014212,
+          "lift": 0.111731,
+          "phi": -0.176222
+        },
+        "어지러움__오심": {
+          "left": "어지러움",
+          "right": "오심",
+          "count": 212,
+          "jaccard": 0.213925,
+          "conditional_right_given_left": 0.273902,
+          "lift": 2.324015,
+          "phi": 0.251498
+        },
+        "어지러움__전신쇠약": {
+          "left": "어지러움",
+          "right": "전신쇠약",
+          "count": 94,
+          "jaccard": 0.070624,
+          "conditional_right_given_left": 0.121447,
+          "lift": 0.679059,
+          "phi": -0.077837
+        },
+        "어지러움__호흡곤란": {
+          "left": "어지러움",
+          "right": "호흡곤란",
+          "count": 32,
+          "jaccard": 0.025932,
+          "conditional_right_given_left": 0.041344,
+          "lift": 0.305876,
+          "phi": -0.142605
+        },
+        "열상__오심": {
+          "left": "열상",
+          "right": "오심",
+          "count": 3,
+          "jaccard": 0.003375,
+          "conditional_right_given_left": 0.006479,
+          "lift": 0.054977,
+          "phi": -0.131866
+        },
+        "열상__전신쇠약": {
+          "left": "열상",
+          "right": "전신쇠약",
+          "count": 1,
+          "jaccard": 0.000898,
+          "conditional_right_given_left": 0.00216,
+          "lift": 0.012076,
+          "phi": -0.176008
+        },
+        "열상__호흡곤란": {
+          "left": "열상",
+          "right": "호흡곤란",
+          "count": 0,
+          "jaccard": 0.0,
+          "conditional_right_given_left": 0.0,
+          "lift": 0.0,
+          "phi": -0.15092
+        },
+        "오심__전신쇠약": {
+          "left": "오심",
+          "right": "전신쇠약",
+          "count": 51,
+          "jaccard": 0.049563,
+          "conditional_right_given_left": 0.118881,
+          "lift": 0.664712,
+          "phi": -0.057195
+        },
+        "오심__호흡곤란": {
+          "left": "오심",
+          "right": "호흡곤란",
+          "count": 15,
+          "jaccard": 0.016556,
+          "conditional_right_given_left": 0.034965,
+          "lift": 0.258684,
+          "phi": -0.107122
+        },
+        "전신쇠약__호흡곤란": {
+          "left": "전신쇠약",
+          "right": "호흡곤란",
+          "count": 63,
+          "jaccard": 0.058333,
+          "conditional_right_given_left": 0.096774,
+          "lift": 0.715972,
+          "phi": -0.052403
+        }
+      }
+    },
+    "Combined": {
+      "n_calls": 32840,
+      "prevalence": {
+        "고열": {
+          "count": 5864,
+          "pct": 17.856
+        },
+        "구토": {
+          "count": 5000,
+          "pct": 15.225
+        },
+        "두통": {
+          "count": 3279,
+          "pct": 9.985
+        },
+        "복통": {
+          "count": 7609,
+          "pct": 23.17
+        },
+        "어지러움": {
+          "count": 7108,
+          "pct": 21.644
+        },
+        "열상": {
+          "count": 3928,
+          "pct": 11.961
+        },
+        "오심": {
+          "count": 3770,
+          "pct": 11.48
+        },
+        "전신쇠약": {
+          "count": 5961,
+          "pct": 18.152
+        },
+        "호흡곤란": {
+          "count": 4419,
+          "pct": 13.456
+        }
+      },
+      "cardinality_distribution": {
+        "1": {
+          "count": 21979,
+          "pct": 66.928
+        },
+        "2": {
+          "count": 8033,
+          "pct": 24.461
+        },
+        "3": {
+          "count": 2441,
+          "pct": 7.433
+        },
+        "4": {
+          "count": 365,
+          "pct": 1.111
+        },
+        "5": {
+          "count": 22,
+          "pct": 0.067
+        }
+      },
+      "top_combinations": [
+        {
+          "labels": [
+            "복통"
+          ],
+          "count": 4457,
+          "pct": 13.572
+        },
+        {
+          "labels": [
+            "열상"
+          ],
+          "count": 3592,
+          "pct": 10.938
+        },
+        {
+          "labels": [
+            "전신쇠약"
+          ],
+          "count": 3024,
+          "pct": 9.208
+        },
+        {
+          "labels": [
+            "고열"
+          ],
+          "count": 2951,
+          "pct": 8.986
+        },
+        {
+          "labels": [
+            "호흡곤란"
+          ],
+          "count": 2827,
+          "pct": 8.608
+        },
+        {
+          "labels": [
+            "어지러움"
+          ],
+          "count": 2716,
+          "pct": 8.27
+        },
+        {
+          "labels": [
+            "두통"
+          ],
+          "count": 1419,
+          "pct": 4.321
+        },
+        {
+          "labels": [
+            "구토",
+            "복통"
+          ],
+          "count": 971,
+          "pct": 2.957
+        },
+        {
+          "labels": [
+            "어지러움",
+            "오심"
+          ],
+          "count": 779,
+          "pct": 2.372
+        },
+        {
+          "labels": [
+            "고열",
+            "전신쇠약"
+          ],
+          "count": 762,
+          "pct": 2.32
+        }
+      ],
+      "pairwise": {
+        "고열__구토": {
+          "left": "고열",
+          "right": "구토",
+          "count": 533,
+          "jaccard": 0.051592,
+          "conditional_right_given_left": 0.090894,
+          "lift": 0.596989,
+          "phi": -0.07963
+        },
+        "고열__두통": {
+          "left": "고열",
+          "right": "두통",
+          "count": 427,
+          "jaccard": 0.04899,
+          "conditional_right_given_left": 0.072817,
+          "lift": 0.729282,
+          "phi": -0.042037
+        },
+        "고열__복통": {
+          "left": "고열",
+          "right": "복통",
+          "count": 513,
+          "jaccard": 0.039583,
+          "conditional_right_given_left": 0.087483,
+          "lift": 0.377571,
+          "phi": -0.159366
+        },
+        "고열__어지러움": {
+          "left": "고열",
+          "right": "어지러움",
+          "count": 331,
+          "jaccard": 0.026185,
+          "conditional_right_given_left": 0.056446,
+          "lift": 0.260789,
+          "phi": -0.18114
+        },
+        "고열__열상": {
+          "left": "고열",
+          "right": "열상",
+          "count": 37,
+          "jaccard": 0.003793,
+          "conditional_right_given_left": 0.00631,
+          "lift": 0.052752,
+          "phi": -0.162787
+        },
+        "고열__오심": {
+          "left": "고열",
+          "right": "오심",
+          "count": 289,
+          "jaccard": 0.030926,
+          "conditional_right_given_left": 0.049284,
+          "lift": 0.429305,
+          "phi": -0.095821
+        },
+        "고열__전신쇠약": {
+          "left": "고열",
+          "right": "전신쇠약",
+          "count": 1063,
+          "jaccard": 0.098773,
+          "conditional_right_given_left": 0.181276,
+          "lift": 0.998673,
+          "phi": -0.000291
+        },
+        "고열__호흡곤란": {
+          "left": "고열",
+          "right": "호흡곤란",
+          "count": 619,
+          "jaccard": 0.064052,
+          "conditional_right_given_left": 0.105559,
+          "lift": 0.784469,
+          "phi": -0.039624
+        },
+        "구토__두통": {
+          "left": "구토",
+          "right": "두통",
+          "count": 443,
+          "jaccard": 0.056534,
+          "conditional_right_given_left": 0.0886,
+          "lift": 0.887351,
+          "phi": -0.0159
+        },
+        "구토__복통": {
+          "left": "구토",
+          "right": "복통",
+          "count": 1595,
+          "jaccard": 0.144816,
+          "conditional_right_given_left": 0.319,
+          "lift": 1.376785,
+          "phi": 0.087688
+        },
+        "구토__어지러움": {
+          "left": "구토",
+          "right": "어지러움",
+          "count": 1646,
+          "jaccard": 0.157331,
+          "conditional_right_given_left": 0.3292,
+          "lift": 1.520952,
+          "phi": 0.116034
+        },
+        "구토__열상": {
+          "left": "구토",
+          "right": "열상",
+          "count": 31,
+          "jaccard": 0.003484,
+          "conditional_right_given_left": 0.0062,
+          "lift": 0.051835,
+          "phi": -0.148109
+        },
+        "구토__오심": {
+          "left": "구토",
+          "right": "오심",
+          "count": 1459,
+          "jaccard": 0.199562,
+          "conditional_right_given_left": 0.2918,
+          "lift": 2.541833,
+          "phi": 0.235308
+        },
+        "구토__전신쇠약": {
+          "left": "구토",
+          "right": "전신쇠약",
+          "count": 465,
+          "jaccard": 0.044303,
+          "conditional_right_given_left": 0.093,
+          "lift": 0.51235,
+          "phi": -0.097322
+        },
+        "구토__호흡곤란": {
+          "left": "구토",
+          "right": "호흡곤란",
+          "count": 158,
+          "jaccard": 0.017061,
+          "conditional_right_given_left": 0.0316,
+          "lift": 0.234837,
+          "phi": -0.127864
+        },
+        "두통__복통": {
+          "left": "두통",
+          "right": "복통",
+          "count": 203,
+          "jaccard": 0.018999,
+          "conditional_right_given_left": 0.061909,
+          "lift": 0.267196,
+          "phi": -0.134028
+        },
+        "두통__어지러움": {
+          "left": "두통",
+          "right": "어지러움",
+          "count": 631,
+          "jaccard": 0.064678,
+          "conditional_right_given_left": 0.192437,
+          "lift": 0.889086,
+          "phi": -0.019415
+        },
+        "두통__열상": {
+          "left": "두통",
+          "right": "열상",
+          "count": 128,
+          "jaccard": 0.018082,
+          "conditional_right_given_left": 0.039036,
+          "lift": 0.326362,
+          "phi": -0.082696
+        },
+        "두통__오심": {
+          "left": "두통",
+          "right": "오심",
+          "count": 514,
+          "jaccard": 0.078653,
+          "conditional_right_given_left": 0.156755,
+          "lift": 1.365474,
+          "phi": 0.043834
+        },
+        "두통__전신쇠약": {
+          "left": "두통",
+          "right": "전신쇠약",
+          "count": 275,
+          "jaccard": 0.030675,
+          "conditional_right_given_left": 0.083867,
+          "lift": 0.462035,
+          "phi": -0.084376
+        },
+        "두통__호흡곤란": {
+          "left": "두통",
+          "right": "호흡곤란",
+          "count": 134,
+          "jaccard": 0.017715,
+          "conditional_right_given_left": 0.040866,
+          "lift": 0.303698,
+          "phi": -0.091443
+        },
+        "복통__어지러움": {
+          "left": "복통",
+          "right": "어지러움",
+          "count": 505,
+          "jaccard": 0.035533,
+          "conditional_right_given_left": 0.066369,
+          "lift": 0.306633,
+          "phi": -0.200123
+        },
+        "복통__열상": {
+          "left": "복통",
+          "right": "열상",
+          "count": 5,
+          "jaccard": 0.000434,
+          "conditional_right_given_left": 0.000657,
+          "lift": 0.005494,
+          "phi": -0.201303
+        },
+        "복통__오심": {
+          "left": "복통",
+          "right": "오심",
+          "count": 941,
+          "jaccard": 0.090151,
+          "conditional_right_given_left": 0.123669,
+          "lift": 1.077268,
+          "phi": 0.015281
+        },
+        "복통__전신쇠약": {
+          "left": "복통",
+          "right": "전신쇠약",
+          "count": 354,
+          "jaccard": 0.026786,
+          "conditional_right_given_left": 0.046524,
+          "lift": 0.256307,
+          "phi": -0.192328
+        },
+        "복통__호흡곤란": {
+          "left": "복통",
+          "right": "호흡곤란",
+          "count": 203,
+          "jaccard": 0.017167,
+          "conditional_right_given_left": 0.026679,
+          "lift": 0.198266,
+          "phi": -0.173608
+        },
+        "어지러움__열상": {
+          "left": "어지러움",
+          "right": "열상",
+          "count": 134,
+          "jaccard": 0.012291,
+          "conditional_right_given_left": 0.018852,
+          "lift": 0.157612,
+          "phi": -0.163191
+        },
+        "어지러움__오심": {
+          "left": "어지러움",
+          "right": "오심",
+          "count": 1841,
+          "jaccard": 0.203718,
+          "conditional_right_given_left": 0.259004,
+          "lift": 2.256151,
+          "phi": 0.237754
+        },
+        "어지러움__전신쇠약": {
+          "left": "어지러움",
+          "right": "전신쇠약",
+          "count": 867,
+          "jaccard": 0.071054,
+          "conditional_right_given_left": 0.121975,
+          "lift": 0.671979,
+          "phi": -0.081188
+        },
+        "어지러움__호흡곤란": {
+          "left": "어지러움",
+          "right": "호흡곤란",
+          "count": 297,
+          "jaccard": 0.026447,
+          "conditional_right_given_left": 0.041784,
+          "lift": 0.310519,
+          "phi": -0.14289
+        },
+        "열상__오심": {
+          "left": "열상",
+          "right": "오심",
+          "count": 37,
+          "jaccard": 0.00483,
+          "conditional_right_given_left": 0.00942,
+          "lift": 0.082053,
+          "phi": -0.121846
+        },
+        "열상__전신쇠약": {
+          "left": "열상",
+          "right": "전신쇠약",
+          "count": 25,
+          "jaccard": 0.002534,
+          "conditional_right_given_left": 0.006365,
+          "lift": 0.035063,
+          "phi": -0.167494
+        },
+        "열상__호흡곤란": {
+          "left": "열상",
+          "right": "호흡곤란",
+          "count": 6,
+          "jaccard": 0.000719,
+          "conditional_right_given_left": 0.001527,
+          "lift": 0.011352,
+          "phi": -0.143691
+        },
+        "오심__전신쇠약": {
+          "left": "오심",
+          "right": "전신쇠약",
+          "count": 415,
+          "jaccard": 0.044547,
+          "conditional_right_given_left": 0.11008,
+          "lift": 0.606444,
+          "phi": -0.066743
+        },
+        "오심__호흡곤란": {
+          "left": "오심",
+          "right": "호흡곤란",
+          "count": 140,
+          "jaccard": 0.017393,
+          "conditional_right_given_left": 0.037135,
+          "lift": 0.275973,
+          "phi": -0.102812
+        },
+        "전신쇠약__호흡곤란": {
+          "left": "전신쇠약",
+          "right": "호흡곤란",
+          "count": 502,
+          "jaccard": 0.05082,
+          "conditional_right_given_left": 0.084214,
+          "lift": 0.625841,
+          "phi": -0.069479
+        }
+      }
+    }
+  },
+  "acoustic_sample": {
+    "by_split": {
+      "Training": {
+        "duration_sec": {
+          "left": {
+            "n": 1000,
+            "min": 2.982,
+            "mean": 33.475739,
+            "std": 15.189397,
+            "p1": 9.53611,
+            "p5": 14.76695,
+            "p25": 22.875751,
+            "p50": 29.8615,
+            "p75": 41.59675,
+            "p90": 53.621099,
+            "p95": 62.366699,
+            "p99": 83.469132,
+            "max": 104.302002,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "ratio"
+          },
+          "right": {
+            "n": 1000,
+            "min": 3.12,
+            "mean": 26.715214,
+            "std": 13.342393,
+            "p1": 8.31152,
+            "p5": 10.92065,
+            "p25": 17.40575,
+            "p50": 23.7715,
+            "p75": 32.507499,
+            "p90": 44.890601,
+            "p95": 53.118801,
+            "p99": 71.87056,
+            "max": 97.481003,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "ratio"
+          },
+          "cliffs_delta_left_minus_right": 0.292972,
+          "median_difference_bootstrap_95ci": {
+            "estimate": 6.09,
+            "ci95_low": 5.061351,
+            "ci95_high": 7.072038,
+            "iterations": 5000,
+            "resampling_unit": "call_pair",
+            "n_pairs": 1000
+          },
+          "paired_probability_difference": 0.456
+        },
+        "rms_mean": {
+          "left": {
+            "n": 1000,
+            "min": 0.009555,
+            "mean": 0.076899,
+            "std": 0.040829,
+            "p1": 0.018013,
+            "p5": 0.025675,
+            "p25": 0.049405,
+            "p50": 0.066042,
+            "p75": 0.097549,
+            "p90": 0.131619,
+            "p95": 0.157995,
+            "p99": 0.204324,
+            "max": 0.255364,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "right": {
+            "n": 1000,
+            "min": 0.003578,
+            "mean": 0.06699,
+            "std": 0.037274,
+            "p1": 0.009641,
+            "p5": 0.017396,
+            "p25": 0.036982,
+            "p50": 0.06051,
+            "p75": 0.091312,
+            "p90": 0.117919,
+            "p95": 0.137382,
+            "p99": 0.166732,
+            "max": 0.227571,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "cliffs_delta_left_minus_right": 0.138896,
+          "median_difference_bootstrap_95ci": {
+            "estimate": 0.005532,
+            "ci95_low": 0.002315,
+            "ci95_high": 0.009316,
+            "iterations": 5000,
+            "resampling_unit": "call_pair",
+            "n_pairs": 1000
+          },
+          "paired_probability_difference": 0.186
+        },
+        "zcr_mean": {
+          "left": {
+            "n": 1000,
+            "min": 0.105455,
+            "mean": 0.16951,
+            "std": 0.02056,
+            "p1": 0.127065,
+            "p5": 0.13865,
+            "p25": 0.156432,
+            "p50": 0.168155,
+            "p75": 0.180921,
+            "p90": 0.19339,
+            "p95": 0.206883,
+            "p99": 0.22935,
+            "max": 0.25975,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "right": {
+            "n": 1000,
+            "min": 0.113634,
+            "mean": 0.204256,
+            "std": 0.044228,
+            "p1": 0.133189,
+            "p5": 0.153523,
+            "p25": 0.177054,
+            "p50": 0.195189,
+            "p75": 0.21796,
+            "p90": 0.258572,
+            "p95": 0.302885,
+            "p99": 0.359438,
+            "max": 0.402536,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "cliffs_delta_left_minus_right": -0.574956,
+          "median_difference_bootstrap_95ci": {
+            "estimate": -0.027034,
+            "ci95_low": -0.028959,
+            "ci95_high": -0.025186,
+            "iterations": 5000,
+            "resampling_unit": "call_pair",
+            "n_pairs": 1000
+          },
+          "paired_probability_difference": -0.686
+        },
+        "spectral_centroid_mean": {
+          "left": {
+            "n": 1000,
+            "min": 626.96051,
+            "mean": 894.786292,
+            "std": 102.225693,
+            "p1": 685.076962,
+            "p5": 737.274802,
+            "p25": 823.626801,
+            "p50": 888.91748,
+            "p75": 954.844543,
+            "p90": 1030.232751,
+            "p95": 1073.670435,
+            "p99": 1172.29342,
+            "max": 1243.160278,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "right": {
+            "n": 1000,
+            "min": 717.15094,
+            "mean": 1078.505891,
+            "std": 152.008944,
+            "p1": 795.656809,
+            "p5": 874.827588,
+            "p25": 976.556351,
+            "p50": 1060.124268,
+            "p75": 1142.593597,
+            "p90": 1271.516809,
+            "p95": 1382.537848,
+            "p99": 1561.962993,
+            "max": 1765.575195,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "cliffs_delta_left_minus_right": -0.717922,
+          "median_difference_bootstrap_95ci": {
+            "estimate": -171.206787,
+            "ci95_low": -182.681644,
+            "ci95_high": -161.223576,
+            "iterations": 5000,
+            "resampling_unit": "call_pair",
+            "n_pairs": 1000
+          },
+          "paired_probability_difference": -0.802
+        },
+        "silence_ratio_abs_le_0_01": {
+          "left": {
+            "n": 1000,
+            "min": 0.065021,
+            "mean": 0.335156,
+            "std": 0.094973,
+            "p1": 0.143034,
+            "p5": 0.195224,
+            "p25": 0.269237,
+            "p50": 0.329115,
+            "p75": 0.389801,
+            "p90": 0.456994,
+            "p95": 0.509855,
+            "p99": 0.593633,
+            "max": 0.717329,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "ratio"
+          },
+          "right": {
+            "n": 1000,
+            "min": 0.09215,
+            "mean": 0.389581,
+            "std": 0.144217,
+            "p1": 0.157036,
+            "p5": 0.198991,
+            "p25": 0.282319,
+            "p50": 0.364838,
+            "p75": 0.46995,
+            "p90": 0.607468,
+            "p95": 0.671439,
+            "p99": 0.786131,
+            "max": 0.870844,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "ratio"
+          },
+          "cliffs_delta_left_minus_right": -0.197452,
+          "median_difference_bootstrap_95ci": {
+            "estimate": -0.035724,
+            "ci95_low": -0.046188,
+            "ci95_high": -0.025456,
+            "iterations": 5000,
+            "resampling_unit": "call_pair",
+            "n_pairs": 1000
+          },
+          "paired_probability_difference": -0.266
+        }
+      },
+      "Validation": {
+        "duration_sec": {
+          "left": {
+            "n": 400,
+            "min": 5.57,
+            "mean": 34.534175,
+            "std": 16.371422,
+            "p1": 8.46647,
+            "p5": 14.76945,
+            "p25": 23.0245,
+            "p50": 31.077,
+            "p75": 42.091,
+            "p90": 57.472999,
+            "p95": 67.609998,
+            "p99": 82.311519,
+            "max": 115.310997,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "ratio"
+          },
+          "right": {
+            "n": 400,
+            "min": 5.047,
+            "mean": 26.562622,
+            "std": 12.900679,
+            "p1": 7.08299,
+            "p5": 11.038,
+            "p25": 17.91775,
+            "p50": 23.508,
+            "p75": 31.818,
+            "p90": 44.1479,
+            "p95": 48.966552,
+            "p99": 71.064598,
+            "max": 92.526001,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "ratio"
+          },
+          "cliffs_delta_left_minus_right": 0.324788,
+          "median_difference_bootstrap_95ci": {
+            "estimate": 7.568999,
+            "ci95_low": 6.012975,
+            "ci95_high": 8.814912,
+            "iterations": 5000,
+            "resampling_unit": "call_pair",
+            "n_pairs": 400
+          },
+          "paired_probability_difference": 0.525
+        },
+        "rms_mean": {
+          "left": {
+            "n": 400,
+            "min": 0.007531,
+            "mean": 0.076793,
+            "std": 0.04288,
+            "p1": 0.015181,
+            "p5": 0.024595,
+            "p25": 0.047607,
+            "p50": 0.06548,
+            "p75": 0.095804,
+            "p90": 0.14127,
+            "p95": 0.15506,
+            "p99": 0.213592,
+            "max": 0.272478,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "right": {
+            "n": 400,
+            "min": 0.003419,
+            "mean": 0.063465,
+            "std": 0.03577,
+            "p1": 0.010141,
+            "p5": 0.017311,
+            "p25": 0.034432,
+            "p50": 0.055972,
+            "p75": 0.089194,
+            "p90": 0.118097,
+            "p95": 0.128431,
+            "p99": 0.148583,
+            "max": 0.173708,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "cliffs_delta_left_minus_right": 0.17645,
+          "median_difference_bootstrap_95ci": {
+            "estimate": 0.009508,
+            "ci95_low": 0.003155,
+            "ci95_high": 0.013825,
+            "iterations": 5000,
+            "resampling_unit": "call_pair",
+            "n_pairs": 400
+          },
+          "paired_probability_difference": 0.255
+        },
+        "zcr_mean": {
+          "left": {
+            "n": 400,
+            "min": 0.106786,
+            "mean": 0.171435,
+            "std": 0.023637,
+            "p1": 0.125573,
+            "p5": 0.138694,
+            "p25": 0.156343,
+            "p50": 0.168913,
+            "p75": 0.18277,
+            "p90": 0.201572,
+            "p95": 0.214194,
+            "p99": 0.240356,
+            "max": 0.272375,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "right": {
+            "n": 400,
+            "min": 0.116573,
+            "mean": 0.204943,
+            "std": 0.040406,
+            "p1": 0.139585,
+            "p5": 0.15699,
+            "p25": 0.180585,
+            "p50": 0.197425,
+            "p75": 0.21663,
+            "p90": 0.266676,
+            "p95": 0.287773,
+            "p99": 0.350156,
+            "max": 0.368608,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "cliffs_delta_left_minus_right": -0.581913,
+          "median_difference_bootstrap_95ci": {
+            "estimate": -0.028512,
+            "ci95_low": -0.031305,
+            "ci95_high": -0.025051,
+            "iterations": 5000,
+            "resampling_unit": "call_pair",
+            "n_pairs": 400
+          },
+          "paired_probability_difference": -0.735
+        },
+        "spectral_centroid_mean": {
+          "left": {
+            "n": 400,
+            "min": 678.000671,
+            "mean": 906.108057,
+            "std": 109.236605,
+            "p1": 694.862017,
+            "p5": 749.374103,
+            "p25": 825.045135,
+            "p50": 898.642426,
+            "p75": 972.582291,
+            "p90": 1041.556274,
+            "p95": 1096.900073,
+            "p99": 1193.33469,
+            "max": 1330.309448,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "right": {
+            "n": 400,
+            "min": 723.704102,
+            "mean": 1084.200703,
+            "std": 143.198596,
+            "p1": 817.122042,
+            "p5": 890.308917,
+            "p25": 987.71843,
+            "p50": 1068.379639,
+            "p75": 1146.127075,
+            "p90": 1275.05813,
+            "p95": 1341.331555,
+            "p99": 1530.12787,
+            "max": 1607.385376,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "feature_value"
+          },
+          "cliffs_delta_left_minus_right": -0.702525,
+          "median_difference_bootstrap_95ci": {
+            "estimate": -169.737213,
+            "ci95_low": -185.868069,
+            "ci95_high": -153.239002,
+            "iterations": 5000,
+            "resampling_unit": "call_pair",
+            "n_pairs": 400
+          },
+          "paired_probability_difference": -0.845
+        },
+        "silence_ratio_abs_le_0_01": {
+          "left": {
+            "n": 400,
+            "min": 0.106575,
+            "mean": 0.339159,
+            "std": 0.099997,
+            "p1": 0.142229,
+            "p5": 0.18872,
+            "p25": 0.269113,
+            "p50": 0.340434,
+            "p75": 0.39555,
+            "p90": 0.465245,
+            "p95": 0.502345,
+            "p99": 0.607184,
+            "max": 0.870346,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "ratio"
+          },
+          "right": {
+            "n": 400,
+            "min": 0.146248,
+            "mean": 0.404105,
+            "std": 0.145746,
+            "p1": 0.166906,
+            "p5": 0.203932,
+            "p25": 0.291057,
+            "p50": 0.38711,
+            "p75": 0.493079,
+            "p90": 0.611124,
+            "p95": 0.663518,
+            "p99": 0.7744,
+            "max": 0.905412,
+            "zero_count": 0,
+            "negative_count": 0,
+            "unit": "ratio"
+          },
+          "cliffs_delta_left_minus_right": -0.247188,
+          "median_difference_bootstrap_95ci": {
+            "estimate": -0.046676,
+            "ci95_low": -0.065167,
+            "ci95_high": -0.025118,
+            "iterations": 5000,
+            "resampling_unit": "call_pair",
+            "n_pairs": 400
+          },
+          "paired_probability_difference": -0.325
+        }
+      }
+    },
+    "caller_gender": {
+      "duration_sec": {
+        "left": {
+          "n": 747,
+          "min": 4.917,
+          "mean": 34.039814,
+          "std": 15.703467,
+          "p1": 9.25108,
+          "p5": 15.6975,
+          "p25": 22.9155,
+          "p50": 30.533001,
+          "p75": 41.682501,
+          "p90": 55.101199,
+          "p95": 64.883401,
+          "p99": 83.293078,
+          "max": 109.785004,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "feature_value"
+        },
+        "right": {
+          "n": 653,
+          "min": 2.982,
+          "mean": 33.478818,
+          "std": 15.353328,
+          "p1": 9.24084,
+          "p5": 14.1452,
+          "p25": 22.891001,
+          "p50": 29.976,
+          "p75": 41.786999,
+          "p90": 54.573,
+          "p95": 63.4832,
+          "p99": 81.476881,
+          "max": 115.310997,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "feature_value"
+        },
+        "cliffs_delta_left_minus_right": 0.017938,
+        "median_difference_bootstrap_95ci": {
+          "estimate": 0.557001,
+          "ci95_low": -1.226225,
+          "ci95_high": 1.947425,
+          "iterations": 1000,
+          "resampling_unit": "observation"
+        }
+      },
+      "rms_mean": {
+        "left": {
+          "n": 747,
+          "min": 0.007531,
+          "mean": 0.073406,
+          "std": 0.039864,
+          "p1": 0.016034,
+          "p5": 0.024656,
+          "p25": 0.047942,
+          "p50": 0.062513,
+          "p75": 0.090483,
+          "p90": 0.127495,
+          "p95": 0.156941,
+          "p99": 0.2093,
+          "max": 0.236176,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "feature_value"
+        },
+        "right": {
+          "n": 653,
+          "min": 0.009555,
+          "mean": 0.08083,
+          "std": 0.0428,
+          "p1": 0.017757,
+          "p5": 0.025515,
+          "p25": 0.049599,
+          "p50": 0.070794,
+          "p75": 0.105312,
+          "p90": 0.141952,
+          "p95": 0.157459,
+          "p99": 0.20323,
+          "max": 0.272478,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "feature_value"
+        },
+        "cliffs_delta_left_minus_right": -0.106367,
+        "median_difference_bootstrap_95ci": {
+          "estimate": -0.008281,
+          "ci95_low": -0.013422,
+          "ci95_high": -0.003702,
+          "iterations": 1000,
+          "resampling_unit": "observation"
+        }
+      },
+      "zcr_mean": {
+        "left": {
+          "n": 747,
+          "min": 0.106786,
+          "mean": 0.171387,
+          "std": 0.021671,
+          "p1": 0.125946,
+          "p5": 0.140078,
+          "p25": 0.158027,
+          "p50": 0.169754,
+          "p75": 0.181946,
+          "p90": 0.195811,
+          "p95": 0.209641,
+          "p99": 0.239476,
+          "max": 0.272375,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "feature_value"
+        },
+        "right": {
+          "n": 653,
+          "min": 0.105455,
+          "mean": 0.168542,
+          "std": 0.021205,
+          "p1": 0.126756,
+          "p5": 0.136815,
+          "p25": 0.154271,
+          "p50": 0.167035,
+          "p75": 0.180794,
+          "p90": 0.196228,
+          "p95": 0.208085,
+          "p99": 0.224807,
+          "max": 0.240951,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "feature_value"
+        },
+        "cliffs_delta_left_minus_right": 0.077962,
+        "median_difference_bootstrap_95ci": {
+          "estimate": 0.002719,
+          "ci95_low": 0.000206,
+          "ci95_high": 0.005614,
+          "iterations": 1000,
+          "resampling_unit": "observation"
+        }
+      },
+      "spectral_centroid_mean": {
+        "left": {
+          "n": 747,
+          "min": 645.623657,
+          "mean": 901.075615,
+          "std": 103.195117,
+          "p1": 705.432032,
+          "p5": 750.739197,
+          "p25": 826.619904,
+          "p50": 893.595581,
+          "p75": 960.68161,
+          "p90": 1036.092456,
+          "p95": 1082.996887,
+          "p99": 1178.896335,
+          "max": 1330.309448,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "feature_value"
+        },
+        "right": {
+          "n": 653,
+          "min": 626.96051,
+          "mean": 894.526846,
+          "std": 105.658086,
+          "p1": 680.989624,
+          "p5": 727.007117,
+          "p25": 821.412781,
+          "p50": 889.856018,
+          "p75": 957.169312,
+          "p90": 1032.137231,
+          "p95": 1075.471143,
+          "p99": 1202.312051,
+          "max": 1243.160278,
+          "zero_count": 0,
+          "negative_count": 0,
+          "unit": "feature_value"
+        },
+        "cliffs_delta_left_minus_right": 0.028592,
+        "median_difference_bootstrap_95ci": {
+          "estimate": 3.739563,
+          "ci95_low": -9.643625,
+          "ci95_high": 17.939345,
+          "iterations": 1000,
+          "resampling_unit": "observation"
+        }
+      }
+    },
+    "sample_design": {
+      "method": "proportional gender stratification within each split",
+      "weighting": "none",
+      "seed": 42,
+      "selected_calls": {
+        "Training": 1000,
+        "Validation": 400
+      },
+      "gender_counts": {
+        "Training": {
+          "F": 532,
+          "M": 468
+        },
+        "Validation": {
+          "F": 215,
+          "M": 185
+        }
+      },
+      "paired_calls": {
+        "Training": 1000,
+        "Validation": 400
+      },
+      "exclusions": "invalid or out-of-range utterance intervals, calls without both speaker feature rows, and waveform read failures"
+    }
+  },
+  "existing_quality": {
+    "identifier_overlap_count": {
+      "stem": 0,
+      "_id": 0,
+      "recordId": 0
+    },
+    "exact_transcript_hash_overlap_count": 1,
+    "validation_token_oov": {
+      "token_occurrences": 425990,
+      "oov_occurrences": 13229,
+      "oov_rate": 0.031055
+    },
+    "wav_training": {
+      "channels": {
+        "1": 29200
+      },
+      "sample_rates_hz": {
+        "8000": 29200
+      },
+      "sample_width_bytes": {
+        "2": 29200
+      },
+      "read_errors": {},
+      "duration_s": {
+        "n": 29200,
+        "min": 30.0,
+        "mean": 72.185018,
+        "std": 28.870459,
+        "p1": 31.92,
+        "p5": 37.2,
+        "p25": 50.88,
+        "p50": 65.64,
+        "p75": 86.64,
+        "p90": 112.68,
+        "p95": 131.52,
+        "p99": 163.2012,
+        "max": 180.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "json_minus_wav_duration_ms": {
+        "n": 29200,
+        "min": 0.0,
+        "mean": 0.0,
+        "std": 0.0,
+        "p1": 0.0,
+        "p5": 0.0,
+        "p25": 0.0,
+        "p50": 0.0,
+        "p75": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "max": 0.0,
+        "zero_count": 29200,
+        "negative_count": 0,
+        "unit": "milliseconds"
+      }
+    },
+    "wav_validation": {
+      "channels": {
+        "1": 3640
+      },
+      "sample_rates_hz": {
+        "8000": 3640
+      },
+      "sample_width_bytes": {
+        "2": 3640
+      },
+      "read_errors": {},
+      "duration_s": {
+        "n": 3640,
+        "min": 30.0,
+        "mean": 72.598286,
+        "std": 29.058742,
+        "p1": 31.56,
+        "p5": 37.08,
+        "p25": 51.24,
+        "p50": 65.76,
+        "p75": 87.24,
+        "p90": 114.252,
+        "p95": 131.886,
+        "p99": 161.166,
+        "max": 180.0,
+        "zero_count": 0,
+        "negative_count": 0,
+        "unit": "seconds"
+      },
+      "json_minus_wav_duration_ms": {
+        "n": 3640,
+        "min": 0.0,
+        "mean": 0.0,
+        "std": 0.0,
+        "p1": 0.0,
+        "p5": 0.0,
+        "p25": 0.0,
+        "p50": 0.0,
+        "p75": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "max": 0.0,
+        "zero_count": 3640,
+        "negative_count": 0,
+        "unit": "milliseconds"
+      }
+    }
+  }
+}
