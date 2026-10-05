@@ -123,3 +123,39 @@ def test_main_refuses_members_trained_with_different_mel_settings(tmp_path: Path
     finally:
         sys.argv = old_argv
     assert not (tmp_path / "out.pt").exists()
+
+
+def _pack(monkeypatch: pytest.MonkeyPatch, members: list[Path], output: Path) -> int:
+    argv = ["pack_mission2_l2_ensemble.py"]
+    for member in members:
+        argv += ["--ckpt-path", str(member)]
+    monkeypatch.setattr(sys, "argv", [*argv, "--output", str(output)])
+    return pack_ensemble.main()
+
+
+def test_main_refuses_the_same_file_packed_twice_and_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dcc_data.mission2_checkpoint import CheckpointConfigError
+
+    member = _save_member(tmp_path / "ts1.pt", 1)
+
+    with pytest.raises(CheckpointConfigError, match="different torch_seed"):
+        _pack(monkeypatch, [member, member], tmp_path / "out.pt")
+
+    assert not (tmp_path / "out.pt").exists()
+
+
+def test_main_refuses_a_copy_of_a_member_recorded_under_another_seed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = _save_member(tmp_path / "ts1.pt", 1)
+    copy = tmp_path / "ts2.pt"
+    checkpoint = torch.load(first, map_location="cpu")
+    checkpoint["metadata"]["torch_seed"] = 2  # same weights, relabelled as another seed's run
+    torch.save(checkpoint, copy)
+
+    with pytest.raises(SystemExit, match="identical weights"):
+        _pack(monkeypatch, [first, copy], tmp_path / "out.pt")
+
+    assert not (tmp_path / "out.pt").exists()

@@ -367,3 +367,19 @@ def test_a_packed_ensemble_cannot_be_resumed() -> None:
 
     with pytest.raises(CheckpointConfigError, match="packed ensemble"):
         require_resumable_checkpoint(packed, _metadata(), "ckpt.pt")
+
+
+def test_ensemble_metadata_refuses_a_repeated_or_unknown_member_seed() -> None:
+    with pytest.raises(CheckpointConfigError, match="different torch_seed"):
+        build_ensemble_metadata([_metadata(torch_seed=1), _metadata(torch_seed=1)])
+    with pytest.raises(CheckpointConfigError, match="different torch_seed"):
+        build_ensemble_metadata([_metadata(torch_seed=1), _metadata(torch_seed=None)])
+
+
+def test_an_ensemble_checkpoint_recording_one_seed_twice_is_refused_at_load() -> None:
+    metadata = build_ensemble_metadata([_metadata(torch_seed=1), _metadata(torch_seed=2)])
+    metadata["ensemble_member_torch_seeds"] = [1, 1]
+    checkpoint = {ENSEMBLE_STATE_DICTS_KEY: [{"w": 0}, {"w": 1}], "metadata": metadata}
+
+    with pytest.raises(CheckpointConfigError, match="same torch_seed more than once"):
+        l2_member_state_dicts(checkpoint, metadata)

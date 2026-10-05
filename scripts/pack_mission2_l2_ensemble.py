@@ -65,7 +65,14 @@ def main() -> int:
         state_dicts.append(checkpoint["best_model_state_dict"])
         best_val_accs.append(checkpoint.get("best_val_acc"))
 
-    merged_metadata = build_ensemble_metadata(member_metadata)
+    merged_metadata = build_ensemble_metadata(member_metadata)  # also refuses a repeated torch_seed
+    for i in range(len(state_dicts)):
+        for j in range(i + 1, len(state_dicts)):
+            if all(torch.equal(state_dicts[i][name], state_dicts[j][name]) for name in state_dicts[i]):
+                raise SystemExit(
+                    f"{args.ckpt_paths[i]} and {args.ckpt_paths[j]} hold identical weights -- "
+                    "refusing to pack a copy as a second member"
+                )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     torch.save(

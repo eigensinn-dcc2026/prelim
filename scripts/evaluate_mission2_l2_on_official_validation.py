@@ -89,6 +89,11 @@ def main() -> int:
     model_cls = MODEL_CLASSES[args.model]
     model = model_cls()
     checkpoint = torch.load(args.ckpt_path, map_location="cpu")  # matches train_mission2_cnn.py's own loading
+    if "ensemble_model_state_dicts" in checkpoint:  # scripts/pack_mission2_l2_ensemble.py's key
+        raise SystemExit(
+            f"{args.ckpt_path} is a packed seed ensemble; this script scores one model. Score an ensemble through "
+            "scripts/mission2_inference.py (the submission path) instead."
+        )
     # Same "best" vs. pre-resume-support checkpoint distinction
     # train_mission2_cnn.py's --resume path handles -- see its docstring.
     if "best_model_state_dict" in checkpoint:

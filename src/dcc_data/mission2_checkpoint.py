@@ -167,8 +167,14 @@ def build_ensemble_metadata(member_metadata: list[dict]) -> dict:
                 f"ensemble members disagree on {key!r}: {sorted(map(str, values))} -- they must be the same "
                 "architecture/training setup, varied only by torch_seed, to be averaged together"
             )
+    seeds = [metadata["torch_seed"] for metadata in member_metadata]
+    if None in seeds or len(set(seeds)) != len(seeds):
+        raise CheckpointConfigError(
+            f"ensemble members must each record a different torch_seed, got {seeds} -- the same seed twice is the same "
+            "run (or a copy of one file), and averaging it with itself is not an ensemble"
+        )
     merged["torch_seed"] = None
-    merged["ensemble_member_torch_seeds"] = [metadata["torch_seed"] for metadata in member_metadata]
+    merged["ensemble_member_torch_seeds"] = seeds
     merged["ensemble_size"] = len(member_metadata)
     return merged
 
@@ -191,6 +197,10 @@ def l2_member_state_dicts(checkpoint: dict, metadata: dict) -> list[dict]:
         )
     declared = metadata.get("ensemble_size", 1)
     seeds = metadata.get("ensemble_member_torch_seeds")
+    if seeds is not None and len(set(seeds)) != len(seeds):
+        raise CheckpointConfigError(
+            f"checkpoint records the same torch_seed more than once ({seeds}): its members are copies of one run, not an ensemble"
+        )
     if declared != len(state_dicts) or (seeds is not None and len(seeds) != declared):
         raise CheckpointConfigError(
             f"checkpoint metadata declares {declared} model(s) (seeds recorded: {seeds}) but the file holds "
