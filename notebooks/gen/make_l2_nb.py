@@ -23,10 +23,12 @@ md("""
 - 데이터: **Training(서울)만 학습**, call_id 80/20 분할(`--seed 42`)로 에폭 선택. 공식 Validation은 **평가만**(backprop·에폭 선택 금지)
 - 라벨: 제공된 speaker 라벨 그대로(`verify_mission2_raw_labels.py`로 대조). text 사용·라벨 수정·통화 단위 정보 사용 금지(#41, 운영진 10-01/10-05)
 - 입력: 대상 발화 구간 음성의 스펙트로그램만. 발화 순서·통화 단위 정보는 모델 입력에 쓰지 않음 (슬라이스는 분석용)
-- 팀 규칙: 0번 셀에서 Drive의 코드 zip을 `/content`로 복사·압축 해제하고 zip sha256 · commit · `scripts/`·`src/` 파일 목록을 출력한 뒤 그 코드로만 실행
+- 팀 규칙: 0번 셀에서 Drive의 코드 zip을 `/content`로 복사·압축 해제하고 zip sha256 · commit · `scripts/`·`src/` 파일 목록을 출력한 뒤 그 코드로만 실행. 이번 실행 zip은 `MyDrive/dcc2026-prelim-main-6cc1181.zip`이고, sha256이 `CODE_ZIP_SHA256_EXPECTED`와 다르면 그 셀에서 중단
 - 경로: `dcc_data.colab_env`(`find_run_root`/`find_data_root`)로 자동 결정 — 코드 zip에 없으면 같은 기본값(`MyDrive/dcc_runs`)
-- 데이터는 Drive에서 **큰 파일로 통째로 복사**(작은 파일 수천 개를 Drive 마운트에서 읽지 않음)하고 파일마다 sha256 출력. 기본(`RUN_BUILD=False`)은 미리 만든 스펙트로그램(`MyDrive/dcc_runs/m2_l2_spec/`) 사용
+- 출력 폴더: `MyDrive/dcc_runs/m2_l2_rerun_6cc1181/` (이번 실행 전용). 이전 실행 체크포인트가 이미 있으면 재사용하지 않고 중단. 이 폴더에서 끊긴 에폭은 기존 `--resume`으로 이어감
+- 데이터는 Drive에서 **큰 파일로 통째로 복사**(작은 파일 수천 개를 Drive 마운트에서 읽지 않음)하고 파일마다 sha256 출력. 기본(`RUN_BUILD=False`)은 미리 만든 스펙트로그램(`MyDrive/dcc_runs/m2_l2_spec/`) 사용. `TRAIN_PACKED_SHA256`이 비어 있거나 Drive 파일과 다르면 학습을 시작하지 않음
 - ckpt는 `OUT`(Drive)에 **에폭마다** 갱신되고, 에폭별 학습 로그·JSON은 이어 붙이기만 하므로 런타임이 끊겨도 에폭 기록이 남음
+- AMP: A안 — `--amp`(float16 autocast + GradScaler) 유지, 가중치는 fp32. fp32 1에폭 기준값은 없음 (`FP32_EPOCH1_REF = None`)
 - **채택 기준**: 공식 Val ≥ **87.26%** (L1 보험 제출본 84.26% + 3%p) **그리고** `SEEDS_DONE` 모든 seed의 에폭 로그 완비. 이전 91.55% ±0.3%p는 재현 참고용
 """)
 
@@ -41,7 +43,8 @@ try:
 except ImportError:
     print("Colab 밖에서 실행 중 — /content/drive 가 이미 있어야 함")
 
-CODE_ZIP = Path("/content/drive/MyDrive/dcc2026-prelim-main-4bfd2c4.zip")   # ← 실행할 main 코드 zip (이 한 줄만 바꿈)
+CODE_ZIP = Path("/content/drive/MyDrive/dcc2026-prelim-main-6cc1181.zip")   # git archive of 6cc1181
+CODE_ZIP_SHA256_EXPECTED = "f1526b1df25fe9c9a5c985e01521df244955ceea5af256604000b4d717c92407"
 
 def sha256(p):
     h = hashlib.sha256()
@@ -71,8 +74,12 @@ def copy_big(src, dst_dir, expected=None):
         print(f"  = {side.name} 일치")
     return dst, h
 
-# 1) zip을 /content로 복사 + sha256
-LOCAL_ZIP, CODE_ZIP_SHA256 = copy_big(CODE_ZIP, "/content")
+# 1) zip을 /content로 복사 + sha256. 기대값과 다르면 여기서 중단 (압축 해제·학습으로 가지 않음)
+LOCAL_ZIP, CODE_ZIP_SHA256 = copy_big(CODE_ZIP, "/content", CODE_ZIP_SHA256_EXPECTED)
+if CODE_ZIP_SHA256 != CODE_ZIP_SHA256_EXPECTED:
+    raise RuntimeError(
+        f"code zip sha256 불일치로 중단: computed {CODE_ZIP_SHA256} != expected {CODE_ZIP_SHA256_EXPECTED}"
+    )
 
 # 2) commit: git archive가 zip comment에 넣는 커밋 해시 → 없으면 zip 이름의 해시 (하드코딩 금지)
 with zipfile.ZipFile(LOCAL_ZIP) as z:
@@ -90,9 +97,10 @@ else:
     raise RuntimeError(f"commit을 알 수 없음: zip comment {ZIP_COMMENT!r}, 이름 {CODE_ZIP.name}")
 COMMIT = COMMIT_FULL[:7]
 
-# 3) 압축 해제 → REPO (zip 안에 최상위 폴더가 하나면 그 폴더)
+# 3) 압축 해제 → REPO (최상위 폴더가 정확히 하나면 그 폴더. 6cc1181 git archive는 dcc2026-prelim-main-6cc1181/)
 top = list(UNZ.iterdir())
 src_root = top[0] if len(top) == 1 and top[0].is_dir() else UNZ
+print(f"zip top-level: {src_root.name if src_root != UNZ else '(zip root)'} ({len(top)} entries)")
 REPO = Path(f"/content/dcc2026-prelim-main-{COMMIT}")
 shutil.rmtree(REPO, ignore_errors=True)
 shutil.move(str(src_root), str(REPO)); shutil.rmtree(UNZ, ignore_errors=True)
@@ -101,7 +109,7 @@ for need in ["scripts/train_mission2_cnn.py", "scripts/pack_mission2_l2_ensemble
     assert (REPO / need).is_file(), f"코드 zip에 없음: {need}"
 
 print(f"\ncode zip   : {CODE_ZIP} ({LOCAL_ZIP.stat().st_size:,} bytes)")
-print(f"zip sha256 : {CODE_ZIP_SHA256}")
+print(f"zip sha256 : {CODE_ZIP_SHA256}  (expected {CODE_ZIP_SHA256_EXPECTED})")
 print(f"zip comment: {ZIP_COMMENT!r}")
 print(f"commit     : {COMMIT_FULL}  ← {COMMIT_SOURCE}")
 print(f"REPO       : {REPO}")
@@ -126,20 +134,23 @@ DATA_ROOT_FALLBACK = Path("/content/drive/.shortcut-targets-by-id/1Ezl13Cpmt2lGg
 RUN_ROOT   = find_run_root()
 SPEC_DRIVE = RUN_ROOT / "m2_l2_spec"                             # 미리 만든 스펙트로그램 (run_l2_spec.sh / finish_train.sh 결과, STATUS.txt)
 WORK = Path("/content/m2_work")                                  # 큰 파일 복사본·압축 해제한 개별 .npy (로컬 디스크만, Drive 금지)
-OUT  = RUN_ROOT / f"m2_l2_rerun_{COMMIT}"                        # ckpt(에폭마다 갱신)·에폭 로그·평가·요약 → Drive
-if not str(OUT).startswith("/content/drive/MyDrive/dcc_runs/"):
-    print(f"경고: OUT={OUT} 가 Drive(MyDrive/dcc_runs) 밖 — ckpt가 런타임 종료 시 사라질 수 있음 (DCC_RUN_ROOT 확인)")
+OUT  = RUN_ROOT / "m2_l2_rerun_6cc1181"                          # 이번 Colab 실행 전용 (MyDrive/dcc_runs/m2_l2_rerun_6cc1181)
+_out_norm = str(OUT).replace("\\", "/").rstrip("/")
+if not _out_norm.endswith("MyDrive/dcc_runs/m2_l2_rerun_6cc1181"):
+    raise RuntimeError(f"이 실행의 OUT은 MyDrive/dcc_runs/m2_l2_rerun_6cc1181 이어야 함 (현재 {OUT})")
+if COMMIT != "6cc1181":
+    raise RuntimeError(f"코드 zip commit {COMMIT_FULL} 이 6cc1181 이 아님 — 이 폴더에 학습하지 않음")
 WORK.mkdir(parents=True, exist_ok=True); OUT.mkdir(parents=True, exist_ok=True)
 LOG = OUT / "run_log.txt"                                        # 모든 명령 출력 (이어 붙이기)
 
 # ---- 미리 만든 스펙트로그램 (SPEC_DRIVE 안의 파일 이름) ----
-# TODO(Training 묶음 완료 후 확정): 아래 두 이름은 finish_train.sh가 쓸 예정 이름이다. STATUS.txt에 ALL_DONE이 찍힌 뒤
-#   실제 파일 이름과 맞는지 확인할 것. 이름이 없거나 파일이 없으면 glob(validation 제외)으로 찾고, 정확히 1개가 아니면 멈춘다.
+# Training 묶음 파일 이름은 아래 두 개로 고정. sha256만 TRAIN_PACKED_SHA256 한 줄에 채우면 된다.
 TRAIN_PACKED_NAME   = "m2_spectrograms_packed.npy"            # float16 묶음 (~7 GB)
 TRAIN_INDEX_NAME    = "m2_spectrogram_index_packed.parquet"   # 묶음 인덱스 (frame_offset, label_source=verified_against_provided_json)
 TRAIN_PACKED_GLOB   = "*packed*.npy"
 TRAIN_INDEX_GLOB    = "*index*packed*.parquet"
-TRAIN_PACKED_SHA256 = None   # TODO: ALL_DONE 후 값 기입 (그 전에도 Drive의 m2_spectrograms_packed.npy.sha256이 있으면 자동 대조)
+# ← 실행 전 이 한 줄만 채운다. 값이 비어 있거나 Drive 파일 sha256과 다르면 학습을 시작하지 않는다.
+TRAIN_PACKED_SHA256 = {"m2_spectrograms_packed.npy": "", "m2_spectrogram_index_packed.parquet": ""}
 
 VAL_PACKED_NAME       = "m2_spectrograms_validation_packed.npy"
 VAL_PACKED_SHA256     = "1fb278a7b9bd3db674b834685eaaf9f23cf57ee830fd30156eac18567991b613"
@@ -159,15 +170,76 @@ SEEDS      = [1, 2, 3]   # 학습할 seed (우선순위 1: 3개 모두)
 SEEDS_DONE = [1, 2, 3]   # EPOCHS를 끝까지 마치고 에폭 로그가 완비된 seed만. 우선순위 2: 끝난 seed만 남김 (예: [1, 2] 또는 [1])
 EPOCHS     = 30
 CHUNK      = 1           # --resume 1회당 에폭 수 = 1 → --model-output(OUT, Drive)의 ckpt가 에폭마다 갱신됨 (#43: 난수 상태까지 이어받음)
-USE_AMP    = True        # 첫 에폭 점검 실패 시 False로 바꾸고, OUT의 ts1 ckpt·로그를 다른 이름으로 옮긴 뒤 처음부터
+USE_AMP    = True        # A안: --amp (float16 autocast + GradScaler). 가중치는 fp32로 유지
 RUN_BUILD  = False       # False: SPEC_DRIVE의 미리 만든 스펙트로그램 사용 / True: 원본 → 스펙트로그램 → 라벨 대조 → 묶기
 RUN_TRAIN  = True
 RUN_EVAL   = True
 DEVICE     = "cuda"
 
-# AMP 점검 기준: 기존 fp32 런 seed1 1에폭 값(팀 로그에서 채울 것)
-FP32_EPOCH1_REF = {"train_loss": None, "val_acc": None}
-AMP_MAX_ACC_DROP = 0.02  # 2%p 넘게 낮으면 중단
+# fp32 1에폭 로그가 없어 기준을 둘 수 없음. 기록된 것은 시드별 최종 held-out best 뿐 (0.9133/0.9134).
+FP32_EPOCH1_REF = None
+AMP_SUSPECT_HELD_OUT_BELOW = 0.903  # 최종 held-out best가 이 값 미만이면 AMP 의심 경고 (중단하지 않음)
+AMP_SUSPECT_FLAGS = []
+
+def train_packed_sha_expected(name):
+    """딕셔너리 값이 비어 있으면 None. copy_big은 None이면 sha 단정을 건너뛰고, 학습 시작 게이트가 빈 값으로 중단한다."""
+    if not isinstance(TRAIN_PACKED_SHA256, dict):
+        return None
+    val = TRAIN_PACKED_SHA256.get(name)
+    if val is None:
+        return None
+    val = str(val).strip()
+    return val or None
+
+def _fsync_write(path, text):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text); f.flush(); os.fsync(f.fileno())
+
+# 이 폴더에 이전 실행 체크포인트가 있으면 재사용하지 않고 중단한다.
+# 이 노트북이 이 폴더에 찍어 둔 run_identity / 에폭 로그가 있을 때만 에폭 단위 --resume 을 허용한다.
+RUN_IDENTITY_PATH = OUT / "run_identity.json"
+THIS_RUN = {
+    "folder": "m2_l2_rerun_6cc1181",
+    "commit": COMMIT_FULL,
+    "code_zip": CODE_ZIP.name,
+    "code_zip_sha256": CODE_ZIP_SHA256,
+    "amp": USE_AMP,
+}
+def _existing_out_ckpts():
+    return sorted(
+        p for p in OUT.glob("m2_cnn_large_raw_*.pt")
+        if p.is_file() and not p.name.endswith(".prev.pt")
+    )
+def _this_run_owns_out():
+    if RUN_IDENTITY_PATH.is_file():
+        try:
+            prev = json.loads(RUN_IDENTITY_PATH.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            prev = None
+        if isinstance(prev, dict) and all(prev.get(k) == THIS_RUN[k] for k in ("folder", "commit", "code_zip_sha256", "amp")):
+            return True
+    for p in sorted(OUT.glob("train_ts*_epochs.jsonl")):
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if '"run_folder": "m2_l2_rerun_6cc1181"' in text and CODE_ZIP_SHA256 in text:
+            return True
+    return False
+def guard_fresh_output_folder():
+    """이전 실행 체크포인트가 있으면 중단. 이 실행이 이 폴더에 남긴 표시가 있으면 에폭 단위 resume."""
+    ckpts_here = _existing_out_ckpts()
+    if ckpts_here and not _this_run_owns_out():
+        raise RuntimeError(
+            f"{OUT} 에 이전 실행 체크포인트가 있어 재사용하지 않고 중단: {[p.name for p in ckpts_here]}. "
+            "이 폴더는 m2_l2_rerun_6cc1181 전용이다. 체크포인트를 옮긴 뒤 다시 실행. "
+            "이 폴더에서 끊긴 에폭을 이어 학습하는 것은 이 실행의 run_identity.json 또는 에폭 로그가 있을 때만 한다."
+        )
+    _fsync_write(RUN_IDENTITY_PATH, json.dumps(THIS_RUN, ensure_ascii=False, indent=2) + "\n")
+    print("fresh OUT" if not ckpts_here else "이 폴더에서 에폭 단위 resume", OUT, [p.name for p in ckpts_here])
+    return ckpts_here
+
+guard_fresh_output_folder()
 
 CHILD_ENV = {**os.environ, "PYTHONUNBUFFERED": "1", "TQDM_MININTERVAL": "60"}
 
@@ -207,6 +279,49 @@ run([sys.executable, "-m", "pip", "install", "-q", "-r", "requirements.txt"])
 import torch, numpy as np, pandas as pd
 print("commit", COMMIT_FULL, "| torch", torch.__version__, "| cuda", torch.cuda.is_available(),
       torch.cuda.get_device_name(0) if torch.cuda.is_available() else "-")
+
+def query_nvidia_smi():
+    """GPU 이름·드라이버 버전. 실패해도 예외를 올리지 않고 error 문자열로 남긴다."""
+    try:
+        proc = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name,driver_version", "--format=csv,noheader"],
+            capture_output=True, text=True, timeout=60,
+        )
+    except Exception as exc:
+        return {"gpu_name": None, "driver_version": None, "error": f"{type(exc).__name__}: {exc}"}
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout or "").strip() or f"nvidia-smi exit {proc.returncode}"
+        return {"gpu_name": None, "driver_version": None, "error": err}
+    lines = [ln.strip() for ln in (proc.stdout or "").splitlines() if ln.strip()]
+    if not lines:
+        return {"gpu_name": None, "driver_version": None, "error": "nvidia-smi produced no output"}
+    gpu_name, sep, driver = lines[0].rpartition(",")
+    if not sep:
+        return {"gpu_name": None, "driver_version": None, "error": f"nvidia-smi parse failed: {lines[0]!r}"}
+    return {"gpu_name": gpu_name.strip(), "driver_version": driver.strip(), "error": None}
+
+def write_env_json():
+    smi = query_nvidia_smi()
+    env = {
+        "commit": COMMIT_FULL,
+        "commit_source": COMMIT_SOURCE,
+        "code_zip": CODE_ZIP.name,
+        "code_zip_sha256": CODE_ZIP_SHA256,
+        "torch": torch.__version__,
+        "torch.version.cuda": torch.version.cuda,
+        "cudnn_version": torch.backends.cudnn.version(),
+        "cuda_available": bool(torch.cuda.is_available()),
+        "nvidia_smi_gpu_name": smi["gpu_name"],
+        "nvidia_smi_driver_version": smi["driver_version"],
+        "nvidia_smi_error": smi["error"],
+    }
+    path = OUT / "env.json"
+    path.write_text(json.dumps(env, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print("env.json", path)
+    print(json.dumps(env, ensure_ascii=False, indent=2))
+    return env
+
+write_env_json()
 ''')
 
 md("""
@@ -236,8 +351,12 @@ if not RUN_BUILD:
     if "ALL_DONE" not in status:
         print("경고: STATUS.txt에 ALL_DONE 없음 — Training 묶음이 아직 끝나지 않았을 수 있음")
 
-    PACKED,     DATA_SHAS["train_packed"]     = copy_big(pick(TRAIN_PACKED_NAME, TRAIN_PACKED_GLOB), WORK, TRAIN_PACKED_SHA256)
-    PACKED_IDX, DATA_SHAS["train_index"]      = copy_big(pick(TRAIN_INDEX_NAME, TRAIN_INDEX_GLOB), WORK)
+    train_packed_src = pick(TRAIN_PACKED_NAME, TRAIN_PACKED_GLOB)
+    train_index_src = pick(TRAIN_INDEX_NAME, TRAIN_INDEX_GLOB)
+    assert train_packed_src.name == TRAIN_PACKED_NAME, train_packed_src
+    assert train_index_src.name == TRAIN_INDEX_NAME, train_index_src
+    PACKED,     DATA_SHAS["train_packed"]     = copy_big(train_packed_src, WORK, train_packed_sha_expected(TRAIN_PACKED_NAME))
+    PACKED_IDX, DATA_SHAS["train_index"]      = copy_big(train_index_src, WORK, train_packed_sha_expected(TRAIN_INDEX_NAME))
     VAL_PACKED, DATA_SHAS["val_packed"]       = copy_big(SPEC_DRIVE / VAL_PACKED_NAME, WORK, VAL_PACKED_SHA256)
     VA_IDX,     DATA_SHAS["val_index"]        = copy_big(SPEC_DRIVE / VAL_INDEX_NAME, WORK)
     VA_PACKED_IDX, DATA_SHAS["val_packed_index"] = copy_big(SPEC_DRIVE / VAL_PACKED_INDEX_NAME, WORK)
@@ -350,6 +469,7 @@ md("""
 - seed별로 Drive에 이어 붙이기만 하는 기록 3개 (덮어쓰지 않음):
   `train_ts{s}_log.txt`(학습 출력 전체) · `train_ts{s}_epochs.jsonl`(에폭별 train_loss/val_acc/lr/시간) · `train_ts{s}_ckpt_history.jsonl`(호출마다 ckpt 에폭 수·best·sha256)
 - 에폭 선택은 Training 내부 held-out만 사용
+- AMP(A안): seed 1의 1에폭에서 loss/metrics에 NaN/inf가 없고 loss가 감소해야 다음 에폭·시드로 진행. 에폭당 train_loss가 하나이고 fp32 1에폭 로그가 없어, 감소는 `train_loss < ln(2)`(균등 2-class 초기 CE)로 본다. 학습이 끝난 뒤 held-out best < 0.903이면 AMP 의심 경고만 하고 중단하지 않음
 """)
 code(r'''
 def ckpt(s):          return OUT / f"m2_cnn_large_raw_ts{s}.pt"
@@ -377,7 +497,9 @@ def epoch_logger(seed):
         m = EPOCH_RE.match(l.strip())
         if m:
             rec = {"seed": seed, "epoch": int(m[1]), "train_loss": float(m[2]), "val_acc_internal": float(m[3]),
-                   "lr": float(m[4]), "epoch_time_s": int(m[5]), "amp": USE_AMP, "commit": COMMIT, "logged_at": time.strftime("%F %T")}
+                   "lr": float(m[4]), "epoch_time_s": int(m[5]), "amp": USE_AMP, "commit": COMMIT,
+                   "run_folder": "m2_l2_rerun_6cc1181", "code_zip_sha256": CODE_ZIP_SHA256,
+                   "logged_at": time.strftime("%F %T")}
             _append(epoch_jsonl(seed), json.dumps(rec) + "\n")
     return on_line
 
@@ -394,7 +516,9 @@ def train(seed, n_epochs, resume):
     if resume:
         shutil.copyfile(ckpt(seed), ckpt_prev(seed))
     else:
-        _append(epoch_jsonl(seed), json.dumps({"event": "fresh_start", "seed": seed, "amp": USE_AMP, "commit": COMMIT, "at": time.strftime("%F %T")}) + "\n")
+        _append(epoch_jsonl(seed), json.dumps({"event": "fresh_start", "seed": seed, "amp": USE_AMP, "commit": COMMIT,
+                                               "run_folder": "m2_l2_rerun_6cc1181", "code_zip_sha256": CODE_ZIP_SHA256,
+                                               "at": time.strftime("%F %T")}) + "\n")
     cmd = [sys.executable, "scripts/train_mission2_cnn.py",
            "--index", PACKED_IDX, "--packed-spectrograms", PACKED,
            "--model", "large", "--seed", "42", "--torch-seed", seed, "--test-size", "0.2",
@@ -409,27 +533,129 @@ def train(seed, n_epochs, resume):
     _append(ckpt_hist(seed), json.dumps(rec) + "\n")
     print(f"[Drive ckpt 갱신] seed {seed}: {rec['total_epochs_trained']}/{EPOCHS} 에폭 → {ckpt(seed)}")
 
-# 3-1. AMP 점검: seed 1을 1에폭만 돌리고 fp32 기준과 비교 → 실패면 USE_AMP=False로 처음부터
-if RUN_TRAIN and USE_AMP and not ckpt(1).exists():
-    train(1, 1, resume=False)
+def require_train_packed_sha256_before_training():
+    """TRAIN_PACKED_SHA256 이 비어 있거나 Drive에서 복사한 파일 sha256과 다르면 학습을 시작하지 않는다."""
+    if not RUN_TRAIN or RUN_BUILD:
+        return
+    if not isinstance(TRAIN_PACKED_SHA256, dict):
+        raise RuntimeError("TRAIN_PACKED_SHA256 가 딕셔너리가 아니어서 학습을 시작하지 않음")
+    got = {
+        TRAIN_PACKED_NAME: DATA_SHAS.get("train_packed"),
+        TRAIN_INDEX_NAME: DATA_SHAS.get("train_index"),
+    }
+    for name in (TRAIN_PACKED_NAME, TRAIN_INDEX_NAME):
+        expected = TRAIN_PACKED_SHA256.get(name, "")
+        expected = "" if expected is None else str(expected).strip()
+        actual = got.get(name)
+        if expected == "":
+            raise RuntimeError(
+                f"TRAIN_PACKED_SHA256[{name!r}] 가 비어 있어 학습을 시작하지 않음. "
+                f"복사된 Drive 파일 sha256={actual}. TRAIN_PACKED_SHA256 이 한 줄만 채운 뒤 다시 실행"
+            )
+        if actual != expected:
+            raise RuntimeError(
+                f"{name} sha256이 Drive 파일과 달라 학습을 시작하지 않음: "
+                f"computed {actual} != TRAIN_PACKED_SHA256 {expected}"
+            )
+    print("TRAIN_PACKED_SHA256 확인: Training 묶음 두 파일 모두 기대값과 일치")
+
+def assert_amp_seed1_epoch1():
+    """A안 seed-1 1에폭 게이트. 실패하면 이후 에폭·시드로 진행하지 않는다.
+
+    트레이너는 에폭당 train_loss 한 값만 출력하고, fp32 1에폭 로그는 없다 (FP32_EPOCH1_REF is None).
+    균등 2-class 초기 cross-entropy는 ln(2)이므로, 1에폭 평균 train_loss < ln(2)이면 그 에폭 동안 loss가 감소한 것이다.
+    """
+    if not USE_AMP:
+        return
     e1 = epoch_log_status(1)["by_epoch"].get(1)
-    print(">>> 위 로그의 1에폭 train loss / val acc를 FP32_EPOCH1_REF와 비교하세요.")
-    print(">>> NaN/inf, GradScaler 스케일 계속 감소, val acc가 fp32보다 2%p 넘게 낮으면 중단.")
-    print("AMP 1에폭:", e1, "| fp32 기준:", FP32_EPOCH1_REF)
-    assert e1 is not None and np.isfinite(e1["train_loss"]), "AMP 1에폭 train_loss가 NaN/inf → USE_AMP=False로 처음부터"
-    if FP32_EPOCH1_REF["val_acc"] is not None:
-        drop = FP32_EPOCH1_REF["val_acc"] - e1["val_acc_internal"]
-        assert drop <= AMP_MAX_ACC_DROP, f"AMP 1에폭 val acc가 fp32보다 {drop * 100:.2f}%p 낮음 → USE_AMP=False로 처음부터"
+    print("AMP seed1 1에폭:", e1, "| FP32_EPOCH1_REF:", FP32_EPOCH1_REF)
+    if e1 is None:
+        raise RuntimeError("AMP seed1 1에폭 로그가 없음 → 이후 에폭·시드로 진행하지 않음")
+    fields = ("train_loss", "val_acc_internal", "lr")
+    bad = {k: e1.get(k) for k in fields if not (isinstance(e1.get(k), (int, float)) and np.isfinite(e1[k]))}
+    if bad or not (0.0 <= float(e1["val_acc_internal"]) <= 1.0):
+        raise RuntimeError(f"AMP seed1 1에폭 loss/metrics에 NaN/inf (또는 val_acc 범위 밖) → 이후 에폭·시드로 진행하지 않음: {e1}")
+    init_ce = float(np.log(2.0))
+    if not (e1["train_loss"] < init_ce):
+        raise RuntimeError(
+            f"AMP seed1 1에폭 train_loss={e1['train_loss']} 가 초기 손실 ln(2)={init_ce:.6f}보다 낮지 않음 "
+            f"(loss가 감소하지 않음) → 이후 에폭·시드로 진행하지 않음"
+        )
+    print(f"AMP seed1 1에폭 게이트 통과: loss/metrics finite, train_loss {e1['train_loss']:.4f} < ln(2)={init_ce:.4f} (감소)")
+
+# 3-1. AMP 점검: seed 1을 1에폭만 돌리고, 실패하면 여기서 멈춘다 (다음 셀의 나머지 에폭·시드로 가지 않음)
+if RUN_TRAIN:
+    require_train_packed_sha256_before_training()
+    if USE_AMP and done_epochs(1) < 1:
+        train(1, 1, resume=False)
+    if USE_AMP:
+        assert_amp_seed1_epoch1()
 ''')
 code(r'''
-# 3-2. 전체 학습: 1에폭씩 --resume (런타임이 끊기면 0번·0-1·1·2·2-C 셀 실행 후 이 셀만 다시 실행 → Drive ckpt에서 이어감)
+# 3-2. 전체 학습: 1에폭씩 --resume (런타임이 끊기면 0번·0-1·1·2·2-C 셀 실행 후 이 셀만 다시 실행 → 이 폴더의 Drive ckpt에서 이어감)
 if RUN_TRAIN:
+    require_train_packed_sha256_before_training()
+    if USE_AMP and done_epochs(1) < 1:
+        train(1, 1, resume=False)
+    if USE_AMP:
+        assert_amp_seed1_epoch1()   # 실패하면 이후 에폭·시드로 진행하지 않음
+    suspect = []
     for s in SEEDS:
         while (e := done_epochs(s)) < EPOCHS:
             train(s, min(CHUNK, EPOCHS - e), resume=e > 0)
         st = epoch_log_status(s)
         print(f"seed {s} 완료 {EPOCHS}에폭 · sha256 {sha256(ckpt(s))} · 에폭 로그 "
               + ("완비" if st["complete"] else f"누락 {st['missing']}"))
+        best = float(load_ckpt(s)["best_val_acc"])
+        if USE_AMP and best < AMP_SUSPECT_HELD_OUT_BELOW:
+            msg = (f"WARNING AMP_SUSPECT seed {s}: held-out best {best:.4f} < {AMP_SUSPECT_HELD_OUT_BELOW} "
+                   f"(기록된 fp32 최종 held-out best는 0.9133/0.9134). AMP가 의심됨. 학습은 중단하지 않음.")
+            print(msg)
+            _append(LOG, f"[{time.strftime('%F %T')}] {msg}\n")
+            suspect.append({"flag": "AMP_SUSPECT", "seed": s, "held_out_best": best,
+                            "threshold": AMP_SUSPECT_HELD_OUT_BELOW, "stopped": False})
+    AMP_SUSPECT_FLAGS[:] = suspect
+    json.dump(suspect, open(OUT / "amp_suspect_flags.json", "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    print("AMP_SUSPECT flags:", suspect if suspect else "없음")
+''')
+
+md("""
+## 3-B. 저장 체크포인트 dtype (가중치는 fp32)
+
+각 seed 체크포인트를 `map_location='cpu'`로 읽는다. AMP autocast는 연산만 float16이고, 저장된 모델 state dict의 부동소수 텐서는 전부 `torch.float32`여야 한다.
+BatchNorm `num_batches_tracked`만 정수 버퍼(가중치가 아님)라 예외로 둔다.
+""")
+code(r'''
+def _iter_tensors(obj, prefix):
+    if torch.is_tensor(obj):
+        yield prefix, obj
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from _iter_tensors(v, f"{prefix}.{k}" if prefix else str(k))
+    elif isinstance(obj, (list, tuple)):
+        for i, v in enumerate(obj):
+            yield from _iter_tensors(v, f"{prefix}[{i}]")
+
+def assert_ckpt_weights_fp32(path):
+    blob = torch.load(path, map_location="cpu", weights_only=False)
+    named = [(key, blob[key]) for key in ("best_model_state_dict", "last_model_state_dict", "ensemble_model_state_dicts") if key in blob]
+    assert named, f"{path} 에 모델 state dict 없음"
+    n_fp32 = 0
+    for key, sd in named:
+        for name, tensor in _iter_tensors(sd, key):
+            if tensor.dtype.is_floating_point:
+                assert tensor.dtype == torch.float32, f"{path} {name} dtype={tensor.dtype} (torch.float32 여야 함)"
+                n_fp32 += 1
+            else:
+                assert name.endswith("num_batches_tracked"), (
+                    f"{path} {name} dtype={tensor.dtype} 는 fp32 가중치가 아님"
+                )
+    assert n_fp32 > 0, f"{path} state dict에 부동소수 텐서가 없음"
+    print(f"fp32 OK {Path(path).name}: {n_fp32} float32 tensors")
+
+for s in SEEDS:
+    assert ckpt(s).is_file(), ckpt(s)
+    assert_ckpt_weights_fp32(ckpt(s))
 ''')
 
 md("## 4. `SEEDS_DONE` 확인 · 제출 ckpt (2개 이상 → 앙상블 1파일, 1개 → 그 단일 ckpt)")
@@ -584,7 +810,8 @@ print(f"재현 참고: 이전 91.55% ±0.3%p (0.9125–0.9185) {'재현 범위 �
 
 SUMMARY = {
     "commit": COMMIT_FULL, "commit_source": COMMIT_SOURCE, "code_zip": CODE_ZIP.name, "code_zip_sha256": CODE_ZIP_SHA256,
-    "amp": USE_AMP, "epochs": EPOCHS, "path": PATH_LABEL, "seeds_done": SEEDS_DONE,
+    "amp": USE_AMP, "fp32_epoch1_ref": FP32_EPOCH1_REF, "amp_suspect_flags": AMP_SUSPECT_FLAGS,
+    "epochs": EPOCHS, "path": PATH_LABEL, "seeds_done": SEEDS_DONE,
     "per_seed": {f"ts{s}": {**DONE_INFO[s],
                             "official_val_acc_submission_path": RES_SUB.get(f"ts{s}", {}).get("accuracy"),
                             "official_val_acc_eval_script": RES_SCRIPT.get(f"ts{s}", {}).get("accuracy")} for s in SEEDS_DONE},
@@ -602,6 +829,7 @@ SUMMARY = {
 }
 json.dump(SUMMARY, open(OUT / "m2_l2_rerun_summary.json", "w"), indent=2, ensure_ascii=False)
 _append(LOG, f"[{time.strftime('%F %T')}] VERDICT {verdict} | acc {acc:.6f} | {PATH_LABEL} | seeds {SEEDS_DONE}\n")
+write_env_json()
 run([sys.executable, "-m", "pip", "freeze"])  # Drive 로그에 버전 기록
 subprocess.run(f"{sys.executable} -m pip freeze > '{OUT}/pip_freeze.txt'", shell=True)
 ''')
