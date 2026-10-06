@@ -469,7 +469,7 @@ md("""
 - seed별로 Drive에 이어 붙이기만 하는 기록 3개 (덮어쓰지 않음):
   `train_ts{s}_log.txt`(학습 출력 전체) · `train_ts{s}_epochs.jsonl`(에폭별 train_loss/val_acc/lr/시간) · `train_ts{s}_ckpt_history.jsonl`(호출마다 ckpt 에폭 수·best·sha256)
 - 에폭 선택은 Training 내부 held-out만 사용
-- AMP(A안): seed 1의 1에폭에서 loss/metrics에 NaN/inf가 없고 loss가 감소해야 다음 에폭·시드로 진행. 에폭당 train_loss가 하나이고 fp32 1에폭 로그가 없어, 감소는 `train_loss < ln(2)`(균등 2-class 초기 CE)로 본다. 학습이 끝난 뒤 held-out best < 0.903이면 AMP 의심 경고만 하고 중단하지 않음
+- AMP(A안): seed 1의 1에폭에서 loss/metrics에 NaN/inf가 없고 loss가 감소해야 다음 에폭·시드로 진행. 에폭당 train_loss가 하나이고 fp32 1에폭 로그가 없어, 감소는 `train_loss < ln(2)`(균등 2-class 초기 CE)로 본다. 게이트 결과는 `amp_epoch1_gate.json`에 train_loss, ln2, held_out_acc(트레이너 에폭 로그의 val_acc), pass로 남긴다. 학습이 끝난 뒤 held-out best < 0.903이면 AMP 의심 경고만 하고 중단하지 않음
 """)
 code(r'''
 def ckpt(s):          return OUT / f"m2_cnn_large_raw_ts{s}.pt"
@@ -559,29 +559,64 @@ def require_train_packed_sha256_before_training():
             )
     print("TRAIN_PACKED_SHA256 확인: Training 묶음 두 파일 모두 기대값과 일치")
 
+def _json_number(value):
+    """Finite numbers stay numbers. NaN/inf and anything else become None so the gate JSON is strict."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if isinstance(value, float) and not np.isfinite(value):
+        return None
+    return int(value) if isinstance(value, int) else float(value)
+
 def assert_amp_seed1_epoch1():
     """A안 seed-1 1에폭 게이트. 실패하면 이후 에폭·시드로 진행하지 않는다.
 
-    트레이너는 에폭당 train_loss 한 값만 출력하고, fp32 1에폭 로그는 없다 (FP32_EPOCH1_REF is None).
+    트레이너는 에폭당 train_loss와 val_acc(내부 held-out)를 한 줄로 찍는다. fp32 1에폭 로그는 없다.
     균등 2-class 초기 cross-entropy는 ln(2)이므로, 1에폭 평균 train_loss < ln(2)이면 그 에폭 동안 loss가 감소한 것이다.
+    판정은 OUT/amp_epoch1_gate.json 에 train_loss, ln2, held_out_acc, pass 로 남긴다.
+    held_out_acc 는 에폭 로그의 val_acc_internal (트레이너가 찍는 val_acc)이다.
     """
     if not USE_AMP:
         return
     e1 = epoch_log_status(1)["by_epoch"].get(1)
-    print("AMP seed1 1에폭:", e1, "| FP32_EPOCH1_REF:", FP32_EPOCH1_REF)
-    if e1 is None:
-        raise RuntimeError("AMP seed1 1에폭 로그가 없음 → 이후 에폭·시드로 진행하지 않음")
-    fields = ("train_loss", "val_acc_internal", "lr")
-    bad = {k: e1.get(k) for k in fields if not (isinstance(e1.get(k), (int, float)) and np.isfinite(e1[k]))}
-    if bad or not (0.0 <= float(e1["val_acc_internal"]) <= 1.0):
-        raise RuntimeError(f"AMP seed1 1에폭 loss/metrics에 NaN/inf (또는 val_acc 범위 밖) → 이후 에폭·시드로 진행하지 않음: {e1}")
     init_ce = float(np.log(2.0))
-    if not (e1["train_loss"] < init_ce):
-        raise RuntimeError(
-            f"AMP seed1 1에폭 train_loss={e1['train_loss']} 가 초기 손실 ln(2)={init_ce:.6f}보다 낮지 않음 "
-            f"(loss가 감소하지 않음) → 이후 에폭·시드로 진행하지 않음"
+    print("AMP seed1 1에폭:", e1, "| FP32_EPOCH1_REF:", FP32_EPOCH1_REF)
+    train_loss = _json_number(e1.get("train_loss")) if e1 else None
+    # Trainer epoch line: val_acc=<internal held-out>. The notebook stores that as val_acc_internal.
+    held_out_acc = _json_number(e1.get("val_acc_internal")) if e1 else None
+    lr = _json_number(e1.get("lr")) if e1 else None
+    reason = None
+    if e1 is None:
+        reason = "AMP seed1 1에폭 로그가 없음"
+    elif train_loss is None or held_out_acc is None or lr is None or not (0.0 <= held_out_acc <= 1.0):
+        reason = f"loss/metrics NaN/inf (또는 val_acc 범위 밖): {e1}"
+    elif not (train_loss < init_ce):
+        reason = f"train_loss={train_loss} 가 초기 손실 ln(2)={init_ce:.6f}보다 낮지 않음 (loss가 감소하지 않음)"
+    passed = reason is None
+    verdict = {
+        "seed": 1,
+        "epoch": 1,
+        "train_loss": train_loss,
+        "ln2": init_ce,
+        "held_out_acc": held_out_acc,
+        "pass": passed,
+        "fail_reason": reason,
+    }
+    if held_out_acc is None:
+        verdict["held_out_acc_note"] = (
+            "epoch-1 로그에 유한한 held-out accuracy가 없음. "
+            "트레이너 에폭 줄의 val_acc 를 val_acc_internal 로 읽는다."
         )
-    print(f"AMP seed1 1에폭 게이트 통과: loss/metrics finite, train_loss {e1['train_loss']:.4f} < ln(2)={init_ce:.4f} (감소)")
+        verdict["epoch1_log_available"] = (
+            {k: _json_number(v) if isinstance(v, (int, float)) else v for k, v in e1.items()} if e1 else {}
+        )
+    gate_path = OUT / "amp_epoch1_gate.json"
+    gate_path.write_text(json.dumps(verdict, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    line = (f"AMP seed1 1에폭 게이트 {'통과' if passed else '실패'}: "
+            f"train_loss={train_loss} ln2={init_ce:.6f} held_out_acc={held_out_acc} pass={passed}")
+    print(line)
+    _append(LOG, f"[{time.strftime('%F %T')}] {line} | {gate_path.name}\n")
+    if not passed:
+        raise RuntimeError(f"AMP seed1 1에폭 게이트 실패 → 이후 에폭·시드로 진행하지 않음: {reason}")
 
 # 3-1. AMP 점검: seed 1을 1에폭만 돌리고, 실패하면 여기서 멈춘다 (다음 셀의 나머지 에폭·시드로 가지 않음)
 if RUN_TRAIN:
@@ -811,6 +846,8 @@ print(f"재현 참고: 이전 91.55% ±0.3%p (0.9125–0.9185) {'재현 범위 �
 SUMMARY = {
     "commit": COMMIT_FULL, "commit_source": COMMIT_SOURCE, "code_zip": CODE_ZIP.name, "code_zip_sha256": CODE_ZIP_SHA256,
     "amp": USE_AMP, "fp32_epoch1_ref": FP32_EPOCH1_REF, "amp_suspect_flags": AMP_SUSPECT_FLAGS,
+    "amp_epoch1_gate": json.load(open(OUT / "amp_epoch1_gate.json", encoding="utf-8"))
+                       if (OUT / "amp_epoch1_gate.json").is_file() else None,
     "epochs": EPOCHS, "path": PATH_LABEL, "seeds_done": SEEDS_DONE,
     "per_seed": {f"ts{s}": {**DONE_INFO[s],
                             "official_val_acc_submission_path": RES_SUB.get(f"ts{s}", {}).get("accuracy"),

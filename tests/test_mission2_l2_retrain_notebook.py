@@ -76,6 +76,8 @@ def test_notebook_pins_code_zip_training_sha_amp_env_and_output_folder() -> None
     assert 'cmd.append("--amp")' in text
     assert "AMP_SUSPECT_HELD_OUT_BELOW = 0.903" in text
     assert "assert_amp_seed1_epoch1" in text
+    assert 'OUT / "amp_epoch1_gate.json"' in text
+    assert '"held_out_acc": held_out_acc' in text
     assert 'torch.load(path, map_location="cpu", weights_only=False)' in text
     assert "torch.float32" in text
     assert '"torch.version.cuda": torch.version.cuda' in text
@@ -126,33 +128,74 @@ def test_train_packed_sha256_refuses_empty_or_mismatch() -> None:
     namespace["require_train_packed_sha256_before_training"]()
 
 
-def test_amp_epoch1_gate_stops_on_nan_or_nondecreasing_loss() -> None:
+def test_amp_epoch1_gate_stops_on_nan_or_nondecreasing_loss(tmp_path: Path) -> None:
     import math
 
     recorded = {}
+    log_path = tmp_path / "run_log.txt"
 
     def epoch_log_status(_seed):
         return {"by_epoch": {1: recorded["e1"]}}
+
+    def _append(path, text):
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(text)
 
     namespace = {
         "USE_AMP": True,
         "FP32_EPOCH1_REF": None,
         "np": __import__("numpy"),
+        "json": json,
+        "time": __import__("time"),
+        "OUT": tmp_path,
+        "LOG": log_path,
+        "_append": _append,
     }
     _exec_functions(_cell_containing("def assert_amp_seed1_epoch1"), namespace)
     namespace["epoch_log_status"] = epoch_log_status
     gate = namespace["assert_amp_seed1_epoch1"]
+    gate_path = tmp_path / "amp_epoch1_gate.json"
+
+    def saved():
+        return json.loads(gate_path.read_text(encoding="utf-8"))
 
     recorded["e1"] = {"train_loss": math.nan, "val_acc_internal": 0.5, "lr": 1e-3}
     with pytest.raises(RuntimeError, match="NaN/inf"):
         gate()
+    failed = saved()
+    assert failed["pass"] is False
+    assert failed["train_loss"] is None
+    assert failed["held_out_acc"] == pytest.approx(0.5)
+    assert failed["ln2"] == pytest.approx(math.log(2))
 
     recorded["e1"] = {"train_loss": 1.2, "val_acc_internal": 0.4, "lr": 1e-3}
     with pytest.raises(RuntimeError, match="감소하지 않음"):
         gate()
+    stalled = saved()
+    assert stalled["pass"] is False
+    assert stalled["train_loss"] == pytest.approx(1.2)
+    assert stalled["held_out_acc"] == pytest.approx(0.4)
+    assert stalled["ln2"] == pytest.approx(math.log(2))
 
     recorded["e1"] = {"train_loss": 0.4, "val_acc_internal": 0.8, "lr": 1e-3}
     gate()
+    ok = saved()
+    assert ok["pass"] is True
+    assert ok["train_loss"] == pytest.approx(0.4)
+    assert ok["ln2"] == pytest.approx(math.log(2))
+    assert ok["held_out_acc"] == pytest.approx(0.8)
+    assert ok["fail_reason"] is None
+    assert "held_out_acc=0.8" in log_path.read_text(encoding="utf-8")
+
+    recorded["e1"] = {"train_loss": 0.3, "lr": 1e-3, "epoch": 1}
+    with pytest.raises(RuntimeError, match="NaN/inf"):
+        gate()
+    missing = saved()
+    assert missing["held_out_acc"] is None
+    assert missing["pass"] is False
+    assert missing["epoch1_log_available"]["train_loss"] == pytest.approx(0.3)
+    assert "val_acc_internal" not in missing["epoch1_log_available"]
+    assert "held-out accuracy" in missing["held_out_acc_note"]
 
 
 def test_saved_checkpoint_floating_tensors_must_be_fp32(tmp_path: Path) -> None:
