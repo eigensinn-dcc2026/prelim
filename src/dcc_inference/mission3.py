@@ -8,14 +8,14 @@ signature and is not read.
 
 Decisions are ``probability >= 0.5``, then :func:`apply_min1` (a row with no
 positive label is given its ``np.argmax`` label, first index on ties).
-The symptom cell is :func:`format_symptom_cell` — see that function for the
-encoding and why it is unverified against the official PDF.
+The symptom cell is :func:`format_symptom_cell`: Python ``str(list)`` with
+ASCII single quotes, labels in ``TARGET_SYMPTOMS`` order (team decision of
+2026-10-06, ``docs/submission_format.md`` from #58).
 """
 
 from __future__ import annotations
 
 import importlib.util
-import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -36,11 +36,14 @@ DEFAULT_CKPT = REPOSITORY_ROOT / "checkpoints" / "mission3" / CKPT_FILENAME
 # P0 0.567552 -> 0.567977 Macro F1 with this rule. Not the checkpoint's stored threshold.
 THRESHOLD = 0.5
 
-# Format chosen as a JSON list with double quotes per the team transcript of the
-# official PDF p.9 example (``["두통", "복통"]``) and because it parses with both
-# ``json.loads`` and ``ast.literal_eval``. Still UNVERIFIED against the PDF
-# original (p.9 and p.11), to be confirmed by M1.
-SYMPTOM_CELL_EXAMPLE = '["두통", "복통"]'
+# Symptom cell format decided by the team on 2026-10-06 (docs/submission_format.md, #58):
+# Python ``str(list)`` -- ASCII single quotes, one space after each comma -- with labels
+# in ``TARGET_SYMPTOMS`` order; no labels is ``[]`` (min-1 means predict() never emits it).
+# ``inference.py`` writes the CSV with pandas' default QUOTE_MINIMAL, so a multi-label
+# cell appears in the file as ``"['두통', '복통']"``. The official PDF p.9 example uses
+# curly quotes; organizers to confirm at the 10-10 mentoring.
+# UNVERIFIED: not yet smoke-tested on the official Validation set.
+SYMPTOM_CELL_EXAMPLE = "['두통', '복통']"
 
 
 def _script() -> ModuleType:
@@ -85,16 +88,23 @@ def apply_min1(probabilities: np.ndarray, threshold: float = THRESHOLD) -> np.nd
 
 
 def format_symptom_cell(labels: Sequence[str]) -> str:
-    """Symptom cell text. Label order is kept exactly as passed.
+    """Symptom cell text: ``str(list)`` of the labels in ``TARGET_SYMPTOMS`` order.
 
-    ``predict`` passes labels in ``TARGET_SYMPTOMS`` order. Format chosen as a
-    JSON list with double quotes per the team transcript of the official PDF
-    p.9 example (``["두통", "복통"]``) and because it parses with both
-    ``json.loads`` and ``ast.literal_eval``. Still UNVERIFIED against the PDF
-    original (p.9 and p.11), to be confirmed by M1.
+    ``["복통", "두통"]`` -> ``"['두통', '복통']"``; no labels -> ``"[]"``.
+    ``ast.literal_eval`` of the cell gives the ordered list back. Labels outside
+    the nine P0 ``TARGET_SYMPTOMS`` and repeated labels raise ``ValueError``.
+    See ``SYMPTOM_CELL_EXAMPLE`` for where this format comes from.
     """
 
-    return json.dumps(list(labels), ensure_ascii=False)
+    order = [str(label) for label in _script().TARGET_SYMPTOMS]
+    names = [str(label) for label in labels]
+    unknown = sorted(set(names) - set(order))
+    if unknown:
+        raise ValueError(f"not a Mission 3 target symptom: {unknown}")
+    if len(set(names)) != len(names):
+        raise ValueError(f"repeated symptom labels: {names}")
+    chosen = set(names)
+    return str([label for label in order if label in chosen])
 
 
 def positive_labels(binary_row: Sequence[int], symptom_names: Sequence[str]) -> list[str]:

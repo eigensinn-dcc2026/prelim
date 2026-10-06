@@ -59,34 +59,76 @@ def test_apply_min1_cases():
     assert np.array_equal(probabilities, original)
 
 
-def test_format_symptom_cell_is_json_double_quotes():
-    """JSON list, double quotes. UNVERIFIED vs the PDF original (p.9 and p.11)."""
+def test_format_symptom_cell_is_python_str_list():
+    """str(list), ASCII single quotes, TARGET_SYMPTOMS order (team decision 2026-10-06, #58)."""
 
+    assert list(mission3._script().TARGET_SYMPTOMS) == SYMPTOMS
     cases = (
+        (["두통", "복통"], "['두통', '복통']"),
+        (["고열"], "['고열']"),
+        (["고열", "두통"], "['고열', '두통']"),
+        ([], "[]"),
+        (list(SYMPTOMS), str(list(SYMPTOMS))),
+    )
+    for labels, expected in cases:
+        cell = mission3.format_symptom_cell(labels)
+        assert cell == expected == str(list(labels))
+        assert '"' not in cell
+        assert ast.literal_eval(cell) == labels
+    assert mission3.SYMPTOM_CELL_EXAMPLE == "['두통', '복통']"
+    assert mission3.format_symptom_cell(("두통", "복통")) == mission3.SYMPTOM_CELL_EXAMPLE
+    # Any input order comes out in TARGET_SYMPTOMS order.
+    assert mission3.format_symptom_cell(["복통", "두통"]) == "['두통', '복통']"
+    assert mission3.format_symptom_cell(["호흡곤란", "고열", "오심"]) == "['고열', '오심', '호흡곤란']"
+    assert mission3.format_symptom_cell(list(reversed(SYMPTOMS))) == str(list(SYMPTOMS))
+    with pytest.raises(ValueError):
+        mission3.format_symptom_cell(["두통", "찰과상"])
+    with pytest.raises(ValueError):
+        mission3.format_symptom_cell(["두통", "두통"])
+    assert mission3.positive_labels([0, 0, 1, 1, 0, 0, 0, 0, 0], SYMPTOMS) == ["두통", "복통"]
+
+
+def test_symptom_cell_csv_round_trip(tmp_path: Path):
+    """Write as inference.py does, read with pd.read_csv, ast.literal_eval -> same list."""
+
+    lists = [
         ["두통", "복통"],
         ["고열"],
-        ["고열", "두통"],
-        ["두통"],
-    )
-    assert [mission3.format_symptom_cell(labels) for labels in cases] == [
-        '["두통", "복통"]',
-        '["고열"]',
-        '["고열", "두통"]',
-        '["두통"]',
+        [],
+        ["고열", "구토", "어지러움", "호흡곤란"],
+        list(SYMPTOMS),
     ]
-    assert mission3.SYMPTOM_CELL_EXAMPLE == '["두통", "복통"]'
-    for labels in cases:
-        cell = mission3.format_symptom_cell(labels)
-        assert cell == json.dumps(labels, ensure_ascii=False)
-        assert json.loads(cell) == labels
-        assert ast.literal_eval(cell) == labels
-    # The formatter does not reorder; predict() passes TARGET_SYMPTOMS order.
-    reversed_labels = ["복통", "두통"]
-    reversed_cell = mission3.format_symptom_cell(reversed_labels)
-    assert reversed_cell == '["복통", "두통"]'
-    assert json.loads(reversed_cell) == reversed_labels
-    assert list(mission3._script().TARGET_SYMPTOMS) == SYMPTOMS
-    assert mission3.positive_labels([0, 0, 1, 1, 0, 0, 0, 0, 0], SYMPTOMS) == ["두통", "복통"]
+    names = [f"call_{index}.json" for index in range(len(lists))]
+    frame = pd.DataFrame(
+        {
+            "label file name": names,
+            "symptom": [mission3.format_symptom_cell(labels) for labels in lists],
+        },
+        columns=list(mission3.COLUMNS),
+        dtype=object,
+    )
+    out = tmp_path / "mission3.csv"
+    frame.to_csv(out, index=False, encoding=registry.CSV_ENCODING)
+
+    raw = out.read_bytes()
+    assert not raw.startswith(b"\xef\xbb\xbf")
+    text = raw.decode("utf-8")
+    # QUOTE_MINIMAL: only cells with a comma are wrapped in double quotes.
+    assert "call_0.json,\"['두통', '복통']\"" in text
+    assert "call_1.json,['고열']" in text
+    assert "call_2.json,[]" in text
+    with out.open(encoding="utf-8", newline="") as stream:
+        assert [row[1] for row in csv.reader(stream)][1:] == [str(labels) for labels in lists]
+
+    read = pd.read_csv(out, encoding="utf-8")
+    assert list(read.columns) == ["label file name", "symptom"]
+    assert list(read["label file name"]) == names
+    parsed = [ast.literal_eval(cell) for cell in read["symptom"]]
+    assert parsed == lists
+    for labels in parsed:
+        assert isinstance(labels, list)
+        assert all(label in SYMPTOMS for label in labels)
+        assert labels == sorted(labels, key=SYMPTOMS.index)
 
 
 def _logit(probability: float) -> float:
@@ -198,13 +240,15 @@ def test_predict_contract_and_symptom_cells(tmp_path: Path):
 
     by_name = dict(zip(frame["label file name"], frame["symptom"]))
     # exact 0.5 is positive, and the higher 두통 stays on too (not collapsed to argmax)
-    assert by_name["half.json"] == '["고열", "두통"]'
-    # TARGET_SYMPTOMS order, JSON double quotes — not the JSON file's 호흡곤란/기타
-    assert by_name["pair.json"] == mission3.SYMPTOM_CELL_EXAMPLE == '["두통", "복통"]'
+    assert by_name["half.json"] == "['고열', '두통']"
+    # TARGET_SYMPTOMS order, str(list) single quotes — not the JSON file's 호흡곤란/기타
+    assert by_name["pair.json"] == mission3.SYMPTOM_CELL_EXAMPLE == "['두통', '복통']"
     # all below 0.5 and tied -> first label
-    assert by_name["tie.json"] == '["고열"]'
+    assert by_name["tie.json"] == "['고열']"
     # all below 0.5 -> the single argmax label; utf-8-sig still read
-    assert by_name["zz.json"] == '["두통"]'
+    assert by_name["zz.json"] == "['두통']"
+    # min-1: never an empty list
+    assert "[]" not in set(frame["symptom"])
     assert set(frame["symptom"]) == {
         mission3.format_symptom_cell(labels)
         for labels in (["고열", "두통"], ["두통", "복통"], ["고열"], ["두통"])
@@ -256,15 +300,19 @@ def test_root_entry_writes_official_mission3_csv(tmp_path: Path):
         rows = list(csv.reader(stream))
     assert rows[0] == ["label file name", "symptom"]
     assert rows[1:] == [
-        ["half.json", '["고열", "두통"]'],
-        ["zz.json", '["두통"]'],
-        ["pair.json", '["두통", "복통"]'],
-        ["tie.json", '["고열"]'],
+        ["half.json", "['고열', '두통']"],
+        ["zz.json", "['두통']"],
+        ["pair.json", "['두통', '복통']"],
+        ["tie.json", "['고열']"],
     ]
-    for row in rows[1:]:
-        assert json.loads(row[1]) == ast.literal_eval(row[1])
-    assert rows[3][1] == '["두통", "복통"]'
-    # csv quoting doubles the inner quotes: ["두통", "복통"] -> "[""두통"", ""복통""]"
+    # QUOTE_MINIMAL: a multi-label cell is wrapped in double quotes, a single label is not.
     text = raw.decode("utf-8")
-    assert 'pair.json,"[""두통"", ""복통""]"' in text
-    assert 'zz.json,"[""두통""]"' in text
+    assert "pair.json,\"['두통', '복통']\"" in text
+    assert "zz.json,['두통']" in text
+    read = pd.read_csv(out, encoding="utf-8")
+    assert [ast.literal_eval(cell) for cell in read["symptom"]] == [
+        ["고열", "두통"],
+        ["두통"],
+        ["두통", "복통"],
+        ["고열"],
+    ]
