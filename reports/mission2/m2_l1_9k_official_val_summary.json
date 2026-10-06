@@ -1,0 +1,14 @@
+{
+  "candidate": "M2-L1-9k",
+  "role": "L2 대조용 baseline (제출 후보 아님)",
+  "commit": "4bfd2c4",
+  "accuracy": 0.8425504926438404,
+  "n_utt": 111947,
+  "n_calls": 3640,
+  "majority_fallback": 0,
+  "internal_group_split_accuracy": 0.8482,
+  "ckpt_sha256": "3f1e872a5d1025f0630fb0327dac551711ed56dd40409153c5756c6bd0ef8780",
+  "ckpt_location": "Drive dcc_runs/m2_l1_9k/ (Git 제외)",
+  "data_root": "DCC_DATA_ROOT = Colab Drive '대학부 데이터' (Seoul Validation, 평가만)",
+  "finished_at": "2026-10-06T03:43:13+09:00"
+}
