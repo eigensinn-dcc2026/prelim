@@ -4,7 +4,7 @@
   "seed": 42,
   "test_size": 0.2,
   "repo_commit": "35c607584d48b758aa9a4de67a6e7624ad62f7b3",
-  "ckpt": "C:\\Users\\sooyah\\Desktop\\아주대\\dcc\\01_prelim\\dcc2026-prelim\\outputs\\m3_p0_rerun\\mission3_tfidf_logreg.joblib",
+  "ckpt": "C:\\Users\\<user>\\Desktop\\아주대\\dcc\\01_prelim\\dcc2026-prelim\\outputs\\m3_p0_rerun\\mission3_tfidf_logreg.joblib",
   "ckpt_sha256": "d9b9df04f90784b499b5b2cc2eb55d630d899d44bbe35e72fdeaceaa0c30beb9",
   "script_sha256": "fee2bef3d52568fd8ecfb31773f0b8987a3dc4a3517508d858fdac9fc7209103",
   "n_total": 29200,

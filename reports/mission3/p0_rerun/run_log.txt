@@ -1,4 +1,4 @@
-$ C:\Users\sooyah\AppData\Local\Programs\Python\Python311\python.exe -u C:\Users\sooyah\Desktop\아주대\dcc\01_prelim\dcc2026-prelim\scripts\mission3_baseline 최종 수정본.py --label_dir C:\Users\sooyah\Desktop\아주대\dcc\01_prelim\dcc2026-prelim\data\raw_merged\Training\2.라벨링데이터\TL_서울_구급 --output_dir C:\Users\sooyah\Desktop\아주대\dcc\01_prelim\dcc2026-prelim\outputs\m3_p0_rerun --test_size 0.2 --seed 42 --threshold 0.5
+$ C:\Users\<user>\AppData\Local\Programs\Python\Python311\python.exe -u C:\Users\<user>\Desktop\아주대\dcc\01_prelim\dcc2026-prelim\scripts\mission3_baseline 최종 수정본.py --label_dir C:\Users\<user>\Desktop\아주대\dcc\01_prelim\dcc2026-prelim\data\raw_merged\Training\2.라벨링데이터\TL_서울_구급 --output_dir C:\Users\<user>\Desktop\아주대\dcc\01_prelim\dcc2026-prelim\outputs\m3_p0_rerun --test_size 0.2 --seed 42 --threshold 0.5
 Train samples: 23,408
 Validation samples: 5,792
 Precision (macro): 0.5323
@@ -7,7 +7,7 @@ Precision (micro): 0.5363
 Recall (micro): 0.6265
 Macro F1: 0.5676
 Micro F1: 0.5779
-Checkpoint: C:\Users\sooyah\Desktop\아주대\dcc\01_prelim\dcc2026-prelim\outputs\m3_p0_rerun\mission3_tfidf_logreg.joblib
+Checkpoint: C:\Users\<user>\Desktop\아주대\dcc\01_prelim\dcc2026-prelim\outputs\m3_p0_rerun\mission3_tfidf_logreg.joblib
 
 증상별 F1
 symptom  support  precision   recall       f1

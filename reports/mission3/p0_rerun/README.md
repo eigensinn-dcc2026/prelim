@@ -4,6 +4,7 @@
 - M3 보험 제출본(P0: TF-IDF + OvR Logistic Regression)의 로컬 재현 기록.
 - 팀 규칙에 따라 노트북 셀 출력을 보존한 실행본(`*_executed.ipynb`)을 그대로 커밋함.
 - 코드 변경 없음, 기록만. 체크포인트(`.joblib`)와 `validation_predictions.csv`는 커밋하지 않음.
+- 개인 PC 경로 처리: 실행본·`run_log.txt`·`verdict.json`·`min1_metrics.json`에 남은 `C:\Users\<사용자명>\...`의 사용자명만 `<user>`로 치환함(19줄). 그 외 실행 출력과 지표 값은 실행 당시 그대로이며, `verdict.json`·`min1_metrics.json`은 `ckpt` 경로 외 값이 동일함을 확인함.
 
 ## 결과: PASS
 | 항목 | 값 |
