@@ -24,6 +24,7 @@
 - 스크립트: `scripts/mission3_baseline 최종 수정본.py`
   - sha256 `fee2bef3d52568fd8ecfb31773f0b8987a3dc4a3517508d858fdac9fc7209103`
 - 인자: `--test_size 0.2 --seed 42 --threshold 0.5`
+- 노트북: Colab 초안(`mission3_p0_rerun_colab_draft.ipynb`)은 그동안 Drive(id `1jKDV8W9sY3fq1Ap2lqPLPqt6wbUEtzOt`)에만 있었고 zip 압축 해제 단계가 빠져 있었음. 실제 실행한 것은 로컬 노트북(`mission3_p0_rerun_local.ipynb` → 실행본 `mission3_p0_rerun_executed.ipynb`).
 - 환경: Python 3.11.9, scikit-learn 1.8.0, numpy 2.4.4, pandas 3.0.2, scipy 1.17.1, joblib 1.5.3, iterative-stratification 0.1.9 (전체 목록: `pip_freeze.txt`)
 
 ## min-1 증상 후처리 (규칙: 0.5 이상 라벨이 없으면 argmax 라벨을 1로)
@@ -37,6 +38,8 @@
 ## 파일
 | 파일 | 내용 |
 |---|---|
+| `mission3_p0_rerun_colab_draft.ipynb` | Colab 초안 (미실행, zip 압축 해제 단계 없음) |
+| `mission3_p0_rerun_local.ipynb` | 로컬 실행용 노트북 템플릿 (출력 없음) |
 | `mission3_p0_rerun_executed.ipynb` | 재현 실행 노트북 (셀 출력 포함) |
 | `metrics.json` | 스크립트 출력 지표 |
 | `per_label_metrics.csv` | 증상별 P/R/F1 |
