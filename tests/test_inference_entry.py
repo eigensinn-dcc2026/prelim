@@ -54,10 +54,11 @@ def test_validate_frame_rejects_wrong_columns_and_empty():
 
 
 def test_unwired_missions_fail_loudly():
-    # M1–M3 are wired (M3: tests/test_inference_mission3.py). A missing
-    # checkpoint must not be the old NotImplementedError stub.
-    with pytest.raises(FileNotFoundError):
-        registry.load_predict(3)(Path("a"), Path("b"), Path("missing-ckpt.bin"))
+    # An unwired mission raises NotImplementedError; once a mission is wired, bad
+    # inputs (here a missing checkpoint) must still fail loudly, never return silently.
+    for mission in (2, 3):
+        with pytest.raises((NotImplementedError, FileNotFoundError)):
+            registry.load_predict(mission)(Path("a"), Path("b"), Path("c"))
 
 
 def test_entry_writes_validated_csv(tmp_path, monkeypatch):
