@@ -1,0 +1,16 @@
+{
+  "train_sample_count": 23408,
+  "validation_sample_count": 5792,
+  "precision_macro": 0.5323176818092431,
+  "recall_macro": 0.6146729338924944,
+  "precision_micro": 0.5363375076986245,
+  "recall_micro": 0.6264988009592326,
+  "macro_f1": 0.567552067774815,
+  "micro_f1": 0.5779227961508683,
+  "threshold": 0.5,
+  "test_size": 0.2,
+  "seed": 42,
+  "total_sample_count": 29200,
+  "source_audio_zip": null,
+  "load_failure_count": 0
+}
