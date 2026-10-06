@@ -182,6 +182,21 @@ def test_saved_checkpoint_floating_tensors_must_be_fp32(tmp_path: Path) -> None:
     with pytest.raises(AssertionError, match="fp32 가중치가 아님"):
         namespace["assert_ckpt_weights_fp32"](odd)
 
+    extra = tmp_path / "extra_int.pt"
+    torch.save(
+        {
+            "best_model_state_dict": {
+                "classifier.weight": torch.zeros(2, 2),
+                "features.1.num_batches_tracked": torch.tensor(3, dtype=torch.long),
+                "extra_int": torch.tensor(7, dtype=torch.int64),
+            },
+            "last_model_state_dict": {"classifier.weight": torch.ones(2, 2)},
+        },
+        extra,
+    )
+    with pytest.raises(AssertionError, match="extra_int"):
+        namespace["assert_ckpt_weights_fp32"](extra)
+
 
 def test_env_json_records_cuda_cudnn_and_nvidia_smi_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     namespace = {
