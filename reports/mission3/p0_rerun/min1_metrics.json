@@ -1,0 +1,39 @@
+{
+  "rule": "if no label prob >= 0.5, set argmax label to 1",
+  "threshold": 0.5,
+  "seed": 42,
+  "test_size": 0.2,
+  "repo_commit": "35c607584d48b758aa9a4de67a6e7624ad62f7b3",
+  "ckpt": "C:\\Users\\sooyah\\Desktop\\아주대\\dcc\\01_prelim\\dcc2026-prelim\\outputs\\m3_p0_rerun\\mission3_tfidf_logreg.joblib",
+  "ckpt_sha256": "d9b9df04f90784b499b5b2cc2eb55d630d899d44bbe35e72fdeaceaa0c30beb9",
+  "script_sha256": "fee2bef3d52568fd8ecfb31773f0b8987a3dc4a3517508d858fdac9fc7209103",
+  "n_total": 29200,
+  "n_train": 23408,
+  "n_val": 5792,
+  "zero_label_all": 0,
+  "zero_label_train": 0,
+  "zero_label_val": 0,
+  "val_rows_affected": 293,
+  "forced_tp": 88,
+  "forced_fp": 205,
+  "affected_rows_with_zero_true_labels": 0,
+  "before": {
+    "macro_f1": 0.567552067774815,
+    "micro_f1": 0.5779227961508683,
+    "precision_macro": 0.5323176818092431,
+    "recall_macro": 0.6146729338924944,
+    "precision_micro": 0.5363375076986245,
+    "recall_micro": 0.6264988009592326
+  },
+  "after": {
+    "macro_f1": 0.5679772195323026,
+    "micro_f1": 0.5782857142857143,
+    "precision_macro": 0.5252618051717839,
+    "recall_macro": 0.6250658942276829,
+    "precision_micro": 0.5294469357249626,
+    "recall_micro": 0.6370503597122302
+  },
+  "delta_macro_f1": 0.00042515175748758516,
+  "delta_micro_f1": 0.0003629181348460131,
+  "baseline_matches_metrics_json": true
+}

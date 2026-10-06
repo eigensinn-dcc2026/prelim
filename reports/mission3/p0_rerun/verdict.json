@@ -1,0 +1,17 @@
+{
+  "macro_f1": 0.567552067774815,
+  "ref": 0.5676,
+  "diff": -4.793222518495455e-05,
+  "tol": 0.003,
+  "pass": true,
+  "ckpt": "C:\\Users\\sooyah\\Desktop\\아주대\\dcc\\01_prelim\\dcc2026-prelim\\outputs\\m3_p0_rerun\\mission3_tfidf_logreg.joblib",
+  "ckpt_sha256": "d9b9df04f90784b499b5b2cc2eb55d630d899d44bbe35e72fdeaceaa0c30beb9",
+  "repo_commit": "a1ad0734ac7bca34210f42adf62637b5cfcae668",
+  "script_sha256": "fee2bef3d52568fd8ecfb31773f0b8987a3dc4a3517508d858fdac9fc7209103",
+  "micro_f1": 0.5779227961508683,
+  "train_sample_count": 23408,
+  "validation_sample_count": 5792,
+  "total_sample_count": 29200,
+  "load_failure_count": 0,
+  "elapsed_sec": 933.4
+}

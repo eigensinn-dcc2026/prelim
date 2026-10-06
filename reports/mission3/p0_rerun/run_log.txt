@@ -1,0 +1,27 @@
+$ C:\Users\sooyah\AppData\Local\Programs\Python\Python311\python.exe -u C:\Users\sooyah\Desktop\아주대\dcc\01_prelim\dcc2026-prelim\scripts\mission3_baseline 최종 수정본.py --label_dir C:\Users\sooyah\Desktop\아주대\dcc\01_prelim\dcc2026-prelim\data\raw_merged\Training\2.라벨링데이터\TL_서울_구급 --output_dir C:\Users\sooyah\Desktop\아주대\dcc\01_prelim\dcc2026-prelim\outputs\m3_p0_rerun --test_size 0.2 --seed 42 --threshold 0.5
+Train samples: 23,408
+Validation samples: 5,792
+Precision (macro): 0.5323
+Recall (macro): 0.6147
+Precision (micro): 0.5363
+Recall (micro): 0.6265
+Macro F1: 0.5676
+Micro F1: 0.5779
+Checkpoint: C:\Users\sooyah\Desktop\아주대\dcc\01_prelim\dcc2026-prelim\outputs\m3_p0_rerun\mission3_tfidf_logreg.joblib
+
+증상별 F1
+symptom  support  precision   recall       f1
+     고열     1037   0.567869 0.637416 0.600636
+     구토      893   0.454280 0.522956 0.486205
+     두통      581   0.397083 0.421687 0.409015
+     복통     1354   0.783333 0.694239 0.736100
+   어지러움     1267   0.577334 0.639305 0.606742
+     열상      693   0.732779 0.890332 0.803909
+     오심      668   0.258604 0.393713 0.312166
+   전신쇠약     1062   0.443787 0.635593 0.522648
+   호흡곤란      785   0.575789 0.696815 0.630548
+
+전체 지표
+Precision(macro): 0.5323 | Recall(macro): 0.6147
+Precision(micro): 0.5363 | Recall(micro): 0.6265
+[returncode=0 elapsed=933.4s]
