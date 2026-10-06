@@ -1,0 +1,68 @@
+{
+  "n_utterances": 111947,
+  "l1_accuracy": 0.8644179835100538,
+  "l2_accuracy": 0.9088497235298847,
+  "by_overlap": {
+    "False": {
+      "l1_accuracy": 0.900117303912244,
+      "l2_accuracy": 0.9243865322427239,
+      "n": 63084
+    },
+    "True": {
+      "l1_accuracy": 0.8183287968401449,
+      "l2_accuracy": 0.8887911098377095,
+      "n": 48863
+    }
+  },
+  "by_duration_bucket": {
+    "<0.5s": {
+      "l1_accuracy": 0.8683270046906411,
+      "l2_accuracy": 0.9009381282108555,
+      "n": 8954
+    },
+    "0.5-1s": {
+      "l1_accuracy": 0.8193998247663551,
+      "l2_accuracy": 0.868611273364486,
+      "n": 27392
+    },
+    "1-2s": {
+      "l1_accuracy": 0.8419067773617668,
+      "l2_accuracy": 0.8903358836616203,
+      "n": 36858
+    },
+    "2-4s": {
+      "l1_accuracy": 0.9021111786148238,
+      "l2_accuracy": 0.9457776427703524,
+      "n": 26336
+    },
+    ">=4s": {
+      "l1_accuracy": 0.9478520190215202,
+      "l2_accuracy": 0.9800112839526074,
+      "n": 12407
+    }
+  },
+  "by_true_class": {
+    "0": {
+      "l1_accuracy": 0.820020429009193,
+      "l2_accuracy": 0.8629027764880676,
+      "n": 53845
+    },
+    "1": {
+      "l1_accuracy": 0.9055626312347251,
+      "l2_accuracy": 0.9514302433651165,
+      "n": 58102
+    }
+  },
+  "agreement_quadrants": {
+    "l1_wrong_l2_wrong": 7980,
+    "l1_wrong_l2_correct": 7198,
+    "l1_correct_l2_wrong": 2224,
+    "l1_correct_l2_correct": 94545
+  },
+  "agreement_quadrants_overlap_only": {
+    "l1_wrong_l2_wrong": 4029,
+    "l1_wrong_l2_correct": 4848,
+    "l1_correct_l2_wrong": 1405,
+    "l1_correct_l2_correct": 38581
+  }
+}

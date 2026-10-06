@@ -1,0 +1,21 @@
+{
+  "n_utterances": 111947,
+  "n_calls": 3640,
+  "model": "large",
+  "checkpoint": "/content/drive/MyDrive/데이터 크리에이터 캠프/m2_cache/m2_cnn_large.pt",
+  "checkpoint_source_epoch": 21,
+  "accuracy": 0.9088497235298847,
+  "recall_daewon_0": 0.8629027764880676,
+  "recall_singoja_1": 0.9514302433651165,
+  "recall_gap_singoja_minus_daewon": 0.08852746687704893,
+  "confusion_matrix": [
+    [
+      46463,
+      7382
+    ],
+    [
+      2822,
+      55280
+    ]
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "실험 ID": "M2-EXP-001",
+  "가설": "발화 조각의 음향 통계 feature와 duration만으로 speaker를 유의미하게 분류할 수 있다",
+  "baseline": 0.52,
+  "변경 변수": "없음 (첫 baseline 수립)",
+  "고정 변수": "통화 29200건 샘플, seed=42, LightGBM(num_leaves=255, learning_rate=0.02, n_estimators=1150, early stopping) 또는 HistGradientBoostingClassifier(lightgbm 미설치 시 기본 파라미터로 대체)",
+  "평가 지표": "Accuracy",
+  "validation": "call_id GroupShuffleSplit 8:2",
+  "채택 기준": "GroupSplit accuracy >= 0.70",
+  "기각 기준": "GroupSplit accuracy < 0.60 (-> L2 딥러닝 경로로 조기 전환)",
+  "verdict": null,
+  "measured": {
+    "group_split_accuracy": 0.8692626383571963,
+    "random_split_accuracy": 0.8689282180444364,
+    "leakage_gap_random_minus_group": -0.0003344203127598755,
+    "majority_class_accuracy_this_sample": 0.5196962303144516,
+    "n_train_utterances": 711467,
+    "n_val_utterances": 177891,
+    "n_train_calls": 23360,
+    "n_val_calls": 5840,
+    "confusion_matrix_val_group_split": [
+      [
+        70455,
+        14897
+      ],
+      [
+        8360,
+        84179
+      ]
+    ],
+    "feature_importance_top20": [
+      [
+        "duration_sec",
+        10148.0
+      ],
+      [
+        "mfcc_mean_2",
+        9536.0
+      ],
+      [
+        "mfcc_std_0",
+        9306.0
+      ],
+      [
+        "rms_std",
+        9281.0
+      ],
+      [
+        "mfcc_mean_5",
+        9125.0
+      ],
+      [
+        "mfcc_mean_4",
+        8844.0
+      ],
+      [
+        "mfcc_std_2",
+        8075.0
+      ],
+      [
+        "mfcc_mean_6",
+        7590.0
+      ],
+      [
+        "zcr_mean",
+        7411.0
+      ],
+      [
+        "mfcc_std_3",
+        7214.0
+      ],
+      [
+        "spectral_bandwidth_std",
+        7004.0
+      ],
+      [
+        "mfcc_std_1",
+        6968.0
+      ],
+      [
+        "mfcc_mean_3",
+        6894.0
+      ],
+      [
+        "spectral_flatness_std",
+        6502.0
+      ],
+      [
+        "spectral_centroid_mean",
+        6409.0
+      ],
+      [
+        "mfcc_mean_0",
+        6369.0
+      ],
+      [
+        "zcr_std",
+        6020.0
+      ],
+      [
+        "rms_mean",
+        5968.0
+      ],
+      [
+        "spectral_flatness_mean",
+        5947.0
+      ],
+      [
+        "mfcc_mean_10",
+        5910.0
+      ]
+    ]
+  }
+}
