@@ -19,3 +19,7 @@ reports/eda/waveform_sample_features.parquet
 # Mission 2 per-utterance error detail (14MB+, regenerable via
 # scripts/analyze_mission2_errors.py) -- only the summary JSON is committed
 reports/mission2/m2_error_analysis_full.csv
+
+# Local scratch output and remote-attachment cache (never committed)
+/tmp/
+/.codex-remote-attachments/
