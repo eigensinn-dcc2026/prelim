@@ -2,7 +2,7 @@
 # Based on notebooks/mission3_jieun_baseline.ipynb (main 4bfd2c4). Official Validation is NOT used for training/selection.
 # v4 (2026-10-06): path handling only via colab_env-compatible lookup; hyperparameters identical to v3
 # v5 (2026-10-06): P0 internal-Val split via scripts/mission3_baseline 최종 수정본.py; hyperparameters identical to v4/v3
-import csv, importlib.util, json, os, sys, time, random, hashlib, shutil, unicodedata, datetime, platform, traceback
+import csv, importlib.util, json, os, subprocess, sys, tarfile, tempfile, time, random, hashlib, shutil, unicodedata, datetime, platform, traceback, zipfile
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
@@ -228,7 +228,10 @@ def resolve_paths():
 
 P0_EXPECTED_FILES = 29200
 P0_EXPECTED_VAL = 5792
+P0_EXPECTED_TRAIN = 23408  # 29200 - 5792
+P0_MIN1_MACRO_F1 = 0.5680  # P0 on this split with the at-least-one-symptom rule
 P0_SCRIPT_NAME = "mission3_baseline 최종 수정본.py"
+LABEL_DIR_NAME = "TL_서울_구급"
 
 def load_p0_module(repo):
     """Load P0's split helpers from the extracted repo. The module's main() is under __name__ guard."""
@@ -263,8 +266,11 @@ def find_tl_seoul_dir(data_root):
         raise SystemExit(f"expected exactly one {name} directory, found {len(chosen)}: {[str(p) for p in chosen]}")
     return chosen[0]
 
+def nfc(s): return unicodedata.normalize("NFC", s)
+
 def save_val_pred(path, names, probs, labels):
-    """Internal-Val probabilities and 0/1 labels. Rows sorted by file name to match val_files.txt."""
+    """Internal-Val probabilities and 0/1 labels. Rows sorted by NFC file name to match val_files.txt."""
+    names = [nfc(str(name)) for name in names]
     order = sorted(range(len(names)), key=lambda i: names[i])
     gt_cols = [f"{s}_true" for s in TARGET_SYMPTOMS]
     with open(path, "w", encoding="utf-8", newline="") as handle:
@@ -273,7 +279,174 @@ def save_val_pred(path, names, probs, labels):
         for i in order:
             writer.writerow([names[i], *[f"{float(p):.6f}" for p in probs[i]], *[int(v) for v in labels[i]]])
 
-def nfc(s): return unicodedata.normalize("NFC", s)
+def save_epoch_val_pred(path, names, probs, labels):
+    """Write one val_pred_ep{N}.csv. A failed or short write exits non-zero."""
+    try:
+        save_val_pred(path, names, probs, labels)
+        with open(path, encoding="utf-8") as handle:
+            pred_rows = sum(1 for _ in handle) - 1
+    except Exception as exc:
+        print(f"{Path(path).name} save failed: {exc}", flush=True)
+        raise SystemExit(1) from exc
+    if pred_rows != len(names) or not Path(path).is_file():
+        print(f"{Path(path).name} rows={pred_rows} expected={len(names)}", flush=True)
+        raise SystemExit(1)
+
+def write_val_files(path, names):
+    """Write sorted NFC names. A failed or incomplete write exits non-zero."""
+    names = sorted(nfc(str(name)) for name in names)
+    try:
+        Path(path).write_text("\n".join(names) + "\n", encoding="utf-8")
+        written = Path(path).read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        print(f"val_files.txt save failed: {exc}", flush=True)
+        raise SystemExit(1) from exc
+    if written != names:
+        print(f"val_files.txt verify failed lines={len(written)} expected={len(names)}", flush=True)
+        raise SystemExit(1)
+
+def assert_split_sizes(n_train, n_val, n_index):
+    if n_val != P0_EXPECTED_VAL or n_index != P0_EXPECTED_VAL or n_train != P0_EXPECTED_TRAIN:
+        print(
+            f"split size train={n_train} expected_train={P0_EXPECTED_TRAIN} "
+            f"val={n_val} index={n_index} expected_val={P0_EXPECTED_VAL}",
+            flush=True,
+        )
+        raise SystemExit(1)
+
+def count_json(path):
+    return sum(1 for item in Path(path).rglob("*.json") if item.is_file())
+
+def local_label_dir():
+    return Path(os.environ.get("M3P1_LOCAL_LABELS", f"/content/m3_labels/{LABEL_DIR_NAME}"))
+
+def find_label_archives(data_root):
+    """Shallow search for one archive whose file name contains TL_서울_구급."""
+    root = Path(data_root)
+    hits = []
+    seen = set()
+    for depth in ("*", "*/*", "*/*/*", "*/*/*/*"):
+        for path in root.glob(depth):
+            if not path.is_file():
+                continue
+            name = nfc(path.name)
+            lower = name.lower()
+            if LABEL_DIR_NAME not in name:
+                continue
+            if not lower.endswith((".zip", ".tar", ".tar.gz", ".tgz")):
+                continue
+            resolved = path.resolve()
+            if resolved not in seen:
+                seen.add(resolved)
+                hits.append(resolved)
+    return hits
+
+def extract_archive(archive, dest):
+    dest.mkdir(parents=True, exist_ok=True)
+    lower = archive.name.lower()
+    if lower.endswith(".zip"):
+        with zipfile.ZipFile(archive) as handle:
+            handle.extractall(dest)
+        return
+    with tarfile.open(archive) as handle:
+        handle.extractall(dest)
+
+def extracted_label_dir(dest):
+    hits = [path for path in dest.rglob(LABEL_DIR_NAME) if path.is_dir() and nfc(path.name) == LABEL_DIR_NAME]
+    if len(hits) == 1:
+        return hits[0]
+    if not hits and any(dest.glob("*.json")):
+        return dest
+    raise SystemExit(f"archive did not contain a single {LABEL_DIR_NAME} directory: {[str(path) for path in hits]}")
+
+def copy_tree(src, dst):
+    if dst.exists():
+        shutil.rmtree(dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if shutil.which("rsync"):
+        dst.mkdir(parents=True, exist_ok=True)
+        subprocess.check_call(["rsync", "-a", f"{str(src).rstrip('/')}/", f"{str(dst).rstrip('/')}/"])
+    else:
+        subprocess.check_call(["cp", "-a", str(src), str(dst)])
+
+def stage_tl_seoul(data_root):
+    """Copy TL_서울_구급 onto local disk and return that directory.
+
+    An existing local copy with the expected JSON count is reused. Otherwise an archive
+    under DATA_ROOT is preferred, and the folder is copied when no archive is present.
+    The copy stays on local disk and is not written back to Drive.
+    """
+    local = local_label_dir()
+    if local.is_dir() and count_json(local) == P0_EXPECTED_FILES:
+        status(f"LOCAL_LABELS skip re-copy path={local} json={P0_EXPECTED_FILES}")
+        return local
+    archives = find_label_archives(data_root)
+    if len(archives) > 1:
+        raise SystemExit("multiple TL_서울_구급 archives, refusing to guess: " + ", ".join(str(path) for path in archives))
+    try:
+        if len(archives) == 1:
+            archive = archives[0]
+            status(f"LOCAL_LABELS extract archive={archive} -> {local}")
+            parent = "/content" if Path("/content").is_dir() else None
+            tmp = Path(tempfile.mkdtemp(prefix="m3p1_labels_", dir=parent))
+            try:
+                extract_archive(archive, tmp)
+                copy_tree(extracted_label_dir(tmp), local)
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
+        else:
+            source = find_tl_seoul_dir(data_root)
+            status(f"LOCAL_LABELS copy folder={source} -> {local}")
+            copy_tree(source, local)
+    except subprocess.CalledProcessError as exc:
+        print(f"TL_서울_구급 local copy failed: {exc}", flush=True)
+        raise SystemExit(1) from exc
+    n_local = count_json(local)
+    print(f"TL_서울_구급 local json count={n_local} expected={P0_EXPECTED_FILES} path={local}", flush=True)
+    status(f"LOCAL_LABELS path={local} json={n_local}")
+    if n_local != P0_EXPECTED_FILES:
+        raise SystemExit(1)
+    return local
+
+def multilabel_macro_f1(pred, labels):
+    pred = np.asarray(pred); labels = np.asarray(labels)
+    tp = ((pred == 1) & (labels == 1)).sum(0)
+    fp = ((pred == 1) & (labels == 0)).sum(0)
+    fn = ((pred == 0) & (labels == 1)).sum(0)
+    pr = tp / (tp + fp + 1e-8); rc = tp / (tp + fn + 1e-8)
+    f1 = 2 * pr * rc / (pr + rc + 1e-8)
+    return float(f1.mean()), f1
+
+def min1_predictions(probs, threshold=0.5):
+    """Force the argmax label on when no probability is >= threshold."""
+    probs = np.asarray(probs)
+    pred = (probs >= threshold).astype(np.int32)
+    none = pred.sum(axis=1) == 0
+    if np.any(none):
+        rows = np.flatnonzero(none)
+        pred[rows, probs[none].argmax(axis=1)] = 1
+    return pred
+
+def write_metrics(hist, best_ep, best_f1, adoption, min1):
+    payload = {
+        "threshold": TH,
+        "threshold_rule": "probability > 0.5",
+        "min1_rule": "if no label >= 0.5, set the argmax label to 1",
+        "internal_val_macro_f1_per_epoch": [
+            {"epoch": int(row["epoch"]), "internal_macro_f1": float(row["internal_macro_f1"])} for row in hist
+        ],
+        "best_epoch_ref": None if best_ep is None else {"epoch": int(best_ep), "internal_macro_f1": float(best_f1)},
+        "p0_min1_macro_f1": P0_MIN1_MACRO_F1,
+        "n_internal_val": P0_EXPECTED_VAL,
+        "n_train": P0_EXPECTED_TRAIN,
+    }
+    if adoption is not None:
+        payload["adoption_macro_f1_ep3"] = float(adoption)
+    if min1 is not None:
+        payload["ep3_macro_f1_min1"] = float(min1)
+    path = OUT / "metrics.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    status(f"METRICS epochs={len(hist)} file={path.name}")
 def kst(): return (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%S KST")
 def status(msg):
     line = f"{kst()} {msg}"
@@ -302,7 +475,7 @@ def main():
     p0 = load_p0_module(REPO)
     if list(p0.TARGET_SYMPTOMS) != list(TARGET_SYMPTOMS):
         raise SystemExit(f"P0 TARGET_SYMPTOMS mismatch: {list(p0.TARGET_SYMPTOMS)}")
-    label_dir = find_tl_seoul_dir(DATA_ROOT)
+    label_dir = stage_tl_seoul(DATA_ROOT)
     tl = [label_dir]
     files = sorted(label_dir.rglob("*.json"))
     status(f"TL_서울_구급 dir={label_dir} json files={len(files)}")
@@ -328,12 +501,13 @@ def main():
     tr_idx = np.asarray(train_df.index, dtype=np.int64)
     va_idx = np.asarray(valid_df.index, dtype=np.int64)
     Y = np.asarray(mlb.transform(df["symptoms"]), dtype=np.int8)
-    val_names = sorted(valid_df["label_file_name"].tolist())
-    if len(val_names) != P0_EXPECTED_VAL or len(va_idx) != P0_EXPECTED_VAL:
-        print(f"internal Val count={len(val_names)} index={len(va_idx)} expected={P0_EXPECTED_VAL}", flush=True)
-        status(f"VAL_COUNT {len(val_names)} != {P0_EXPECTED_VAL}")
-        raise SystemExit(1)
-    (OUT / "val_files.txt").write_text("\n".join(val_names) + "\n", encoding="utf-8")
+    val_names = sorted(nfc(str(name)) for name in valid_df["label_file_name"].tolist())
+    try:
+        assert_split_sizes(len(tr_idx), len(val_names), len(va_idx))
+    except SystemExit:
+        status(f"SPLIT_SIZE train={len(tr_idx)} val={len(val_names)}")
+        raise
+    write_val_files(OUT / "val_files.txt", val_names)
     (OUT / "val_file_count.txt").write_text(f"{len(val_names)}\n", encoding="utf-8")
     status(f"LOADED n={n_loaded} label_counts={dict(zip(TARGET_SYMPTOMS, Y.sum(0).tolist()))} load_s={time.time()-T0:.0f}")
     status(f"SPLIT train={len(tr_idx)} internal_val={len(va_idx)} val_files={len(val_names)} (P0 _make_split seed=42 test_size=0.2)")
@@ -397,6 +571,7 @@ def main():
         return float(f1.mean()), f1, P, S
 
     best, best_ep, hist, capped = -1.0, None, [], False
+    adoption_f1, min1_f1 = None, None
     ckpt = WORK / "mission3_kcbert_front256_best.pt"
     tr_idx_t = torch.as_tensor(tr_idx)
     for ep in range(1, EPOCHS + 1):
@@ -418,16 +593,27 @@ def main():
                 print(f"{kst()} ep{ep} step {k}/{nsteps} loss={tot/nb:.4f}", flush=True)
             if time.time() - T0 > TIME_CAP_S - 900: capped = True; break
         mf1, lf1, _, probs = evaluate(va_idx)
-        try:
-            ep_csv = OUT / f"val_pred_ep{ep}.csv"
-            save_val_pred(ep_csv, [file_names[int(i)] for i in va_idx], probs, Y[va_idx])
-            status(f"VAL_PRED ep={ep} rows={len(va_idx)} file={ep_csv.name}")
-        except Exception as e:
-            status(f"WARN val pred save failed {e!r}")
+        ep_csv = OUT / f"val_pred_ep{ep}.csv"
+        save_epoch_val_pred(ep_csv, [file_names[int(i)] for i in va_idx], probs, Y[va_idx])
+        status(f"VAL_PRED ep={ep} rows={len(va_idx)} file={ep_csv.name}")
+        if ep == 3:
+            adoption_f1 = mf1
+            min1_f1, _ = multilabel_macro_f1(min1_predictions(probs), Y[va_idx])
+            print(f"{kst()} ADOPTION ep3 internal_val_macro_f1={adoption_f1:.4f} threshold=0.5", flush=True)
+            print(
+                f"{kst()} EP3_MIN1 macro_f1={min1_f1:.4f} rule=argmax_if_no_label_ge_0.5 p0_min1={P0_MIN1_MACRO_F1:.4f}",
+                flush=True,
+            )
+            status(f"ADOPTION ep3 internal_val_macro_f1={adoption_f1:.4f} threshold=0.5")
+            status(f"EP3_MIN1 macro_f1={min1_f1:.4f}")
         rec = {"epoch": ep, "train_loss": tot / max(nb, 1), "internal_macro_f1": mf1,
                "per_symptom_f1": dict(zip(TARGET_SYMPTOMS, map(float, lf1))), "epoch_s": time.time() - et, "steps": nb}
+        if ep == 3:
+            rec["adoption_macro_f1_ep3"] = mf1
+            rec["ep3_macro_f1_min1"] = min1_f1
         hist.append(rec)
-        status(f"EPOCH {ep}/{EPOCHS} loss={rec['train_loss']:.4f} macro_f1={mf1:.4f} epoch_s={rec['epoch_s']:.0f}")
+        print(f"{kst()} EPOCH {ep}/{EPOCHS} internal_val_macro_f1={mf1:.4f} threshold=0.5 loss={rec['train_loss']:.4f}", flush=True)
+        status(f"EPOCH {ep}/{EPOCHS} loss={rec['train_loss']:.4f} internal_val_macro_f1={mf1:.4f} threshold=0.5 epoch_s={rec['epoch_s']:.0f}")
         try:  # v3: every-epoch ckpt to Drive (team rule 2026-10-06)
             ep_ck = WORK / f"mission3_kcbert_front256_ep{ep}.pt"
             torch.save({"model_state_dict": model.state_dict(), "mission": 3, "epoch": ep, "internal_macro_f1": mf1,
@@ -442,16 +628,22 @@ def main():
             torch.save({"model_state_dict": model.state_dict(), "mission": 3, "epoch": ep, "best_f1": best,
                         "model_name": MODEL_NAME, "max_length": MAX_LENGTH, "threshold": TH,
                         "target_symptoms": TARGET_SYMPTOMS, "seed": SEED, "commit": COMMIT}, ckpt)
-            status(f"BEST epoch={ep} macro_f1={best:.4f} (local)")
+            status(f"BEST epoch={ep} macro_f1={best:.4f} (reference only; adoption is ep3)")
             try:
                 shutil.copy2(ckpt, OUT / ckpt.name); status(f"BEST epoch={ep} copied to Drive")
             except Exception as e: status(f"WARN drive copy failed {e!r}")
-            try:
-                shutil.copy2(OUT / f"val_pred_ep{ep}.csv", OUT / "val_pred.csv")
-                status(f"VAL_PRED best epoch={ep} -> val_pred.csv")
-            except Exception as e: status(f"WARN val_pred.csv copy failed {e!r}")
+        try:
+            write_metrics(hist, best_ep, best, adoption_f1, min1_f1)
+        except Exception as exc:
+            print(f"metrics.json save failed: {exc}", flush=True)
+            status(f"METRICS_FAIL {exc!r}")
+            raise SystemExit(1) from exc
         if capped: status("TIME_CAP reached, stopping"); break
 
+    if adoption_f1 is None or not (OUT / "val_pred_ep3.csv").is_file():
+        print("missing ep3 adoption score or val_pred_ep3.csv", flush=True)
+        status("ADOPTION_MISSING ep3")
+        raise SystemExit(1)
     shutil.copy2(ckpt, OUT / ckpt.name); ck_sha = sha256(ckpt)
     (OUT / (ckpt.name + ".sha256")).write_text(f"{ck_sha}  {ckpt.name}\n")
     status(f"CKPT saved to Drive sha256={ck_sha}")
@@ -459,13 +651,15 @@ def main():
     best_rec = [h for h in hist if h["epoch"] == best_ep][0]
     vers = {"python": platform.python_version(), "torch": torch.__version__, "transformers": transformers.__version__,
             "numpy": np.__version__, "pandas": pd.__version__, "iterstrat": getattr(iterstrat, "__version__", "unknown"),
-            "cuda": torch.version.cuda, "gpu": gpu}
+            "cuda": torch.version.cuda, "cudnn": torch.backends.cudnn.version(), "gpu": gpu}
     report = {"candidate": "M3-P1-kcbert-front256", "commit": COMMIT, "model": MODEL_NAME, "truncation": "front",
               "max_length": MAX_LENGTH, "head": "CLS->dropout->linear(9), sigmoid", "loss": "BCEWithLogitsLoss (unweighted)",
               "data": "TL_서울_구급 only; P0 _make_split 80:20 seed=42 (scripts/mission3_baseline 최종 수정본.py); official Validation not used for training/selection",
               "train_label_dirs": [nfc(str(p)) for p in tl], "n_total": int(n_loaded), "n_train": int(len(tr_idx)), "n_internal_val": int(len(va_idx)),
               "epochs": EPOCHS, "lr": LR, "dropout": DROPOUT, "batch_size": batch, "grad_accum": accum, "effective_batch": batch * accum,
               "amp": use_amp, "threshold": TH, "seed": SEED, "best_epoch": best_ep, "internal_macro_f1": best,
+              "adoption_macro_f1_ep3": adoption_f1, "best_epoch_ref": {"epoch": best_ep, "internal_macro_f1": best},
+              "ep3_macro_f1_min1": min1_f1, "p0_min1_macro_f1": P0_MIN1_MACRO_F1,
               "per_symptom_f1": best_rec["per_symptom_f1"], "history": hist, "time_capped": capped,
               "p0_macro_f1": P0_MACRO_F1, "delta_vs_p0": best - P0_MACRO_F1,
               "ckpt_drive": str(OUT / ckpt.name), "ckpt_sha256": ck_sha,
@@ -501,7 +695,7 @@ def main():
         status(f"VAL_EVAL_DONE n={len(vrows)} official_val_macro_f1={f1.mean():.4f}")
     except Exception as e:
         status(f"VAL_EVAL_FAILED {e!r}")
-    status(f"ALL_DONE internal_macro_f1={best:.4f} ckpt_sha256={ck_sha}")
+    status(f"ALL_DONE adoption_macro_f1_ep3={adoption_f1:.4f} ep3_macro_f1_min1={min1_f1:.4f} best_epoch_ref={best:.4f} ckpt_sha256={ck_sha}")
 
 if __name__ == "__main__":
     try: main()

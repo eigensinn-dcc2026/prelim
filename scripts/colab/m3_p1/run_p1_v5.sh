@@ -7,7 +7,44 @@ set -o pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 TRAIN_SRC="$HERE/m3_p1_train_v5.py"
 ZIP_NAME=dcc2026-prelim-main-6cc1181.zip
+DEFAULT_CODE_ZIP_SHA256=f1526b1df25fe9c9a5c985e01521df244955ceea5af256604000b4d717c92407
 [ -f "$TRAIN_SRC" ] || { echo "train script not found: $TRAIN_SRC"; exit 1; }
+
+if [ ! -d /content/drive/MyDrive ]; then
+  echo "ERROR: Google Drive is not mounted. /content/drive/MyDrive does not exist."
+  echo "Mount Drive in Colab (drive.mount('/content/drive')) and rerun."
+  exit 1
+fi
+if [ ! -r /content/drive/MyDrive ]; then
+  echo "ERROR: /content/drive/MyDrive exists but is not readable."
+  exit 1
+fi
+python3 - "$TRAIN_SRC" << 'PY' || exit 1
+import importlib.util, os, sys
+from pathlib import Path
+src = Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location("m3p1v5_drive", src)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+try:
+    source, path = mod.locate_data_root()
+except Exception as exc:
+    print("ERROR: DATA_ROOT is not readable or was not found.", flush=True)
+    print(exc, flush=True)
+    sys.exit(1)
+path = Path(path)
+if not path.is_dir() or not os.access(path, os.R_OK):
+    print(f"ERROR: DATA_ROOT is not readable: {path}", flush=True)
+    sys.exit(1)
+try:
+    next(path.iterdir())
+except StopIteration:
+    pass
+except OSError as exc:
+    print(f"ERROR: DATA_ROOT is not readable: {path} ({exc})", flush=True)
+    sys.exit(1)
+print(f"DRIVE_OK MyDrive=/content/drive/MyDrive DATA_ROOT source={source} path={path}", flush=True)
+PY
 
 RUN_ROOT=${DCC_RUN_ROOT:-/content/drive/MyDrive/dcc_runs}
 D=$RUN_ROOT/m3_p1
@@ -19,8 +56,26 @@ if ! printf ok > "$probe" 2>/dev/null; then
 fi
 rm -f "$probe" || { echo "OUT is not writable: $D (probe delete failed). Set DCC_RUN_ROOT to a writable folder in your own Drive."; exit 1; }
 export M3P1_OUT="$D"
+export M3P1_LOCAL_LABELS="${M3P1_LOCAL_LABELS:-/content/m3_labels/TL_서울_구급}"
 
 nvidia-smi -L || { echo "NO GPU - set runtime to T4 first"; exit 1; }
+
+check_code_zip_sha() {
+  local zip="$1"
+  local expected="${CODE_ZIP_SHA256:-$DEFAULT_CODE_ZIP_SHA256}"
+  local actual
+  actual=$(sha256sum "$zip" | awk '{print $1}')
+  echo "code zip: $zip"
+  echo "code zip sha256: $actual"
+  echo "code zip sha256 expected: $expected"
+  if [ "$actual" != "$expected" ]; then
+    echo "ERROR: code zip sha256 mismatch"
+    echo "got:      $actual"
+    echo "expected: $expected"
+    return 1
+  fi
+  echo "zip sha256 matches expected"
+}
 
 # Lookup order: $M3P1_ZIP -> script folder -> $RUN_ROOT/code/ -> MyDrive root.
 ZIP=""
@@ -30,20 +85,7 @@ if [ -z "$ZIP" ] && [ -f "$RUN_ROOT/code/$ZIP_NAME" ]; then ZIP="$RUN_ROOT/code/
 if [ -z "$ZIP" ] && [ -f "/content/drive/MyDrive/$ZIP_NAME" ]; then ZIP="/content/drive/MyDrive/$ZIP_NAME"; fi
 
 if [ -n "$ZIP" ]; then
-  actual=$(sha256sum "$ZIP" | cut -d' ' -f1)
-  echo "code zip: $ZIP"
-  echo "code zip sha256: $actual"
-  expected=""
-  if [ -n "${M3P1_ZIP_SHA256:-}" ]; then expected="$M3P1_ZIP_SHA256"
-  elif [ -f "$ZIP.sha256" ]; then expected=$(awk 'NF { print $1; exit }' "$ZIP.sha256")
-  fi
-  if [ -n "$expected" ]; then
-    if [ "$actual" != "$expected" ]; then
-      echo "ERROR: zip sha256 mismatch got=$actual expected=$expected"
-      exit 1
-    fi
-    echo "zip sha256 matches expected"
-  fi
+  check_code_zip_sha "$ZIP" || exit 1
   echo "code zip comment:"
   unzip -z "$ZIP" || true
   python3 - "$ZIP" << 'PY'
@@ -107,7 +149,8 @@ rc=$?
 echo "EXIT=$rc"
 pip freeze > "$D/pip_freeze.txt"
 {
-  echo "GPU=$(nvidia-smi -L 2>/dev/null | head -1 || echo none)"
+  echo "nvidia-smi -L: $(nvidia-smi -L 2>/dev/null || echo none)"
+  echo "nvidia-smi name,driver: $(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>/dev/null || echo none)"
   python - << 'PY'
 def ver(name):
     try:
@@ -119,13 +162,19 @@ try:
     import torch
     torch_ver = torch.__version__
     cuda = getattr(torch.version, "cuda", None)
+    cudnn = torch.backends.cudnn.version()
     gpu = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "none"
 except Exception as exc:
     torch_ver = "missing (%s)" % type(exc).__name__
     cuda = None
+    cudnn = None
     gpu = "none"
-print("torch=%s transformers=%s CUDA=%s GPU=%s" % (torch_ver, ver("transformers"), cuda, gpu))
+print("torch.__version__=%s" % torch_ver)
+print("torch.version.cuda=%s" % cuda)
+print("cudnn=%s" % cudnn)
+print("transformers.__version__=%s" % ver("transformers"))
+print("GPU=%s" % gpu)
 PY
-} | tee -a "$D/train.log"
+} | tee -a "$D/pip_freeze.txt" "$D/train.log"
 tail -5 "$D/STATUS.txt"
 exit "$rc"
