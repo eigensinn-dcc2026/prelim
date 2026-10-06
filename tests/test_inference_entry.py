@@ -54,7 +54,7 @@ def test_validate_frame_rejects_wrong_columns_and_empty():
 
 
 def test_unwired_missions_fail_loudly():
-    for mission in (2, 3):
+    for mission in (3,):  # mission 2 is wired (tests/test_inference_mission2.py)
         with pytest.raises(NotImplementedError):
             registry.load_predict(mission)(Path("a"), Path("b"), Path("c"))
 
