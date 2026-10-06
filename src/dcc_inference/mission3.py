@@ -15,6 +15,7 @@ encoding and why it is unverified against the official PDF.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -35,11 +36,11 @@ DEFAULT_CKPT = REPOSITORY_ROOT / "checkpoints" / "mission3" / CKPT_FILENAME
 # P0 0.567552 -> 0.567977 Macro F1 with this rule. Not the checkpoint's stored threshold.
 THRESHOLD = 0.5
 
-# UNVERIFIED against official PDF p.11. The repo quotes p.11 for column names only
-# (``registry.MISSION_COLUMNS``; brackets there are notation). Every in-repo writer
-# uses Python's list repr, e.g. this string. Change the encoding here if the PDF
-# example differs.
-SYMPTOM_CELL_EXAMPLE = "['두통', '복통']"
+# Format chosen as a JSON list with double quotes per the team transcript of the
+# official PDF p.9 example (``["두통", "복통"]``) and because it parses with both
+# ``json.loads`` and ``ast.literal_eval``. Still UNVERIFIED against the PDF
+# original (p.9 and p.11), to be confirmed by M1.
+SYMPTOM_CELL_EXAMPLE = '["두통", "복통"]'
 
 
 def _script() -> ModuleType:
@@ -84,14 +85,16 @@ def apply_min1(probabilities: np.ndarray, threshold: float = THRESHOLD) -> np.nd
 
 
 def format_symptom_cell(labels: Sequence[str]) -> str:
-    """Symptom cell text. Labels must already be in ``TARGET_SYMPTOMS`` order.
+    """Symptom cell text. Label order is kept exactly as passed.
 
-    UNVERIFIED against the official PDF page 11 example (not quoted anywhere
-    in this repo). This is P0 ``_labels_to_string`` / ``scripts/inference.py``:
-    ``str(list(labels))``. ``SYMPTOM_CELL_EXAMPLE`` is ``['두통', '복통']``.
+    ``predict`` passes labels in ``TARGET_SYMPTOMS`` order. Format chosen as a
+    JSON list with double quotes per the team transcript of the official PDF
+    p.9 example (``["두통", "복통"]``) and because it parses with both
+    ``json.loads`` and ``ast.literal_eval``. Still UNVERIFIED against the PDF
+    original (p.9 and p.11), to be confirmed by M1.
     """
 
-    return str(list(labels))
+    return json.dumps(list(labels), ensure_ascii=False)
 
 
 def positive_labels(binary_row: Sequence[int], symptom_names: Sequence[str]) -> list[str]:

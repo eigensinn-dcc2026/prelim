@@ -3,6 +3,7 @@ threshold >= 0.5, min-1. Synthetic joblib only — no real checkpoint or data.""
 
 from __future__ import annotations
 
+import ast
 import csv
 import importlib.util
 import json
@@ -58,19 +59,33 @@ def test_apply_min1_cases():
     assert np.array_equal(probabilities, original)
 
 
-def test_format_symptom_cell_matches_p0_list_repr():
-    """Cell text is P0 ``_labels_to_string``. UNVERIFIED vs official PDF p.11."""
+def test_format_symptom_cell_is_json_double_quotes():
+    """JSON list, double quotes. UNVERIFIED vs the PDF original (p.9 and p.11)."""
 
-    script = mission3._script()
-    labels = ["두통", "복통"]
-    assert mission3.format_symptom_cell(labels) == "['두통', '복통']"
-    assert mission3.format_symptom_cell(labels) == mission3.SYMPTOM_CELL_EXAMPLE
-    assert mission3.format_symptom_cell(labels) == script._labels_to_string(labels)
-    assert mission3.format_symptom_cell(["고열"]) == "['고열']"
-    assert mission3.format_symptom_cell([]) == "[]"
+    cases = (
+        ["두통", "복통"],
+        ["고열"],
+        ["고열", "두통"],
+        ["두통"],
+    )
+    assert [mission3.format_symptom_cell(labels) for labels in cases] == [
+        '["두통", "복통"]',
+        '["고열"]',
+        '["고열", "두통"]',
+        '["두통"]',
+    ]
+    assert mission3.SYMPTOM_CELL_EXAMPLE == '["두통", "복통"]'
+    for labels in cases:
+        cell = mission3.format_symptom_cell(labels)
+        assert cell == json.dumps(labels, ensure_ascii=False)
+        assert json.loads(cell) == labels
+        assert ast.literal_eval(cell) == labels
     # The formatter does not reorder; predict() passes TARGET_SYMPTOMS order.
-    assert mission3.format_symptom_cell(["복통", "두통"]) == "['복통', '두통']"
-    assert list(script.TARGET_SYMPTOMS) == SYMPTOMS
+    reversed_labels = ["복통", "두통"]
+    reversed_cell = mission3.format_symptom_cell(reversed_labels)
+    assert reversed_cell == '["복통", "두통"]'
+    assert json.loads(reversed_cell) == reversed_labels
+    assert list(mission3._script().TARGET_SYMPTOMS) == SYMPTOMS
     assert mission3.positive_labels([0, 0, 1, 1, 0, 0, 0, 0, 0], SYMPTOMS) == ["두통", "복통"]
 
 
@@ -183,13 +198,13 @@ def test_predict_contract_and_symptom_cells(tmp_path: Path):
 
     by_name = dict(zip(frame["label file name"], frame["symptom"]))
     # exact 0.5 is positive, and the higher 두통 stays on too (not collapsed to argmax)
-    assert by_name["half.json"] == "['고열', '두통']"
-    # TARGET_SYMPTOMS order, comma+space, single quotes — not the JSON's 호흡곤란/기타
-    assert by_name["pair.json"] == mission3.SYMPTOM_CELL_EXAMPLE == "['두통', '복통']"
+    assert by_name["half.json"] == '["고열", "두통"]'
+    # TARGET_SYMPTOMS order, JSON double quotes — not the JSON file's 호흡곤란/기타
+    assert by_name["pair.json"] == mission3.SYMPTOM_CELL_EXAMPLE == '["두통", "복통"]'
     # all below 0.5 and tied -> first label
-    assert by_name["tie.json"] == "['고열']"
+    assert by_name["tie.json"] == '["고열"]'
     # all below 0.5 -> the single argmax label; utf-8-sig still read
-    assert by_name["zz.json"] == "['두통']"
+    assert by_name["zz.json"] == '["두통"]'
     assert set(frame["symptom"]) == {
         mission3.format_symptom_cell(labels)
         for labels in (["고열", "두통"], ["두통", "복통"], ["고열"], ["두통"])
@@ -241,10 +256,15 @@ def test_root_entry_writes_official_mission3_csv(tmp_path: Path):
         rows = list(csv.reader(stream))
     assert rows[0] == ["label file name", "symptom"]
     assert rows[1:] == [
-        ["half.json", "['고열', '두통']"],
-        ["zz.json", "['두통']"],
-        ["pair.json", "['두통', '복통']"],
-        ["tie.json", "['고열']"],
+        ["half.json", '["고열", "두통"]'],
+        ["zz.json", '["두통"]'],
+        ["pair.json", '["두통", "복통"]'],
+        ["tie.json", '["고열"]'],
     ]
-    # The comma inside the cell is CSV-quoted; the cell text itself keeps the quotes and space.
-    assert "pair.json,\"['두통', '복통']\"" in raw.decode("utf-8")
+    for row in rows[1:]:
+        assert json.loads(row[1]) == ast.literal_eval(row[1])
+    assert rows[3][1] == '["두통", "복통"]'
+    # csv quoting doubles the inner quotes: ["두통", "복통"] -> "[""두통"", ""복통""]"
+    text = raw.decode("utf-8")
+    assert 'pair.json,"[""두통"", ""복통""]"' in text
+    assert 'zz.json,"[""두통""]"' in text
