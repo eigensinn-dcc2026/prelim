@@ -154,8 +154,13 @@ def _check_contract(frame: pd.DataFrame, calls=CALLS) -> None:
     assert tuple(frame.columns) == registry.MISSION_COLUMNS[2] == mission2.COLUMNS
     assert len(frame) == sum(len(u) for u in calls.values())
     assert set(frame["speaker"].unique()) <= {0, 1}
+    assert pd.api.types.is_integer_dtype(frame["speaker"])  # speaker=0/1 as int (docs/submission_format.md)
     expected = [(f"{stem}.wav", s, e) for stem in sorted(calls) for s, e in calls[stem]]
     assert list(zip(frame["audio file name"], frame["startAt"], frame["endAt"])) == expected
+    # startAt/endAt are the label JSON values unchanged: same Python type too (no int -> float upcast)
+    assert [(type(s), type(e)) for s, e in zip(frame["startAt"], frame["endAt"])] == [
+        (type(s), type(e)) for stem in sorted(calls) for s, e in calls[stem]
+    ]
 
 
 @pytest.mark.parametrize("ckpt_fixture", ["l2_ckpt", "l2_ensemble_ckpt", "l1_pkl"])
@@ -229,6 +234,18 @@ def test_default_ckpt_is_used_when_none_given(tmp_path, monkeypatch, l1_pkl):
         mission2.predict(audio_dir, label_dir)
 
 
+def test_rows_sorted_by_file_name_then_label_json_order(tmp_path, l1_pkl):
+    """docs/submission_format.md (M2): rows sorted by file name, then the label JSON's utterances order
+    within a file; startAt/endAt written exactly as the label JSON has them."""
+    # dict (write) order not sorted, utterances not chronological, fractional values: all on purpose
+    calls = {"b_call": [(1900, 3400), (0, 500.5)], "a_call": [(650.25, 2650), (0, 90)]}
+    audio_dir, label_dir = _write_calls(tmp_path, calls)
+    frame = mission2.predict(audio_dir, label_dir, l1_pkl)
+    _check_contract(frame, calls)
+    expected = [[f"{stem}.wav", json.dumps(s), json.dumps(e)] for stem in sorted(calls) for s, e in calls[stem]]
+    assert [row[:3] for row in _frame_rows(frame, tmp_path)] == expected
+
+
 def test_unreadable_wav_keeps_rows_with_fallback(tmp_path, l1_pkl):
     audio_dir, label_dir = _write_calls(tmp_path)
     (audio_dir / "call2.wav").write_bytes(b"not a wav")
@@ -260,3 +277,6 @@ def test_root_entry_writes_official_mission2_csv(tmp_path, l2_ckpt):
     assert lines[0] == OFFICIAL_HEADER
     assert len(lines) == 1 + sum(len(u) for u in CALLS.values())
     assert all(line.rsplit(",", 1)[1] in {"0", "1"} for line in lines[1:])
+    # file name order, then label JSON utterances order; startAt/endAt text unchanged
+    expected = [f"{stem}.wav,{s},{e}" for stem in sorted(CALLS) for s, e in CALLS[stem]]
+    assert [line.rsplit(",", 1)[0] for line in lines[1:]] == expected
