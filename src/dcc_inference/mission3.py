@@ -9,8 +9,9 @@ signature and is not read.
 Decisions are ``probability >= 0.5``, then :func:`apply_min1` (a row with no
 positive label is given its ``np.argmax`` label, first index on ties).
 The symptom cell is :func:`format_symptom_cell`: Python ``str(list)`` with
-ASCII single quotes, labels in ``TARGET_SYMPTOMS`` order (team decision of
-2026-10-06, ``docs/submission_format.md`` from #58).
+ASCII single quotes, labels in ``TARGET_SYMPTOMS`` order
+(``docs/submission_format.md``, #58). The quote style will be re-confirmed
+with the organizers at the 10-10 mentoring.
 """
 
 from __future__ import annotations
@@ -36,13 +37,12 @@ DEFAULT_CKPT = REPOSITORY_ROOT / "checkpoints" / "mission3" / CKPT_FILENAME
 # P0 0.567552 -> 0.567977 Macro F1 with this rule. Not the checkpoint's stored threshold.
 THRESHOLD = 0.5
 
-# Symptom cell format decided by the team on 2026-10-06 (docs/submission_format.md, #58):
+# Symptom cell format: docs/submission_format.md (#58, team decision 2026-10-06).
 # Python ``str(list)`` -- ASCII single quotes, one space after each comma -- with labels
 # in ``TARGET_SYMPTOMS`` order; no labels is ``[]`` (min-1 means predict() never emits it).
 # ``inference.py`` writes the CSV with pandas' default QUOTE_MINIMAL, so a multi-label
 # cell appears in the file as ``"['두통', '복통']"``. The official PDF p.9 example uses
-# curly quotes; organizers to confirm at the 10-10 mentoring.
-# UNVERIFIED: not yet smoke-tested on the official Validation set.
+# curly quotes; the quote style will be re-confirmed with the organizers at the 10-10 mentoring.
 SYMPTOM_CELL_EXAMPLE = "['두통', '복통']"
 
 
@@ -93,7 +93,8 @@ def format_symptom_cell(labels: Sequence[str]) -> str:
     ``["복통", "두통"]`` -> ``"['두통', '복통']"``; no labels -> ``"[]"``.
     ``ast.literal_eval`` of the cell gives the ordered list back. Labels outside
     the nine P0 ``TARGET_SYMPTOMS`` and repeated labels raise ``ValueError``.
-    See ``SYMPTOM_CELL_EXAMPLE`` for where this format comes from.
+    Format: ``docs/submission_format.md`` (#58). The quote style will be
+    re-confirmed with the organizers at the 10-10 mentoring.
     """
 
     order = [str(label) for label in _script().TARGET_SYMPTOMS]
