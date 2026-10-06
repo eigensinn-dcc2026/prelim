@@ -97,6 +97,7 @@
 |---|---|---|
 | CSV 인코딩 / BOM | 없음 | UTF-8, BOM 없음 (`registry.CSV_ENCODING`) |
 | 행 순서 | 없음 | 입력 파일 이름 정렬 순서 |
+| 행 순서 (M2) | 없음 | 파일 이름 정렬, 같은 파일 안에서는 라벨 JSON의 `utterances` 순서 (#51). 이 순서는 출력 행 순서에만 쓰고 예측에는 쓰지 않음 (p.8 "발화의 홀짝 등 순서 사용불가") |
 | M1 `gender` 값 | "남/여 분류 (라벨링데이터의 gender)" | 라벨 JSON의 gender 값 그대로 |
 | M2 `startAt`/`endAt` 단위·소수점 | 없음 | 라벨 JSON의 값 그대로 |
 | M2 `speaker` 타입 | `speaker=1` / `speaker=0` | 정수 0/1 |
