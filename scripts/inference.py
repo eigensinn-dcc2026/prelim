@@ -96,7 +96,7 @@ def predict(
     classifier = checkpoint["classifier"]
     target_symptoms = list(checkpoint["target_symptoms"])
     stored_threshold = float(checkpoint.get("threshold", DECISION_THRESHOLD))
-    if not np.isclose(stored_threshold, DECISION_THRESHOLD):
+    if stored_threshold != DECISION_THRESHOLD:
         raise ValueError(
             "체크포인트의 threshold가 0.5가 아닙니다. "
             f"저장값: {stored_threshold}"

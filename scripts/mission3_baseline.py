@@ -39,8 +39,6 @@ except ImportError:
 DECISION_THRESHOLD = 0.5
 
 # Mission 3 평가 대상 9개 증상
-OFFICIAL_DECISION_THRESHOLD = 0.5
-
 TARGET_SYMPTOMS = [
     "고열",
     "구토",
@@ -232,7 +230,7 @@ def train_baseline(
         ...
     }
     """
-    if not np.isclose(threshold, DECISION_THRESHOLD):
+    if threshold != DECISION_THRESHOLD:
         raise ValueError(
             "2026 DCC 공식 규정상 Decision Threshold는 0.5로 고정해야 합니다. "
             f"입력값: {threshold}"
@@ -322,7 +320,7 @@ def train_baseline(
         "vectorizer": vectorizer,
         "classifier": classifier,
         "target_symptoms": TARGET_SYMPTOMS,
-        "threshold": float(OFFICIAL_DECISION_THRESHOLD),
+        "threshold": float(DECISION_THRESHOLD),
         "seed": int(seed),
         "model_name": "tfidf_word_1_2gram_ovr_logistic_regression",
     }
@@ -336,7 +334,7 @@ def train_baseline(
         "validation_sample_count": int(len(valid_df)),
         "macro_f1": macro_f1,
         "micro_f1": micro_f1,
-        "threshold": float(OFFICIAL_DECISION_THRESHOLD),
+        "threshold": float(DECISION_THRESHOLD),
         "test_size": float(test_size),
         "seed": int(seed),
         "total_sample_count": int(len(df)),
