@@ -142,7 +142,7 @@ function table(slide, rows, x, y, colW, o = {}) {
   const secs = [
     ["01", "준비 과정", ["사전 학습 로드맵", "팀 구성과 협업 체계"]],
     ["02", "데이터 분석", ["데이터 개요와 대회 규칙", "EDA 핵심 발견", "공통 파이프라인"]],
-    ["03", "미션별 수행", ["Mission 1  신고자 성별 분류\n   (+ 오류 분석 상세)", "Mission 2  신고자/대원 분류\n   (+ 다른 접근 비교)", "Mission 3  환자 증상 인식\n   (+ 확장 계획)"]],
+    ["03", "미션별 수행", ["Mission 1  신고자 성별 분류\n   (+ 연구 방법·시행착오)", "Mission 2  신고자/대원 분류\n   (+ 다른 접근 비교)", "Mission 3  환자 증상 인식\n   (+ 확장 계획)"]],
     ["04", "종합 및 시사점", ["성능 요약과 교훈", "사회안전 시사점과 향후 계획"]],
   ];
   const cw = (CW - 3 * 0.3) / 4;
@@ -294,7 +294,7 @@ function table(slide, rows, x, y, colW, o = {}) {
       { text: "발견  ", options: { bold: true, breakLine: true } },
       { text: "복통·어지러움 20%대 vs 두통·오심 10%대 — 최대 2배 이상 차이", options: { breakLine: true } },
       { text: "설계 반영  ", options: { bold: true, color: C.blue, breakLine: true } },
-      { text: "Macro F1은 희소 증상에 민감 → 증상별 성능을 따로 점검 (17p)" },
+      { text: "Macro F1은 희소 증상에 민감 → 증상별 성능을 따로 점검 (19p)" },
     ]],
   ];
   const cw = (CW - 2 * 0.3) / 3;
@@ -392,6 +392,53 @@ function missionB(page, no, title, core, showTag = true) {
   if (showTag) tag(s, W - M - 1.7, 0.95);
   return s;
 }
+// 미션 1페이지 요약 틀: 미션 정의(한 줄) + 모델 구성(파이프라인) + 핵심 결과(정확도) — 심사위원이
+// 이 한 장만 봐도 결론이 보이게. probLine은 "입력 … · 출력 … · 평가 … · 제약 …" 형태의 한 문장.
+function missionSummary(page, no, title, core, probLine, pipe, headline, showTag = true) {
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", `Mission ${no}  ${title} — 한눈에 보기`, page);
+  coreMsg(s, core);
+  if (showTag) tag(s, W - M - 1.7, 0.95);
+  txt(s, "■ 미션 정의", { x: M, y: 2.45, w: CW, h: 0.3, fontSize: 16, bold: true, color: C.blue });
+  txt(s, probLine, { x: M, y: 2.78, w: CW, h: 0.5, fontSize: 13 });
+  s.addShape(pres.shapes.LINE, { x: M, y: 3.32, w: CW, h: 0, line: { color: C.line, width: 1 } });
+  txt(s, "■ 모델 구성", { x: M, y: 3.42, w: CW, h: 0.3, fontSize: 16, bold: true, color: C.blue });
+  const n = pipe.length, bw = 2.0, gap = (CW - n * bw) / (n - 1);
+  pipe.forEach(([t, b], i) => {
+    const x = M + i * (bw + gap);
+    stepBox(s, x, 3.78, bw, 1.4, t, b, i === n - 1 ? C.sky : C.blue);
+    if (i < n - 1) arrow(s, x + bw + (gap - 0.24) / 2, 4.35, 0.24, 0.38);
+  });
+  s.addShape(pres.shapes.LINE, { x: M, y: 5.3, w: CW, h: 0, line: { color: C.line, width: 1 } });
+  txt(s, "■ 핵심 결과", { x: M, y: 5.4, w: CW, h: 0.3, fontSize: 16, bold: true, color: C.blue });
+  txt(s, headline.value, { x: M, y: 5.68, w: CW, h: 0.72, fontSize: 42, bold: true, color: C.blue, align: "center" });
+  txt(s, headline.label, { x: M, y: 6.4, w: CW, h: 0.3, fontSize: 13, align: "center" });
+  txt(s, headline.sub, { x: M, y: 6.68, w: CW, h: 0.3, fontSize: 11, color: C.sub, align: "center" });
+  return s;
+}
+// 미션 결론 틀: 데이터 자체의 한계(정보가 부족해 남도 못 맞추는 영역) vs 모델 성능의 한계
+// (더 잘 맞출 여지가 있는 영역)를 구분 + 사회안전 시사점 + 향후 계획(미착수 포함)
+function missionConclusion(page, no, title, core, dataLimit, modelLimit, safety, future, showTag = true) {
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", `Mission ${no}  ${title} — 결론: 한계와 다음 계획`, page);
+  coreMsg(s, core);
+  if (showTag) tag(s, W - M - 1.7, 0.95);
+  const hw = (CW - 0.3) / 2;
+  card(s, M, 2.45, hw, 2.45);
+  txt(s, "■ 데이터 자체의 한계", { x: M + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 14, bold: true, color: C.blue });
+  txt(s, "정보가 부족해 남도 못 맞추는 영역", { x: M + 0.2, y: 2.9, w: hw - 0.4, h: 0.26, fontSize: 10, color: C.sub });
+  txt(s, dataLimit, { x: M + 0.2, y: 3.2, w: hw - 0.4, h: 1.6, fontSize: 11, paraSpaceAfter: 6 });
+  const rx = M + hw + 0.3;
+  card(s, rx, 2.45, hw, 2.45);
+  txt(s, "■ 모델 성능의 한계", { x: rx + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 14, bold: true, color: C.blue });
+  txt(s, "더 잘 맞출 여지가 있는 영역", { x: rx + 0.2, y: 2.9, w: hw - 0.4, h: 0.26, fontSize: 10, color: C.sub });
+  txt(s, modelLimit, { x: rx + 0.2, y: 3.2, w: hw - 0.4, h: 1.6, fontSize: 11, paraSpaceAfter: 6 });
+  insight(s, M, 5.1, hw, 1.8, [{ text: "사회안전 시사점  ", options: { bold: true, color: C.blue, breakLine: true } }].concat(safety), C.mintLight);
+  card(s, rx, 5.1, hw, 1.8, C.bgGray);
+  txt(s, "■ 향후 계획 (제출 기한 내 미착수)", { x: rx + 0.2, y: 5.22, w: hw - 0.4, h: 0.3, fontSize: 13, bold: true, color: C.blue });
+  txt(s, future, { x: rx + 0.2, y: 5.55, w: hw - 0.4, h: 1.3, fontSize: 11, paraSpaceAfter: 5 });
+  return s;
+}
 // 오른쪽 열: 결과 분석 / 재현 정보 / 사회안전 시사점
 // repro: 재현 정보 줄에 넣을 run 배열. 생략하면 공통 자리표시자 사용.
 function rightCol(s, rx, analysis, safety, repro) {
@@ -407,25 +454,65 @@ function rightCol(s, rx, analysis, safety, repro) {
   insight(s, rx, 5.55, rw, 1.25, [{ text: "사회안전 시사점  ", options: { bold: true, color: C.blue, breakLine: true } }].concat(safety), C.mintLight);
 }
 
-// ---------- Mission 1 ----------
-missionA(9, 1, "신고자 성별 분류",
-  "성별은 목소리 높낮이 차이가 커서 — 단순하고 해석 가능한 모델로 충분히 높은 정확도를 노림",
-  [["입력", "신고자 발화 음성\n(startAt · endAt · speaker만 사용)"], ["출력", "남 / 여"], ["평가", "Accuracy"], ["제약", "그 외 라벨 사용 불가"]],
+// ======================================================================
+// Mission 1 — 신고자 성별 분류  (①요약 ②③④방법·시행착오 ⑤최종결과 ⑥결론, 6장)
+// ======================================================================
+
+// ① 요약: 미션 정의 + 모델 구성 + 핵심 결과를 한 장에
+missionSummary(9, 1, "신고자 성별 분류",
+  "신고자 발화 음성 → 52차원 음향 특징 → 로지스틱 회귀 → 공식 Validation Accuracy 95.11%",
+  "입력 신고자 발화 음성(startAt·endAt·speaker만 사용)  ·  출력 남/여  ·  평가 Accuracy  ·  제약 그 외 라벨 사용 불가",
   [["구간 추출", "신고자 발화만\n잘라내기"], ["음향 특징", "음높이·음색 등\n52차원 통계"], ["분류 모델", "로지스틱 회귀\n(LR)"], ["판정", "남/여\n(기준값 0.5)"]],
-  ["성별 차이는 음높이 같은 저수준 음향 특징에 이미 크게 드러남",
-   "GBM과 정확도 차이가 0.19%p로 작아 더 단순하고 해석 쉬운 LR 채택",
-   "2026-10-05: 제출 기한을 고려해 LR을 1차 제출 후보로 고정 — 추가 학습·F0 특징 추가는 보류"]);
+  { value: "95.11%", label: "Accuracy (공식 Validation, 3,640건)", sub: "GBM 94.92% 대비 +0.19%p — 더 단순하고 해석 쉬운 LR 채택 (2026-10-05 고정)" },
+  false);
+
+// ② 연구 방법 1 — 데이터 전처리와 학습 설정
 {
-  const s = missionB(10, 1, "신고자 성별 분류", "공식 Validation 3,640건에서 Accuracy 95.11% — 두 모델 모두 95% 안팎으로 안정적", false);
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 1 — 연구 방법 ① 데이터 전처리와 학습 설정", 10);
+  coreMsg(s, "52차원 음향 통계로 압축 — 통화 단위 분할과 seed 고정으로 재현 가능하게");
+  const hw = (CW - 0.3) / 2;
+  card(s, M, 2.45, hw, 4.35);
+  txt(s, "■ 52차원 음향 특징 구성", { x: M + 0.2, y: 2.58, w: hw - 0.4, h: 0.35, fontSize: 14, bold: true, color: C.blue });
+  table(s, [
+    ["구성 요소", "차원", "의미"],
+    ["MFCC 평균·표준편차", "40", "음색의 핵심 패턴"],
+    ["RMS 평균·표준편차", "2", "음량"],
+    ["ZCR 평균·표준편차", "2", "음높이 변화"],
+    ["Spectral 4종×2", "8", "음색의 \"밝기\""],
+  ], M + 0.2, 3.0, [2.0, 0.8, 2.9], { rowH: 0.46, fontSize: 10.5, align: "center" });
+  txt(s, [
+    { text: "합계 52차원", options: { bold: true, breakLine: true } },
+    { text: "duration_sec(발화 길이)는 의도적으로 제외 — 길이로 성별을 \"눈치채는\" shortcut 학습 방지" },
+  ], { x: M + 0.2, y: 5.35, w: hw - 0.4, h: 1.3, fontSize: 11, paraSpaceAfter: 6 });
+  const rx = M + hw + 0.3;
+  card(s, rx, 2.45, hw, 4.35);
+  txt(s, "■ 학습 설정", { x: rx + 0.2, y: 2.58, w: hw - 0.4, h: 0.35, fontSize: 14, bold: true, color: C.blue });
+  [
+    "Seoul Training 29,200건으로만 학습 (서울 데이터만 사용 규칙)",
+    "seed=42 고정, 통화 단위 split",
+    "내부 holdout(8:2 stratified)으로 먼저 sanity check",
+    "공식 Validation(3,640건)은 모델 선택에만 사용 — 학습·scaler 적합에는 사용 금지",
+    "비교 모델 후보: GBM(LightGBM, 비선형 트리) vs LR(StandardScaler+로지스틱회귀, 선형) — 복잡도가 다른 두 모델을 일부러 비교",
+  ].forEach((t, i) => checkRow(s, rx + 0.2, 3.0 + i * 0.68, hw - 0.4, t));
+  caption(s, "근거: reports/mission1/m1_exp_log.json \"고정 변수\", 대학부 예선 출제문제 5쪽 조건");
+}
+
+// ③ 연구 방법 2 (시행착오 A) — 모델 비교와 과적합 점검
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 1 — 연구 방법 ② 시행착오: 어떤 모델을 왜 골랐나", 11);
+  coreMsg(s, "GBM과 LR 차이는 0.19%p — 더 복잡한 모델이 꼭 낫지는 않았다");
   card(s, M, 2.45, 7.3, 4.35);
-  stat(s, M + 0.2, 2.65, 2.6, "95.11%", "Accuracy (공식 Validation)", C.blue, 40);
-  txt(s, "95% 신뢰구간\n[94.40, 95.82]", { x: M + 0.2, y: 3.95, w: 2.6, h: 0.65, fontSize: 12, color: C.sub, align: "center" });
-  txt(s, "LR 혼동행렬 (오분류 178건)", { x: M + 0.2, y: 4.68, w: 2.6, h: 0.26, fontSize: 10.5, color: C.sub });
+  txt(s, "LR 혼동행렬 (오분류 178건)", { x: M + 0.2, y: 2.6, w: 2.6, h: 0.26, fontSize: 10.5, color: C.sub });
   table(s, [
     ["", "예측 F", "예측 M"],
     ["실제 F", { text: "1,878", options: { bold: true, color: C.blue } }, "81"],
     ["실제 M", "97", { text: "1,584", options: { bold: true, color: C.blue } }],
-  ], M + 0.2, 4.96, [0.75, 0.925, 0.925], { rowH: 0.34, fontSize: 11, align: "center" });
+  ], M + 0.2, 2.88, [0.75, 0.925, 0.925], { rowH: 0.36, fontSize: 11, align: "center" });
+  txt(s, "95% 신뢰구간\n[94.40, 95.82]", { x: M + 0.2, y: 4.2, w: 2.6, h: 0.65, fontSize: 12, color: C.sub, align: "center" });
+  txt(s, "과적합 점검: 내부 94.8~95.0% vs 공식 95.1% — 차이 작아 뚜렷한 leakage 징후 없음(증명은 아님)",
+    { x: M + 0.2, y: 4.95, w: 2.6, h: 1.6, fontSize: 10.5 });
   s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["GBM", "LR (채택)"], values: [94.92, 95.11] }], {
     x: M + 2.9, y: 2.6, w: 4.2, h: 4.0, barDir: "col", chartColors: [C.sky, C.blue],
     showTitle: true, title: "모델별 Accuracy (%)", titleFontSize: 12, titleColor: C.text, titleFontFace: F,
@@ -433,24 +520,22 @@ missionA(9, 1, "신고자 성별 분류",
     valAxisMinVal: 90, valAxisMaxVal: 97, valAxisLabelColor: C.sub, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 12,
     valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, showLegend: false, varyColors: true,
   });
-  rightCol(s, M + 7.6, [
-    { text: "오류가 몰린 곳  ", options: { bold: true } },
-    { text: "발화 길이·발화 수·겹침 비율 — 분위구간별 오류율 차이가 최대 1.8%p로 작고, 길이·발화 수는 방향마저 반대라 뚜렷한 원인으로 보기 어려움", options: { breakLine: true } },
-    { text: "과적합 점검  ", options: { bold: true } }, { text: "내부 94.8~95.0% vs 공식 95.1% — 차이 작음" },
-  ], [{ text: "성별 자동 인식으로 신고 접수 기록을 자동화 — 상담 인력 배치 참고 정보로 활용 가능" }],
-  [{ text: "파라미터 수 53(가중치 52 + 절편)", options: { breakLine: true } },
-   { text: "학습/추론 환경 CPU (경량 모델)", options: { breakLine: true } },
-   { text: "추론 배치 Validation 3,640건 일괄 처리  ·  추론 시간 " }, ph("미측정")]);
-  caption(s, "근거: reports/mission1/ m1_val_eval.json, m1_val_bootstrap_ci.json, M1_error_analysis_report.md, docs/decisions.md 2026-10-05");
-  s.addNotes("제출 상태(2026-10-07 기준): scripts/mission1_inference.py 구현 완료, CSV 스모크 테스트(헤더·행 수·UTF-8)는 아직 미확인 — m1_submission_checklist.md 참고.");
+  card(s, M + 7.6, 2.45, W - M - (M + 7.6), 4.35);
+  txt(s, "■ 왜 LR을 골랐나", { x: M + 7.8, y: 2.58, w: 3.7, h: 0.35, fontSize: 14, bold: true, color: C.blue });
+  txt(s, [
+    { text: "정확도 차이 0.19%p (오분류 7건 차이)로 작음", options: { breakLine: true } },
+    { text: "LR이 더 단순하고 해석하기 쉬움 — 계수로 어떤 특징이 영향 줬는지 바로 확인 가능", options: { breakLine: true } },
+    { text: "recall_F 95.87% / recall_M 94.23% 모두 93~96%대로 균형 — 다수 클래스(F)만 찍는 편향 없음", options: { breakLine: true } },
+    { text: "GBM은 폐기가 아니라 향후 feature 확장 실험용 비교 baseline으로 유지" },
+  ], { x: M + 7.8, y: 2.95, w: 3.7, h: 3.7, fontSize: 11, paraSpaceAfter: 8 });
+  caption(s, "근거: reports/mission1/m1_val_eval.json, m1_val_bootstrap_ci.json, M1_error_analysis_report.md 1·2절");
 }
 
-// ---------- Mission 1 추가 (1): 오류 분석 상세 — 서면 심사라 발표로 보충 설명할 수 없으므로
-// M1_error_analysis_report.md 3~5절 내용을 슬라이드에 직접 옮김 ----------
+// ④ 연구 방법 3 (시행착오 B) — 오류 원인 탐색
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 오류 분석 상세 (왜 틀렸나)", 11);
-  coreMsg(s, "길이·발화 수·겹침만으로는 오류가 설명되지 않음 — 세 축 모두 분위구간 차이가 작고 방향도 엇갈림");
+  header(s, "03", "미션별 수행", "Mission 1 — 연구 방법 ③ 시행착오: 오류 원인을 찾아본 과정", 12);
+  coreMsg(s, "길이·발화 수·겹침, 52차원 feature까지 들여다봤지만 뚜렷한 단일 원인은 못 찾음");
   const hw = (CW - 0.3) / 2;
   card(s, M, 2.45, hw, 4.35);
   txt(s, "■ 발화 길이 · 조각 수 · 겹침 비율", { x: M + 0.2, y: 2.58, w: hw - 0.4, h: 0.35, fontSize: 14, bold: true, color: C.blue });
@@ -481,58 +566,59 @@ missionA(9, 1, "신고자 성별 분류",
     { text: "⚠ 사후 탐색(post-hoc) 결과 — ", options: { bold: true, color: C.red } },
     { text: "52개 feature를 전부 탐색한 뒤 값이 큰 축만 추려 보여준 것이라 다중비교 편향 가능. 오분류 표본도 81·97건으로 작아 \"이게 원인이다\"라고 확정하지 않음.", options: {} },
   ], { x: rx2 + 0.2, y: 5.65, w: hw - 0.4, h: 0.95, fontSize: 10.5, valign: "middle" });
-  caption(s, "근거: M1_error_analysis_report.md 4·5절, m1_val_error_analysis.json, m1_val_error_rows.parquet");
+  caption(s, "근거: M1_error_analysis_report.md 3·4·5절, m1_val_error_analysis.json, m1_val_error_rows.parquet");
   s.addNotes("서면 심사라 '다른 건 안 해봤나' 질문에 답할 기회가 없음 — 분석 과정 자체를 슬라이드에 그대로 옮김.");
 }
 
-// ---------- Mission 1 추가 (2): 해석의 한계와 다음 실험 후보 ----------
+// ⑤ 최종 연구 결과
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 해석의 한계와 다음 실험 후보", 12);
-  coreMsg(s, "관찰(사실)과 해석(판단)을 구분해서 기록 — 추가 검증 전까지는 확정 결론을 내리지 않음");
-  const hw2 = (CW - 0.3) / 2;
-  card(s, M, 2.45, hw2, 4.35);
-  txt(s, "■ 이 보고서가 지키는 기록 원칙", { x: M + 0.2, y: 2.58, w: hw2 - 0.4, h: 0.35, fontSize: 14, bold: true, color: C.blue });
-  const tiers = [
-    ["확정된 관찰", "[사실]", C.blue, "로그에 그대로 찍힌 숫자, 재현 가능한 사실", "예: 분위구간별 오류율표, 혼동행렬 178건"],
-    ["탐색적 해석", "[사람의 판단]", C.sky, "관찰로부터 사람이 내린 해석. 반증 가능하고 잠정적", "예: \"세 축이 오류의 주 원인이라는 근거는 약하다\""],
-    ["후속 가설", "[아직 증거 아님]", C.mint, "다음 실험에서 확인할 아이디어", "예: F0(피치) 후보 우선순위 상승 — \"F0가 답\"은 아님"],
-  ];
-  tiers.forEach(([label, tag2, col, def, ex], i) => {
-    const y = 3.0 + i * 1.25;
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: M + 0.2, y, w: hw2 - 0.4, h: 1.1, fill: { color: C.bgGray }, rectRadius: 0.08, line: { color: C.line, width: 1 } });
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: M + 0.3, y: y + 0.1, w: 1.5, h: 0.32, fill: { color: col }, rectRadius: 0.06, line: { color: col } });
-    txt(s, label, { x: M + 0.3, y: y + 0.1, w: 1.5, h: 0.32, fontSize: 11, bold: true, color: C.white, align: "center", valign: "middle" });
-    txt(s, tag2, { x: M + 1.85, y: y + 0.1, w: hw2 - 2.15, h: 0.32, fontSize: 10, color: C.sub, valign: "middle" });
-    txt(s, [{ text: def, options: { breakLine: true } }, { text: ex, options: { color: C.sub, italic: true } }],
-      { x: M + 0.3, y: y + 0.46, w: hw2 - 0.6, h: 0.6, fontSize: 10.5, paraSpaceAfter: 2 });
+  header(s, "03", "미션별 수행", "Mission 1 — 최종 연구 결과", 13);
+  coreMsg(s, "공식 Validation 3,640건 Accuracy 95.11%, 95% CI [94.40, 95.82] — LR을 제출 후보로 확정");
+  card(s, M, 2.45, CW, 4.35);
+  stat(s, M + 0.3, 2.75, 2.6, "95.11%", "Accuracy (공식 Validation)", C.blue, 42);
+  txt(s, "95% 신뢰구간 [94.40, 95.82]\nrecall F 95.87% · recall M 94.23%", { x: M + 0.3, y: 4.2, w: 2.6, h: 0.8, fontSize: 12, color: C.sub, align: "center" });
+  txt(s, "파라미터 53개(가중치 52+절편) · CPU 추론 · Validation 3,640건 일괄 처리", { x: M + 0.3, y: 5.9, w: 2.6, h: 0.6, fontSize: 9.5, color: C.sub, align: "center" });
+  s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["GBM", "LR (채택)"], values: [94.92, 95.11] }], {
+    x: M + 3.2, y: 2.6, w: 4.0, h: 3.9, barDir: "col", chartColors: [C.sky, C.blue],
+    showTitle: true, title: "모델별 Accuracy (%)", titleFontSize: 12, titleColor: C.text, titleFontFace: F,
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 12, dataLabelFontBold: true, dataLabelFormatCode: "0.00",
+    valAxisMinVal: 90, valAxisMaxVal: 97, valAxisLabelColor: C.sub, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 12,
+    valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, showLegend: false, varyColors: true,
   });
-  const rx3 = M + hw2 + 0.3;
-  card(s, rx3, 2.45, hw2, 2.55);
-  txt(s, "■ 방법론적 한계 (있는 그대로)", { x: rx3 + 0.2, y: 2.58, w: hw2 - 0.4, h: 0.35, fontSize: 14, bold: true, color: C.blue });
+  txt(s, "LR 혼동행렬 (오분류 178건)", { x: M + 7.7, y: 2.6, w: 2.9, h: 0.26, fontSize: 11, color: C.sub });
+  table(s, [
+    ["", "예측 F", "예측 M"],
+    ["실제 F", { text: "1,878", options: { bold: true, color: C.blue } }, "81"],
+    ["실제 M", "97", { text: "1,584", options: { bold: true, color: C.blue } }],
+  ], M + 7.7, 2.9, [0.85, 1.0, 1.0], { rowH: 0.42, fontSize: 11.5, align: "center" });
+  caption(s, "근거: reports/mission1/ m1_val_eval.json, m1_val_bootstrap_ci.json, docs/decisions.md 2026-10-05");
+  s.addNotes("제출 상태(2026-10-07 기준): scripts/mission1_inference.py 구현 완료, CSV 스모크 테스트(헤더·행 수·UTF-8)는 아직 미확인 — m1_submission_checklist.md 참고.");
+}
+
+// ⑥ 결론 — 데이터 한계 vs 모델 한계 + 사회안전 시사점 + 향후 계획
+missionConclusion(14, 1, "신고자 성별 분류",
+  "관찰(사실)과 해석(판단)을 구분해서 기록 — 추가 검증 전까지는 확정 결론을 내리지 않음",
   [
-    "다중비교·사후 선택 편향 — 52개 중 값이 큰 축만 추려 봄",
-    "오분류 표본이 작음 (F→M 81건, M→F 97건)",
-    "GBM·LR paired 검정(McNemar) 아직 미실시",
-    "분위구간 분석은 비선형·국소 패턴을 놓칠 수 있음",
-    "내부·공식 결과가 가깝다는 것은 leakage 미관찰 정황일 뿐, 증명은 아님",
-  ].forEach((t, i) => {
-    txt(s, "•", { x: rx3 + 0.2, y: 3.0 + i * 0.37, w: 0.2, h: 0.32, fontSize: 11, color: C.red, bold: true });
-    txt(s, t, { x: rx3 + 0.42, y: 3.0 + i * 0.37, w: hw2 - 0.65, h: 0.34, fontSize: 10.5 });
-  });
-  card(s, rx3, 5.2, hw2, 1.6);
-  txt(s, "■ 다음 실험 후보 (아직 미착수)", { x: rx3 + 0.2, y: 5.32, w: hw2 - 0.4, h: 0.3, fontSize: 13, bold: true, color: C.blue });
-  txt(s, [
+    { text: "관찰 가능한 조건(길이·발화 수·겹침)으로는 오류 패턴이 설명되지 않음 — 분위구간 차이 최대 1.8%p, 방향도 엇갈림", options: { breakLine: true } },
+    { text: "성별이 애매하게 들리는 통화 자체가 일부 있을 가능성(탐색적 추정, 확정 아님)", options: { breakLine: true } },
+    { text: "오분류 표본이 작아(81·97건) 어떤 조건에서 특히 어려운지 더 좁히기 어려움" },
+  ],
+  [
+    { text: "52차원 통계에는 피치(F0, 기본주파수)가 직접 들어있지 않음", options: { breakLine: true } },
+    { text: "Cohen's d 탐색에서 일부 고차 MFCC에 패턴이 보였으나 사후 탐색이라 확정 아님 — F0를 직접 추가하면 개선 여지(후속 가설)", options: { breakLine: true } },
+    { text: "GBM·LR을 짝지어 검정(McNemar)하지 않아 두 모델 차이의 통계적 유의성은 미확인" },
+  ],
+  [{ text: "성별 자동 인식으로 신고 접수 기록을 자동화 — 상담 인력 배치 참고 정보로 활용 가능" }],
+  [
     { text: "F0(기본 주파수) 추가 — 상대적 우선순위만 상승, 확정 아님", options: { breakLine: true } },
     { text: "GBM vs LR paired test (McNemar / paired bootstrap)", options: { breakLine: true } },
     { text: "오분류 화자 단위 정성 분석 — 소수 화자가 오류를 몰아서 만드는지 확인" },
-  ], { x: rx3 + 0.2, y: 5.62, w: hw2 - 0.4, h: 1.1, fontSize: 10.5, paraSpaceAfter: 3 });
-  caption(s, "근거: M1_error_analysis_report.md 6·7절 — \"현재 M1 상태: 잠정 종료, EXP-002는 아직 착수하지 않음\"");
-  s.addNotes("5절 'Cohen's d' 결과를 확정적 원인으로 서술하지 말 것 — 보고서 원문의 표현 규칙을 그대로 유지.");
-}
+  ],
+  false);
 
 // ---------- Mission 2 ----------
-missionA(13, 2, "신고자/119대원 분류",
+missionA(15, 2, "신고자/119대원 분류",
   "규칙상 '발화 하나만 보고' 판단해야 함 — 통화 전체 정보 없이 목소리 자체에서 화자를 구분",
   [["입력", "한 사람의 한 발화 조각\n(startAt~endAt 구간만)"], ["출력", "신고자(1) / 119대원(0)"], ["평가", "Accuracy"], ["제약", "text · 발화 순서 · 다른 발화 정보 사용 불가"]],
   [["Baseline", "음향 통계\n+ LightGBM"], ["L1", "음향 특징 확장\n+ GBM"], ["L2", "Mel-spectrogram\n+ CNN"], ["판정", "신고자/대원\n(기준값 0.5)"]],
@@ -540,7 +626,7 @@ missionA(13, 2, "신고자/119대원 분류",
    "통계 특징(L1)으로 한계 확인 후, 소리 모양 전체를 이미지처럼 보는 CNN(L2)으로 확장",
    "통화 단위 정보(같은 통화 다른 발화 비교)는 규칙 위반이라 설계에서 제외"]);
 {
-  const s = missionB(14, 2, "신고자/119대원 분류", "Baseline 83.78% → L2 CNN 90.89% — 모델 구조 변경으로 +7%p 이상 향상");
+  const s = missionB(16, 2, "신고자/119대원 분류", "Baseline 83.78% → L2 CNN 90.89% — 모델 구조 변경으로 +7%p 이상 향상");
   card(s, M, 2.45, 7.3, 4.35);
   s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["Baseline\n(내부 분할)", "L1 GBM\n(공식 Val)", "L2 CNN\n(공식 Val)"], values: [83.78, 86.40, 90.89] }], {
     x: M + 0.2, y: 2.6, w: 4.6, h: 4.0, barDir: "col", chartColors: [C.line, C.sky, C.blue], varyColors: true,
@@ -563,7 +649,7 @@ missionA(13, 2, "신고자/119대원 분류",
 // ---------- Mission 2 추가: 시도한 다른 접근 ----------
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2  신고자/대원 분류 — 다른 접근과 기각/보류 이유", 15);
+  header(s, "03", "미션별 수행", "Mission 2  신고자/대원 분류 — 다른 접근과 기각/보류 이유", 17);
   coreMsg(s, "채택한 CNN 하나로 끝내지 않고 여러 방향을 검증 — 효과 없거나 규칙에 어긋난 조합은 이유와 함께 기록");
   card(s, M, 2.45, CW, 3.65);
   table(s, [
@@ -583,7 +669,7 @@ missionA(13, 2, "신고자/119대원 분류",
 }
 
 // ---------- Mission 3 ----------
-missionA(16, 3, "환자 증상 인식",
+missionA(18, 3, "환자 증상 인식",
   "증상 단어가 대화에 직접 등장하는 경우가 많음 — 단어 기반 모델로 출발해 문맥 모델로 확장",
   [["입력", "신고자·대원 대화 전사 텍스트\n(그 외 라벨 사용 불가)"], ["출력", "증상 9종 중 0~9개\n(다중 레이블)"], ["평가", "Macro F1\n(증상별 F1의 평균)"], ["대상", "고열·구토·두통·복통·어지러움·열상·오심·전신쇠약·호흡곤란"]],
   [["전처리", "발화 시간순 정렬\n9종 외 증상 제거"], ["텍스트 표현", "TF-IDF\n(단어·2단어 묶음)"], ["분류 모델", "증상별 로지스틱\n회귀 (9개)"], ["판정", "증상별 판정\n(기준값 0.5)"]],
@@ -591,7 +677,7 @@ missionA(16, 3, "환자 증상 인식",
    "희귀 증상이 많아 Macro F1에 불리 → 증상별 성능을 따로 점검",
    [ph("KcBERT 등 문맥 모델 결과 반영 시 갱신")]]);
 {
-  const s = missionB(17, 3, "환자 증상 인식", [ph("최종 모델과 Macro F1 한 문장", { color: C.sub })]);
+  const s = missionB(19, 3, "환자 증상 인식", [ph("최종 모델과 Macro F1 한 문장", { color: C.sub })]);
   card(s, M, 2.45, 7.3, 4.35);
   txt(s, [ph("0.000")], { x: M + 0.2, y: 2.65, w: 2.6, h: 0.75, fontSize: 40, bold: true, align: "center", valign: "middle" });
   txt(s, "Macro F1 (공식 Validation)", { x: M + 0.2, y: 3.43, w: 2.6, h: 0.5, fontSize: 12, color: C.sub, align: "center" });
@@ -610,7 +696,7 @@ missionA(16, 3, "환자 증상 인식",
 // ---------- Mission 3 추가: 확장 계획과 검증 일정 ----------
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 확장 계획과 검증 일정", 18);
+  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 확장 계획과 검증 일정", 20);
   coreMsg(s, "분할 감사부터 끝낸 뒤 TF-IDF 모델을 확정하고, 남은 기간 동안 문맥 모델로 확장");
   const steps = [
     ["분할 감사", "recordId 중복·\noverlap 검사", C.sky],
@@ -634,15 +720,15 @@ missionA(16, 3, "환자 증상 인식",
     { text: "문맥 모델이 TF-IDF보다 뚜렷이 낫지 않으면, 단순하고 설명 가능한 TF-IDF+LR을 최종안으로 유지" },
   ], C.mintLight);
   caption(s, "근거: docs/decisions.md 2026-09-20 분할 감사 항목, docs/experiment_log.md");
-  s.addNotes("본선 전까지 KcBERT 등 결과가 나오면 M3-B(17p)의 수치를 갱신하고, 이 장은 '실제로 더 해본 것'으로 내용 교체.");
+  s.addNotes("본선 전까지 KcBERT 등 결과가 나오면 M3-B(19p)의 수치를 갱신하고, 이 장은 '실제로 더 해본 것'으로 내용 교체.");
 }
 
 // =====================================================================
-// 19. 04-(1) 성능 요약과 교훈
+// 21. 04-(1) 성능 요약과 교훈
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "04", "종합 및 시사점", "(1) 성능 요약과 교훈", 19);
+  header(s, "04", "종합 및 시사점", "(1) 성능 요약과 교훈", 21);
   coreMsg(s, "세 미션 모두 공식 Validation 기준으로 평가하고, 점수보다 검증의 정직함을 우선함");
   tag(s, W - M - 1.7, 0.95);
   table(s, [
@@ -668,11 +754,11 @@ missionA(16, 3, "환자 증상 인식",
 }
 
 // =====================================================================
-// 20. 04-(2) 사회안전 시사점과 향후 계획
+// 22. 04-(2) 사회안전 시사점과 향후 계획
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "04", "종합 및 시사점", "(2) 사회안전 시사점과 향후 계획", 20);
+  header(s, "04", "종합 및 시사점", "(2) 사회안전 시사점과 향후 계획", 22);
   coreMsg(s, "세 미션을 이으면 — 119 신고 접수 순간부터 출동 판단까지를 돕는 하나의 흐름");
   const flow = [
     ["신고 접수", "119 통화 음성", C.sky],
@@ -709,7 +795,7 @@ missionA(16, 3, "환자 증상 인식",
 }
 
 // =====================================================================
-// 21. 마무리 — 공식 템플릿 그대로 사용 + 팀 정보만 빈 여백(2.1~2.9in)에 추가
+// 23. 마무리 — 공식 템플릿 그대로 사용 + 팀 정보만 빈 여백(2.1~2.9in)에 추가
 // =====================================================================
 {
   const s = pres.addSlide();
