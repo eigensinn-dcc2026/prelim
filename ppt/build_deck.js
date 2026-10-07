@@ -142,7 +142,7 @@ function table(slide, rows, x, y, colW, o = {}) {
   const secs = [
     ["01", "준비 과정", ["사전 학습 로드맵", "팀 구성과 협업 체계"]],
     ["02", "데이터 분석", ["데이터 개요와 대회 규칙", "EDA 핵심 발견", "공통 파이프라인"]],
-    ["03", "미션별 수행", ["Mission 1  신고자 성별 분류\n   (+ 연구 방법·시행착오)", "Mission 2  신고자/대원 분류\n   (+ 다른 접근 비교)", "Mission 3  환자 증상 인식\n   (+ 확장 계획)"]],
+    ["03", "미션별 수행", ["Mission 1  신고자 성별 분류\n   (+ 연구 방법·시행착오)", "Mission 2  신고자/대원 분류\n   (+ 연구 방법·시행착오, 김광희 파트)", "Mission 3  환자 증상 인식\n   (+ 확장 계획)"]],
     ["04", "종합 및 시사점", ["성능 요약과 교훈", "사회안전 시사점과 향후 계획"]],
   ];
   const cw = (CW - 3 * 0.3) / 4;
@@ -294,7 +294,7 @@ function table(slide, rows, x, y, colW, o = {}) {
       { text: "발견  ", options: { bold: true, breakLine: true } },
       { text: "복통·어지러움 20%대 vs 두통·오심 10%대 — 최대 2배 이상 차이", options: { breakLine: true } },
       { text: "설계 반영  ", options: { bold: true, color: C.blue, breakLine: true } },
-      { text: "Macro F1은 희소 증상에 민감 → 증상별 성능을 따로 점검 (19p)" },
+      { text: "Macro F1은 희소 증상에 민감 → 증상별 성능을 따로 점검 (30p)" },
     ]],
   ];
   const cw = (CW - 2 * 0.3) / 3;
@@ -617,59 +617,372 @@ missionConclusion(14, 1, "신고자 성별 분류",
   ],
   false);
 
-// ---------- Mission 2 ----------
-missionA(15, 2, "신고자/119대원 분류",
-  "규칙상 '발화 하나만 보고' 판단해야 함 — 통화 전체 정보 없이 목소리 자체에서 화자를 구분",
-  [["입력", "한 사람의 한 발화 조각\n(startAt~endAt 구간만)"], ["출력", "신고자(1) / 119대원(0)"], ["평가", "Accuracy"], ["제약", "text · 발화 순서 · 다른 발화 정보 사용 불가"]],
-  [["Baseline", "음향 통계\n+ LightGBM"], ["L1", "음향 특징 확장\n+ GBM"], ["L2", "Mel-spectrogram\n+ CNN"], ["판정", "신고자/대원\n(기준값 0.5)"]],
-  ["상황실 대원은 전화 헤드셋·일정한 말투, 신고자는 휴대전화·잡음·긴박함 → 음향 차이 존재",
-   "통계 특징(L1)으로 한계 확인 후, 소리 모양 전체를 이미지처럼 보는 CNN(L2)으로 확장",
-   "통화 단위 정보(같은 통화 다른 발화 비교)는 규칙 위반이라 설계에서 제외"]);
-{
-  const s = missionB(16, 2, "신고자/119대원 분류", "Baseline 83.78% → L2 CNN 90.89% — 모델 구조 변경으로 +7%p 이상 향상");
-  card(s, M, 2.45, 7.3, 4.35);
-  s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["Baseline\n(내부 분할)", "L1 GBM\n(공식 Val)", "L2 CNN\n(공식 Val)"], values: [83.78, 86.40, 90.89] }], {
-    x: M + 0.2, y: 2.6, w: 4.6, h: 4.0, barDir: "col", chartColors: [C.line, C.sky, C.blue], varyColors: true,
-    showTitle: true, title: "단계별 Accuracy (%)", titleFontSize: 12, titleColor: C.text, titleFontFace: F,
-    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 12, dataLabelFontBold: true, dataLabelFormatCode: "0.00",
-    valAxisMinVal: 80, valAxisMaxVal: 93, valAxisLabelColor: C.sub, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 11,
-    valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, showLegend: false,
-  });
-  stat(s, M + 4.9, 3.0, 2.3, "+7.1%p", "Baseline 대비 향상", C.red, 34);
-  txt(s, [{ text: "기각한 실험  ", options: { bold: true, breakLine: true } }, ph("N"), { text: "건", options: { breakLine: true } },
-    { text: "(기준값 보정, 가중치 조정 등 — decisions.md)", options: { fontSize: 10, color: C.sub } }],
-    { x: M + 4.9, y: 4.5, w: 2.3, h: 1.4, fontSize: 13, align: "center" });
-  rightCol(s, M + 7.6, [
-    { text: "오류가 몰린 곳  ", options: { bold: true } }, { text: "1초 미만 짧은 발화(\"네\", \"여보세요\")", options: { breakLine: true } },
-    { text: "데이터 규모  ", options: { bold: true } }, { text: "3천→9천 통화 +1.1%p, 전체 29,200 통화에서는 정체" },
-  ], [{ text: "신고자 발화만 자동 분리 → 신고 내용 분석·기록 자동화의 첫 단계" }]);
-  caption(s, "근거: docs/experiment_log.md, docs/decisions.md, reports/mission2/  ※ Baseline은 내부 분할, L1·L2는 공식 Validation 기준");
-}
+// ======================================================================
+// Mission 2 — 신고자/119대원 분류 (김광희 담당분: L1 + L2 CNN, 14장)
+// 연우 담당분(MLP 트랙)은 마무리되지 않아 이번 판에는 제외 — 비교가 아니라
+// "각자의 방법을 소개"하는 구성이므로, 연우 파트 완료 시 별도로 추가한다.
+// 내용 출처: ppt 만들기/미션2_PPT_제작의뢰_초안.md (2026-10-08)
+// ======================================================================
 
-// ---------- Mission 2 추가: 시도한 다른 접근 ----------
+// ① 한눈에 보기
+missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
+  "발화 하나만 듣고 대원인지 신고자인지 — 목소리를 그림(스펙트로그램)으로 바꿔 CNN 3개로 판정",
+  "입력 한 사람의 한 발화(startAt~endAt만)  ·  출력 대원(0)/신고자(1)  ·  평가 Accuracy  ·  제약 text·순서·다른 발화 정보 사용 불가",
+  [["발화 추출", "해당 구간만\n잘라내기"], ["스펙트로그램", "log-mel\n그림으로 변환"], ["CNN × 3", "seed 다르게\n학습 후 평균"], ["판정", "평균 확률\n(기준값 0.5)"]],
+  { value: "91.49%", label: "Accuracy (공식 Validation, 발화 111,947개)", sub: "L1(LightGBM) 86.44% 대비 +5.05%p — CNN 3-seed 앙상블 채택" },
+  false);
+
+// ② §1 미션 정의
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2  신고자/대원 분류 — 다른 접근과 기각/보류 이유", 17);
-  coreMsg(s, "채택한 CNN 하나로 끝내지 않고 여러 방향을 검증 — 효과 없거나 규칙에 어긋난 조합은 이유와 함께 기록");
-  card(s, M, 2.45, CW, 3.65);
+  header(s, "03", "미션별 수행", "Mission 2 — 미션 정의", 16);
+  coreMsg(s, "신고 통화의 발화 하나만 듣고, 말한 사람이 대원인지 신고자인지 맞힌다");
+  const lw = 5.0;
+  card(s, M, 2.45, lw, 4.35);
+  [["입력", "통화 음성에서 잘라낸 한 사람의 한 발화\n라벨 파일의 startAt·endAt만 사용"],
+   ["출력", "대원(0) 또는 신고자(1)"],
+   ["평가 지표", "Accuracy"],
+   ["대회 제약", "발화 내용(text)·발화 순서·같은 통화의\n다른 발화 정보는 쓸 수 없음 — 목소리 그 자체만"]]
+    .forEach(([k, v], i) => {
+      const y = 2.75 + i * 0.95;
+      s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: M + 0.2, y, w: 1.15, h: 0.38, fill: { color: C.blue }, rectRadius: 0.08, line: { color: C.blue } });
+      txt(s, k, { x: M + 0.2, y, w: 1.15, h: 0.38, fontSize: 11.5, bold: true, color: C.white, align: "center", valign: "middle" });
+      txt(s, v, { x: M + 1.45, y: y - 0.02, w: lw - 1.65, h: 0.85, fontSize: 11.5 });
+    });
+  const rx = M + lw + 0.3, rw = W - M - rx;
+  card(s, rx, 2.45, rw, 4.35);
+  txt(s, "■ 한 발화만 보고 판단한다는 것", { x: rx + 0.2, y: 2.6, w: rw - 0.4, h: 0.35, fontSize: 14, bold: true, color: C.blue });
+  // 간단한 통화 타임라인 다이어그램: 여러 발화 조각 중 하나만 강조
+  const tlY = 3.3, tlH = 0.55, segW = (rw - 0.4) / 6;
+  for (let i = 0; i < 6; i++) {
+    const hi = i === 2;
+    s.addShape(pres.shapes.RECTANGLE, { x: rx + 0.2 + i * segW, y: tlY, w: segW - 0.06, h: tlH, fill: { color: hi ? C.blue : C.bgGray }, line: { color: C.line, width: 1 } });
+  }
+  txt(s, "통화 하나 = 발화 여러 조각", { x: rx + 0.2, y: tlY + tlH + 0.08, w: rw - 0.4, h: 0.3, fontSize: 10, color: C.sub, align: "center" });
+  s.addShape(pres.shapes.LINE, { x: rx + 0.2 + 2 * segW + (segW - 0.06) / 2, y: tlY + tlH + 0.35, w: 0, h: 0.4, line: { color: C.blue, width: 2, endArrowType: "triangle" } });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: rx + 0.2 + 2 * segW - 0.6, y: tlY + tlH + 0.8, w: segW + 1.2, h: 0.55, fill: { color: C.light }, rectRadius: 0.08, line: { color: C.blue, width: 1 } });
+  txt(s, "대원? 신고자?", { x: rx + 0.2 + 2 * segW - 0.6, y: tlY + tlH + 0.8, w: segW + 1.2, h: 0.55, fontSize: 13, bold: true, color: C.blue, align: "center", valign: "middle" });
+  txt(s, "다른 조각(text·순서 포함)은 전혀 보지 않고, 강조된 조각의 소리만으로 판단", { x: rx + 0.2, y: 5.9, w: rw - 0.4, h: 0.5, fontSize: 11, color: C.sub, align: "center" });
+  caption(s, "근거: 대학부 예선 출제문제 8쪽, 2026-10-05 주최측 공식 답변(같은 통화의 다른 발화 정보 사용 금지)");
+}
+
+// ③ §2 데이터
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 데이터", 17);
+  coreMsg(s, "서울 지역 신고 통화 약 3만 건, 발화 100만 개 — 절반 이상이 1.5초 이하의 짧은 발화");
+  card(s, M, 2.45, 6.4, 4.35);
   table(s, [
-    ["접근", "무엇을 시도했나", "결과", "상태"],
-    ["통화 단위 특징", "같은 통화 내 다른 발화와 비교한 통계(상대 길이 등)", "규칙 위반 소지 확인", { text: "제거", options: { bold: true, color: C.red } }],
-    ["L1 + L2 블렌딩", "통계 모델(GBM)과 CNN 예측을 평균", "단독 CNN(L2)보다 낮음", { text: "기각", options: { bold: true, color: C.red } }],
-    ["CNN 시드 앙상블", "같은 구조를 다른 seed로 여러 번 학습해 평균", "소규모 검증 통과", { text: "확장 검토", options: { bold: true, color: C.blue } }],
-    ["CNN 다중 모델 앙상블", "구조가 다른 CNN 2개 추가 학습", ph("결과 대기"), { text: "보류 (GPU 대기)", options: { bold: true, color: C.sub } }],
-    ["사전학습 화자 임베딩", "공개 화자 인식 모델 fine-tuning 파일럿", ph("결과 반영 예정"), { text: "진행 중", options: { bold: true, color: C.sub } }],
-  ], M + 0.2, 2.65, [2.3, 5.0, 3.0, 1.9], { rowH: 0.52 });
+    ["", "학습용(Training, 서울)", "공식 Validation"],
+    ["통화", "29,200", "3,640"],
+    ["발화", "889,358", "111,947"],
+    ["대원 발화", "427,161", "53,845"],
+    ["신고자 발화", "462,197", "58,102"],
+  ], M + 0.2, 2.65, [1.7, 2.3, 2.1], { rowH: 0.42, fontSize: 11.5, align: "center" });
+  txt(s, [
+    { text: "음성 형식  ", options: { bold: true } }, { text: "8kHz, 모노", options: { breakLine: true } },
+    { text: "클래스 비율  ", options: { bold: true } }, { text: "거의 반반 (신고자 52%)", options: { breakLine: true } },
+    { text: "발화 길이  ", options: { bold: true } }, { text: "평균 1.98초, 중간값 1.44초 — \"네\",\"예\" 같은 짧은 맞장구가 많음. 이게 문제를 어렵게 만드는 핵심" },
+  ], { x: M + 0.2, y: 5.0, w: 6.0, h: 1.7, fontSize: 11.5, paraSpaceAfter: 6 });
+  const rx = M + 6.6, rw = W - M - rx;
+  card(s, rx, 2.45, rw, 4.35);
+  txt(s, "발화 길이 구간별 분포 (공식 Validation)", { x: rx + 0.2, y: 2.6, w: rw - 0.4, h: 0.3, fontSize: 11.5, color: C.sub });
+  s.addChart(pres.charts.BAR, [{ name: "발화 수", labels: ["0.5초\n미만", "0.5~1초", "1~2초", "2초\n이상"], values: [8954, 27392, 36858, 38743] }], {
+    x: rx + 0.1, y: 2.95, w: rw - 0.2, h: 3.6, barDir: "col", chartColors: [C.sky],
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 10.5, dataLabelFontBold: true, dataLabelFormatCode: "#,##0",
+    catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 10.5, valAxisHidden: true,
+    catGridLine: { style: "none" }, valGridLine: { style: "none" }, showLegend: false,
+  });
+  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 2절, reports/mission2/m2_official_val_spec.md");
+}
+
+// ④ §3 첫 번째 접근 — 음향 통계 + LightGBM (L1)
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ① 첫 번째 접근: 음향 통계 + LightGBM", 18);
+  coreMsg(s, "발화마다 소리 특징을 숫자 53개로 요약해 분류 → 공식 Validation 86.44%");
+  card(s, M, 2.45, CW, 4.35);
+  txt(s, "■ 방법", { x: M + 0.3, y: 2.65, w: CW - 0.6, h: 0.32, fontSize: 14, bold: true, color: C.blue });
+  txt(s, [
+    { text: "특징  ", options: { bold: true } }, { text: "소리 높낮이·세기·음색(MFCC) 등 값의 평균과 분산 등 53개", options: { breakLine: true } },
+    { text: "모델  ", options: { bold: true } }, { text: "LightGBM (트리 기반 모델)" },
+  ], { x: M + 0.3, y: 3.0, w: CW - 0.6, h: 0.9, fontSize: 13, paraSpaceAfter: 5 });
+  s.addShape(pres.shapes.LINE, { x: M + 0.3, y: 4.05, w: CW - 0.6, h: 0, line: { color: C.line, width: 1 } });
+  stat(s, M + 0.5, 4.3, 3.3, "86.44%", "공식 Validation Accuracy", C.blue, 42);
+  txt(s, "■ 추가로 해 본 것 — 모두 큰 개선 없음", { x: M + 4.3, y: 4.3, w: CW - 4.6, h: 0.32, fontSize: 14, bold: true, color: C.blue });
+  const addedTries = ["특징 추가 3회", "하이퍼파라미터 튜닝", "클래스 가중치 조정", "목소리 겹침 구간 처리"];
+  const tryW = (CW - 4.6 - 0.3) / 2;
+  addedTries.forEach((t, i) => checkRow(s, M + 4.3 + (i % 2) * (tryW + 0.3), 4.72 + Math.floor(i / 2) * 0.48, tryW, t));
+  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 3절, docs/experiment_log.md M2-EXP-001~009, M2-COMPARE-001, M2-VAL-001/002");
+}
+
+// ⑤ §4 한계 발견 → 방향 전환
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ② 한계 발견과 방향 전환", 19);
+  coreMsg(s, "숫자 몇 개로 요약하는 순간, 목소리의 세부 정보가 사라진다");
+  const hw = (CW - 0.3) / 2;
+  card(s, M, 2.45, hw, 4.35);
+  txt(s, "■ 오류 분석에서 나온 약점", { x: M + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 14, bold: true, color: C.blue });
+  txt(s, [
+    { text: "짧은 발화  ", options: { bold: true } }, { text: "요약할 정보 자체가 적음", options: { breakLine: true } },
+    { text: "목소리 겹침 구간  ", options: { bold: true } }, { text: "두 사람 소리가 섞인 구간" },
+  ], { x: M + 0.2, y: 2.95, w: hw - 0.4, h: 0.75, fontSize: 12, paraSpaceAfter: 4 });
+  txt(s, "특징을 더 넣어도 이 약점은 그대로였음 (3절 \"추가로 해 본 것\")", { x: M + 0.2, y: 3.75, w: hw - 0.4, h: 0.4, fontSize: 11, color: C.sub });
+  s.addShape(pres.shapes.LINE, { x: M + 0.2, y: 4.25, w: hw - 0.4, h: 0, line: { color: C.line, width: 1 } });
+  txt(s, [
+    { text: "가설  ", options: { bold: true, color: C.blue } }, { text: "평균·분산으로 요약하는 과정에서 시간에 따른 변화와 음색의 결 같은 정보가 버려진다", options: { breakLine: true } },
+    { text: "선택  ", options: { bold: true, color: C.blue } }, { text: "요약하지 말고, 소리를 그림(스펙트로그램) 그대로 학습시키자" },
+  ], { x: M + 0.2, y: 4.4, w: hw - 0.4, h: 2.3, fontSize: 12, paraSpaceAfter: 8 });
+  const rx = M + hw + 0.3;
+  card(s, rx, 2.45, hw, 4.35);
+  txt(s, "■ 선행 연구 근거", { x: rx + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 14, bold: true, color: C.blue });
+  txt(s, [
+    { text: "Hershey et al., ", options: { bold: true } }, { text: "CNN Architectures for Large-Scale Audio Classification, ICASSP 2017", options: { italic: true, breakLine: true } },
+    { text: "log-mel 스펙트로그램 + CNN이 대규모 오디오 분류에서 효과적임을 보임", options: { color: C.sub, breakLine: true } },
+    { text: "Nagrani et al., ", options: { bold: true } }, { text: "VoxCeleb: a large-scale speaker identification dataset, Interspeech 2017", options: { italic: true, breakLine: true } },
+    { text: "스펙트로그램 기반 CNN으로 화자 식별", options: { color: C.sub, breakLine: true } },
+    { text: "Ozan, ", options: { bold: true } }, { text: "Classification of Audio Segments in Call Center Recordings using CRNN, arXiv:2106.02422 (2021)", options: { italic: true, breakLine: true } },
+    { text: "콜센터 통화의 상담원/고객 구간을 CNN+RNN으로 자동 분류 — 본 미션과 가장 가까운 선행 사례", options: { color: C.sub } },
+  ], { x: rx + 0.2, y: 2.95, w: hw - 0.4, h: 3.2, fontSize: 10.5, paraSpaceAfter: 6 });
+  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 4절 (인용 2026-10-08 확인)");
+}
+
+// ⑥ §5 최종 모델 구조
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ③ 최종 모델 구조", 20);
+  coreMsg(s, "발화를 소리 그림으로 바꿔 CNN으로 분류하고, 3개 모델의 판단을 평균한다");
+  const steps = [
+    ["① 발화 추출", "해당 구간만\n잘라냄 (다른\n발화는 안 봄)"],
+    ["② 스펙트로그램", "log-mel, 주파수\n40칸·20ms 단위\n발화 내 정규화"],
+    ["③ 길이 맞춤", "짧은 발화는 무음\n으로 6초까지\n(자기 자신만)"],
+    ["④ CNN × 3", "4층 합성곱+전역\n풀링, 각자 확률\n계산"],
+    ["⑤ 판정", "3개 확률 평균\n≥0.5 신고자\n(기준값 0.5)"],
+  ];
+  const bw = 2.1, gap = (CW - 5 * bw) / 4;
+  steps.forEach(([t, b], i) => {
+    const x = M + i * (bw + gap);
+    stepBox(s, x, 2.5, bw, 2.1, t, b, i === 4 ? C.sky : C.blue);
+    if (i < 4) arrow(s, x + bw + (gap - 0.24) / 2, 3.35, 0.24, 0.38);
+  });
+  card(s, M, 4.95, CW, 1.85);
+  txt(s, "■ CNN 구조", { x: M + 0.2, y: 5.08, w: CW - 0.4, h: 0.3, fontSize: 13, bold: true, color: C.blue });
+  txt(s, [
+    { text: "합성곱 층 4개(32→64→128→256 채널) + 전역 평균 풀링 + 분류층", options: { breakLine: true } },
+    { text: "모델 1개당 파라미터 421,954개", options: { breakLine: true } },
+    { text: "사전학습 모델이나 외부 데이터 없이, 제공된 데이터만으로 처음부터 학습" },
+  ], { x: M + 0.2, y: 5.4, w: CW - 0.4, h: 1.3, fontSize: 11.5, paraSpaceAfter: 4 });
+  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 5절, src/dcc_data/mission2_cnn.py (SpeakerCNNLarge)");
+}
+
+// ⑦ §6 핵심 아이디어 ① 발화 단독 무음 채우기
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ④ 핵심 아이디어 ① 발화 단독 무음 채우기", 21);
+  coreMsg(s, "짧은 발화를 무음으로 6초까지 채우기만 해도 +1.16%p");
+  card(s, M, 2.45, 7.3, 4.35);
+  txt(s, [
+    { text: "문제  ", options: { bold: true, color: C.blue } },
+    { text: "학습 때는 여러 발화를 묶어 가장 긴 발화에 맞춰 무음을 채움 → 모델이 그 분포에 익숙해짐. 채점 때는 발화를 하나씩 넣다 보니, 짧은 발화가 무음 없이 들어가 성능이 떨어짐", options: { breakLine: true } },
+    { text: "해결  ", options: { bold: true, color: C.blue } },
+    { text: "추론 때 각 발화를 그 발화 자신만으로 무음을 채워 300프레임(6초)으로 맞춤 — 다른 발화 정보를 쓰지 않으니 규정에도 맞음" },
+  ], { x: M + 0.2, y: 2.6, w: 7.0, h: 2.1, fontSize: 12.5, paraSpaceAfter: 8 });
+  stat(s, M + 0.3, 4.9, 2.1, "+1.16%p", "89.73% → 90.89%", C.red, 30);
+  stat(s, M + 2.7, 4.9, 2.1, "+4.1%p", "0.5초 미만: 86.2→90.3%", C.blue, 30);
+  txt(s, "채우는 길이(300프레임)는 공식 Validation이 아니라 학습 데이터 안의 검증 통화로 정했음", { x: M + 0.3, y: 6.1, w: 6.8, h: 0.5, fontSize: 10.5, color: C.sub });
+  card(s, M + 7.6, 2.45, W - M - (M + 7.6), 4.35, C.bgGray);
+  txt(s, "왜 중요한가", { x: M + 7.8, y: 2.6, w: 3.7, h: 0.3, fontSize: 13, bold: true, color: C.blue });
+  txt(s, "재학습 없이 추론 방식만 고쳐서 얻은 이득 — 모델이 아니라 \"학습과 추론의 입력이 서로 달랐다\"는 걸 찾아낸 것", { x: M + 7.8, y: 2.95, w: 3.7, h: 1.8, fontSize: 11 });
+  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 6절, docs/experiment_log.md M2-PAD-001, M2-VAL-004/005");
+}
+
+// ⑧ §7 핵심 아이디어 ② seed 앙상블
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ⑤ 핵심 아이디어 ② seed 앙상블", 22);
+  coreMsg(s, "같은 CNN을 시작 조건만 바꿔 3번 학습하고 평균하면, 단일 모델보다 0.5%p 높음");
+  card(s, M, 2.45, 6.6, 4.35);
+  s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["모델 1개\n(평균)", "모델 2개\n평균", "모델 3개\n평균"], values: [90.97, 91.41, 91.55] }], {
+    x: M + 0.2, y: 2.65, w: 6.2, h: 3.9, barDir: "col", chartColors: [C.line, C.sky, C.blue], varyColors: true,
+    showTitle: true, title: "모델 수에 따른 공식 Validation Accuracy (%)", titleFontSize: 12, titleColor: C.text, titleFontFace: F,
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 12, dataLabelFontBold: true, dataLabelFormatCode: "0.00",
+    valAxisMinVal: 90, valAxisMaxVal: 92, valAxisLabelColor: C.sub, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 11.5,
+    valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, showLegend: false,
+  });
+  const rx = M + 6.9, rw = W - M - rx;
+  card(s, rx, 2.45, rw, 4.35);
+  txt(s, "■ 방법", { x: rx + 0.2, y: 2.6, w: rw - 0.4, h: 0.3, fontSize: 13, bold: true, color: C.blue });
+  txt(s, "모델 구조·데이터·학습 설정은 같고 무작위 시작값(seed 1/2/3)만 다름 — 실력은 비슷해도 틀리는 발화가 서로 달라서, 평균을 내면 서로의 실수를 보완", { x: rx + 0.2, y: 2.95, w: rw - 0.4, h: 1.6, fontSize: 11 });
+  table(s, [
+    ["구성", "Accuracy"],
+    ["모델 1개", "90.90~91.04%"],
+    ["모델 2개", "91.39~91.45%"],
+    ["모델 3개", { text: "91.55%", options: { bold: true, color: C.blue } }],
+  ], rx + 0.2, 4.7, [1.6, 1.7], { rowH: 0.42, fontSize: 11, align: "center" });
+  txt(s, "2개→3개는 오르는 폭이 +0.1%p로 줄어서 3개에서 멈춤", { x: rx + 0.2, y: 6.45, w: rw - 0.4, h: 0.4, fontSize: 10.5, color: C.sub });
+  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 7절, docs/experiment_log.md M2-ENS-002/003");
+}
+
+// ⑨ §8 검증했지만 채택하지 않은 시도
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ⑥ 검증했지만 채택하지 않은 시도", 23);
+  coreMsg(s, "아이디어마다 seed 3개로 반복 실험해 우연이 아닌지 확인했고, 기준에 못 미치면 버렸다");
+  card(s, M, 2.45, CW, 3.7);
+  table(s, [
+    ["시도", "결과", "판정"],
+    ["시간 해상도 2배 (hop80)", "처음엔 좋아 보였지만 충분히 학습하면 역전", { text: "기각", options: { bold: true, color: C.red } }],
+    ["주파수 칸 수 2배 (40→80)", "3번 모두 하락 (평균 −0.68%p)", { text: "기각", options: { bold: true, color: C.red } }],
+    ["주파수 눈금 변경 (mel→linear)", "3번 모두 하락 (평균 −0.39%p)", { text: "기각", options: { bold: true, color: C.red } }],
+    ["데이터 보강 (SpecAugment)", "평균 −0.12%p (우연 수준)", { text: "기각", options: { bold: true, color: C.red } }],
+    ["더 큰 모델 (ResNet, 파라미터 3배)", "이득 없음", { text: "기각", options: { bold: true, color: C.red } }],
+    ["화자인식 전용 구조 (ECAPA-TDNN)", "+0.27%p, 사전에 정한 기준(+0.5%p) 미달", { text: "기각", options: { bold: true, color: C.red } }],
+  ], M + 0.2, 2.68, [3.2, 5.2, 1.9], { rowH: 0.47, fontSize: 11 });
   insight(s, M, 6.3, CW, 0.65, [
-    { text: "왜 이 표를 넣나  ", options: { bold: true, color: C.blue } },
-    { text: "서면 심사라 \"더 해본 건 없나\"에 답할 기회가 따로 없음 — 시도와 기각 이유를 미리 남겨 둠" },
+    { text: "메시지  ", options: { bold: true, color: C.blue } },
+    { text: "판정 기준은 실험 전에 정했고, 결과를 보고 바꾸지 않았음" },
   ]);
-  caption(s, "근거: docs/decisions.md (M2-ENS-001 2026-09-28 기각), docs/experiment_log.md, colab_scripts/ 파일럿 스크립트");
-  s.addNotes("표의 '결과'·'상태' 열은 decisions.md 최신 항목으로 계속 갱신. ECAPA 파일럿 결과가 나오면 바로 반영.");
+  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 8절, docs/experiment_log.md M2-CNN-005~009, M2-ECAPA-001, M2-FREQ-001, M2-AUG-001");
+}
+
+// ⑩ §9 최종 결과
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 최종 연구 결과", 24);
+  coreMsg(s, "공식 Validation 정확도 91.49% (L1 GBM 대비 +5.05%p)");
+  card(s, M, 2.45, 4.2, 4.35);
+  stat(s, M + 0.2, 2.7, 3.8, "91.49%", "Accuracy (공식 Validation)", C.blue, 38);
+  txt(s, "111,947건 중 102,419건 정답\n대원 recall 87.15% · 신고자 recall 95.51%", { x: M + 0.2, y: 4.0, w: 3.8, h: 0.7, fontSize: 11, color: C.sub, align: "center" });
+  txt(s, "혼동행렬", { x: M + 0.2, y: 4.85, w: 3.8, h: 0.26, fontSize: 10.5, color: C.sub });
+  table(s, [
+    ["실제 ↓ · 예측 →", "대원", "신고자"],
+    ["대원 (53,845)", { text: "46,926", options: { bold: true, color: C.blue } }, "6,919"],
+    ["신고자 (58,102)", "2,609", { text: "55,493", options: { bold: true, color: C.blue } }],
+  ], M + 0.2, 5.13, [1.3, 1.25, 1.25], { rowH: 0.42, fontSize: 10.5, align: "center" });
+  const mx = M + 4.5, mw = 4.3;
+  card(s, mx, 2.45, mw, 4.35);
+  txt(s, "발전 과정 (공식 Validation)", { x: mx + 0.2, y: 2.6, w: mw - 0.4, h: 0.3, fontSize: 11.5, color: C.sub });
+  s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["GBM\n(L1)", "CNN 1개", "CNN 3개\n앙상블"], values: [86.44, 90.97, 91.49] }], {
+    x: mx + 0.1, y: 2.95, w: mw - 0.2, h: 3.7, barDir: "col", chartColors: [C.line, C.sky, C.blue], varyColors: true,
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 11, dataLabelFontBold: true, dataLabelFormatCode: "0.00",
+    valAxisMinVal: 84, valAxisMaxVal: 93, valAxisLabelColor: C.sub, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 11,
+    valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, showLegend: false,
+  });
+  const rx = mx + mw + 0.3, rw = W - M - rx;
+  card(s, rx, 2.45, rw, 4.35);
+  txt(s, "발화 길이별 정확도", { x: rx + 0.2, y: 2.6, w: rw - 0.4, h: 0.3, fontSize: 11.5, color: C.sub });
+  table(s, [
+    ["길이", "발화 수", "정확도"],
+    ["0.5초 미만", "8,954", "90.95%"],
+    ["0.5~1초", "27,392", { text: "87.60%", options: { color: C.red } }],
+    ["1~2초", "36,858", "89.71%"],
+    ["2초 이상", "38,743", { text: "96.05%", options: { bold: true, color: C.blue } }],
+  ], rx + 0.2, 2.95, [1.3, 1.1, 1.1], { rowH: 0.44, fontSize: 10.5, align: "center" });
+  txt(s, "[확인 필요] 연우님 모델과 공식 Validation 비교 결과 반영 여부", { x: rx + 0.2, y: 6.1, w: rw - 0.4, h: 0.5, fontSize: 9.5, color: C.ph, italic: true });
+  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 9절, docs/experiment_log.md M2-RERUN-001");
+}
+
+// ⑪ §10 오류 분석과 한계
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 오류 분석과 한계", 25);
+  coreMsg(s, "남은 오류는 짧은 맞장구와 \"대원을 신고자로 착각\"하는 경우에 몰려 있음");
+  const hw = (CW - 0.3) / 2;
+  card(s, M, 2.45, hw, 4.35);
+  txt(s, "■ 가장 약한 구간: 0.5~1초 (87.60%)", { x: M + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 13.5, bold: true, color: C.blue });
+  txt(s, [
+    { text: "\"네\", \"예\" 같은 짧은 대답은 대원·신고자가 똑같이 씀 — 목소리만으로는 구분 정보가 거의 없음", options: { breakLine: true } },
+    { text: "오류의 73%가 \"대원을 신고자로\" 판단한 경우 (6,919건 vs 반대 방향 2,609건)" },
+  ], { x: M + 0.2, y: 2.95, w: hw - 0.4, h: 1.5, fontSize: 11.5, paraSpaceAfter: 8 });
+  s.addShape(pres.shapes.LINE, { x: M + 0.2, y: 4.5, w: hw - 0.4, h: 0, line: { color: C.line, width: 1 } });
+  txt(s, [
+    { text: "라벨 잡음  ", options: { bold: true, color: C.blue } },
+    { text: "화자 라벨이 뒤바뀐 것으로 의심되는 통화가 있었음. 대회 규정(전사 텍스트로 라벨 수정 금지)에 따라 고치지 않고 제공된 라벨 그대로 학습 — 의심 사례는 한계로 따로 기록", options: { breakLine: true } },
+  ], { x: M + 0.2, y: 4.65, w: hw - 0.4, h: 1.6, fontSize: 11.5 });
+  const rx = M + hw + 0.3;
+  card(s, rx, 2.45, hw, 4.35);
+  txt(s, "■ 데이터 자체의 한계 vs 모델 성능의 한계", { x: rx + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 13.5, bold: true, color: C.blue });
+  txt(s, [
+    { text: "데이터 한계  ", options: { bold: true } },
+    { text: "다른 방법(§8)으로도 비슷한 지점(짧은 발화)에서 성능이 멈춤 — 오류 상당 부분은 \"한 발화만 보고 판단\"이라는 조건 자체의 한계로 봄", options: { breakLine: true } },
+    { text: "모델 한계  ", options: { bold: true } },
+    { text: "대원→신고자 쏠림(73%)은 비대칭 — 구조·입력을 여러 방향(§8)으로 바꿔도 못 줄였다는 점에서, 지금 접근으로는 쉽게 안 줄어드는 영역으로 판단" },
+  ], { x: rx + 0.2, y: 2.95, w: hw - 0.4, h: 3.2, fontSize: 11.5, paraSpaceAfter: 8 });
+  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 10절, docs/experiment_log.md M2-COMPARE-002, M2-LABEL-001~003");
+}
+
+// ⑫ §11 결과의 신뢰성: 규정 준수와 재현성
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 결과의 신뢰성: 규정 준수와 재현성", 26);
+  coreMsg(s, "공식 Validation은 마지막 확인에만 썼고, 원본 데이터부터 전 과정을 다시 실행해 기록을 남김");
+  card(s, M, 2.45, CW, 4.35);
+  const items = [
+    ["모델 고르기", "학습 데이터의 20%(5,840통화)를 떼어 둔 내부 검증으로만 함. 공식 Validation은 학습·선택에 쓰지 않음"],
+    ["라벨", "제공된 라벨 그대로 사용. 학습 코드가 라벨 출처를 검사해 수정된 라벨이면 학습을 거부함"],
+    ["판정 기준", "0.5로 고정 (대회 공지 준수)"],
+    ["재현성", "노트북 하나로 원본 zip부터 음성 추출→스펙트로그램→학습→평가까지 다시 실행. 에폭별 학습 로그를 전부 보존"],
+    ["실행 기록", "런타임이 끊기면 마지막 저장 지점부터 이어서 학습 — 저장 직전 끊긴 에폭 2개는 다시 학습되어 로그에 두 번 나타남"],
+  ];
+  items.forEach(([k, v], i) => {
+    const y = 2.7 + i * 0.75;
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: M + 0.2, y, w: 1.5, h: 0.5, fill: { color: C.blue }, rectRadius: 0.08, line: { color: C.blue } });
+    txt(s, k, { x: M + 0.2, y, w: 1.5, h: 0.5, fontSize: 12, bold: true, color: C.white, align: "center", valign: "middle" });
+    txt(s, v, { x: M + 1.85, y: y - 0.02, w: CW - 2.05, h: 0.65, fontSize: 11.5, valign: "middle" });
+  });
+  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 11절, docs/decisions.md 2026-10-05 규정 준수 종합 검토");
+}
+
+// ⑬ §12 계산 효율성
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 계산 효율성 (대회 권장 항목)", 27);
+  coreMsg(s, "학습 속도를 개선해 에폭당 약 25분 → 약 7분(약 3.5배)으로 줄임");
+  card(s, M, 2.45, CW, 4.35);
+  table(s, [
+    ["항목", "값"],
+    ["파라미터 수", "모델 1개 421,954 × 3 = Total 1,265,862 / Active 1,265,862"],
+    ["학습 환경", "Colab NVIDIA Tesla T4 1개, 혼합 정밀도, 에폭당 약 7분, 시드별 20~24에폭(자동 조기 종료)"],
+    ["추론 환경", "CPU (Intel Xeon 2.0GHz 2코어), GPU 미사용"],
+    ["Validation 추론 batch size", "1 (발화 하나씩)"],
+    ["Validation 추론 시간", "전체 85.3분, 발화당 평균 45.7ms"],
+  ], M + 0.3, 2.8, [3.0, 7.0], { rowH: 0.56, fontSize: 12 });
+  txt(s, "데이터 저장 방식 개선(스펙트로그램을 float16 하나로 묶어 메모리 매핑) + 혼합 정밀도(AMP) 적용 덕분",
+    { x: M + 0.3, y: 6.3, w: CW - 0.6, h: 0.4, fontSize: 11, color: C.sub });
+  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 12절, docs/decisions.md 2026-10-05 (학습 속도 개선 항목)");
+}
+
+// ⑭ §13 사회안전 시사점
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 사회안전 시사점", 28);
+  coreMsg(s, "목소리만으로 \"누가 말했는지\"를 자동으로 나누면, 신고 접수 기록과 분석을 빠르게 만들 수 있음");
+  const hw = (CW - 0.3) / 2;
+  insight(s, M, 2.45, hw, 2.0, [
+    { text: "신고 내용 자동 정리  ", options: { bold: true, color: C.blue, breakLine: true } },
+    { text: "통화를 대원·신고자 발화로 자동 분리하면, 신고자가 말한 증상·위치만 골라 요약하거나 다음 단계(증상 분류 등, Mission 3)에 넘길 수 있음" },
+  ]);
+  insight(s, M, 4.6, hw, 2.2, [
+    { text: "접수 품질 관리  ", options: { bold: true, color: C.blue, breakLine: true } },
+    { text: "대원 발화만 모아 응대 절차 준수 여부를 점검하는 등, 사후 분석 시간을 줄일 수 있음" },
+  ], C.light);
+  const rx = M + hw + 0.3;
+  insight(s, rx, 2.45, hw, 2.0, [
+    { text: "개인정보 측면  ", options: { bold: true, color: C.blue, breakLine: true } },
+    { text: "발화 내용(텍스트) 없이 음향만으로 동작해서, 내용을 보지 않고도 1차 분류가 가능함" },
+  ], C.light);
+  card(s, rx, 4.6, hw, 2.2, C.bgGray);
+  txt(s, "현실 적용 시 개선점", { x: rx + 0.2, y: 4.72, w: hw - 0.4, h: 0.3, fontSize: 13, bold: true, color: C.blue });
+  txt(s, [
+    { text: "2초 이상 발화는 96%로 믿을 만함", options: { breakLine: true } },
+    { text: "짧은 맞장구는 실제 서비스에서 앞뒤 발화 맥락을 함께 쓰면 보완 가능 — 대회에서는 금지된 정보라 쓰지 않음" },
+  ], { x: rx + 0.2, y: 5.05, w: hw - 0.4, h: 1.6, fontSize: 11.5, paraSpaceAfter: 6 });
+  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 13절");
 }
 
 // ---------- Mission 3 ----------
-missionA(18, 3, "환자 증상 인식",
+missionA(29, 3, "환자 증상 인식",
   "증상 단어가 대화에 직접 등장하는 경우가 많음 — 단어 기반 모델로 출발해 문맥 모델로 확장",
   [["입력", "신고자·대원 대화 전사 텍스트\n(그 외 라벨 사용 불가)"], ["출력", "증상 9종 중 0~9개\n(다중 레이블)"], ["평가", "Macro F1\n(증상별 F1의 평균)"], ["대상", "고열·구토·두통·복통·어지러움·열상·오심·전신쇠약·호흡곤란"]],
   [["전처리", "발화 시간순 정렬\n9종 외 증상 제거"], ["텍스트 표현", "TF-IDF\n(단어·2단어 묶음)"], ["분류 모델", "증상별 로지스틱\n회귀 (9개)"], ["판정", "증상별 판정\n(기준값 0.5)"]],
@@ -677,7 +990,7 @@ missionA(18, 3, "환자 증상 인식",
    "희귀 증상이 많아 Macro F1에 불리 → 증상별 성능을 따로 점검",
    [ph("KcBERT 등 문맥 모델 결과 반영 시 갱신")]]);
 {
-  const s = missionB(19, 3, "환자 증상 인식", [ph("최종 모델과 Macro F1 한 문장", { color: C.sub })]);
+  const s = missionB(30, 3, "환자 증상 인식", [ph("최종 모델과 Macro F1 한 문장", { color: C.sub })]);
   card(s, M, 2.45, 7.3, 4.35);
   txt(s, [ph("0.000")], { x: M + 0.2, y: 2.65, w: 2.6, h: 0.75, fontSize: 40, bold: true, align: "center", valign: "middle" });
   txt(s, "Macro F1 (공식 Validation)", { x: M + 0.2, y: 3.43, w: 2.6, h: 0.5, fontSize: 12, color: C.sub, align: "center" });
@@ -696,7 +1009,7 @@ missionA(18, 3, "환자 증상 인식",
 // ---------- Mission 3 추가: 확장 계획과 검증 일정 ----------
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 확장 계획과 검증 일정", 20);
+  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 확장 계획과 검증 일정", 31);
   coreMsg(s, "분할 감사부터 끝낸 뒤 TF-IDF 모델을 확정하고, 남은 기간 동안 문맥 모델로 확장");
   const steps = [
     ["분할 감사", "recordId 중복·\noverlap 검사", C.sky],
@@ -720,15 +1033,15 @@ missionA(18, 3, "환자 증상 인식",
     { text: "문맥 모델이 TF-IDF보다 뚜렷이 낫지 않으면, 단순하고 설명 가능한 TF-IDF+LR을 최종안으로 유지" },
   ], C.mintLight);
   caption(s, "근거: docs/decisions.md 2026-09-20 분할 감사 항목, docs/experiment_log.md");
-  s.addNotes("본선 전까지 KcBERT 등 결과가 나오면 M3-B(19p)의 수치를 갱신하고, 이 장은 '실제로 더 해본 것'으로 내용 교체.");
+  s.addNotes("본선 전까지 KcBERT 등 결과가 나오면 M3-B(30p)의 수치를 갱신하고, 이 장은 '실제로 더 해본 것'으로 내용 교체.");
 }
 
 // =====================================================================
-// 21. 04-(1) 성능 요약과 교훈
+// 32. 04-(1) 성능 요약과 교훈
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "04", "종합 및 시사점", "(1) 성능 요약과 교훈", 21);
+  header(s, "04", "종합 및 시사점", "(1) 성능 요약과 교훈", 32);
   coreMsg(s, "세 미션 모두 공식 Validation 기준으로 평가하고, 점수보다 검증의 정직함을 우선함");
   tag(s, W - M - 1.7, 0.95);
   table(s, [
@@ -754,11 +1067,11 @@ missionA(18, 3, "환자 증상 인식",
 }
 
 // =====================================================================
-// 22. 04-(2) 사회안전 시사점과 향후 계획
+// 33. 04-(2) 사회안전 시사점과 향후 계획
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "04", "종합 및 시사점", "(2) 사회안전 시사점과 향후 계획", 22);
+  header(s, "04", "종합 및 시사점", "(2) 사회안전 시사점과 향후 계획", 33);
   coreMsg(s, "세 미션을 이으면 — 119 신고 접수 순간부터 출동 판단까지를 돕는 하나의 흐름");
   const flow = [
     ["신고 접수", "119 통화 음성", C.sky],
@@ -795,7 +1108,7 @@ missionA(18, 3, "환자 증상 인식",
 }
 
 // =====================================================================
-// 23. 마무리 — 공식 템플릿 그대로 사용 + 팀 정보만 빈 여백(2.1~2.9in)에 추가
+// 34. 마무리 — 공식 템플릿 그대로 사용 + 팀 정보만 빈 여백(2.1~2.9in)에 추가
 // =====================================================================
 {
   const s = pres.addSlide();
