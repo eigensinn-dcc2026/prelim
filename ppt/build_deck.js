@@ -384,22 +384,24 @@ function missionA(page, no, title, core, prob, pipe, why) {
   txt(s, runs, { x: rx, y: 5.4, w: rw, h: 1.4, fontSize: 13, paraSpaceAfter: 6 });
   return s;
 }
-function missionB(page, no, title, core) {
+// showTag: 수치가 아직 잠정이면 true(기본), 확정되어 더 안 바뀌면 false로 꺼서 "잠정" 태그 제거
+function missionB(page, no, title, core, showTag = true) {
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", `Mission ${no}  ${title} — 결과와 시사점`, page);
   coreMsg(s, core);
-  tag(s, W - M - 1.7, 0.95);
+  if (showTag) tag(s, W - M - 1.7, 0.95);
   return s;
 }
 // 오른쪽 열: 결과 분석 / 재현 정보 / 사회안전 시사점
-function rightCol(s, rx, analysis, safety) {
+// repro: 재현 정보 줄에 넣을 run 배열. 생략하면 공통 자리표시자 사용.
+function rightCol(s, rx, analysis, safety, repro) {
   const rw = W - M - rx;
   card(s, rx, 2.45, rw, 1.75);
   txt(s, "■ 결과 분석", { x: rx + 0.2, y: 2.55, w: rw - 0.4, h: 0.35, fontSize: 15, bold: true });
   txt(s, analysis, { x: rx + 0.2, y: 2.95, w: rw - 0.4, h: 1.2, fontSize: 12, paraSpaceAfter: 4 });
   card(s, rx, 4.35, rw, 1.05, C.bgGray);
   txt(s, "■ 재현 정보", { x: rx + 0.2, y: 4.43, w: rw - 0.4, h: 0.3, fontSize: 13, bold: true });
-  txt(s, [{ text: "파라미터 수 " }, ph("0"), { text: "  ·  학습/추론 환경 " }, ph("GPU/CPU", { breakLine: true }),
+  txt(s, repro || [{ text: "파라미터 수 " }, ph("0"), { text: "  ·  학습/추론 환경 " }, ph("GPU/CPU", { breakLine: true }),
     { text: "추론 배치 " }, ph("0"), { text: "  ·  Validation 추론 시간 " }, ph("0.0초/샘플")],
     { x: rx + 0.2, y: 4.75, w: rw - 0.4, h: 0.6, fontSize: 11, color: C.sub });
   insight(s, rx, 5.55, rw, 1.25, [{ text: "사회안전 시사점  ", options: { bold: true, color: C.blue, breakLine: true } }].concat(safety), C.mintLight);
@@ -412,12 +414,18 @@ missionA(9, 1, "신고자 성별 분류",
   [["구간 추출", "신고자 발화만\n잘라내기"], ["음향 특징", "음높이·음색 등\n52차원 통계"], ["분류 모델", "로지스틱 회귀\n(LR)"], ["판정", "남/여\n(기준값 0.5)"]],
   ["성별 차이는 음높이 같은 저수준 음향 특징에 이미 크게 드러남",
    "GBM과 정확도 차이가 0.19%p로 작아 더 단순하고 해석 쉬운 LR 채택",
-   [ph("최종 모델이 바뀌면 이유 갱신")]]);
+   "2026-10-05: 제출 기한을 고려해 LR을 1차 제출 후보로 고정 — 추가 학습·F0 특징 추가는 보류"]);
 {
-  const s = missionB(10, 1, "신고자 성별 분류", "공식 Validation 3,640건에서 Accuracy 95.11% — 두 모델 모두 95% 안팎으로 안정적");
+  const s = missionB(10, 1, "신고자 성별 분류", "공식 Validation 3,640건에서 Accuracy 95.11% — 두 모델 모두 95% 안팎으로 안정적", false);
   card(s, M, 2.45, 7.3, 4.35);
   stat(s, M + 0.2, 2.65, 2.6, "95.11%", "Accuracy (공식 Validation)", C.blue, 40);
-  txt(s, "95% 신뢰구간\n[94.40, 95.82]", { x: M + 0.2, y: 3.95, w: 2.6, h: 0.7, fontSize: 12, color: C.sub, align: "center" });
+  txt(s, "95% 신뢰구간\n[94.40, 95.82]", { x: M + 0.2, y: 3.95, w: 2.6, h: 0.65, fontSize: 12, color: C.sub, align: "center" });
+  txt(s, "LR 혼동행렬 (오분류 178건)", { x: M + 0.2, y: 4.68, w: 2.6, h: 0.26, fontSize: 10.5, color: C.sub });
+  table(s, [
+    ["", "예측 F", "예측 M"],
+    ["실제 F", { text: "1,878", options: { bold: true, color: C.blue } }, "81"],
+    ["실제 M", "97", { text: "1,584", options: { bold: true, color: C.blue } }],
+  ], M + 0.2, 4.96, [0.75, 0.925, 0.925], { rowH: 0.34, fontSize: 11, align: "center" });
   s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["GBM", "LR (채택)"], values: [94.92, 95.11] }], {
     x: M + 2.9, y: 2.6, w: 4.2, h: 4.0, barDir: "col", chartColors: [C.sky, C.blue],
     showTitle: true, title: "모델별 Accuracy (%)", titleFontSize: 12, titleColor: C.text, titleFontFace: F,
@@ -426,10 +434,15 @@ missionA(9, 1, "신고자 성별 분류",
     valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, showLegend: false, varyColors: true,
   });
   rightCol(s, M + 7.6, [
-    { text: "오류가 몰린 곳  ", options: { bold: true } }, ph("오류 분석 결론", { breakLine: true }),
+    { text: "오류가 몰린 곳  ", options: { bold: true } },
+    { text: "발화 길이·발화 수·겹침 비율 — 분위구간별 오류율 차이가 최대 1.8%p로 작고, 길이·발화 수는 방향마저 반대라 뚜렷한 원인으로 보기 어려움", options: { breakLine: true } },
     { text: "과적합 점검  ", options: { bold: true } }, { text: "내부 94.8~95.0% vs 공식 95.1% — 차이 작음" },
-  ], [ph("예: 신고자 정보 자동 기록 → 접수 시간 단축")]);
-  caption(s, "근거: reports/mission1/ m1_val_eval.json, m1_val_bootstrap_ci.json, M1_error_analysis_report.md");
+  ], [{ text: "성별 자동 인식으로 신고 접수 기록을 자동화 — 상담 인력 배치 참고 정보로 활용 가능" }],
+  [{ text: "파라미터 수 53(가중치 52 + 절편)", options: { breakLine: true } },
+   { text: "학습/추론 환경 CPU (경량 모델)", options: { breakLine: true } },
+   { text: "추론 배치 Validation 3,640건 일괄 처리  ·  추론 시간 " }, ph("미측정")]);
+  caption(s, "근거: reports/mission1/ m1_val_eval.json, m1_val_bootstrap_ci.json, M1_error_analysis_report.md, docs/decisions.md 2026-10-05");
+  s.addNotes("제출 상태(2026-10-07 기준): scripts/mission1_inference.py 구현 완료, CSV 스모크 테스트(헤더·행 수·UTF-8)는 아직 미확인 — m1_submission_checklist.md 참고.");
 }
 
 // ---------- Mission 2 ----------
