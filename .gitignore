@@ -23,3 +23,7 @@ reports/mission2/m2_error_analysis_full.csv
 # Local scratch output and remote-attachment cache (never committed)
 /tmp/
 /.codex-remote-attachments/
+
+# PowerPoint lock files (created while a .pptx is open, never commit)
+~$*.pptx
+ppt/node_modules/
