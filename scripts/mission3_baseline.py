@@ -25,7 +25,13 @@ import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import f1_score, precision_recall_fscore_support
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    precision_recall_fscore_support,
+    precision_score,
+    recall_score,
+)
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.preprocessing import MultiLabelBinarizer
 
@@ -252,6 +258,21 @@ def train_baseline(
     if train_df.empty or valid_df.empty:
         raise RuntimeError("train 또는 validation 데이터가 비어 있습니다.")
 
+    # 같은 원본 행이 양쪽에 동시에 들어갔는지 확인합니다.
+    # _make_split은 서로 다른 인덱스를 반환하므로 정상이라면 반드시 0개여야 합니다.
+    index_overlap = set(train_df.index) & set(valid_df.index)
+    if index_overlap:
+        raise RuntimeError(
+            "train과 validation에 동일한 원본 샘플이 존재합니다: "
+            f"{len(index_overlap)}개"
+        )
+
+    # 서로 다른 JSON이라도 전사 텍스트가 완전히 같은 경우가 있는지 별도로 확인합니다.
+    # 이 값이 0보다 크다고 곧바로 누수라고 단정하지 않고 원본 데이터를 확인해야 합니다.
+    train_texts = set(train_df["text"])
+    valid_texts = set(valid_df["text"])
+    text_overlap = train_texts & valid_texts
+
     y_train = mlb.transform(train_df["symptoms"])
     y_valid = mlb.transform(valid_df["symptoms"])
 
@@ -291,10 +312,22 @@ def train_baseline(
         zero_division=0,
     )
 
+    predicted_positive = valid_prediction.sum(axis=0)
+
+    # TP/FP/FN까지 함께 저장하면 Precision/Recall이 낮은 이유를 빠르게 확인할 수 있습니다.
+    true_positive = ((y_valid == 1) & (valid_prediction == 1)).sum(axis=0)
+    false_positive = ((y_valid == 0) & (valid_prediction == 1)).sum(axis=0)
+    false_negative = ((y_valid == 1) & (valid_prediction == 0)).sum(axis=0)
+
     per_label = pd.DataFrame(
         {
             "symptom": TARGET_SYMPTOMS,
             "support": support.astype(int),
+            "actual_positive": support.astype(int),
+            "predicted_positive": predicted_positive.astype(int),
+            "tp": true_positive.astype(int),
+            "fp": false_positive.astype(int),
+            "fn": false_negative.astype(int),
             "precision": precision.astype(float),
             "recall": recall.astype(float),
             "f1": f1_each.astype(float),
@@ -306,6 +339,65 @@ def train_baseline(
     )
     micro_f1 = float(
         f1_score(y_valid, valid_prediction, average="micro", zero_division=0)
+    )
+    macro_precision = float(
+        precision_score(y_valid, valid_prediction, average="macro", zero_division=0)
+    )
+    macro_recall = float(
+        recall_score(y_valid, valid_prediction, average="macro", zero_division=0)
+    )
+    subset_accuracy = float(accuracy_score(y_valid, valid_prediction))
+
+    # Macro F1을 가장 많이 끌어내리는 증상을 우선 오류분석 대상으로 잡습니다.
+    worst_row = per_label.sort_values(["f1", "support"], ascending=[True, False]).iloc[0]
+    worst_symptom = str(worst_row["symptom"])
+    worst_symptom_index = TARGET_SYMPTOMS.index(worst_symptom)
+
+    # 최저 F1 증상에서 FN/FP 사례를 각각 최대 5개씩 저장합니다.
+    error_rows: list[dict[str, Any]] = []
+    error_specs = [
+        (
+            "FN",
+            np.where(
+                (y_valid[:, worst_symptom_index] == 1)
+                & (valid_prediction[:, worst_symptom_index] == 0)
+            )[0],
+        ),
+        (
+            "FP",
+            np.where(
+                (y_valid[:, worst_symptom_index] == 0)
+                & (valid_prediction[:, worst_symptom_index] == 1)
+            )[0],
+        ),
+    ]
+
+    for error_type, indices in error_specs:
+        for row_position in indices[:5]:
+            row = valid_df.iloc[int(row_position)]
+            error_rows.append(
+                {
+                    "symptom": worst_symptom,
+                    "error_type": error_type,
+                    "probability": float(
+                        valid_probability[int(row_position), worst_symptom_index]
+                    ),
+                    "label_file_name": row["label_file_name"],
+                    "true_symptoms": _labels_to_string(list(row["symptoms"])),
+                    "text": row["text"],
+                }
+            )
+
+    error_examples = pd.DataFrame(
+        error_rows,
+        columns=[
+            "symptom",
+            "error_type",
+            "probability",
+            "label_file_name",
+            "true_symptoms",
+            "text",
+        ],
     )
 
     # 8. 추론에 필요한 모델 묶음 저장
@@ -326,7 +418,14 @@ def train_baseline(
         "train_sample_count": int(len(train_df)),
         "validation_sample_count": int(len(valid_df)),
         "macro_f1": macro_f1,
+        "macro_precision": macro_precision,
+        "macro_recall": macro_recall,
         "micro_f1": micro_f1,
+        "subset_accuracy": subset_accuracy,
+        "worst_symptom": worst_symptom,
+        "worst_symptom_f1": float(worst_row["f1"]),
+        "train_validation_index_overlap_count": int(len(index_overlap)),
+        "train_validation_duplicate_text_count": int(len(text_overlap)),
         "threshold": float(threshold),
         "test_size": float(test_size),
         "seed": int(seed),
@@ -340,6 +439,13 @@ def train_baseline(
 
     per_label_path = output_dir / "per_label_metrics.csv"
     per_label.to_csv(per_label_path, index=False, encoding="utf-8-sig")
+
+    error_examples_path = output_dir / "worst_label_error_examples.csv"
+    error_examples.to_csv(
+        error_examples_path,
+        index=False,
+        encoding="utf-8-sig",
+    )
 
     # 10. Validation 예측 결과 저장
     true_label_lists = mlb.inverse_transform(y_valid)
@@ -366,8 +472,17 @@ def train_baseline(
 
     print(f"Train samples: {len(train_df):,}")
     print(f"Validation samples: {len(valid_df):,}")
+    print(f"Train/Validation 동일 원본 행: {len(index_overlap)}")
+    print(f"Train/Validation 동일 전사 텍스트: {len(text_overlap)}")
     print(f"Macro F1: {macro_f1:.4f}")
+    print(f"Macro Precision: {macro_precision:.4f}")
+    print(f"Macro Recall: {macro_recall:.4f}")
     print(f"Micro F1: {micro_f1:.4f}")
+    print(f"Subset Accuracy: {subset_accuracy:.4f}")
+    print(
+        f"가장 낮은 F1 증상: {worst_symptom} "
+        f"({float(worst_row['f1']):.4f})"
+    )
     print(f"Checkpoint: {checkpoint_path}")
 
     return {
@@ -376,6 +491,7 @@ def train_baseline(
         "checkpoint_path": str(checkpoint_path),
         "metrics_path": str(metrics_path),
         "per_label_path": str(per_label_path),
+        "error_examples_path": str(error_examples_path),
         "validation_prediction_path": str(validation_prediction_path),
         "dataset_summary": dataset_summary,
     }
@@ -432,7 +548,16 @@ def main() -> None:
     print("\n증상별 F1")
     print(
         result["per_label"][
-            ["symptom", "support", "precision", "recall", "f1"]
+            [
+                "symptom",
+                "actual_positive",
+                "predicted_positive",
+                "fp",
+                "fn",
+                "precision",
+                "recall",
+                "f1",
+            ]
         ].to_string(index=False)
     )
 
