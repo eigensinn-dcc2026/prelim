@@ -277,9 +277,11 @@ def train_baseline(
     y_valid = mlb.transform(valid_df["symptoms"])
 
     # 4. 전사 텍스트를 TF-IDF 숫자로 변환
+    # Exp 1: 단어(word) 대신 문자(character) 조각을 특징으로 사용합니다.
+    # 나머지 split, seed, Logistic Regression, threshold 등은 baseline과 동일하게 유지합니다.
     vectorizer = TfidfVectorizer(
-        analyzer="word",
-        ngram_range=(1, 2),
+        analyzer="char",
+        ngram_range=(2, 5),
         min_df=2,
         max_features=50000,
         sublinear_tf=True,
@@ -407,7 +409,7 @@ def train_baseline(
         "target_symptoms": TARGET_SYMPTOMS,
         "threshold": float(threshold),
         "seed": int(seed),
-        "model_name": "tfidf_word_1_2gram_ovr_logistic_regression",
+        "model_name": "tfidf_char_2_5gram_ovr_logistic_regression",
     }
 
     checkpoint_path = output_dir / "mission3_tfidf_logreg.joblib"
