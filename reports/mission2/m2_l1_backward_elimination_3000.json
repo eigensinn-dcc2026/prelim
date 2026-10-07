@@ -1,0 +1,1399 @@
+{
+  "실험 ID": "M2-FEAT-001",
+  "가설": "L1 피처 세트를 합집합·시간구조 확장까지 넓히면 같은 LightGBM에서 53차원 기준선을 넘는다",
+  "baseline": "V1_53D (M2-VAL-002 기준 내부 86.93%)",
+  "변경 변수": "피처 컬럼 부분집합만",
+  "고정 변수": "통화 3000건, call_id GroupShuffleSplit seed=42 test_size=0.2, LightGBM(num_leaves=255, learning_rate=0.02, n_estimators=1150), 같은 실행 내 동시 학습",
+  "평가 지표": "Accuracy (화자별 recall 동시 보고)",
+  "validation": "학습 데이터 내부 call_id 분할 — 공식 Validation 미사용",
+  "채택 기준": "기준선 대비 GroupSplit accuracy +0.50% 이상",
+  "기각 기준": "+0.50% 미만",
+  "verdict": null,
+  "split_audit": {
+    "seed": 42,
+    "test_size": 0.2,
+    "n_train_utterances": 73374,
+    "n_val_utterances": 18134,
+    "n_train_calls": 2400,
+    "n_val_calls": 600,
+    "majority_class_accuracy_val": 0.5167089445240983,
+    "model_params": {
+      "num_leaves": 255,
+      "learning_rate": 0.02,
+      "n_estimators": 1150,
+      "random_state": 42,
+      "verbosity": -1
+    },
+    "adoption_threshold": 0.005,
+    "baseline_arm": "V1_53D",
+    "paired_reference_arm": "ALL_V2",
+    "model_overrides": {},
+    "removal_tolerance": -0.003
+  },
+  "cache": "data\\local_cache\\m2_features_v2r_3000.parquet",
+  "results": [
+    {
+      "arm_name": "V1_53D",
+      "n_features": 53,
+      "group_split_accuracy": 0.8464762324914525,
+      "recall_speaker_0": 0.8144682793245094,
+      "recall_speaker_1": 0.8764140875133405,
+      "speaker_recall_gap": 0.06194580818883111,
+      "confusion_matrix": [
+        [
+          7138,
+          1626
+        ],
+        [
+          1158,
+          8212
+        ]
+      ],
+      "fit_seconds": 19.380878500000108,
+      "model_overrides": {},
+      "paired_against": "ALL_V2",
+      "paired_fixes": 544,
+      "paired_breaks": 898,
+      "paired_p_value": 9.380234214302975e-21,
+      "top_features": [
+        [
+          "mfcc_mean_2",
+          8685.0
+        ],
+        [
+          "mfcc_mean_5",
+          8366.0
+        ],
+        [
+          "rms_std",
+          8327.0
+        ],
+        [
+          "mfcc_std_0",
+          8179.0
+        ],
+        [
+          "duration_sec",
+          7600.0
+        ],
+        [
+          "mfcc_mean_4",
+          7349.0
+        ],
+        [
+          "mfcc_std_2",
+          7299.0
+        ],
+        [
+          "mfcc_mean_6",
+          7011.0
+        ],
+        [
+          "mfcc_mean_16",
+          6681.0
+        ],
+        [
+          "mfcc_std_4",
+          6397.0
+        ],
+        [
+          "mfcc_std_1",
+          6365.0
+        ],
+        [
+          "spectral_bandwidth_std",
+          6180.0
+        ],
+        [
+          "rms_mean",
+          6095.0
+        ],
+        [
+          "mfcc_mean_0",
+          6070.0
+        ],
+        [
+          "mfcc_mean_7",
+          6044.0
+        ],
+        [
+          "mfcc_mean_9",
+          6022.0
+        ],
+        [
+          "mfcc_std_3",
+          6014.0
+        ],
+        [
+          "mfcc_std_6",
+          5864.0
+        ],
+        [
+          "spectral_centroid_mean",
+          5826.0
+        ],
+        [
+          "mfcc_mean_18",
+          5747.0
+        ],
+        [
+          "mfcc_mean_10",
+          5691.0
+        ],
+        [
+          "mfcc_mean_3",
+          5627.0
+        ],
+        [
+          "zcr_mean",
+          5607.0
+        ],
+        [
+          "mfcc_mean_12",
+          5560.0
+        ],
+        [
+          "mfcc_mean_11",
+          5513.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "BACKWARD_01_KEEP_259D",
+      "n_features": 259,
+      "group_split_accuracy": 0.8675416344987317,
+      "recall_speaker_0": 0.8327247832040164,
+      "recall_speaker_1": 0.9001067235859125,
+      "speaker_recall_gap": 0.06738194038189604,
+      "confusion_matrix": [
+        [
+          7298,
+          1466
+        ],
+        [
+          936,
+          8434
+        ]
+      ],
+      "fit_seconds": 133.14397740000004,
+      "model_overrides": {},
+      "paired_against": "ALL_V2",
+      "paired_fixes": 356,
+      "paired_breaks": 328,
+      "paired_p_value": 0.3018946787217085,
+      "top_features": [
+        [
+          "cpp_median_db",
+          4812.0
+        ],
+        [
+          "mfcc_mean_5",
+          4294.0
+        ],
+        [
+          "spectral_entropy_iqr",
+          3614.0
+        ],
+        [
+          "cpp_iqr_db",
+          3557.0
+        ],
+        [
+          "f0_semitone_slope",
+          3475.0
+        ],
+        [
+          "rms_third1",
+          3338.0
+        ],
+        [
+          "spectral_contrast_mean_1",
+          3299.0
+        ],
+        [
+          "mfcc_mean_16",
+          3042.0
+        ],
+        [
+          "spectral_contrast_std_4",
+          2929.0
+        ],
+        [
+          "mfcc1_third2",
+          2918.0
+        ],
+        [
+          "spectral_contrast_std_2",
+          2855.0
+        ],
+        [
+          "mfcc_d2_std_2",
+          2791.0
+        ],
+        [
+          "mfcc_mean_4",
+          2789.0
+        ],
+        [
+          "spectral_contrast_mean_3",
+          2765.0
+        ],
+        [
+          "spectral_contrast_std_1",
+          2721.0
+        ],
+        [
+          "spectral_contrast_mean_4",
+          2711.0
+        ],
+        [
+          "mfcc_mean_7",
+          2635.0
+        ],
+        [
+          "spectral_contrast_mean_2",
+          2601.0
+        ],
+        [
+          "rms_peak_rate_per_sec",
+          2519.0
+        ],
+        [
+          "mfcc2_third2",
+          2448.0
+        ],
+        [
+          "spectral_contrast_mean_0",
+          2430.0
+        ],
+        [
+          "mfcc_std_2",
+          2417.0
+        ],
+        [
+          "mfcc_std_4",
+          2351.0
+        ],
+        [
+          "mfcc_mean_2",
+          2324.0
+        ],
+        [
+          "mfcc_mean_6",
+          2314.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "BACKWARD_02_KEEP_249D",
+      "n_features": 249,
+      "group_split_accuracy": 0.8650049630528289,
+      "recall_speaker_0": 0.8316978548607942,
+      "recall_speaker_1": 0.8961579509071504,
+      "speaker_recall_gap": 0.06446009604635627,
+      "confusion_matrix": [
+        [
+          7289,
+          1475
+        ],
+        [
+          973,
+          8397
+        ]
+      ],
+      "fit_seconds": 80.74783280000065,
+      "model_overrides": {},
+      "paired_against": "ALL_V2",
+      "paired_fixes": 408,
+      "paired_breaks": 426,
+      "paired_p_value": 0.5561139889224617,
+      "top_features": [
+        [
+          "cpp_median_db",
+          5856.0
+        ],
+        [
+          "mfcc_mean_5",
+          4673.0
+        ],
+        [
+          "cpp_iqr_db",
+          4458.0
+        ],
+        [
+          "spectral_entropy_iqr",
+          4262.0
+        ],
+        [
+          "f0_semitone_slope",
+          3708.0
+        ],
+        [
+          "rms_third1",
+          3535.0
+        ],
+        [
+          "mfcc_mean_16",
+          3322.0
+        ],
+        [
+          "mfcc_mean_4",
+          3236.0
+        ],
+        [
+          "mfcc1_third2",
+          3233.0
+        ],
+        [
+          "mfcc_d2_std_2",
+          2857.0
+        ],
+        [
+          "rms_peak_rate_per_sec",
+          2806.0
+        ],
+        [
+          "mfcc_mean_7",
+          2779.0
+        ],
+        [
+          "mfcc2_third2",
+          2593.0
+        ],
+        [
+          "mfcc_std_2",
+          2528.0
+        ],
+        [
+          "mfcc_mean_2",
+          2458.0
+        ],
+        [
+          "mfcc_std_4",
+          2431.0
+        ],
+        [
+          "spectral_bandwidth_mean",
+          2417.0
+        ],
+        [
+          "mfcc_mean_6",
+          2388.0
+        ],
+        [
+          "mfcc_d1_mean_0",
+          2385.0
+        ],
+        [
+          "mfcc_mean_9",
+          2334.0
+        ],
+        [
+          "rms_std",
+          2258.0
+        ],
+        [
+          "mfcc_mean_18",
+          2207.0
+        ],
+        [
+          "mfcc_std_1",
+          2183.0
+        ],
+        [
+          "mfcc_mean_3",
+          2175.0
+        ],
+        [
+          "zcr_mean",
+          2133.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "BACKWARD_03_KEEP_169D",
+      "n_features": 169,
+      "group_split_accuracy": 0.8653909782728576,
+      "recall_speaker_0": 0.8299863076220904,
+      "recall_speaker_1": 0.8985058697972251,
+      "speaker_recall_gap": 0.06851956217513477,
+      "confusion_matrix": [
+        [
+          7274,
+          1490
+        ],
+        [
+          951,
+          8419
+        ]
+      ],
+      "fit_seconds": 61.081819500000165,
+      "model_overrides": {},
+      "paired_against": "ALL_V2",
+      "paired_fixes": 447,
+      "paired_breaks": 458,
+      "paired_p_value": 0.7395993396044883,
+      "top_features": [
+        [
+          "cpp_median_db",
+          6302.0
+        ],
+        [
+          "mfcc_mean_5",
+          5097.0
+        ],
+        [
+          "spectral_entropy_iqr",
+          4836.0
+        ],
+        [
+          "cpp_iqr_db",
+          4759.0
+        ],
+        [
+          "rms_third1",
+          4067.0
+        ],
+        [
+          "f0_semitone_slope",
+          3848.0
+        ],
+        [
+          "mfcc_mean_16",
+          3739.0
+        ],
+        [
+          "mfcc_mean_4",
+          3708.0
+        ],
+        [
+          "mfcc1_third2",
+          3690.0
+        ],
+        [
+          "rms_modulation_index",
+          3485.0
+        ],
+        [
+          "mfcc_mean_7",
+          3181.0
+        ],
+        [
+          "rms_peak_rate_per_sec",
+          3141.0
+        ],
+        [
+          "mfcc2_third2",
+          3138.0
+        ],
+        [
+          "mfcc_d2_std_2",
+          3130.0
+        ],
+        [
+          "rms_std",
+          3093.0
+        ],
+        [
+          "spectral_bandwidth_mean",
+          3054.0
+        ],
+        [
+          "mfcc_mean_6",
+          2913.0
+        ],
+        [
+          "mfcc_std_1",
+          2848.0
+        ],
+        [
+          "mfcc_mean_2",
+          2846.0
+        ],
+        [
+          "mfcc_std_4",
+          2800.0
+        ],
+        [
+          "mfcc_std_2",
+          2793.0
+        ],
+        [
+          "mfcc_d1_mean_0",
+          2707.0
+        ],
+        [
+          "spectral_centroid_third2",
+          2620.0
+        ],
+        [
+          "mfcc_mean_12",
+          2615.0
+        ],
+        [
+          "mfcc_mean_9",
+          2566.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "BACKWARD_04_KEEP_157D",
+      "n_features": 157,
+      "group_split_accuracy": 0.8630197419212529,
+      "recall_speaker_0": 0.826220903696942,
+      "recall_speaker_1": 0.8974386339381003,
+      "speaker_recall_gap": 0.0712177302411583,
+      "confusion_matrix": [
+        [
+          7241,
+          1523
+        ],
+        [
+          961,
+          8409
+        ]
+      ],
+      "fit_seconds": 51.09253170000011,
+      "model_overrides": {},
+      "paired_against": "ALL_V2",
+      "paired_fixes": 450,
+      "paired_breaks": 504,
+      "paired_p_value": 0.08611996074825892,
+      "top_features": [
+        [
+          "cpp_median_db",
+          6481.0
+        ],
+        [
+          "rms_third1",
+          5439.0
+        ],
+        [
+          "mfcc_mean_5",
+          5274.0
+        ],
+        [
+          "cpp_iqr_db",
+          5011.0
+        ],
+        [
+          "spectral_entropy_iqr",
+          4904.0
+        ],
+        [
+          "mfcc_mean_4",
+          4161.0
+        ],
+        [
+          "f0_semitone_slope",
+          4005.0
+        ],
+        [
+          "mfcc1_third2",
+          3947.0
+        ],
+        [
+          "mfcc_mean_16",
+          3942.0
+        ],
+        [
+          "mfcc_std_1",
+          3641.0
+        ],
+        [
+          "mfcc_d2_std_2",
+          3497.0
+        ],
+        [
+          "rms_peak_rate_per_sec",
+          3439.0
+        ],
+        [
+          "mfcc_mean_7",
+          3421.0
+        ],
+        [
+          "rms_modulation_index",
+          3412.0
+        ],
+        [
+          "mfcc2_third2",
+          3242.0
+        ],
+        [
+          "mfcc_mean_6",
+          3167.0
+        ],
+        [
+          "mfcc_mean_1",
+          3095.0
+        ],
+        [
+          "rms_third2",
+          3090.0
+        ],
+        [
+          "spectral_centroid_third2",
+          3089.0
+        ],
+        [
+          "mfcc_std_2",
+          3079.0
+        ],
+        [
+          "mfcc_mean_9",
+          2938.0
+        ],
+        [
+          "mfcc_mean_3",
+          2874.0
+        ],
+        [
+          "mfcc_std_4",
+          2868.0
+        ],
+        [
+          "mfcc_mean_18",
+          2735.0
+        ],
+        [
+          "mfcc_d1_mean_0",
+          2734.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "BACKWARD_05_KEEP_77D",
+      "n_features": 77,
+      "group_split_accuracy": 0.8614205360097055,
+      "recall_speaker_0": 0.8246234596074852,
+      "recall_speaker_1": 0.8958377801494131,
+      "speaker_recall_gap": 0.07121432054192789,
+      "confusion_matrix": [
+        [
+          7227,
+          1537
+        ],
+        [
+          976,
+          8394
+        ]
+      ],
+      "fit_seconds": 26.012095000000045,
+      "model_overrides": {},
+      "paired_against": "ALL_V2",
+      "paired_fixes": 456,
+      "paired_breaks": 539,
+      "paired_p_value": 0.009299817929282791,
+      "top_features": [
+        [
+          "cpp_median_db",
+          7472.0
+        ],
+        [
+          "rms_third1",
+          6971.0
+        ],
+        [
+          "mfcc_mean_5",
+          6942.0
+        ],
+        [
+          "mfcc_std_2",
+          6358.0
+        ],
+        [
+          "mfcc_std_1",
+          6349.0
+        ],
+        [
+          "spectral_entropy_iqr",
+          6272.0
+        ],
+        [
+          "cpp_iqr_db",
+          6137.0
+        ],
+        [
+          "mfcc_mean_4",
+          5714.0
+        ],
+        [
+          "f0_semitone_slope",
+          5641.0
+        ],
+        [
+          "mfcc_mean_16",
+          5246.0
+        ],
+        [
+          "mfcc1_third2",
+          5065.0
+        ],
+        [
+          "rms_peak_rate_per_sec",
+          4972.0
+        ],
+        [
+          "mfcc_mean_7",
+          4854.0
+        ],
+        [
+          "duration_sec",
+          4818.0
+        ],
+        [
+          "mfcc_mean_6",
+          4817.0
+        ],
+        [
+          "mfcc_std_0",
+          4606.0
+        ],
+        [
+          "mfcc_mean_9",
+          4583.0
+        ],
+        [
+          "mfcc_std_4",
+          4570.0
+        ],
+        [
+          "mfcc_mean_3",
+          4554.0
+        ],
+        [
+          "mfcc_mean_1",
+          4381.0
+        ],
+        [
+          "mfcc2_third3",
+          4364.0
+        ],
+        [
+          "rms_modulation_index",
+          4342.0
+        ],
+        [
+          "mfcc2_third2",
+          4338.0
+        ],
+        [
+          "mfcc_std_6",
+          4239.0
+        ],
+        [
+          "rms_third2",
+          4200.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "BACKWARD_06_KEEP_76D",
+      "n_features": 76,
+      "group_split_accuracy": 0.8609242307268116,
+      "recall_speaker_0": 0.8245093564582382,
+      "recall_speaker_1": 0.8949839914621132,
+      "speaker_recall_gap": 0.07047463500387496,
+      "confusion_matrix": [
+        [
+          7226,
+          1538
+        ],
+        [
+          984,
+          8386
+        ]
+      ],
+      "fit_seconds": 26.813907599999766,
+      "model_overrides": {},
+      "paired_against": "ALL_V2",
+      "paired_fixes": 449,
+      "paired_breaks": 541,
+      "paired_p_value": 0.003804067777553658,
+      "top_features": [
+        [
+          "cpp_median_db",
+          7519.0
+        ],
+        [
+          "mfcc_mean_5",
+          6990.0
+        ],
+        [
+          "rms_third1",
+          6902.0
+        ],
+        [
+          "mfcc_std_1",
+          6449.0
+        ],
+        [
+          "mfcc_std_2",
+          6284.0
+        ],
+        [
+          "spectral_entropy_iqr",
+          6250.0
+        ],
+        [
+          "cpp_iqr_db",
+          6024.0
+        ],
+        [
+          "mfcc_mean_4",
+          5816.0
+        ],
+        [
+          "f0_semitone_slope",
+          5788.0
+        ],
+        [
+          "mfcc_mean_16",
+          5349.0
+        ],
+        [
+          "rms_peak_rate_per_sec",
+          5218.0
+        ],
+        [
+          "mfcc_mean_6",
+          4951.0
+        ],
+        [
+          "mfcc1_third2",
+          4947.0
+        ],
+        [
+          "mfcc_mean_7",
+          4804.0
+        ],
+        [
+          "mfcc_mean_3",
+          4706.0
+        ],
+        [
+          "mfcc_std_4",
+          4699.0
+        ],
+        [
+          "mfcc_mean_1",
+          4615.0
+        ],
+        [
+          "mfcc_mean_9",
+          4502.0
+        ],
+        [
+          "mfcc_std_0",
+          4493.0
+        ],
+        [
+          "mfcc2_third3",
+          4401.0
+        ],
+        [
+          "rms_modulation_index",
+          4400.0
+        ],
+        [
+          "mfcc_std_6",
+          4344.0
+        ],
+        [
+          "rms_third2",
+          4320.0
+        ],
+        [
+          "mfcc2_third2",
+          4292.0
+        ],
+        [
+          "mfcc_mean_12",
+          4230.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "BACKWARD_07_KEEP_72D",
+      "n_features": 72,
+      "group_split_accuracy": 0.8592147347523988,
+      "recall_speaker_0": 0.8231401186672752,
+      "recall_speaker_1": 0.8929562433297759,
+      "speaker_recall_gap": 0.06981612466250064,
+      "confusion_matrix": [
+        [
+          7214,
+          1550
+        ],
+        [
+          1003,
+          8367
+        ]
+      ],
+      "fit_seconds": 26.299553599999854,
+      "model_overrides": {},
+      "paired_against": "ALL_V2",
+      "paired_fixes": 446,
+      "paired_breaks": 569,
+      "paired_p_value": 0.00012623835407386935,
+      "top_features": [
+        [
+          "cpp_median_db",
+          7595.0
+        ],
+        [
+          "mfcc_mean_5",
+          7133.0
+        ],
+        [
+          "rms_third1",
+          7063.0
+        ],
+        [
+          "mfcc_std_1",
+          6694.0
+        ],
+        [
+          "mfcc_std_2",
+          6650.0
+        ],
+        [
+          "cpp_iqr_db",
+          6353.0
+        ],
+        [
+          "spectral_entropy_iqr",
+          6348.0
+        ],
+        [
+          "f0_semitone_slope",
+          6106.0
+        ],
+        [
+          "mfcc_mean_4",
+          5873.0
+        ],
+        [
+          "mfcc_mean_16",
+          5417.0
+        ],
+        [
+          "mfcc_std_0",
+          5267.0
+        ],
+        [
+          "mfcc1_third2",
+          5168.0
+        ],
+        [
+          "mfcc_mean_7",
+          4959.0
+        ],
+        [
+          "mfcc_mean_6",
+          4917.0
+        ],
+        [
+          "mfcc_mean_3",
+          4844.0
+        ],
+        [
+          "mfcc_mean_9",
+          4730.0
+        ],
+        [
+          "mfcc_std_6",
+          4688.0
+        ],
+        [
+          "mfcc_std_4",
+          4628.0
+        ],
+        [
+          "rms_third2",
+          4584.0
+        ],
+        [
+          "mfcc2_third3",
+          4568.0
+        ],
+        [
+          "mfcc_mean_1",
+          4559.0
+        ],
+        [
+          "mfcc_std_3",
+          4429.0
+        ],
+        [
+          "mfcc0_third1",
+          4407.0
+        ],
+        [
+          "mfcc_mean_12",
+          4370.0
+        ],
+        [
+          "mfcc2_third2",
+          4316.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "BACKWARD_08_KEEP_57D",
+      "n_features": 57,
+      "group_split_accuracy": 0.8549134223006507,
+      "recall_speaker_0": 0.8164080328617069,
+      "recall_speaker_1": 0.8909284951974387,
+      "speaker_recall_gap": 0.07452046233573173,
+      "confusion_matrix": [
+        [
+          7155,
+          1609
+        ],
+        [
+          1022,
+          8348
+        ]
+      ],
+      "fit_seconds": 23.080679300000156,
+      "model_overrides": {},
+      "paired_against": "ALL_V2",
+      "paired_fixes": 473,
+      "paired_breaks": 674,
+      "paired_p_value": 3.2178261903804436e-09,
+      "top_features": [
+        [
+          "mfcc_mean_1",
+          9432.0
+        ],
+        [
+          "mfcc_mean_0",
+          8785.0
+        ],
+        [
+          "cpp_median_db",
+          8520.0
+        ],
+        [
+          "mfcc_mean_5",
+          8457.0
+        ],
+        [
+          "mfcc_std_1",
+          8403.0
+        ],
+        [
+          "mfcc_std_2",
+          7532.0
+        ],
+        [
+          "spectral_entropy_iqr",
+          7342.0
+        ],
+        [
+          "f0_semitone_slope",
+          7288.0
+        ],
+        [
+          "mfcc_mean_4",
+          7111.0
+        ],
+        [
+          "cpp_iqr_db",
+          6947.0
+        ],
+        [
+          "mfcc_mean_2",
+          6796.0
+        ],
+        [
+          "mfcc_std_0",
+          6724.0
+        ],
+        [
+          "mfcc_mean_16",
+          6279.0
+        ],
+        [
+          "mfcc_mean_6",
+          6189.0
+        ],
+        [
+          "mfcc_mean_7",
+          6180.0
+        ],
+        [
+          "mfcc_mean_3",
+          5933.0
+        ],
+        [
+          "mfcc_std_4",
+          5920.0
+        ],
+        [
+          "mfcc_std_6",
+          5625.0
+        ],
+        [
+          "mfcc_mean_9",
+          5604.0
+        ],
+        [
+          "mfcc_mean_12",
+          5302.0
+        ],
+        [
+          "mfcc_mean_10",
+          5255.0
+        ],
+        [
+          "spectral_entropy_mean",
+          5246.0
+        ],
+        [
+          "mfcc_std_3",
+          5237.0
+        ],
+        [
+          "f0_semitone_iqr",
+          5053.0
+        ],
+        [
+          "edge_activity_difference",
+          5053.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "BACKWARD_09_KEEP_17D",
+      "n_features": 17,
+      "group_split_accuracy": 0.8128377633175251,
+      "recall_speaker_0": 0.7618667275216796,
+      "recall_speaker_1": 0.8605122732123799,
+      "speaker_recall_gap": 0.09864554569070028,
+      "confusion_matrix": [
+        [
+          6677,
+          2087
+        ],
+        [
+          1307,
+          8063
+        ]
+      ],
+      "fit_seconds": 11.025298300000031,
+      "model_overrides": {},
+      "paired_against": "ALL_V2",
+      "paired_fixes": 693,
+      "paired_breaks": 1657,
+      "paired_p_value": 2.1649509981111162e-90,
+      "top_features": [
+        [
+          "spectral_entropy_mean",
+          22752.0
+        ],
+        [
+          "f0_semitone_slope",
+          21907.0
+        ],
+        [
+          "cpp_median_db",
+          21521.0
+        ],
+        [
+          "spectral_entropy_iqr",
+          19824.0
+        ],
+        [
+          "cpp_iqr_db",
+          19645.0
+        ],
+        [
+          "f0_semitone_iqr",
+          18610.0
+        ],
+        [
+          "spectral_entropy_std",
+          18007.0
+        ],
+        [
+          "active_frame_fraction",
+          17636.0
+        ],
+        [
+          "activity_transition_rate",
+          17615.0
+        ],
+        [
+          "f0_semitone_median",
+          16695.0
+        ],
+        [
+          "longest_active_run_fraction",
+          16570.0
+        ],
+        [
+          "edge_activity_difference",
+          16144.0
+        ],
+        [
+          "subband_envelope_corr_min",
+          15115.0
+        ],
+        [
+          "voiced_fraction",
+          14649.0
+        ],
+        [
+          "periodicity_mean",
+          14409.0
+        ],
+        [
+          "subband_envelope_corr_abs_mean",
+          12503.0
+        ],
+        [
+          "subband_envelope_pc1_share",
+          8498.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "ALL_V2",
+      "n_features": 295,
+      "group_split_accuracy": 0.865997573618617,
+      "recall_speaker_0": 0.8330670926517572,
+      "recall_speaker_1": 0.8967982924226254,
+      "speaker_recall_gap": 0.06373119977086827,
+      "confusion_matrix": [
+        [
+          7301,
+          1463
+        ],
+        [
+          967,
+          8403
+        ]
+      ],
+      "fit_seconds": 113.1974481999996,
+      "model_overrides": {},
+      "paired_against": null,
+      "paired_fixes": null,
+      "paired_breaks": null,
+      "paired_p_value": null,
+      "top_features": [
+        [
+          "cpp_median_db",
+          5111.0
+        ],
+        [
+          "mfcc_mean_5",
+          3879.0
+        ],
+        [
+          "spectral_contrast_mean_1",
+          3324.0
+        ],
+        [
+          "cpp_iqr_db",
+          3299.0
+        ],
+        [
+          "spectral_entropy_iqr",
+          3190.0
+        ],
+        [
+          "f0_semitone_slope",
+          3180.0
+        ],
+        [
+          "rms_slope_per_sec",
+          2868.0
+        ],
+        [
+          "spectral_flatness_p50",
+          2779.0
+        ],
+        [
+          "mfcc_mean_16",
+          2749.0
+        ],
+        [
+          "spectral_contrast_std_1",
+          2705.0
+        ],
+        [
+          "spectral_contrast_std_2",
+          2694.0
+        ],
+        [
+          "spectral_contrast_std_4",
+          2663.0
+        ],
+        [
+          "mfcc_d2_std_2",
+          2527.0
+        ],
+        [
+          "mfcc1_third2",
+          2506.0
+        ],
+        [
+          "spectral_contrast_mean_2",
+          2497.0
+        ],
+        [
+          "mfcc_mean_7",
+          2461.0
+        ],
+        [
+          "mfcc_mean_4",
+          2457.0
+        ],
+        [
+          "spectral_contrast_mean_0",
+          2442.0
+        ],
+        [
+          "spectral_contrast_mean_4",
+          2360.0
+        ],
+        [
+          "spectral_contrast_mean_3",
+          2351.0
+        ],
+        [
+          "rms_peak_rate_per_sec",
+          2281.0
+        ],
+        [
+          "mfcc2_third2",
+          2276.0
+        ],
+        [
+          "mfcc_d1_mean_0",
+          2192.0
+        ],
+        [
+          "spectral_flatness_p10",
+          2179.0
+        ],
+        [
+          "mfcc_std_4",
+          2172.0
+        ]
+      ]
+    }
+  ],
+  "verdict_lines": [
+    "baseline V1_53D: 84.6476% (speaker recall 81.4468% / 87.6414%)",
+    "best arm BACKWARD_01_KEEP_259D: 86.7542% (+2.1065% vs baseline)",
+    "adoption rule: delta >= +0.50% on the grouped split",
+    "paired vs ALL_V2: 356 fixed / 328 broken, McNemar exact p = 0.302",
+    "note: the best arm's edge over ALL_V2 is not significant (p >= 0.05); it clears the adoption threshold only against the baseline. Prefer ALL_V2 unless the extra columns are free.",
+    "verdict: candidate(s) clearing the threshold: BACKWARD_01_KEEP_259D (+2.1065%), ALL_V2 (+1.9521%), BACKWARD_03_KEEP_169D (+1.8915%), BACKWARD_02_KEEP_249D (+1.8529%), BACKWARD_04_KEEP_157D (+1.6544%), BACKWARD_05_KEEP_77D (+1.4944%), BACKWARD_06_KEEP_76D (+1.4448%), BACKWARD_07_KEEP_72D (+1.2739%), BACKWARD_08_KEEP_57D (+0.8437%) -- candidate only; per-speaker recall and a larger-scale rerun decide adoption."
+  ],
+  "removal_verdict_lines": []
+}
