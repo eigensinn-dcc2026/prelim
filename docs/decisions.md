@@ -86,6 +86,31 @@
 - **결정**: PR #32 리뷰의 지적(학습·검증은 배치 최장 발화에 맞춰 패딩하고 제출은 발화별 300프레임 패딩)을 재학습 없이 점검하고(M2-PAD-002), **결과가 어떻게 나오든 모델은 바꾸지 않고 보고만 하기로 먼저 정했다.** 통일하려면 세 모델 재학습이 필요한데 Mission 2 L2는 마무리하기로 했기 때문이다(아래 2026-10-04).
 - **결과**: 세 모델 모두 최고 에폭이 마지막 에폭보다 두 패딩 방식에서 모두 같거나 낫다. 선택이 잘못됐다는 신호는 없지만, 에폭별 가중치가 없어 최선이었는지는 확인하지 못한다. 알려진 한계로 `m2_l2_cnn_results.md`(PR #32)에 적었다.
 
+## 2026-10-05 — [M2] 제출 후보 갈래 정리 필요 (미결, 최종 선택 전 비교 대기)
+
+- **현황(2026-10-07 갱신)**: 후보가 두 갈래다.
+  (a) L2 CNN seed 앙상블 — 공식 Validation 91.55%(M2-ENS-003, 이전 모델·참고용), 원본부터 재학습한 실행은 91.49%(M2-RERUN-001). L1 LightGBM은 제공된 라벨 재학습 후 공식 Validation 86.44%(M2-RETRAIN-001).
+  (b) MLP 트랙(feature·모델 실험, `M2-MFCC/FEAT-E/MODEL/AF/REP`) — 공식 Validation 85.29%(42D, M04), 내부 87.38%(59D, M04-100). 제출용 ckpt·inference는 정리되지 않았고 59D의 공식 Validation 점수는 기록에 없다.
+- **비교 불가 사유**: (b)의 내부 점수는 Training 내부 split(177,891발화)이고 공식 Validation 점수는 42D 기준이라, 같은 조건(공식 Validation, 같은 피처)으로 다시 재야 직접 비교할 수 있다.
+- **결정**: 확정 안 됨. `M2-RERUN-001`의 상태대로, 연우 님 모델과 비교한 뒤 원본부터 재학습한 실행을 최종으로 쓸지 정한다.
+- **관련**: [`m2_official_val_spec.md`](../reports/mission2/m2_official_val_spec.md), [`experiment_log.md`](./experiment_log.md) M2-RERUN-001·M2-ENS-003·M2-MODEL·M2-AF.
+
+## 2026-10-05 — [M1] 1차 제출 후보를 LR로 고정, 새 학습 없이 제출 패키징
+
+- **결정**: 공식 Val 95.11%의 LR(`m1_baseline_lr.pkl`)을 제출 후보로 고정하고 새 학습·MFCC/F0 개선은 보류함.
+  제출 CLI(`mission1_inference.py`)와 CSV 열(`audio file name`, `gender`)은 공식 PDF 기준을 따름. Zoom 안내의 startAt/endAt 포함설은 채택하지 않음.
+- **이유**: 남은 기간 대비 안전한 제출본 확보가 우선. ckpt는 Git에 올리지 않고 SHA256만 기록.
+- **한계**: 규정상 가중치 확장자(`.pt/.pth/.ckpt`) 대응과 스모크 테스트가 남아 있음.
+- **관련**: [`m1_submission_checklist.md`](../reports/mission1/m1_submission_checklist.md).
+
+## 2026-10-05 — [M3] 80:20 기준 재평가 순서와 보류 항목 확정
+
+- **결정**: 재평가는 P0 TF-IDF → P1 KcBERT 앞 256 → P2 토큰 청크 vs 턴 청크(동일 조건) → P3 완화 가중 BCE 순.
+  증상별 threshold 재튜닝과 강한 가중 BCE는 보류함. 전사 텍스트만 입력으로 사용함.
+- **이유**: 과거 점수는 분할·Train 비율·임계값이 달라 직접 비교가 안 됨(스펙 표 참조).
+- **상태(2026-10-07 갱신)**: P0 완료 — Macro F1 0.5676, 참조값과 일치(PASS)(`M3-REEVAL-P0`). P1~P3은 승인 대기, 미실행.
+- **관련**: [`m3_reeval_spec.md`](../reports/mission3/m3_reeval_spec.md), [`p0_rerun/README.md`](../reports/mission3/p0_rerun/README.md).
+
 ## 2026-10-04 — [M2] seed 앙상블(M2-ENS-003) 채택, Mission 2 L2는 여기서 마무리
 
 - **결정**: 제공된 라벨로 학습한 CNN 3개(`--torch-seed` 1/2/3)의 소프트보팅(평균 softmax)을 L2 최종
@@ -106,6 +131,14 @@
   seed 2/3의 공식 Validation 결과 JSON은 따로 저장하지 않았고, 단독 점수는 위 앙상블 JSON의 `single_member_accuracy`에 있다.
 - **후속**: Mission 2 L2 쪽에 추가로 손댈 일이 생기면, 이 PR(#32)이 병합된 뒤 **새 PR**로 시작한다 —
   이번 PR이 원래 범위(패딩 추가)보다 훨씬 커진 것(라벨 컴플라이언스 재작성 + 앙상블)에 대한 반성.
+
+## 2026-10-04 — [M2] 표준 표현(eGeMAPS 88D) 기각, clean 59D 유지
+
+- **결정**: eGeMAPSv02 88D는 채택하지 않고 handcrafted 59D를 유지함.
+- **이유**: 같은 M04-100·split에서 87.38% → 86.40%(-0.98%p), speaker0 recall 하락, 고확신 오답 증가.
+  매우 짧은 발화에서는 eGeMAPS가 NaN/inf를 반환함.
+- **한계**: 내부 split 결과이며 공식 Val 재평가는 하지 않음. 최종 모델 확정은 아님.
+- **관련**: [`mission2_standard_representation_comparison.ipynb`](../notebooks/mission2_standard_representation_comparison.ipynb), M2-REP-001.
 
 ## 2026-10-03 — [M2] 컴플라이언스 재학습(M2-RETRAIN-001) 완료 — L1/L2 제출 후보 교체
 
@@ -594,6 +627,13 @@
 - **관련**: M2-CNN-004, M2-CNN-005, M2-CNN-006(`docs/experiment_log.md`),
   [`m2_cnn_duration_seed_recheck.md`](../reports/mission2/m2_cnn_duration_seed_recheck.md).
 
+## 2026-09-27 — [M2] feature 단계 종료: rolloff+zcr 조합(E05)을 42D로 고정
+
+- **결정**: MFCC40에 rolloff·zcr을 더한 42D를 고정하고, 모델 구조만 바꾸는 단계로 이행함. 추가 feature 조합을 공식 Val에서 반복 탐색하지 않음.
+- **이유**: 단일 feature는 rolloff +0.24%p가 최대였고 조합 E05가 +0.40%p. 조합은 Training-only 중복성·오류 보완성 진단 후 Val을 보기 전에 사전 확정함. duration은 효과 없음.
+- **한계**: v1 cache 결과이며 v2 코드로 재평가하지 않음. E05와 E02 차이의 유의성은 미검정.
+- **관련**: M2-FEAT-E01~E05.
+
 ## 2026-09-23 — [M2] 제출은 다시 L1로 — L2를 제출할 실행 코드가 아직 없음
 
 - **현황**: 바로 아래 있는 같은 날짜 결정("L2 공식 Validation 확정")에서 제출 우선순위를 L2로
@@ -666,6 +706,28 @@
 - **관련**: M2-VAL-002, M2-VAL-003, M2-CNN-003(`docs/experiment_log.md`),
   [`m2_l2_official_validation_result_local_cpu.json`](../reports/mission2/m2_l2_official_validation_result_local_cpu.json),
   [`m2_l2_official_validation_result_colab_gpu.json`](../reports/mission2/m2_l2_official_validation_result_colab_gpu.json).
+
+## 2026-09-21 — [M2] handcrafted feature 탐색 종료, 59D를 reference로 채택
+
+- **결정**: AF10(speech activity)+AF11(spectral entropy)을 더한 59D를 reference로 채택하고, AF05(delta-MFCC) 추가(61D)는 보류함.
+  AF01·AF03·AF08은 기각, AF07·AF09는 효과가 잡음 수준이라 보류함. 이후 handcrafted 추가 탐색은 중단하고 표준 표현과 비교.
+- **이유**: 52D→59D는 +0.50%p이고 두 speaker recall이 함께 올랐다. 61D는 +0.018%p에 speaker1 recall -1.32%p로 trade-off만 있었음.
+  AF02(pitch/voicing)는 47D 단계에서 +0.67%p로 채택됨.
+- **관련**: M2-AF-R1~R4, [`mission2_acoustic_feature_expansion.ipynb`](../notebooks/mission2_acoustic_feature_expansion.ipynb).
+
+## 2026-09-21 — [M2] 모델을 HGB에서 MLP로 승격
+
+- **결정**: 42D에서 MLP(64 hidden, M04)를 best 후보로 선정함. ExtraTrees·QDA는 기각, LR은 비교점으로 유지.
+- **이유**: 내부 85.80%(HGB 84.19% 대비 +1.61%p)와 공식 Val 85.29%(+1.57%p)의 개선폭이 거의 같아 내부 우연으로 보기 어렵고, speaker 0·1 recall이 모두 상승함.
+- **한계**: 30 epoch에서 미수렴. max_iter 60·100 확장은 +0.08~0.16%p로 효과 작음. 별도 유의성 검정 없음.
+- **관련**: M2-MODEL-M00~M04, M2-MODEL-O.
+
+## 2026-09-21 — [공통] PR 자동 병합 게이트와 기록 운영 원칙
+
+- **결정**: PR마다 CI와 verdict 기록을 거치는 병합 게이트를 도입함(9/21~22). 체크포인트·데이터는 Git에 올리지 않고 SHA256만 기록하며,
+  데이터 루트는 `DCC_DATA_ROOT`(`data/raw_merged`)로 고정함(10/2).
+- **이유**: 여러 담당자가 병렬로 작업하므로 재현성과 규정 준수를 자동 점검하기 위함.
+- **관련**: [`pr-ci.yml`](../.github/workflows/pr-ci.yml), [`WORKFLOW.md`](../WORKFLOW.md).
 
 ## 2026-09-20 — [M2] "PR은 본인이 직접 승인하지 않기" 규칙 다시 확실히 함, 뒤늦게 데이터 유실 버그 발견
 
@@ -774,6 +836,7 @@
   평가 결과를 확인한 뒤 비가중 모델과 동일 조건으로 비교해야 함.
 - **관련**: [`m3_weighted_diagnosis_sources.json`](../reports/mission3/m3_weighted_diagnosis_sources.json),
   [`train_weighted_40pct_vscode.py`](../scripts/mission3/train_weighted_40pct_vscode.py).
+
 ## 2026-09-30 — [M3] 현재 baseline 분할·전처리 기준 확정
 
 - **결정**: `recordId` 기반 grouping은 사용하지 않고, JSON 샘플 단위로 **80:20 multilabel stratified split**을 사용함.

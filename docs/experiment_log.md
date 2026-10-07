@@ -40,6 +40,7 @@
 | M1-EXP-001-val | 2026-09-10 | 주최측 공식 Validation으로 평가, 통화 3,640건(여성 1,959 / 남성 1,681) | GBM 94.92% / LR 95.11% | LR을 1차 채택 후보로 정함 | [`m1_val_eval.json`](../reports/mission1/m1_val_eval.json) |
 | M1-EXP-001-val 파생 | 2026-09-10 | 정확도가 얼마나 믿을만한지 확인하는 통계 방법(부트스트랩)으로 95% 신뢰구간 계산, 10,000번 반복, seed=42 | GBM [94.20, 95.60] / LR [94.40, 95.82] | 정확도 수치의 신뢰도 확인용 | [`m1_val_bootstrap_ci.json`](../reports/mission1/m1_val_bootstrap_ci.json) |
 | M1-VAL-ERR-001 | 2026-09-10 | 어떤 경우에 틀리는지 분석(발화 길이 / 목소리 겹침 / 피처 분포별) | 상세 결과는 보고서 참조 | 일단 마무리 | [`m1_val_error_analysis.json`](../reports/mission1/m1_val_error_analysis.json), [`M1_error_analysis_report.md`](../reports/mission1/M1_error_analysis_report.md) |
+| M1-INF-001 | 2026-10-05 | 제출용 CLI 추론(`scripts/mission1_inference.py`): WAV+JSON → speaker=1 구간 52D → LR → CSV(`audio file name`, `gender`). 새 학습 없음 | 구현 완료. 스모크(헤더·행 수·UTF-8)는 미확인 | 제출 점검 진행 중 | [`m1_submission_checklist.md`](../reports/mission1/m1_submission_checklist.md) |
 
 ## Mission 2 — 신고자/119대원 분류 (Accuracy)
 
@@ -105,10 +106,27 @@
 | M2-TIME-001 | 2026-10-05 | 최종 후보(앙상블)의 추론 시간을 처음으로 잼 — Training 60통화(1,783발화)를 이 컴퓨터 CPU에서 `mission2_inference.py` 한 프로세스로 실행(공식 Validation 아님). 채점 환경의 시간 제한은 알려진 것이 없어서 대회 계산량 기재와 함께 필요 | 단일 모델 31.8초(발화당 약 18ms), 앙상블 70.6초(약 40ms, 시작 시간 포함, 약 2.2배). 공식 Validation 111,947발화로 외삽하면 한 프로세스 기준 단일 약 33분, 앙상블 약 74분(외삽이며 채점 환경에서는 다를 수 있음). 같은 60통화에서 앙상블과 단일 예측은 1,783발화 중 1,764발화가 같음 | 완료(측정). 채점 시간 제한 확인은 미결 | [`m2_l2_cnn_results.md`†](https://github.com/eigensinn-dcc2026/prelim/blob/c81635386b1fdf8ba58080629361a95fde346786/reports/mission2/m2_l2_cnn_results.md) (PR #32 커밋 `c816353`) |
 | M2-RAWLABEL-002 | 2026-10-06 | sooyahh 님의 증거 파일 점검(PR #31, 2026-10-05)에 대한 조치 — L1 피처 실험(M2-FEAT-001~005, M2-COMPARE-003)이 쓴 3,000통화 캐시 2개(`m2_utterances_v2_3000.parquet`, `m2_utterances_v2r_3000.parquet`, 각 91,508발화)의 speaker 라벨을 `scripts/verify_mission2_raw_labels.py`로 제공된 라벨 파일과 한 줄씩 대조하고, 그 실험들의 결과 JSON 5개와 제공된 라벨 L1 재학습의 JSON 2개를 이 PR에 추가 | 두 캐시 모두 **제공된 라벨과 다른 행이 0개** — 이 피처 실험들은 text 기반 라벨 교정이 섞이지 않은 라벨로 했다. 결과 JSON 7개는 개인 경로나 식별자가 없음을 확인하고 추가함. 피처 추출 코드(`mission2_features_v2.py`)와 로컬 커밋 4개(`2519056`, `94a02fe`, `4378412`, `7b88e35`)는 그 브랜치에 옛 라벨 교정 코드가 남아 있어서 여전히 GitHub에 올리지 않았다 | 완료(근거 JSON 공개). 피처 추출 코드 공개는 미결 — 교정 코드를 뺀 뒤 별도 PR로 올릴 예정 | [`m2_l1_featureset_comparison_3000.json`](../reports/mission2/m2_l1_featureset_comparison_3000.json) 외 6개(`reports/mission2/`) |
 | M2-RERUN-001 | 2026-10-06 | 멘토 답변(`decisions.md` 2026-10-05)에 따라 L2 앙상블을 **원본 데이터부터 다시 학습**했다. Colab 노트북 하나(`M2_L2_원본부터_재학습_노트북.ipynb`)와 제출 코드 폴더(`제출/mission2`, PR #43 커밋 9a8e266)만으로 진행했다. 순서는 원본 zip 풀기 → 스펙트로그램 889,358개 → float16 하나로 묶기 → torch-seed 1/2/3 학습 → 앙상블 → 공식 Validation 평가다. 학습 방식은 M2-ENS-003과 같고, 속도만 개선(AMP, 묶은 캐시, 1에폭 단위 저장)하고 조기 종료(patience 5, 최대 30)를 넣었다. T4 GPU 하나에서 진행했다 | 공식 Validation **91.49%**(102,419/111,947), 대원 recall 87.15% / 신고자 recall 95.51%. M2-ENS-003(91.55%, 102,485)보다 발화 66개(-0.06%p) 적은데, seed 단독끼리 차이(90.90~91.04%) 안쪽이다. 내부 검증 val_acc: ts1 0.9143(22에폭에서 멈춤, 최고 17) / ts2 0.9143(24, 최고 19) / ts3 0.9150(20, 최고 15). **에폭당 약 7분(예전 약 25분)**, 학습 66에폭 약 7.8시간, 데이터 준비 52분. 추론: CPU(Xeon 2.0GHz 2개) batch 1, 85.3분, 발화당 45.7ms. 런타임이 5번 끊겨 이어서 학습했다. Drive에 저장되기 전에 끊긴 에폭은 마지막 저장 지점부터 다시 학습해 로그에 두 번 나온다(ts2 7에폭, ts3 9에폭). 이 경우 다시 학습한 쪽이 최종 모델이다 | 확인됨(테스트 실행, 제출 조건 그대로) — 연우 님 모델과 비교한 뒤, 이 실행을 그대로 최종으로 쓸지 정한다. 앙상블 sha256 `19ea482a…3246`, 묶은 데이터 sha256 `943d9ceb…894a`, 코드 지문 `c12c0657…566a` | Drive `m2_cache/m2_rerun_from_raw/rerun_2026-10-06b/`(`rerun_log.txt`, 체크포인트 3개 + 앙상블, 예측 CSV) |
+| M2-MFCC-001 | 소급(≈2026-09, 노트북) | MFCC40 + StandardScaler + LR, 공식 Val 평가. majority baseline 51.90% | **80.91%** (speaker0 recall 약 0.765 / speaker1 약 0.850) | 이후 feature·모델 실험의 고정 비교점(E00) | [`mission2_yeonwoo_baseline.ipynb`](../notebooks/mission2_yeonwoo_baseline.ipynb) |
+| M2-FEAT-E01~E04 | 소급(≈2026-09-14~27) | MFCC40에 feature 1개씩 추가: E01 duration_ms, E02 spectral_rolloff, E03 zcr, E04 spectral_centroid. Training 889,358발화(internal 711,467 / 177,891, call_id GroupSplit, seed=42), 공식 Val | E01 80.91%(+0.00%p) / E02 81.15%(+0.24) / E03 81.01%(+0.10) / E04 81.05%(+0.14) | E02 최대, E01 효과 없음. E03·E04는 Training 순위로 사전 확정 | [`mission2_feature_experiments.ipynb`](../notebooks/mission2_feature_experiments.ipynb) |
+| M2-FEAT-E05 | 소급(≈2026-09-27) | MFCC40 + rolloff + zcr (42D). Training-only 중복성·오류 보완성 진단 후 사전 확정 | 공식 Val **81.31%**(+0.40%p, +449건). speaker0 recall +0.94%p, speaker1 -0.10%p, 고확신 오답 2,086→2,158 | 42D 고정 후 모델 비교로 이행. **v1 cache 기준 결과이며 v2 코드로 재평가되지 않음.** 단일 feature 간 유의성 검정 없음 | [`mission2_feature_experiments.ipynb`](../notebooks/mission2_feature_experiments.ipynb) |
+| M2-MODEL-M00~M04 | 소급(≈2026-09-21) | 42D 고정, 모델만 변경. 동일 Training 내부 split | 내부: M00 LR 81.73 / M01 HGB 84.19 / M02 ExtraTrees 82.00 / M03 QDA 79.73 / M04 MLP(64, 30 epoch) 85.80. 공식 Val: M01 83.73, **M04 85.29(+1.57%p vs M01)** | M04 MLP를 42D 기준 best 후보로 선정(최종 아님). M04만 공식 Val 승격 | [`mission2_model_experiments.ipynb`](../notebooks/mission2_model_experiments.ipynb) |
+| M2-MODEL-O | 소급(≈2026-09-21) | M04 max_iter만 변경(내부 split) | 30→60: 85.80→85.88(+0.08%p), 30→100: 85.95(+0.16%p). 모두 ConvergenceWarning 지속 | 수렴 효과 작음. 이후 feature 스크리닝 기준을 M04-100으로 사용 | [`mission2_model_experiments.ipynb`](../notebooks/mission2_model_experiments.ipynb) |
+| M2-AF-R1 | 소급(≈2026-09-21) | 47D 기준(E05 42D + 후보 block 1개씩): AF01 energy / AF02 pitch·voicing / AF03 spectral flux. M04-100, 내부 split | 기준 85.95%(재현값 0.859532). **AF02만 86.63%(+0.67%p)**, AF01·AF03은 하락 | AF02 채택 → 47D. AF01·AF03 기각 | [`mission2_acoustic_feature_expansion.ipynb`](../notebooks/mission2_acoustic_feature_expansion.ipynb) |
+| M2-AF-R2 | 소급(≈2026-09-21) | 47D에 AF04 CPP·AF05 delta-MFCC를 각각 추가(Round 2) → 고정한 49D 기준에 AF07/08/09를 하나씩 추가 | 49D 기준 86.86%. AF07 +0.05%p(speaker0 recall 하락, HOLD), AF08 -0.02%p(DROP 유력), AF09 +0.03%p | 모두 잡음 수준 | 같은 노트북 |
+| M2-AF-R3 | 소급(≈2026-09-21) | 52D에 AF10 speech activity 4D + AF11 spectral entropy 3D → 59D. 내부 split | 86.95%→**87.46%**(+0.50%p, +894건), speaker0/1 recall 모두 상승, 고확신 오답 2,590→2,377 | **59D를 handcrafted reference로 채택** | 같은 노트북 |
+| M2-AF-R4 | 소급(≈2026-09-21) | 59D + AF05(delta-MFCC 2D) = 61D | 87.46%→87.47%(+0.018%p), speaker0 recall +1.47 / speaker1 -1.32%p | 보류. handcrafted 탐색 종료 | 같은 노트북 |
+| M2-REP-001 | 2026-10-04 | 표준 표현 대조: clean 59D vs eGeMAPSv02 88D. 동일 M04-100·internal split(177,891발화), 0.5 threshold | 59D **87.38%** vs 88D 86.40%(-0.98%p). speaker0 recall 84.67→82.36%, 고확신 오답 2,378→2,733 | 88D 열세. 0.5–1s 구간 82.5→81.8%. 59D 유지 | [`mission2_standard_representation_comparison.ipynb`](../notebooks/mission2_standard_representation_comparison.ipynb) |
 
 > M2-SCALE-001 이후 실험 중 따로 저장된 JSON 로그가 없는 건 보고서를 근거 자료로 씁니다(위
 > 표에서 "별도 committed 리포트 없음"/"세션 기록만"이라고 적힌 것들). 나중에 다시 실행할 땐
 > 실험 ID·설정·결과를 JSON 파일로도 같이 남겨야 합니다.
+
+> **M2-MFCC/FEAT/MODEL/AF/REP 행은 2026-10-05에 노트북 출력과 사용자 해석 셀에서 소급 기록했습니다.**
+> **비교 주의:** (1) 3,000~29,200통화 L1+LGBM 계열(83~85%)은 call_id GroupSplit **내부** 점수입니다.
+> (2) MFCC/FEAT/MODEL 계열은 **공식 Val 111,947발화**, AF·REP 계열은 Training **내부 177,891발화** 점수입니다.
+> 두 계열을 직접 비교하지 않습니다. (3) FEAT 계열은 v1 cache 결과이며, 87.38%(clean 59D)는 이전에 기록된 87.46%와 재현 차이가 있습니다.
+> `M2-FEAT-E*`(노트북 소급, MFCC+handcrafted·MLP 계열)는 `M2-FEAT-001~005`(L1 LightGBM 피처 넓히기·줄이기)와 다른 실험 계열입니다. ID가 비슷해도 서로 비교하지 않습니다.
+> 수치의 출처는 노트북이며 별도 JSON 로그가 없으므로, 제출 근거로 쓰기 전에 로그 JSON 확보가 필요합니다.
 
 ## Mission 3 — 환자 증상 인식 (F1 Macro, 9개 증상)
 
@@ -123,12 +141,21 @@
 | M3-THRESH-001 | 2026-09-19 | weighted 모델의 내부 검증 결과를 이용해 증상별 판정 임계값 조정 | 선택된 임계값 배열이 남아 있지 않음 | 실행 완료·재현 정보 부족 | [`m3_threshold_comparison.json`](../reports/mission3/m3_threshold_comparison.json) |
 | M3-THRESH-002 | 2026-09-19 | 증상별 임계값 조정을 중단하고 모든 증상을 0.5로 고정해 재평가 | 별도 평가 결과 파일 확인 필요 | 평가 방식 변경·결과 확인 필요 | [`MISSION3_Colab_가중치모델_임계값점검.ipynb`](../notebooks/mission3/MISSION3_Colab_가중치모델_임계값점검.ipynb) |
 | M3-WEIGHT-002 | 2026-09-20 | 완화 weighted BCE, Training 40%, scale 0.25, max 3.0, effective batch 16, 3 epochs | 체크포인트 생성, 평가 결과 확인 필요 | 학습 완료·평가 필요 | [`train_weighted_40pct_vscode.py`](../scripts/mission3/train_weighted_40pct_vscode.py) |
+| M3-REEVAL-P0 | 2026-10-06 | 재평가 P0: TF-IDF+OvR-LR, JSON 샘플 단위 80:20 multilabel stratified(Train 23,408 / Val 5,792), seed=42, threshold=0.5. 파이프라인·메트릭 sanity를 로컬에서 재현 | Macro F1 **0.5676**(0.567552, 참조값 0.5676과 차이 -0.00005, 허용 0.003 이내 → PASS), Micro F1 0.5779. 참고: 라벨이 하나도 켜지지 않은 샘플에 argmax 라벨을 켜는 min-1 후처리는 Macro F1 0.5680(+0.0004)으로 보조 지표로만 기록 | 완료(PASS) | [`p0_rerun/README.md`](../reports/mission3/p0_rerun/README.md), [`verdict.json`](../reports/mission3/p0_rerun/verdict.json), [`m3_reeval_spec.md`](../reports/mission3/m3_reeval_spec.md) |
+| M3-REEVAL-P1~P3 | 2026-10-05 | P1 KcBERT 앞 256 / P2 token vs turn 청크 동일조건 대조 / P3 완화 가중 BCE | 후보 정의만 있음, 미실행 | 후보(P0 이후) | |
 
 > 최초 KcBERT의 0.5861은 Training **90:10 내부 검증** 결과이고, 청크 모델의 0.5496/0.5365는
 > **공식 Validation** 결과이므로 점수만으로 직접 우열을 판단하지 않습니다.
 > 2026-09-30부터 Mission 3의 현재 비교 기준은 **JSON 샘플 단위 80:20 multilabel stratified split,
 > seed=42, threshold=0.5**입니다. 이전 분할에서 나온 점수는 과거 기록으로 보존하고 최신 기준 재실행 전 직접 비교하지 않습니다.
 > 임계값·가중치 실험은 누락된 결과와 설정을 확인한 뒤 수치를 보완해야 합니다.
+
+
+## 공통 — EDA
+
+| 실험 ID | 날짜 | 실험 | 결과 | 상태 | 관련 파일 |
+|---|---|---|---|---|---|
+| COM-EDA-001 | 2026-09-21~10-05 | 전수(32,840통화) EDA와 심화 분석: Train/Val 분포 이동(KS, Wasserstein), 겹침 시간 비율, 성별·화자 효과크기(Cliff's δ), 증상 lift. 집계 통계만 저장 | 요약은 보고서 7장. 예: M2 spectral centroid 화자 δ≈-0.72, M3는 목표 증상 0개 통화가 Training·Val 모두 0건 | 완료 | [`eda_report.md`](../reports/eda/eda_report.md), [`eda_deep_summary.json`](../reports/eda/eda_deep_summary.json) |
 
 ---
 
