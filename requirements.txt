@@ -10,3 +10,4 @@ iterative-stratification
 matplotlib
 torch
 transformers
+opensmile==2.6.0

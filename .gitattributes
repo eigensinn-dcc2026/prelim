@@ -1,0 +1,23 @@
+# Always check out text files with LF, even on Windows (core.autocrlf=true).
+# CRLF breaks bash scripts on Colab and changes sha256 of shared files.
+* text=auto eol=lf
+
+*.sh    text eol=lf
+*.py    text eol=lf
+*.ipynb text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.csv   text eol=lf
+*.txt   text eol=lf
+
+*.png     binary
+*.jpg     binary
+*.zip     binary
+*.docx    binary
+*.pdf     binary
+*.parquet binary
+*.joblib  binary
+*.pt      binary
+*.bin     binary
+*.safetensors binary

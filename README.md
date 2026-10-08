@@ -16,31 +16,26 @@ M1·M2는 음성 처리 구조를 가능한 범위에서 공유하고, M3는 텍
 
 ## 현재 진행 상황
 
-아래 내용은 **2026-09-21 기준 `main`에 병합된 결과**입니다. 아직 병합되지 않은 작업은 다음 절의 PR 목록에서 별도로 구분합니다.
+아래 내용은 **2026-10-05 기준 `main`에 병합된 결과**입니다. 아직 병합되지 않은 작업은 다음 절의 PR 목록에서 별도로 구분합니다.
 
 | Mission | 현재 상태 | 확인된 결과 | 다음 확인 사항 |
 |---|---|---|---|
 | **M1** | baseline, 공식 Validation, 오류 분석 완료 | LR Accuracy **95.11%**로 1차 제출 후보 선정 | 필요 시 GBM과 paired 비교 검정 |
-| **M2** | L1 음향 통계 baseline 및 규모별 오류 분석 완료 | 3,000통화 **83.78%**, 9,000통화 **84.90%** | 공식 Validation 평가 미실행 |
-| **M3** | TF-IDF + LR baseline과 개선안 검토 중 | 보고된 개선 수치는 데이터 분할 감사 전이라 최종 성능으로 확정하지 않음 | `recordId` overlap 검사 후 동일 조건 재평가 |
-
-공통 데이터 감사, WAV↔JSON 매칭 검증, Mission별 실험·결정 기록 체계도 `main`에 반영되어 있습니다.
+| **M2** | L1(LightGBM)·L2(CNN) 학습과 공식 Validation 평가, feature·모델·표준 표현(`opensmile`) 비교 실험과 raw data EDA가 병합됨 | 공식 Validation: L1 **86.44%**(제공된 라벨 재학습), L2 seed 앙상블 **91.55%**(이전 모델·참고용), 원본부터 재학습한 L2 앙상블 **91.49%**(`docs/experiment_log.md` 기준) | 연우 님 모델과 비교한 뒤 최종 제출 후보 결정 |
+| **M3** | KcBERT baseline, 청크·가중치 실험 기록 병합. 현재 baseline 분할·전처리 기준은 **JSON 샘플 단위 80:20 multilabel stratified split, seed=42, threshold=0.5**로 확정(2026-09-30). 이 기준의 P0(TF-IDF+LR) 재현 완료 | P0 Macro F1 **0.5676**(참조값과 일치, `reports/mission3/p0_rerun/`). 이전 분할(`recordId` grouping, 90:10 random split)의 점수는 과거 기록이며 최신 기준과 직접 비교하지 않음 | P1~P3(KcBERT 등)을 같은 기준으로 재평가 |
+| **공통** | 데이터 감사, WAV↔JSON 매칭 검증, 통합 EDA와 Mission별 심화 분석(`reports/eda/eda_report.md`의 7장: 분포 이동·겹침·효과크기), Mission별 실험·결정 기록 체계가 반영됨(2026-10-05 M2 feature·모델 실험 등 누락분 소급 기록) | — | — |
 
 ### 진행 중 PR
 
-다음 목록은 **2026-09-21 확인 기준**이며, 병합 전 결과는 확정 현황에 포함하지 않습니다. 최신 상태는 [GitHub Pull Requests](https://github.com/eigensinn-dcc2026/prelim/pulls)에서 확인합니다.
+다음 목록은 **2026-10-05 확인 기준**이며, 병합 전 결과는 확정 현황에 포함하지 않습니다. 최신 상태는 [GitHub Pull Requests](https://github.com/eigensinn-dcc2026/prelim/pulls)에서 확인합니다.
 
-- **EDA**: [#23 EDA 전수 분석 및 보고서 용어 설명](https://github.com/eigensinn-dcc2026/prelim/pull/23)
 - **Mission 2**:
-  [#8 raw data EDA](https://github.com/eigensinn-dcc2026/prelim/pull/8),
-  [#10 baseline 오류 분석](https://github.com/eigensinn-dcc2026/prelim/pull/10),
-  [#16 feature 실험](https://github.com/eigensinn-dcc2026/prelim/pull/16),
-  [#18 실험·결정 기록](https://github.com/eigensinn-dcc2026/prelim/pull/18),
-  [#19 resume 버그 수정](https://github.com/eigensinn-dcc2026/prelim/pull/19),
-  [#25 모델 및 acoustic feature 확장 실험](https://github.com/eigensinn-dcc2026/prelim/pull/25)
+  [#31 실험·결정 기록 최신화](https://github.com/eigensinn-dcc2026/prelim/pull/31),
+  [#32 L2 CNN 파이프라인 반영](https://github.com/eigensinn-dcc2026/prelim/pull/32)
 - **Mission 3**:
-  [#6 KcBERT baseline](https://github.com/eigensinn-dcc2026/prelim/pull/6),
-  [#22 실험 기록 및 가중치 모델](https://github.com/eigensinn-dcc2026/prelim/pull/22)
+  [#34 baseline notebook 데이터 경로·실행 설정 수정](https://github.com/eigensinn-dcc2026/prelim/pull/34)
+
+이전 README에 진행 중으로 적혀 있던 #6, #8, #10, #16, #19, #22, #23, #25는 모두 `main`에 병합되었고, #18은 병합 없이 닫혔습니다. EDA 심화 분석 [#36](https://github.com/eigensinn-dcc2026/prelim/pull/36)도 병합되었습니다.
 
 ## 팀 역할
 
@@ -58,7 +53,7 @@ M1·M2는 음성 처리 구조를 가능한 범위에서 공유하고, M3는 텍
 
 ```text
 dcc2026-prelim/
-├── .github/               # PR 템플릿, CODEOWNERS, CI 및 병합 판정 설정
+├── .github/               # PR 템플릿, CI 및 병합 판정 설정
 ├── notebooks/             # Colab/Jupyter 실험 노트북
 ├── src/dcc_data/          # 데이터 로딩·검증·Mission별 공통 처리 모듈
 ├── scripts/               # 데이터 감사, 학습, 평가, 추론 실행 스크립트
@@ -92,7 +87,7 @@ python -m pytest
 
 저장소가 private이면 clone 전에 GitHub 접근 권한과 인증이 필요합니다. 대회 데이터와 모델 체크포인트는 저장소 밖에서 별도로 준비해야 합니다.
 
-현재 의존성에는 `numpy`, `pandas`, `pyarrow`, `librosa`, `scikit-learn`, `lightgbm`, `iterative-stratification`, `tqdm`, `pytest`가 포함됩니다. 새 외부 패키지를 코드에 도입하면 같은 PR에서 `requirements.txt`도 함께 갱신합니다.
+현재 의존성에는 `numpy`, `pandas`, `pyarrow`, `librosa`, `scikit-learn`, `lightgbm`, `iterative-stratification`, `tqdm`, `pytest`, `matplotlib`, `torch`, `transformers`, `opensmile`(버전 고정)이 포함됩니다. 전체 목록과 버전은 `requirements.txt`를 기준으로 합니다. 새 외부 패키지를 코드에 도입하면 같은 PR에서 `requirements.txt`도 함께 갱신합니다.
 
 ### 데이터와 실행 스크립트 확인
 
@@ -119,6 +114,37 @@ python scripts/mission3_baseline.py --help
 ```
 
 실행 전에는 해당 스크립트가 요구하는 데이터 split과 출력 경로를 확인합니다. Validation 데이터는 모델 학습이나 scaler 통계 계산에 사용하지 않습니다.
+
+### 로컬 데이터 경로
+
+공식 Drive에서 받은 데이터는 로컬에 보관해 실행할 수 있습니다. 데이터 출처 제한과 실행 시 저장 위치는 별개입니다. 기본 원본 위치는 저장소의 `data/raw_original`이며 다음 구조를 사용합니다.
+
+```text
+data/raw_original/
+├── Training/1.원천데이터/TS_서울_구급/       # WAV
+├── Training/2.라벨링데이터/TL_서울_구급/     # JSON
+├── Validation/1.원천데이터/VS_서울_구급/     # WAV
+└── Validation/2.라벨링데이터/VL_서울_구급/   # JSON
+```
+
+`eda_dcc_dataset.py`, `analyze_mission1_validation_errors.py`, `verify_timestamps.py`의 원본 경로 우선순위는 `--data-root` → `DCC_DATA_ROOT` → 저장소의 `data/raw_original`입니다. PowerShell에서 환경변수를 설정할 수 있습니다.
+
+```powershell
+$env:DCC_DATA_ROOT = 'D:\공식 데이터\raw_original'
+```
+
+세 스크립트는 필요한 manifest가 없으면 중단합니다. 원본 폴더를 확인한 뒤 저장소 루트에서 다음 명령으로 manifest를 별도로 준비하세요. 기존 manifest는 자동으로 덮어쓰지 않습니다.
+
+```bash
+python scripts/build_manifest.py --data-root data/raw_original --output data/manifests/dcc_manifest_v1.csv
+python scripts/verify_timestamps.py --data-root data/raw_original --manifest data/manifests/dcc_manifest_v1.csv --output reports/eda/phase2a_check.json
+```
+
+외부 원본 폴더를 사용하는 경우 위 명령의 `--data-root`도 같은 폴더로 지정하세요. EDA와 Mission 1 오류 분석에는 기존 feature·checkpoint·평가 로그 등 각 스크립트의 추가 입력도 필요합니다. 일부 Mission 2 Notebook은 `tmp/mission2_eda`의 manifest와 `data/processed`의 지정된 캐시를 요구하며, 원본 폴더만 준비했다고 실행 준비가 완료되지는 않습니다. 캐시와 provenance 검증 실패를 우회하거나 캐시 metadata를 수정하지 마세요.
+
+`notebooks/mission2_local.ipynb`은 저장소 안에서 실행하며 `DATA_MODE="existing"`이 기본입니다. `DCC_DATA_ROOT`를 지원하고, ZIP 준비는 `DATA_MODE="zip"`과 별도 `ZIP_DIR`·`EXTRACT_DIR`를 지정한 경우에만 수행합니다. ZIP 모드의 기존 Validation 50통화 표본 조건은 유지됩니다. `reports/M3_baseline.ipynb`도 로컬을 기본으로 지원하며 Colab에서는 기존 Drive 경로를 사용합니다. 두 Notebook의 CLI Python은 현재 커널의 `sys.executable`을 사용하고 필요하면 `DCC_PYTHON`에 실행 파일의 전체 경로를 지정합니다. 설정 셀은 추출·학습·추론을 실행하지 않으며 이후 실행 셀은 작업을 수행하므로 필요한 단계만 실행하세요.
+
+`notebooks/mission2_egemaps_colab_resume.ipynb`은 수동 검증 절차를 가진 Colab 전용 재개 도구로 유지합니다. `scripts/audit_dcc_dataset.py`는 원격 Drive와 로컬을 비교하는 도구이므로 원격 접근이 필요합니다.
 
 ### Colab 사용
 
@@ -153,13 +179,13 @@ git switch -c 이름/작업명
 
 `main` 대상 PR에는 자동 병합 판정이 표시됩니다.
 
-| 판정 | 의미 |
+| 판정(라벨) | 의미 |
 |---|---|
-| `merge-ready` | 정책 검사, 테스트, 최신화와 승인 조건 충족 |
-| `merge-waiting` | 검사 진행, 최신 `main` 반영 또는 리뷰 대기 |
-| `merge-blocked` | 충돌, 정책 위반 또는 테스트 실패 해결 필요 |
+| `병합-가능` | 정책 검사, 자동 테스트, 최신 `main` 반영 조건 충족 |
+| `병합-대기` | 자동 검사가 진행 중이거나 최신 `main` 반영을 기다리는 중 |
+| `수정-필요` | 충돌, 정책 위반 또는 테스트 실패 해결 필요 |
 
-자동 판정은 merge를 대신하지 않습니다. `merge-ready`를 확인하고 최소 1명의 팀원 리뷰를 받은 뒤 사람이 최종 병합합니다.
+자동 판정은 merge를 대신하지 않습니다. 팀원 리뷰는 필수가 아니며, `병합-가능`을 확인한 뒤 PR 작성자가 직접 최종 병합합니다. 현재 private 저장소 요금제에서는 판정이 merge 버튼을 강제로 막지 않으므로, `병합-가능`이 아니면 병합하지 않는 것을 팀 규칙으로 적용합니다. 자세한 내용은 [`WORKFLOW.md`](./WORKFLOW.md) 6장을 따릅니다.
 
 ## 개발 방향
 

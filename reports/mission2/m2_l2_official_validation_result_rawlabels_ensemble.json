@@ -1,0 +1,26 @@
+{
+  "n_utterances": 111947,
+  "n_calls": 3640,
+  "model": "ensemble(large x3)",
+  "checkpoint": "checkpoints/mission2/m2_cnn_large_raw_ensemble.pt",
+  "ensemble_member_torch_seeds": [1, 2, 3],
+  "ensemble_member_checkpoints": [
+    "m2_cache/m2_raw_label_models/m2_cnn_large_raw_ts1.pt",
+    "m2_cache/m2_raw_label_models/m2_cnn_large_raw_ts2.pt",
+    "m2_cache/m2_raw_label_models/m2_cnn_large_raw_ts3.pt"
+  ],
+  "label_source": "verified_against_provided_json",
+  "inference_script": "scripts/mission2_inference.py (one utterance at a time, own-utterance 300-frame padding, soft-vote average of 3 members' softmax)",
+  "accuracy": 0.9154778600587778,
+  "recall_daewon_0": 0.8778345250255363,
+  "recall_singoja_1": 0.9503631544525145,
+  "confusion_matrix": [
+    [47267, 6578],
+    [2884, 55218]
+  ],
+  "single_member_accuracy": {
+    "ts1": 0.9097787345797564,
+    "ts2": 0.9104382180906698,
+    "ts3": 0.9090108969503013
+  }
+}
