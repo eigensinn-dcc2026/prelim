@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-10-08 — [M3] KcBERT 앞 256토큰 다중라벨(M3-KCBERT-002) 채택
+
+- **결정**: 80:20 재평가 기준에서 TF-IDF+LR(Macro F1 0.5676)보다 KcBERT 미세조정을 우선 후보로 채택한다. 코드 PR #68은 `lab-adopted` 대상.
+- **이유**: 동일 분할·threshold 0.5에서 3-seed 평균 Macro F1 0.5833(+0.0157), 3개 seed 모두 baseline 초과. seed 편차(약 0.013)가 커서 개선 폭은 작지만 기준(+0.01)은 충족.
+- **후속**: 희소 증상(오심) 개선, 최종 후보에 한해 공식 Val 평가. 근거: `docs/experiment_log.md` M3-KCBERT-002 행.
+
+---
+
 ## 2026-10-08 — [M2] WavLM 고정 임베딩 + LR/LGBM 헤드(M2-SSL-001) 기각
 
 - **결정**: 이 조합(WavLM-base-plus 4/8/12층 mean+std pooling, LR/LGBM)은 채택하지 않고 코드 PR #66을 닫는다.
