@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Frozen local WavLM layers 4/8/12 vs context-free 53D L1, Seoul Training only.
 
-Pre-stage microsoft/wavlm-base-plus with save_pretrained into --model-dir.
+Downloads a pinned WavLM snapshot into the persistent run-root models directory.
 LR is logistic regression optimized by resumable SGD (30 passes, no tuning).
 LGBM uses baseline defaults, 100 trees, checkpointed every 10 trees.
 Only the initial tar packaging touches loose source files; extraction reads local disk.
@@ -20,6 +20,8 @@ from pathlib import Path
 EXP_ID = "M2-SSL-001"
 LAYERS = (4, 8, 12)
 SEED = 42
+MODEL_ID = "microsoft/wavlm-base-plus"
+MODEL_REVISION = "4c66d4806a428f2e922ccfa1a962776e232d487b"
 
 
 def atomic_json(path, value):
@@ -33,6 +35,40 @@ def atomic_dump(path, value):
     temp = path.with_suffix(path.suffix + ".tmp")
     joblib.dump(value, temp)
     os.replace(temp, path)
+
+
+def prepare_model(model_dir):
+    """Download once, then validate offline before touching any training data."""
+    from huggingface_hub import snapshot_download
+    from transformers import AutoFeatureExtractor, WavLMModel
+    model_dir.mkdir(parents=True, exist_ok=True)
+    marker = model_dir / 'snapshot.json'
+    identity = dict(repo_id=MODEL_ID, revision=MODEL_REVISION)
+    if marker.exists() and json.loads(marker.read_text()) != identity:
+        raise ValueError(f'Model snapshot mismatch: {model_dir}')
+    if not marker.exists():
+        snapshot_download(repo_id=MODEL_ID, revision=MODEL_REVISION,
+                          local_dir=str(model_dir),
+                          allow_patterns=['config.json', 'preprocessor_config.json', 'pytorch_model.bin'])
+    processor = AutoFeatureExtractor.from_pretrained(model_dir, local_files_only=True)
+    model = WavLMModel.from_pretrained(model_dir, local_files_only=True)
+    if model.config.hidden_size != 768 or model.config.num_hidden_layers != 12:
+        raise ValueError('Unexpected WavLM architecture')
+    atomic_json(marker, identity)
+    model.requires_grad_(False)
+    return processor, model.eval()
+
+
+def persist_features(paths, arrays, out, progress):
+    # Publish all arrays before advancing the durable call completion marker.
+    # An interruption during copying leaves the old marker; those calls are redone.
+    for key, path in paths.items():
+        arrays[key].flush()
+        destination = out / path.name
+        temp = destination.with_suffix(destination.suffix + '.tmp')
+        shutil.copyfile(path, temp)
+        os.replace(temp, destination)
+    atomic_json(out / 'extraction.json', progress)
 
 
 def seed_all():
@@ -127,13 +163,12 @@ def stage(out, work, n_calls):
     return [ManifestRow(**row) for row in rows]
 
 
-def extract(args, out, work, rows):
+def extract(args, out, work, rows, processor, model):
     import numpy as np
     import torch
     import librosa
     from dcc_data.mission2_features import (build_utterance_records, read_call_waveform,
                                           utterance_frame_range, utterance_feature_vector)
-    from transformers import AutoFeatureExtractor, WavLMModel
     index_path = out / 'utterances.json'
     if index_path.exists():
         index = json.loads(index_path.read_text())
@@ -146,14 +181,19 @@ def extract(args, out, work, rows):
         atomic_json(index_path, index)
     if not index:
         raise ValueError('No utterances')
-    paths = {str(layer): out / f'layer_{layer}.npy' for layer in LAYERS}
-    paths['l1'] = out / 'l1_53.npy'
+    paths = {str(layer): work / f'layer_{layer}.npy' for layer in LAYERS}
+    paths['l1'] = work / 'l1_53.npy'
     arrays = {}
     progress_path = out / 'extraction.json'
     progress = json.loads(progress_path.read_text()) if progress_path.exists() else dict(done=[], seconds=0., rows=0, gpu=None)
     for key, path in paths.items():
-        if not path.exists() and progress['done']:
-            raise ValueError(f'Missing committed feature array: {path}')
+        durable = out / path.name
+        if progress['done']:
+            if not durable.exists():
+                raise ValueError(f'Missing committed feature array: {durable}')
+            shutil.copyfile(durable, path)
+        elif path.exists():
+            path.unlink()
         expected_shape = (len(index), 53 if key == 'l1' else 1536)
         expected_dtype = np.dtype('float32' if key == 'l1' else 'float16')
         arrays[key] = np.lib.format.open_memmap(path, mode='r+' if path.exists() else 'w+',
@@ -165,9 +205,7 @@ def extract(args, out, work, rows):
         return index, arrays, progress
     if not torch.cuda.is_available():
         raise RuntimeError('GPU required for full extraction; --smoke is CPU-only')
-    processor = AutoFeatureExtractor.from_pretrained(args.model_dir, local_files_only=True)
-    model = WavLMModel.from_pretrained(args.model_dir, local_files_only=True).cuda().eval()
-    model.requires_grad_(False)
+    model = model.cuda()
     progress['gpu'] = torch.cuda.get_device_name(0)
     positions = {}
     for i, record in enumerate(index):
@@ -188,26 +226,32 @@ def extract(args, out, work, rows):
             segments.append(crop(segment))
         for offset in range(0, len(indices), args.batch_size):
             batch = segments[offset:offset + args.batch_size]
-            inputs = processor(batch, sampling_rate=16000, padding=True,
-                               return_attention_mask=True, return_tensors='pt')
+            inputs = processor(batch, sampling_rate=16000, padding=False,
+                               return_attention_mask=False, return_tensors='pt')
             inputs = {key: value.cuda() for key, value in inputs.items()}
             with torch.inference_mode():
                 hidden = model(**inputs, output_hidden_states=True).hidden_states
-                lengths = model._get_feat_extract_output_lengths(inputs['attention_mask'].sum(-1))
+                lengths = [hidden[0].shape[1]]
                 for layer in LAYERS:
-                    for j, length in enumerate(lengths.tolist()):
+                    for j, length in enumerate(lengths):
                         frames = hidden[layer][j, :length].float()
                         vector = torch.cat((frames.mean(0), frames.std(0, unbiased=False)))
                         arrays[str(layer)][indices[offset + j]] = vector.cpu().numpy().astype('float16')
         torch.cuda.synchronize()
-        for array in arrays.values():
-            array.flush()
         progress['done'].append(row.stem)
         progress['rows'] += len(indices)
         progress['seconds'] += time.perf_counter() - started
-        atomic_json(progress_path, progress)
+        if len(progress['done']) % args.cache_every_calls == 0 or row == pending[-1]:
+            copying_started = time.perf_counter()
+            persist_features(paths, arrays, out, progress)
+            progress['seconds'] += time.perf_counter() - copying_started
+            atomic_json(progress_path, progress)
         print(f"extracted {len(progress['done'])}/{len(rows)} calls", flush=True)
     return index, arrays, progress
+
+
+def out_config_model_dir(out):
+    return json.loads((out / 'config.json').read_text())['model_dir']
 
 
 def heads(out, index, arrays, progress):
@@ -266,7 +310,7 @@ def heads(out, index, arrays, progress):
         accuracy = float(accuracy_score(y[holdout], model.predict(x_eval)))
         fitted = make_pipeline(scaler, model) if scaler is not None else model
         atomic_dump(artifact, dict(model=fitted, feature=feature, head=head, seed=SEED,
-                                  pretrained_model='microsoft/wavlm-base-plus', layer=int(feature) if feature != 'l1' else None,
+                                  pretrained_model=MODEL_ID, model_revision=MODEL_REVISION, model_dir=str(out_config_model_dir(out)), layer=int(feature) if feature != 'l1' else None,
                                   pooling='mean+std', sample_rate=16000, max_seconds=6, min_seconds=.5))
         atomic_json(score_path, dict(accuracy=accuracy))
         scores[name] = accuracy
@@ -281,7 +325,7 @@ def heads(out, index, arrays, progress):
                      extraction_seconds=progress['seconds'], gpu=progress['gpu'], selected=winner,
                      train_calls=len(set(groups[train])), eval_calls=len(set(groups[holdout]))),
         seed=SEED, train_rows=len(train), eval_rows=len(holdout), official_val=None,
-        ckpt='best.ckpt', notes='LR: SGD log_loss, 30 epochs; LGBM: baseline defaults, 100 trees. Throughput includes L1 extraction and cache writes. No official Validation read.'))
+        ckpt='best.ckpt', notes='LR: SGD log_loss, 30 epochs; LGBM: baseline defaults, 100 trees. Throughput includes L1 extraction and cache writes. No official Validation read. Winner selected on the reported holdout; delta and success criterion are exploratory and may be optimistic.'))
 
 
 def smoke():
@@ -294,16 +338,30 @@ def smoke():
         path = Path(directory) / 'state.json'
         atomic_json(path, {'done': ['call']})
         assert json.loads(path.read_text()) == {'done': ['call']}
-    print('smoke OK: crop, zero padding, atomic progress; no training')
+        work = Path(directory) / 'work'
+        out = Path(directory) / 'out'
+        work.mkdir()
+        out.mkdir()
+        local = work / 'layer_4.npy'
+        local.write_bytes(b'feature-cache')
+        class FakeArray:
+            def flush(self):
+                pass
+        persist_features({'4': local}, {'4': FakeArray()}, out, {'done': ['call']})
+        assert (out / local.name).read_bytes() == b'feature-cache'
+        assert json.loads((out / 'extraction.json').read_text()) == {'done': ['call']}
+        assert not list(out.glob('*.tmp'))
+    print('smoke OK: crop, zero padding, atomic cache publication/progress; no training')
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, default=os.environ.get('LAB_OUT'))
     parser.add_argument('--work', type=Path, default=os.environ.get('LAB_WORK'))
-    parser.add_argument('--model-dir', default=os.path.join(os.environ.get('LAB_WORK', '.'), 'models/wavlm-base-plus'))
+    parser.add_argument('--model-dir', type=Path, help='Persistent pinned model directory (default: $DCC_RUN_ROOT/models/wavlm-base-plus)')
     parser.add_argument('--n-calls', type=int, default=4000)
-    parser.add_argument('--batch-size', type=int, default=8)
+    parser.add_argument('--batch-size', type=int, choices=[1], default=1, help='Single utterance avoids group-norm batch padding effects')
+    parser.add_argument('--cache-every-calls', type=int, default=100)
     parser.add_argument('--smoke', action='store_true')
     args = parser.parse_args()
     if args.smoke:
@@ -311,14 +369,21 @@ def main():
         return
     if not args.out or not args.work:
         parser.error('LAB_OUT and LAB_WORK (or --out/--work) are required')
-    if args.n_calls < 2 or args.batch_size < 1:
-        parser.error('n-calls >= 2 and batch-size >= 1 required')
+    if args.n_calls < 2 or args.cache_every_calls < 1:
+        parser.error('n-calls >= 2 and cache-every-calls >= 1 required')
     if os.environ.get('LAB_EXP_ID', EXP_ID) != EXP_ID:
         parser.error('LAB_EXP_ID must be M2-SSL-001')
+    if args.model_dir is None:
+        if not os.environ.get('DCC_RUN_ROOT'):
+            parser.error('DCC_RUN_ROOT or a persistent --model-dir is required')
+        args.model_dir = Path(os.environ['DCC_RUN_ROOT']) / 'models' / 'wavlm-base-plus'
+    if args.model_dir.resolve().is_relative_to(args.work.resolve()):
+        parser.error('--model-dir must be persistent, outside LAB_WORK')
+    processor, model = prepare_model(args.model_dir)
     args.out.mkdir(parents=True, exist_ok=True)
     args.work.mkdir(parents=True, exist_ok=True)
     config = dict(exp_id=EXP_ID, seed=SEED, n_calls=args.n_calls,
-                  model_dir=str(Path(args.model_dir).resolve()), layers=list(LAYERS), schema=1)
+                  model_dir=str(Path(args.model_dir).resolve()), model_revision=MODEL_REVISION, layers=list(LAYERS), batch_size=1, schema=2)
     config_path = args.out / 'config.json'
     if config_path.exists() and json.loads(config_path.read_text()) != config:
         raise ValueError('LAB_OUT config mismatch: use a fresh output directory')
@@ -328,7 +393,7 @@ def main():
         return
     seed_all()
     rows = stage(args.out, args.work, args.n_calls)
-    index, arrays, progress = extract(args, args.out, args.work, rows)
+    index, arrays, progress = extract(args, args.out, args.work, rows, processor, model)
     heads(args.out, index, arrays, progress)
 
 
