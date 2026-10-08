@@ -85,12 +85,23 @@ def stage_labels(data_root, work):
         raise ValueError(f"Need exactly one Training/{LABEL_DIR}.zip, found {archives}. "
                          "Package the Seoul labels as a zip; loose Drive JSON reads are disabled.")
     source = archives[0]
+    source_stat = source.stat()
+    signature = {"source": str(source.resolve()), "size": source_stat.st_size,
+                 "mtime_ns": source_stat.st_mtime_ns}
     local = work / "seoul_labels.zip"
-    if not local.exists() or local.stat().st_size != source.stat().st_size:
+    source_marker = work / "seoul_labels_source.json"
+    unchanged = (source_marker.exists()
+                 and json.loads(source_marker.read_text()) == signature
+                 and local.exists() and local.stat().st_size == signature["size"])
+    destination = work / "labels"
+    if not unchanged:
+        # Invalidate extracted files before replacing their source archive.
+        if (destination / ".complete").exists():
+            (destination / ".complete").unlink()
         temporary = local.with_suffix(".tmp")
         shutil.copyfile(source, temporary)
         os.replace(temporary, local)
-    destination = work / "labels"
+        atomic_json(source_marker, signature)
     if not (destination / ".complete").exists():
         if destination.exists():
             shutil.rmtree(destination)
@@ -118,6 +129,10 @@ def prepare_tokens(out, work, model_path):
         data = torch.load(local, map_location="cpu", weights_only=False)
         if data["contract"] != [EXP_ID, REVISION, 256, 42]:
             raise ValueError("Token cache contract mismatch")
+        split_path = out / "split.json"
+        if (not split_path.is_file()
+                or hashlib.sha256(split_path.read_bytes()).hexdigest() != data["split_sha256"]):
+            raise ValueError("Token cache/split.json mismatch; restore the original split manifest")
         return data
     labels = stage_labels(find_data_root(), work)
     df = p0.load_training_dataframe(labels)
@@ -299,6 +314,10 @@ def smoke():
         staged = stage_labels(root, work)
         assert len(list(staged.rglob("*.json"))) == 1
         assert stage_labels(root, work) == staged
+        # A replaced archive must invalidate both the copy and extracted labels.
+        with zipfile.ZipFile(training / f"{LABEL_DIR}.zip", "w") as archive:
+            archive.writestr(f"{LABEL_DIR}/replacement.json", '{"utterances": []}')
+        assert [path.name for path in stage_labels(root, work).rglob("*.json")] == ["replacement.json"]
     print("smoke passed (atomic JSON, local archive staging and reuse; no training)")
 
 
