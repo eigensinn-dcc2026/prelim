@@ -35,6 +35,9 @@ except ImportError:
     MultilabelStratifiedShuffleSplit = None
 
 
+# 2026 DCC 공식 규정: Decision Threshold는 모든 클래스에서 0.5 고정
+DECISION_THRESHOLD = 0.5
+
 # Mission 3 평가 대상 9개 증상
 TARGET_SYMPTOMS = [
     "고열",
@@ -227,8 +230,12 @@ def train_baseline(
         ...
     }
     """
-    if not (0 <= threshold <= 1):
-        raise ValueError("threshold는 0과 1 사이여야 합니다.")
+    if threshold != DECISION_THRESHOLD:
+        raise ValueError(
+            "2026 DCC 공식 규정상 Decision Threshold는 0.5로 고정해야 합니다. "
+            f"입력값: {threshold}"
+        )
+    threshold = DECISION_THRESHOLD
 
     random.seed(seed)
     np.random.seed(seed)
@@ -313,7 +320,7 @@ def train_baseline(
         "vectorizer": vectorizer,
         "classifier": classifier,
         "target_symptoms": TARGET_SYMPTOMS,
-        "threshold": float(threshold),
+        "threshold": float(DECISION_THRESHOLD),
         "seed": int(seed),
         "model_name": "tfidf_word_1_2gram_ovr_logistic_regression",
     }
@@ -327,7 +334,7 @@ def train_baseline(
         "validation_sample_count": int(len(valid_df)),
         "macro_f1": macro_f1,
         "micro_f1": micro_f1,
-        "threshold": float(threshold),
+        "threshold": float(DECISION_THRESHOLD),
         "test_size": float(test_size),
         "seed": int(seed),
         "total_sample_count": int(len(df)),
@@ -399,8 +406,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--threshold",
         type=float,
-        default=0.5,
-        help="증상 예측 확률 기준값 (기본값: 0.5)",
+        default=DECISION_THRESHOLD,
+        choices=[DECISION_THRESHOLD],
+        help="2026 DCC 공식 고정 Decision Threshold (0.5만 허용)",
     )
     parser.add_argument(
         "--test_size",

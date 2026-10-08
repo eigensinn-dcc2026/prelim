@@ -18,6 +18,10 @@ import joblib
 import numpy as np
 
 
+# 2026 DCC 공식 규정: 모든 클래스의 Decision Threshold는 0.5 고정
+DECISION_THRESHOLD = 0.5
+
+
 def clean_text(value: Any) -> str:
     """문장의 줄바꿈/연속 공백을 한 칸으로 정리합니다."""
     if not isinstance(value, str):
@@ -91,7 +95,13 @@ def predict(
     vectorizer = checkpoint["vectorizer"]
     classifier = checkpoint["classifier"]
     target_symptoms = list(checkpoint["target_symptoms"])
-    threshold = float(checkpoint.get("threshold", 0.5))
+    stored_threshold = float(checkpoint.get("threshold", DECISION_THRESHOLD))
+    if stored_threshold != DECISION_THRESHOLD:
+        raise ValueError(
+            "체크포인트의 threshold가 0.5가 아닙니다. "
+            f"저장값: {stored_threshold}"
+        )
+    threshold = DECISION_THRESHOLD
 
     if not transcripts:
         return []
@@ -113,7 +123,7 @@ def predict(
             f"증상 {len(target_symptoms)}개 / 모델 출력 {probabilities.shape[1]}개"
         )
 
-    # 기본값 0.5 이상인 증상만 1로 선택합니다.
+    # 공식 규정에 따라 모든 class에 동일한 0.5를 적용합니다.
     binary = (probabilities >= threshold).astype(np.int8)
 
     predictions: list[list[str]] = []
