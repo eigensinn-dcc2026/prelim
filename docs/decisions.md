@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-10-08 — [M3] KcBERT + 완화 가중 BCE(M3-KCBERT-003) 채택
+
+- **결정**: KcBERT 앞 256토큰에 완화 가중 BCE(pos_weight 1.0~3.0)를 쓰는 설정을 KCBERT-002보다 우선 후보로 채택한다. 코드 PR #71은 `lab-adopted` 대상.
+- **이유**: 동일 분할·threshold 0.5에서 3-seed 평균 Macro F1 0.5990(+0.0157), 3개 seed 모두 0.5833 초과. 다만 개선폭이 seed 편차(약 0.01) 수준이라 약한 증거이고 오심 F1은 평균 0.237로 여전히 낮다.
+- **후속**: 최종 후보에 한해 공식 Val 평가. 근거: `docs/experiment_log.md` M3-KCBERT-003 행.
+
+---
+
 ## 2026-10-08 — [M3] KcBERT 앞 256토큰 다중라벨(M3-KCBERT-002) 채택
 
 - **결정**: 80:20 재평가 기준에서 TF-IDF+LR(Macro F1 0.5676)보다 KcBERT 미세조정을 우선 후보로 채택한다. 코드 PR #68은 `lab-adopted` 대상.
