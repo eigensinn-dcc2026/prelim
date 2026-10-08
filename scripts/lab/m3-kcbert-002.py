@@ -201,7 +201,20 @@ def train_seed(seed, data, out, model_path, batch, accum):
     if result_path.exists():
         if not (out / f"seed_{seed}.ckpt").exists():
             raise FileNotFoundError("Completed seed is missing checkpoint")
-        return json.loads(result_path.read_text())
+        result = json.loads(result_path.read_text())
+        expected = {"exp_id": EXP_ID, "revision": REVISION,
+                    "split_sha256": data["split_sha256"], "batch": batch, "accum": accum}
+        contract = result.get("contract")
+        if contract is None:
+            # Older results predate the result contract; validate their checkpoint.
+            saved = torch.load(out / f"seed_{seed}.ckpt", map_location="cpu", weights_only=False)
+            contract = {key: saved.get(key) for key in expected}
+            if saved.get("seed") != seed or saved.get("epoch") != 3:
+                raise ValueError("Completed seed checkpoint mismatch")
+            del saved
+        if contract != expected or result.get("seed") != seed or result.get("epoch") != 3:
+            raise ValueError("Completed seed split/batch configuration mismatch")
+        return result
     seed_all(seed)
     device = torch.device("cuda")
 
@@ -236,6 +249,8 @@ def train_seed(seed, data, out, model_path, batch, accum):
             scaler.load_state_dict(saved["scaler"])
             history, start_epoch, elapsed = saved["history"], saved["epoch"], saved["training_seconds"]
             restore_rng(saved["rng"])
+        # Loading optimizer state moves it to CUDA; release the CPU checkpoint copy.
+        del saved
 
     def checkpoint(epoch):
         return {"model": model.state_dict(), "optimizer": optimizer.state_dict(),
@@ -294,7 +309,9 @@ def train_seed(seed, data, out, model_path, batch, accum):
         print(f"seed={seed} epoch={epoch} macro_f1={record['macro_f1']:.6f}", flush=True)
     # Fixed epoch 3, no epoch/threshold tuning. Reconstruct after a crash at this boundary.
     atomic_save(out / f"seed_{seed}.ckpt", checkpoint(3))
-    result = {"seed": seed, **history[-1], "training_seconds": elapsed, "history": history}
+    result = {"seed": seed, **history[-1], "training_seconds": elapsed, "history": history,
+              "contract": {"exp_id": EXP_ID, "revision": REVISION,
+                           "split_sha256": data["split_sha256"], "batch": batch, "accum": accum}}
     atomic_json(result_path, result)
     return result
 
