@@ -150,7 +150,7 @@ TRAIN_INDEX_NAME    = "m2_spectrogram_index_packed.parquet"   # 묶음 인덱스
 TRAIN_PACKED_GLOB   = "*packed*.npy"
 TRAIN_INDEX_GLOB    = "*index*packed*.parquet"
 # ← 실행 전 이 한 줄만 채운다. 값이 비어 있거나 Drive 파일 sha256과 다르면 학습을 시작하지 않는다.
-TRAIN_PACKED_SHA256 = {"m2_spectrograms_packed.npy": "", "m2_spectrogram_index_packed.parquet": ""}
+TRAIN_PACKED_SHA256 = {"m2_spectrograms_packed.npy": "69a770c8100f6851c2f6a642a801dc1e0dd0a14691bc3b37f047ebf2ba4712b8", "m2_spectrogram_index_packed.parquet": "6afe3caacbf5916e291009849d4ff27d32ead3699b80c1a23ec038c4eda79aad"}
 
 VAL_PACKED_NAME       = "m2_spectrograms_validation_packed.npy"
 VAL_PACKED_SHA256     = "1fb278a7b9bd3db674b834685eaaf9f23cf57ee830fd30156eac18567991b613"
