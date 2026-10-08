@@ -116,6 +116,7 @@
 | M2-AF-R3 | 소급(≈2026-09-21) | 52D에 AF10 speech activity 4D + AF11 spectral entropy 3D → 59D. 내부 split | 86.95%→**87.46%**(+0.50%p, +894건), speaker0/1 recall 모두 상승, 고확신 오답 2,590→2,377 | **59D를 handcrafted reference로 채택** | 같은 노트북 |
 | M2-AF-R4 | 소급(≈2026-09-21) | 59D + AF05(delta-MFCC 2D) = 61D | 87.46%→87.47%(+0.018%p), speaker0 recall +1.47 / speaker1 -1.32%p | 보류. handcrafted 탐색 종료 | 같은 노트북 |
 | M2-REP-001 | 2026-10-04 | 표준 표현 대조: clean 59D vs eGeMAPSv02 88D. 동일 M04-100·internal split(177,891발화), 0.5 threshold | 59D **87.38%** vs 88D 86.40%(-0.98%p). speaker0 recall 84.67→82.36%, 고확신 오답 2,378→2,733 | 88D 열세. 0.5–1s 구간 82.5→81.8%. 59D 유지 | [`mission2_standard_representation_comparison.ipynb`](../notebooks/mission2_standard_representation_comparison.ipynb) |
+| M2-SSL-001 | 2026-10-08 | WavLM-base-plus 고정 임베딩(4/8/12층, mean+std pooling 1536차원) + LR/LGBM 헤드. Training 4,000통화(학습 3,200/평가 800 통화, call_id 단위 분할, seed 42), 공식 Validation 미사용. 같은 분할의 L1 53차원 LGBM과 비교. T4 약 112분 | L1 LGBM 84.36%. 4층 LR **86.18%**(+1.82%p), 4층 LGBM 85.34%, 8층 LR 80.29%/LGBM 81.92%, 12층 LR 80.21%/LGBM 80.53% — 깊은 층일수록 나쁨. 성공 기준(+2%p) 미달. 최고 조합을 평가 분할에서 골라 낙관적이고 seed 1개. 추출 24.9발화/초 | **기각** — 기준 미달, 추론 비용 대비 이득 없음(`decisions.md` 2026-10-08). 얕은 층 쪽 후속 탐색은 우선순위 낮음 | 사령탑 판정 `reviews/M2-SSL-001_verdict.md`(sooyahh/dcc-lab), 코드 PR #66(닫음) |
 
 > M2-SCALE-001 이후 실험 중 따로 저장된 JSON 로그가 없는 건 보고서를 근거 자료로 씁니다(위
 > 표에서 "별도 committed 리포트 없음"/"세션 기록만"이라고 적힌 것들). 나중에 다시 실행할 땐
