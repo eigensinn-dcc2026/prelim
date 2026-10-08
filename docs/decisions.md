@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-10-08 — [M3] KcBERT head128+tail128 입력(M3-KCBERT-004) 기각
+
+- **결정**: 긴 전사에 head+tail 입력을 쓰는 방식은 채택하지 않는다. KCBERT-003(앞 256토큰 + 완화 가중 BCE)을 유지한다. 코드 PR #73은 닫는다.
+- **이유**: 동일 분할·threshold 0.5에서 3-seed 평균 Macro F1 0.5925로 KCBERT-003(0.5990)보다 -0.0065. 0.5990을 넘은 seed는 1개뿐이고 오심 F1도 평균 0.207로 낮아졌다.
+- **후속**: 입력 절단 방식 미세 조정은 재제안하지 않는다. 근거: `docs/experiment_log.md` M3-KCBERT-004 행.
+
+---
+
 ## 2026-10-08 — [M3] KcBERT + 완화 가중 BCE(M3-KCBERT-003) 채택
 
 - **결정**: KcBERT 앞 256토큰에 완화 가중 BCE(pos_weight 1.0~3.0)를 쓰는 설정을 KCBERT-002보다 우선 후보로 채택한다. 코드 PR #71은 `lab-adopted` 대상.
