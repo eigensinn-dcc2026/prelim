@@ -264,11 +264,18 @@ def select_content_tokens(ids, special_count):
     return ids[:head] + ids[-tail:]
 
 
+def build_head_tail_input(tokenizer, content):
+    """Build BERT inputs using token IDs supported by tokenizer wrappers."""
+    if any(token_id is None for token_id in
+           (tokenizer.cls_token_id, tokenizer.sep_token_id, tokenizer.pad_token_id)):
+        raise ValueError("KcBERT tokenizer must define CLS, SEP and PAD token IDs")
+    ids = [tokenizer.cls_token_id] + select_content_tokens(content, 2) + [tokenizer.sep_token_id]
+    padding = CONFIG["max_length"] - len(ids)
+    return ids + [tokenizer.pad_token_id] * padding, [1] * len(ids) + [0] * padding
+
+
 def tokenize_head_tail(tokenizer, texts):
     import torch
-    special_count = tokenizer.num_special_tokens_to_add(pair=False)
-    if special_count != 2:
-        raise ValueError("KcBERT single-text tokenizer must add CLS and SEP")
     input_ids, attention_mask = [], []
     # Tokenize in bounded batches without truncating away the tail.
     for offset in range(0, len(texts), 256):
@@ -276,16 +283,18 @@ def tokenize_head_tail(tokenizer, texts):
                             truncation=False, padding=False, return_attention_mask=False,
                             return_token_type_ids=False)
         for content in encoded["input_ids"]:
-            ids = tokenizer.build_inputs_with_special_tokens(select_content_tokens(content, special_count))
-            padding = CONFIG["max_length"] - len(ids)
-            input_ids.append(ids + [tokenizer.pad_token_id] * padding)
-            attention_mask.append([1] * len(ids) + [0] * padding)
+            ids, mask = build_head_tail_input(tokenizer, content)
+            input_ids.append(ids)
+            attention_mask.append(mask)
     return dict(input_ids=torch.tensor(input_ids, dtype=torch.long),
                 attention_mask=torch.tensor(attention_mask, dtype=torch.long))
 
 
 def smoke():
     # Standard-library checks only; no torch import, model download, or training.
+    from types import SimpleNamespace
+    # The Colab wrapper exposes token IDs but no special-token builder method.
+    tokenizer = SimpleNamespace(cls_token_id=101, sep_token_id=102, pad_token_id=0)
     for length in (0, 1, 127, 128, 253, 254, 255, 256, 1000):
         ids = list(range(length))
         selected = select_content_tokens(ids, 2)
@@ -295,6 +304,12 @@ def smoke():
         else:
             assert selected == ids[:127] + ids[-127:]
             assert len(set(selected)) == 254
+        built, mask = build_head_tail_input(tokenizer, ids)
+        active = len(selected) + 2
+        assert built[:active] == [101] + selected + [102]
+        assert built[active:] == [0] * (256 - active)
+        assert mask == [1] * active + [0] * (256 - active)
+        assert len(built) == len(mask) == 256
     rows = [[1] * 9] + [[0] * 9] * 99
     assert weights(rows) == [math.sqrt(99) * .25] * 9
     assert weights([[0] * 9] * 1000) == [3.] * 9
