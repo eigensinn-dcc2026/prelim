@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-10-08 — [M3] KcBERT 5 epochs(M3-KCBERT-006) 기각
+
+- **결정**: epoch를 3→5로 늘리는 방식은 채택하지 않는다. KCBERT-005(3 epochs, 강화 가중 BCE)를 유지한다. 코드 PR #78은 닫는다.
+- **이유**: 동일 분할·threshold 0.5에서 3-seed 평균 Macro F1 0.5883으로 KCBERT-005(0.6092)보다 -0.0209, 세 seed 모두 0.6092 미만. 오심 F1 0.283→0.238, 두통 0.488→0.448로 희소 증상도 오히려 하락(과적합 가능성).
+- **후속**: epoch 증가·가중 미세 조정은 재제안하지 않는다. 근거: `docs/experiment_log.md` M3-KCBERT-006 행.
+
+---
+
 ## 2026-10-08 — [M3] KcBERT + 강화 가중 BCE(M3-KCBERT-005) 채택
 
 - **결정**: KcBERT 앞 256토큰에 강화 가중 BCE(pos_weight 1.0~6.0, scale 0.5)를 KCBERT-003보다 우선 후보로 채택한다. 코드 PR #76은 `lab-adopted` 대상.
