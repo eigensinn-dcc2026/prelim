@@ -6,8 +6,9 @@ probabilities are ``vectorizer.transform`` + ``classifier.predict_proba`` on the
 joblib dict that script saves. ``audio_dir`` is accepted for the shared
 signature and is not read.
 
-Decisions are ``probability >= 0.5``, then :func:`apply_min1` (a row with no
-positive label is given its ``np.argmax`` label, first index on ties).
+Decisions are ``probability >= 0.5`` per label (:func:`binarize`) and nothing
+else: a row with no label at or above 0.5 is written as ``[]``. The organizers
+ruled out the earlier min-1 rule (argmax on empty rows) on 2026-10-09.
 The symptom cell is :func:`format_symptom_cell`: Python ``str(list)`` with
 ASCII single quotes, labels in ``TARGET_SYMPTOMS`` order
 (``docs/submission_format.md``, #58). The quote style will be re-confirmed
@@ -34,12 +35,12 @@ SCRIPT_PATH = REPOSITORY_ROOT / "scripts" / "mission3_baseline 최종 수정본.
 CKPT_FILENAME = "mission3_tfidf_logreg.joblib"
 DEFAULT_CKPT = REPOSITORY_ROOT / "checkpoints" / "mission3" / CKPT_FILENAME
 
-# P0 0.567552 -> 0.567977 Macro F1 with this rule. Not the checkpoint's stored threshold.
+# Fixed by the competition rules. Not the checkpoint's stored threshold.
 THRESHOLD = 0.5
 
 # Symptom cell format: docs/submission_format.md (#58, team decision 2026-10-06).
 # Python ``str(list)`` -- ASCII single quotes, one space after each comma -- with labels
-# in ``TARGET_SYMPTOMS`` order; no labels is ``[]`` (min-1 means predict() never emits it).
+# in ``TARGET_SYMPTOMS`` order; no labels is ``[]``.
 # ``inference.py`` writes the CSV with pandas' default QUOTE_MINIMAL, so a multi-label
 # cell appears in the file as ``"['두통', '복통']"``. The official PDF p.9 example uses
 # curly quotes; the quote style will be re-confirmed with the organizers at the 10-10 mentoring.
@@ -65,13 +66,12 @@ def _script() -> ModuleType:
     return module
 
 
-def apply_min1(probabilities: np.ndarray, threshold: float = THRESHOLD) -> np.ndarray:
-    """Binary labels at ``>= threshold``, then the min-1 rule.
+def binarize(probabilities: np.ndarray, threshold: float = THRESHOLD) -> np.ndarray:
+    """Binary labels at ``>= threshold``; ``threshold`` itself is positive.
 
-    A row that is all below ``threshold`` gets a single 1 at ``np.argmax``
-    (the first index when several probabilities tie). Rows that already have
-    a positive label are left as they are. ``threshold`` itself is positive.
-    ``probabilities`` is not modified.
+    No post-processing: a row that is all below ``threshold`` stays all 0
+    (organizer ruling 2026-10-09, min-1 not allowed). ``probabilities`` is not
+    modified.
     """
 
     probabilities = np.asarray(probabilities, dtype=float)
@@ -79,12 +79,7 @@ def apply_min1(probabilities: np.ndarray, threshold: float = THRESHOLD) -> np.nd
         raise ValueError(
             f"probabilities must have shape (n_rows, n_labels), got {probabilities.shape}"
         )
-    binary = (probabilities >= threshold).astype(np.int8)
-    empty = np.flatnonzero(binary.sum(axis=1) == 0)
-    if empty.size:
-        chosen = np.argmax(probabilities[empty], axis=1)
-        binary[empty, chosen] = 1
-    return binary
+    return (probabilities >= threshold).astype(np.int8)
 
 
 def format_symptom_cell(labels: Sequence[str]) -> str:
@@ -177,7 +172,7 @@ def predict(audio_dir: Path, label_dir: Path, ckpt_path: Path | None = None) -> 
 
     vectorizer, classifier, symptoms = load_checkpoint(ckpt_path)
     probabilities = _probabilities(vectorizer, classifier, texts, len(symptoms))
-    binary = apply_min1(probabilities, threshold=THRESHOLD)
+    binary = binarize(probabilities, threshold=THRESHOLD)
     cells = [
         format_symptom_cell(positive_labels(row, symptoms))
         for row in binary
