@@ -66,7 +66,7 @@ def evaluate(truth, left, right):
                 both_wrong_per_symptom_ratio=dict(zip(LABELS, [n / len(truth) for n in both])))
 
 
-def probabilities(module, seed, directory, model_path, tokens, targets, train, holdout, pos_weight, out):
+def probabilities(module, seed, directory, model_path, tokens, targets, train, holdout, pos_weight):
     import numpy as np
     import torch
     from transformers import AutoModel
@@ -78,13 +78,8 @@ def probabilities(module, seed, directory, model_path, tokens, targets, train, h
             raise ValueError(f"Probability cache without final checkpoint: {directory}")
         probs = np.load(path, allow_pickle=False)
     else:
-        # Each source owns an independent model×seed resume checkpoint. Root alias
-        # exposes the currently active checkpoint under the runner contract.
-        alias = out / "ckpt_last.pt"
-        temporary = out / "ckpt_last.link.tmp"
-        temporary.unlink(missing_ok=True)
-        temporary.symlink_to((directory / "ckpt_last.pt").resolve())
-        os.replace(temporary, alias)
+        # The unchanged source atomically saves/resumes directory/ckpt_last.pt.
+        # Keep model×seed checkpoints independent; Drive does not support symlinks.
         module.run_seed(seed, directory, model_path, tokens, targets, train, holdout, pos_weight)
         module.seed_all(seed, torch, np)
         state = torch.load(checkpoint, map_location="cpu", weights_only=False)
@@ -127,6 +122,8 @@ def validate_probs(probs, rows):
 
 
 def smoke():
+    modules = load_sources()
+    assert set(modules) == {"kcbert", "roberta"}
     truth = [[1] * 9, [0] * 9]
     left = [[.5] * 9, [.49] * 9]
     right = [[.49] * 9, [.5] * 9]
@@ -137,7 +134,7 @@ def smoke():
     assert result["both_wrong_label_ratio"] == 0.0
     assert evaluate(truth, right, right)["both_wrong_label_ratio"] == 1.0
     assert score(truth, [[.5] * 9] * 2)["empty_predictions"] == 0
-    print("smoke OK: fixed averaging, >=0.5 boundary, empty predictions, F1, error overlap; no training/download")
+    print("smoke OK: baseline imports/configs, fixed averaging, >=0.5 boundary, empty predictions, F1, error overlap; no training/download")
 
 
 def main():
@@ -193,7 +190,7 @@ def main():
         pos_weight = module.weights([rows[i]["labels"] for i in train])
         for seed in SEEDS:
             predictions[seed][name] = probabilities(module, seed, directory / f"seed_{seed}",
-                model_path, tokens, targets, train, holdout, pos_weight, out)
+                model_path, tokens, targets, train, holdout, pos_weight)
         del tokens
     results = [dict(seed=seed, **evaluate(truth, predictions[seed]["kcbert"], predictions[seed]["roberta"]))
                for seed in SEEDS]
