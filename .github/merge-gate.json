@@ -17,6 +17,23 @@
   ],
   "allowed_test_file_deletions": [],
   "allowed_test_function_deletions": [],
+  "allowed_baseline_test_failures": [
+    {
+      "test": "tests/test_inference_mission3.py::test_apply_min1_cases",
+      "reason": "주최 측 답변(2026-10-09)으로 min-1 후처리가 금지되어 PR #90이 이 테스트의 기대 동작을 의도적으로 바꿈. PR #90 병합 후 삭제",
+      "pr": 90
+    },
+    {
+      "test": "tests/test_inference_mission3.py::test_predict_contract_and_symptom_cells",
+      "reason": "주최 측 답변(2026-10-09)으로 min-1 후처리가 금지되어 PR #90이 이 테스트의 기대 동작을 의도적으로 바꿈. PR #90 병합 후 삭제",
+      "pr": 90
+    },
+    {
+      "test": "tests/test_inference_mission3.py::test_root_entry_writes_official_mission3_csv",
+      "reason": "주최 측 답변(2026-10-09)으로 min-1 후처리가 금지되어 PR #90이 이 테스트의 기대 동작을 의도적으로 바꿈. PR #90 병합 후 삭제",
+      "pr": 90
+    }
+  ],
   "required_checks": [
     "PR CI / policy",
     "PR CI / tests"
