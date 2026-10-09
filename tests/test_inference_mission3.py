@@ -1,5 +1,5 @@
 """dcc_inference.mission3.predict: official M3 columns, one row per label JSON, P0 text,
-threshold >= 0.5, min-1. Synthetic joblib only — no real checkpoint or data."""
+threshold >= 0.5, no post-processing (empty rows stay []). Synthetic joblib only — no real checkpoint or data."""
 
 from __future__ import annotations
 
@@ -34,28 +34,27 @@ SYMPTOMS = [
 ]
 
 
-def test_apply_min1_cases():
+def test_binarize_has_no_post_processing():
+    """Organizer ruling 2026-10-09: rows all below 0.5 stay empty (no argmax fill)."""
+
     probabilities = np.array(
         [
-            [0.1, 0.4, 0.2],  # none >= 0.5 -> argmax (index 1)
-            [0.2, 0.2, 0.1],  # tie -> first index
-            [0.3, 0.3, 0.3],  # all-way tie -> first index
-            [0.9, 0.1, 0.7],  # already positive; argmax must not clear the others
-            [0.1, 0.95, 0.6],  # already positive; keep both, including the lower one
+            [0.1, 0.4, 0.2],  # none >= 0.5 -> stays empty
+            [0.3, 0.3, 0.3],  # all-way tie below 0.5 -> stays empty
+            [0.9, 0.1, 0.7],  # both above 0.5 stay on
             [0.5, 0.49, 0.0],  # exact 0.5 counts as positive
         ],
         dtype=float,
     )
     original = probabilities.copy()
-    binary = mission3.apply_min1(probabilities, threshold=0.5)
+    binary = mission3.binarize(probabilities, threshold=0.5)
     assert binary.tolist() == [
-        [0, 1, 0],
-        [1, 0, 0],
-        [1, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
         [1, 0, 1],
-        [0, 1, 1],
         [1, 0, 0],
     ]
+    assert not hasattr(mission3, "apply_min1")
     assert np.array_equal(probabilities, original)
 
 
@@ -165,7 +164,7 @@ def _write_checkpoint(path: Path) -> None:
     for estimator in classifier.estimators_:
         estimator.coef_[:] = 0
         estimator.intercept_[:] = _logit(0.1)
-    # "zz": every label 0.1 except 두통 at 0.4 -> min-1 turns 두통 on.
+    # "zz": every label 0.1 except 두통 at 0.4 -> all below 0.5, written as [].
     classifier.estimators_[2].intercept_[:] = _logit(0.4)
     # "half": 고열 exactly 0.5 (counts) and 두통 at 0.8 (already positive).
     fever = classifier.estimators_[0]
@@ -175,7 +174,7 @@ def _write_checkpoint(path: Path) -> None:
     # "head belly": 두통 and 복통 both above 0.5. JSON gold below is a different label.
     headache.coef_[0, vocab["head"]] = 5.0
     classifier.estimators_[3].coef_[0, vocab["belly"]] = 5.0
-    # "tie": every label 0.2 -> min-1 keeps the first symptom, 고열.
+    # "tie": every label 0.2 -> all below 0.5, written as [].
     for estimator in classifier.estimators_:
         estimator.coef_[0, vocab["tie"]] = _logit(0.2) - float(estimator.intercept_[0])
 
@@ -243,15 +242,13 @@ def test_predict_contract_and_symptom_cells(tmp_path: Path):
     assert by_name["half.json"] == "['고열', '두통']"
     # TARGET_SYMPTOMS order, str(list) single quotes — not the JSON file's 호흡곤란/기타
     assert by_name["pair.json"] == mission3.SYMPTOM_CELL_EXAMPLE == "['두통', '복통']"
-    # all below 0.5 and tied -> first label
-    assert by_name["tie.json"] == "['고열']"
-    # all below 0.5 -> the single argmax label; utf-8-sig still read
-    assert by_name["zz.json"] == "['두통']"
-    # min-1: never an empty list
-    assert "[]" not in set(frame["symptom"])
+    # all below 0.5 (tied) -> empty, no argmax fill
+    assert by_name["tie.json"] == "[]"
+    # all below 0.5 -> empty even though 두통 is the highest; utf-8-sig still read
+    assert by_name["zz.json"] == "[]"
     assert set(frame["symptom"]) == {
         mission3.format_symptom_cell(labels)
-        for labels in (["고열", "두통"], ["두통", "복통"], ["고열"], ["두통"])
+        for labels in (["고열", "두통"], ["두통", "복통"], [])
     }
     assert not (tmp_path / "outputs").exists()
 
@@ -301,18 +298,18 @@ def test_root_entry_writes_official_mission3_csv(tmp_path: Path):
     assert rows[0] == ["label file name", "symptom"]
     assert rows[1:] == [
         ["half.json", "['고열', '두통']"],
-        ["zz.json", "['두통']"],
+        ["zz.json", "[]"],
         ["pair.json", "['두통', '복통']"],
-        ["tie.json", "['고열']"],
+        ["tie.json", "[]"],
     ]
-    # QUOTE_MINIMAL: a multi-label cell is wrapped in double quotes, a single label is not.
+    # QUOTE_MINIMAL: a multi-label cell is wrapped in double quotes, an empty list is not.
     text = raw.decode("utf-8")
     assert "pair.json,\"['두통', '복통']\"" in text
-    assert "zz.json,['두통']" in text
+    assert "zz.json,[]" in text
     read = pd.read_csv(out, encoding="utf-8")
     assert [ast.literal_eval(cell) for cell in read["symptom"]] == [
         ["고열", "두통"],
-        ["두통"],
+        [],
         ["두통", "복통"],
-        ["고열"],
+        [],
     ]
