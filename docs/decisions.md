@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-10-09 — [M3] KcBERT R-Drop 일관성 정규화(M3-KCBERT-011) 기각
+
+- **결정**: R-Drop(대칭 KL 일관성 손실)은 채택하지 않는다. KCBERT-005 단일 모델을 유지한다.
+- **이유**: 동일 분할·threshold 0.5에서 3-seed 평균 Macro F1 0.6132로 KCBERT-005(0.6092) 대비 +0.0040, 기준(+0.01)에 미달하고 seed 편차(0.6078~0.6223) 이내다. 오심 F1은 seed별 0.24~0.34로 여전히 불안정해 가설이 확인되지 않았다. 학습 시간은 순전파 2회로 약 5배(92.9분) 늘었다.
+- **후속**: R-Drop 같은 정규화 계열 미세 조정은 재제안하지 않는다. 근거: `docs/experiment_log.md` M3-KCBERT-011 행.
+
+---
+
 ## 2026-10-10 — [M3] 제출 모델을 P0 TF-IDF에서 KCBERT-005(seed 42)로 교체
 
 - **결정**: `inference.py`의 Mission 3 체크포인트를 `m3_kcbert005_seed42.pt`로 바꾼다. `mission3.predict`는 확장자로 분기한다(`.pt/.pth/.ckpt`는 BERT, `.joblib`는 P0).
