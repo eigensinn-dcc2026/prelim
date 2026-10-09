@@ -16,6 +16,54 @@
 
 ---
 
+## 2026-10-09 — [M3] klue/roberta-large 인코더(M3-ROBERTA-001) 채택
+
+- **결정**: klue/roberta-large 앞 256토큰 + 완화 가중 BCE 설정을 채택 후보로 인정하고 코드 PR #74를 `lab-adopted`로 둔다.
+- **이유**: 동일 분할·threshold 0.5에서 3-seed 평균 Macro F1 0.6113으로 기준 KCBERT-003(0.5990) 대비 +0.0123, 3개 seed 모두 기준 초과(seed 편차 ±0.002). 다만 KCBERT-005(0.6092), KLUEBERT-001(0.6145)과는 사실상 동급이고 오심 F1은 0.175로 여전히 약하다.
+- **후속**: ckpt 약 1.3GB라 제출 용량을 확인한다. 인코더 교체 단독 변형은 재제안하지 않고 오심·두통 개선에 집중한다. 근거: `docs/experiment_log.md` M3-ROBERTA-001 행.
+
+---
+
+## 2026-10-09 — [M3] klue/bert-base 인코더 교체(M3-KLUEBERT-001) 기각
+
+- **결정**: 인코더를 klue/bert-base로 바꾸는 방식은 채택하지 않는다. KCBERT-005 단일 모델을 유지한다. 코드 PR #82는 닫는다.
+- **이유**: 동일 분할·threshold 0.5에서 3-seed 평균 Macro F1 0.6145로 KCBERT-005(0.6092) 대비 +0.0053, 기준(+0.01)에 미달하고 seed 편차 수준이다. 오심 F1 0.276, 두통 0.497로 약한 증상 개선 가설도 확인되지 않았다.
+- **후속**: 같은 계열 BERT-base 인코더 교체는 재제안하지 않는다. 근거: `docs/experiment_log.md` M3-KLUEBERT-001 행.
+
+---
+
+## 2026-10-08 — [M3] KcBERT 3-seed 확률 평균 앙상블(M3-KCBERT-007) 기각
+
+- **결정**: 3-seed 앙상블은 채택하지 않는다. KCBERT-005 단일 모델을 유지한다. 코드 PR #80은 닫는다.
+- **이유**: 동일 분할·threshold 0.5에서 앙상블 Macro F1 0.6175로 KCBERT-005(0.6092) 대비 +0.0083, 기준(+0.01)에 미달하고 개선폭이 seed 편차 수준이다. 오심 F1 0.280, 두통 0.495로 약한 증상은 개선되지 않았다.
+- **후속**: 가중 미세 조정·epoch 증가·단순 seed 앙상블은 재제안하지 않는다. 근거: `docs/experiment_log.md` M3-KCBERT-007 행.
+
+---
+
+## 2026-10-08 — [M3] KcBERT 5 epochs(M3-KCBERT-006) 기각
+
+- **결정**: epoch를 3→5로 늘리는 방식은 채택하지 않는다. KCBERT-005(3 epochs, 강화 가중 BCE)를 유지한다. 코드 PR #78은 닫는다.
+- **이유**: 동일 분할·threshold 0.5에서 3-seed 평균 Macro F1 0.5883으로 KCBERT-005(0.6092)보다 -0.0209, 세 seed 모두 0.6092 미만. 오심 F1 0.283→0.238, 두통 0.488→0.448로 희소 증상도 오히려 하락(과적합 가능성).
+- **후속**: epoch 증가·가중 미세 조정은 재제안하지 않는다. 근거: `docs/experiment_log.md` M3-KCBERT-006 행.
+
+---
+
+## 2026-10-08 — [M3] KcBERT + 강화 가중 BCE(M3-KCBERT-005) 채택
+
+- **결정**: KcBERT 앞 256토큰에 강화 가중 BCE(pos_weight 1.0~6.0, scale 0.5)를 KCBERT-003보다 우선 후보로 채택한다. 코드 PR #76은 `lab-adopted` 대상.
+- **이유**: 동일 분할·threshold 0.5에서 3-seed 평균 Macro F1 0.6092(+0.0102), 0.5990 초과 seed 2개(42, 44). 오심 F1 0.237→0.283, 두통 0.458→0.488. 다만 개선폭이 seed 편차(약 0.011) 수준이라 약한 증거이다.
+- **후속**: 최종 후보 공식 Val 평가는 별도 실험. 근거: `docs/experiment_log.md` M3-KCBERT-005 행.
+
+---
+
+## 2026-10-08 — [M3] KcBERT head128+tail128 입력(M3-KCBERT-004) 기각
+
+- **결정**: 긴 전사에 head+tail 입력을 쓰는 방식은 채택하지 않는다. KCBERT-003(앞 256토큰 + 완화 가중 BCE)을 유지한다. 코드 PR #73은 닫는다.
+- **이유**: 동일 분할·threshold 0.5에서 3-seed 평균 Macro F1 0.5925로 KCBERT-003(0.5990)보다 -0.0065. 0.5990을 넘은 seed는 1개뿐이고 오심 F1도 평균 0.207로 낮아졌다.
+- **후속**: 입력 절단 방식 미세 조정은 재제안하지 않는다. 근거: `docs/experiment_log.md` M3-KCBERT-004 행.
+
+---
+
 ## 2026-10-08 — [M3] KcBERT + 완화 가중 BCE(M3-KCBERT-003) 채택
 
 - **결정**: KcBERT 앞 256토큰에 완화 가중 BCE(pos_weight 1.0~3.0)를 쓰는 설정을 KCBERT-002보다 우선 후보로 채택한다. 코드 PR #71은 `lab-adopted` 대상.
