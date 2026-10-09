@@ -1,0 +1,5 @@
+# Mission 3 inference only (versions verified with the submitted checkpoint, CPU).
+torch==2.12.1
+transformers==4.57.6
+numpy==2.4.4
+pandas==3.0.2
