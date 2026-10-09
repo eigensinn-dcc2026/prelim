@@ -1,6 +1,13 @@
 """Mission 3 module: 9-way multilabel symptoms from the call transcript (owner: DCC M3).
 
-Wraps the frozen ``scripts/mission3_baseline 최종 수정본.py`` (do not edit it).
+Two checkpoint kinds, chosen by file suffix:
+
+- ``.pt`` / ``.pth`` / ``.ckpt``: a BERT-family classifier exported by
+  ``scripts/mission3_export_bert_ckpt.py`` (:mod:`dcc_inference.mission3_bert`,
+  lab training text rule, runs offline from that one file).
+- anything else (``.joblib``): the P0 TF-IDF baseline below.
+
+P0 wraps the frozen ``scripts/mission3_baseline 최종 수정본.py`` (do not edit it).
 Text is that script's ``read_one_json`` (utf-8-sig, ``transcript_from_json``);
 probabilities are ``vectorizer.transform`` + ``classifier.predict_proba`` on the
 joblib dict that script saves. ``audio_dir`` is accepted for the shared
@@ -25,6 +32,8 @@ from typing import Any, Sequence
 
 import numpy as np
 import pandas as pd
+
+from dcc_inference import mission3_bert
 
 COLUMNS = ("label file name", "symptom")
 
@@ -162,16 +171,22 @@ def predict(audio_dir: Path, label_dir: Path, ckpt_path: Path | None = None) -> 
     if not json_paths:
         raise FileNotFoundError(f"no JSON files under {label_dir}")
 
-    script = _script()
-    names: list[str] = []
-    texts: list[str] = []
-    for json_path in json_paths:
-        record = script.read_one_json(json_path)
-        names.append(str(record["label_file_name"]))
-        texts.append(str(record["text"]))
-
-    vectorizer, classifier, symptoms = load_checkpoint(ckpt_path)
-    probabilities = _probabilities(vectorizer, classifier, texts, len(symptoms))
+    if mission3_bert.is_bert_checkpoint(ckpt_path):
+        # BERT-family export (scripts/mission3_export_bert_ckpt.py): lab training text rule.
+        names = [json_path.name for json_path in json_paths]
+        texts = [mission3_bert.read_text(json_path) for json_path in json_paths]
+        model, tokenizer, symptoms, max_length = mission3_bert.load_checkpoint(ckpt_path)
+        probabilities = mission3_bert.probabilities(model, tokenizer, texts, max_length)
+    else:
+        script = _script()
+        names = []
+        texts = []
+        for json_path in json_paths:
+            record = script.read_one_json(json_path)
+            names.append(str(record["label_file_name"]))
+            texts.append(str(record["text"]))
+        vectorizer, classifier, symptoms = load_checkpoint(ckpt_path)
+        probabilities = _probabilities(vectorizer, classifier, texts, len(symptoms))
     binary = binarize(probabilities, threshold=THRESHOLD)
     cells = [
         format_symptom_cell(positive_labels(row, symptoms))
