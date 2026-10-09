@@ -1,0 +1,22 @@
+{
+  "experiment_id": "M3-ERR-001",
+  "date": "2026-09-28",
+  "scope": "Mission 3 official Validation error analysis",
+  "error_files": 3064,
+  "error_instances": 5867,
+  "fp_instances": 4426,
+  "fn_instances": 1441,
+  "evidence_buckets": {
+    "clear_evidence": 444,
+    "insufficient_or_ambiguous_evidence": 5423
+  },
+  "method": "Transcript rules classified each symptom-level FP/FN for manual review prioritization.",
+  "use_policy": "Automatic classifications are review priorities only and must not change labels without manual confirmation.",
+  "source_files": [
+    "reviewed_error_analysis.json",
+    "오답_전사_라벨_분석.xlsx",
+    "1순위_라벨_재검수_큐.xlsx",
+    "2단계_학습평가_분리.xlsx"
+  ],
+  "privacy_note": "Detailed transcript files are intentionally not included in Git because they require a separate de-identification review."
+}

@@ -142,6 +142,8 @@
 | M3-THRESH-001 | 2026-09-19 | weighted 모델의 내부 검증 결과를 이용해 증상별 판정 임계값 조정 | 선택된 임계값 배열이 남아 있지 않음 | 실행 완료·재현 정보 부족 | [`m3_threshold_comparison.json`](../reports/mission3/m3_threshold_comparison.json) |
 | M3-THRESH-002 | 2026-09-19 | 증상별 임계값 조정을 중단하고 모든 증상을 0.5로 고정해 재평가 | 별도 평가 결과 파일 확인 필요 | 평가 방식 변경·결과 확인 필요 | [`MISSION3_Colab_가중치모델_임계값점검.ipynb`](../notebooks/mission3/MISSION3_Colab_가중치모델_임계값점검.ipynb) |
 | M3-WEIGHT-002 | 2026-09-20 | 완화 weighted BCE, Training 40%, scale 0.25, max 3.0, effective batch 16, 3 epochs | 체크포인트 생성, 평가 결과 확인 필요 | 학습 완료·평가 필요 | [`train_weighted_40pct_vscode.py`](../scripts/mission3/train_weighted_40pct_vscode.py) |
+| M3-ERR-001 | 2026-09-28 | 공식 Validation 오답을 전사 단서 기준으로 분류 | 5,867개 오류 중 명확한 단서 444건, 단서 부족·모호 5,423건 | 자동 분석 완료·수동 검토 필요 | [`m3_error_analysis_summary.json`](../reports/mission3/m3_error_analysis_summary.json) |
+| M3-HARDNEG-001 | 2026-10-03 | 오심·전신쇠약·호흡곤란 hard-negative 2배 샘플링 | Macro F1 0.6185 / Micro F1 0.6378. FP 감소, FN 및 오심 누락 증가 | 후속 실험으로 변경 | [`m3_hardnegative_validation_summary.json`](../reports/mission3/m3_hardnegative_validation_summary.json) |
 | M3-REEVAL-P0 | 2026-10-06 | 재평가 P0: TF-IDF+OvR-LR, JSON 샘플 단위 80:20 multilabel stratified(Train 23,408 / Val 5,792), seed=42, threshold=0.5. 파이프라인·메트릭 sanity를 로컬에서 재현 | Macro F1 **0.5676**(0.567552, 참조값 0.5676과 차이 -0.00005, 허용 0.003 이내 → PASS), Micro F1 0.5779. 참고: 라벨이 하나도 켜지지 않은 샘플에 argmax 라벨을 켜는 min-1 후처리는 Macro F1 0.5680(+0.0004)으로 보조 지표로만 기록 | 완료(PASS) | [`p0_rerun/README.md`](../reports/mission3/p0_rerun/README.md), [`verdict.json`](../reports/mission3/p0_rerun/verdict.json), [`m3_reeval_spec.md`](../reports/mission3/m3_reeval_spec.md) |
 | M3-KCBERT-002 | 2026-10-08 | 재평가 P1: beomi/kcbert-base 미세조정, 앞 256토큰, 비가중 BCE, 3 epochs, 80:20 multilabel stratified(Train 23,408 / Val 5,792, 분할 seed 42), threshold=0.5, 학습 seed 42/43/44, T4 | 3-seed 평균 Macro F1 **0.5833**(0.5696/0.5861/0.5943; P0 0.5676 대비 +0.0157), Micro F1 0.6281. 오심 F1은 0.09~0.24로 여전히 낮음 | 채택(성공 기준 충족) | 코드 PR #68, 실험 결과 `dcc-lab` `results/M3-KCBERT-002/metrics.json` |
 | M3-KCBERT-003 | 2026-10-08 | 재평가 P3: KcBERT 앞 256토큰, 완화 가중 BCE(pos_weight = clip(sqrt(neg/pos)*0.25 정규화, 1.0~3.0), Training 분할에서만 계산), 3 epochs, 80:20 동일 분할, threshold=0.5, seed 42/43/44, T4 | 3-seed 평균 Macro F1 **0.5990**(0.6084/0.5884/0.6002; KCBERT-002 0.5833 대비 +0.0157), Micro F1 0.6315. 오심 F1 평균 0.237 | 채택(성공 기준 충족, 개선폭은 seed 편차 수준) | 코드 PR #71, 실험 결과 `dcc-lab` `results/M3-KCBERT-003/metrics.json` |
@@ -152,12 +154,16 @@
 | M3-KLUEBERT-001 | 2026-10-09 | 재평가 P8: klue/bert-base(고정 revision) 앞 256토큰, 강화 가중 BCE(scale 0.5/max 6.0), 3 epochs, 80:20 동일 분할, threshold=0.5, seed 42/43/44, T4 | 3-seed 평균 Macro F1 **0.6145**(0.6191/0.6099/0.6145; KCBERT-005 0.6092 대비 +0.0053), Micro F1 0.6384. 오심 F1 평균 0.276, 두통 0.497 | 기각(성공 기준 미충족: +0.01 미만) | 코드 PR #82, 실험 결과 `dcc-lab` `results/M3-KLUEBERT-001/metrics.json` |
 | M3-ROBERTA-001 | 2026-10-09 | 재평가 P9: klue/roberta-large(고정 revision) 앞 256토큰, 완화 가중 BCE, lr 1e-5·warmup 10%·fp16, 실효 batch 16, 3 epochs, 80:20 동일 분할, threshold=0.5, seed 42/43/44, T4 | 3-seed 평균 Macro F1 **0.6113**(0.6131/0.6095/0.6114; KCBERT-003 0.5990 대비 +0.0123), Micro F1 0.6494. 오심 F1 0.175, 두통 0.496. 학습 붕괴 없음, epoch당 약 26분 | 채택(성공 기준 충족: +0.01 이상, 3 seed 모두 0.599 초과). 단 KCBERT-005(0.6092)·KLUEBERT-001(0.6145)과는 사실상 동급 | 코드 PR #74, 실험 결과 `dcc-lab` `results/M3-ROBERTA-001/metrics.json` |
 | M3-REEVAL-P1~P3 | 2026-10-05 | P1 KcBERT 앞 256 / P2 token vs turn 청크 동일조건 대조 / P3 완화 가중 BCE | 후보 정의만 있음, 미실행 | 후보(P0 이후) | |
+| M3-ROLE-001 | 2026-10-07 | 기존 입력과 화자 역할 토큰 입력을 90:10 split에서 비교한 뒤 선택 모델을 Training 100%로 재학습 | 공식 Validation 3,640건: Macro Precision 0.6081 / Macro Recall 0.7028 / Macro F1 0.6263 / Micro F1 0.6086 / exact match 0.2832 / 전체 라벨 정확도 0.8533 | 완료·피처 엔지니어링 직전 기준 | [`m3_role_official_validation_metrics.json`](../reports/mission3/m3_role_official_validation_metrics.json), [`MISSION3_EXPERIMENT_STRATIFIED_ROLE_FINAL.ipynb`](../notebooks/mission3/MISSION3_EXPERIMENT_STRATIFIED_ROLE_FINAL.ipynb), [`run_stratified_role_experiment.py`](../scripts/mission3/run_stratified_role_experiment.py) |
 
 > 최초 KcBERT의 0.5861은 Training **90:10 내부 검증** 결과이고, 청크 모델의 0.5496/0.5365는
 > **공식 Validation** 결과이므로 점수만으로 직접 우열을 판단하지 않습니다.
 > 2026-09-30부터 Mission 3의 현재 비교 기준은 **JSON 샘플 단위 80:20 multilabel stratified split,
 > seed=42, threshold=0.5**입니다. 이전 분할에서 나온 점수는 과거 기록으로 보존하고 최신 기준 재실행 전 직접 비교하지 않습니다.
 > 임계값·가중치 실험은 누락된 결과와 설정을 확인한 뒤 수치를 보완해야 합니다.
+> M3-ROLE-001의 증상별 F1은 고열 0.6906, 구토 0.5971, 두통 0.5333, 복통 0.7403, 어지러움 0.6574,
+> 열상 0.8656, 오심 0.3169, 전신쇠약 0.5787, 호흡곤란 0.6571입니다. 오심은 recall 0.8182까지
+> 회복됐지만 precision 0.1965와 FP 1,435건으로 과다 예측이 남았습니다.
 
 
 ## 공통 — EDA

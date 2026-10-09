@@ -1,0 +1,39 @@
+{
+  "experiment_id": "M3-ROLE-001",
+  "date": "2026-10-07",
+  "run_name": "stratified_role_compare_seed42_v2",
+  "source": "Transcribed from the official Validation output provided during experiment review; the source image is not stored in this repository.",
+  "evaluation": {
+    "dataset": "official Validation",
+    "num_samples": 3640,
+    "macro_precision": 0.608095,
+    "macro_recall": 0.702753,
+    "macro_f1": 0.626346,
+    "micro_precision": 0.530606,
+    "micro_recall": 0.713522,
+    "micro_f1": 0.608618,
+    "weighted_f1": 0.640631,
+    "exact_match_accuracy": 0.283242,
+    "label_accuracy": 0.853327,
+    "hamming_loss": 0.146673,
+    "tp": 3736,
+    "fp": 3305,
+    "fn": 1500,
+    "tn": 24219
+  },
+  "per_symptom": [
+    {"symptom": "고열", "accuracy": 0.8959, "balanced_accuracy": 0.7910, "precision": 0.7733, "recall": 0.6239, "f1": 0.6906, "specificity": 0.9581, "actual_positive": 678, "predicted_positive": 547, "tp": 423, "fp": 124, "fn": 255, "tn": 2838},
+    {"symptom": "구토", "accuracy": 0.8940, "balanced_accuracy": 0.7445, "precision": 0.6793, "recall": 0.5326, "f1": 0.5971, "specificity": 0.9565, "actual_positive": 537, "predicted_positive": 421, "tp": 286, "fp": 135, "fn": 251, "tn": 2968},
+    {"symptom": "두통", "accuracy": 0.9173, "balanced_accuracy": 0.7148, "precision": 0.6347, "recall": 0.4599, "f1": 0.5333, "specificity": 0.9697, "actual_positive": 374, "predicted_positive": 271, "tp": 172, "fp": 99, "fn": 202, "tn": 3167},
+    {"symptom": "복통", "accuracy": 0.8580, "balanced_accuracy": 0.8655, "precision": 0.6392, "recall": 0.8795, "f1": 0.7403, "specificity": 0.8515, "actual_positive": 838, "predicted_positive": 1153, "tp": 737, "fp": 416, "fn": 101, "tn": 2386},
+    {"symptom": "어지러움", "accuracy": 0.8371, "balanced_accuracy": 0.7999, "precision": 0.5946, "recall": 0.7351, "f1": 0.6574, "specificity": 0.8646, "actual_positive": 774, "predicted_positive": 957, "tp": 569, "fp": 388, "fn": 205, "tn": 2478},
+    {"symptom": "열상", "accuracy": 0.9637, "balanced_accuracy": 0.9442, "precision": 0.8189, "recall": 0.9179, "f1": 0.8656, "specificity": 0.9704, "actual_positive": 463, "predicted_positive": 519, "tp": 425, "fp": 94, "fn": 38, "tn": 3083},
+    {"symptom": "오심", "accuracy": 0.5843, "balanced_accuracy": 0.6856, "precision": 0.1965, "recall": 0.8182, "f1": 0.3169, "specificity": 0.5531, "actual_positive": 429, "predicted_positive": 1786, "tp": 351, "fp": 1435, "fn": 78, "tn": 1776},
+    {"symptom": "전신쇠약", "accuracy": 0.8280, "balanced_accuracy": 0.7625, "precision": 0.5150, "recall": 0.6605, "f1": 0.5787, "specificity": 0.8645, "actual_positive": 651, "predicted_positive": 835, "tp": 430, "fp": 405, "fn": 221, "tn": 2584},
+    {"symptom": "호흡곤란", "accuracy": 0.9016, "balanced_accuracy": 0.8154, "precision": 0.6214, "recall": 0.6972, "f1": 0.6571, "specificity": 0.9336, "actual_positive": 492, "predicted_positive": 552, "tp": 343, "fp": 209, "fn": 149, "tn": 2939}
+  ],
+  "caveats": [
+    "The available Validation output does not identify whether current_input or speaker_role_tokens was selected.",
+    "The original experiment_summary.json, FINAL_VERIFICATION.json and official_validation_metrics.json should replace this transcription when available."
+  ]
+}

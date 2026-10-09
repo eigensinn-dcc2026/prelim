@@ -88,6 +88,17 @@
 
 ---
 
+## 2026-10-07 — [M3] 역할 토큰 비교 후 선택 모델을 Training 100%로 재학습
+
+- **결정**: 기존 입력과 화자 역할 토큰 입력을 Training 90:10 multilabel stratified split에서 비교하고, 내부 검증 결과로 선택한 모델을 Training 전체로 재학습함.
+- **이유**: 이전 모델에서 오심 누락이 증가했고, 상담원 질문과 신고자 증상 진술을 구분하지 못하는 문제가 있었음.
+- **변경**: 오심 hard-negative를 제외하고 전신쇠약·호흡곤란만 1.5배 노출함. 모델과 임계값은 내부 검증으로만 선택하고 공식 Validation은 최종 평가에만 사용함.
+- **결과**: 공식 Validation 3,640건에서 Macro F1 0.6263, Micro F1 0.6086을 기록함. 오심 recall은 0.8182로 높아졌지만 precision은 0.1965, FP는 1,435건으로 과다 예측이 남음.
+- **상태/후속**: recall은 회복됐지만 증상별 precision 편차가 커, 이 결과를 피처 엔지니어링 직전 기준으로 사용함.
+- **관련**: [`m3_role_official_validation_metrics.json`](../reports/mission3/m3_role_official_validation_metrics.json), [`MISSION3_EXPERIMENT_STRATIFIED_ROLE_FINAL.ipynb`](../notebooks/mission3/MISSION3_EXPERIMENT_STRATIFIED_ROLE_FINAL.ipynb), [`run_stratified_role_experiment.py`](../scripts/mission3/run_stratified_role_experiment.py).
+
+---
+
 ## 2026-10-05 — [M2] 멘토 답변: L2 앙상블을 원본 데이터부터 다시 학습하고 에폭별 로그를 남긴다 — 학습 속도 개선을 함께 넣음
 
 - **결정**: 91.55% 앙상블(ts1/2/3)을 그대로 제출하지 않고, Colab 노트북 하나로 원본 zip → 스펙트로그램 생성 →
@@ -230,6 +241,14 @@
 - **후속**: 마감(2026-10-14) 전까지 할 일은 끝남. 앙상블용 추가 seed(2, 3) 학습은 Colab 할당량이 남을 때
   선택적으로 진행 — 필수 아님. L1/L2 모델 쪽 실험(델타 채널, SpecAugment 조합 등)을 계속할지, 제출 패키징
   준비(PPT, inference.py 정리 등)로 넘어갈지는 다음에 정함.
+
+## 2026-10-03 — [M3] 과다 양성 예측을 줄이기 위해 hard-negative 학습 적용
+
+- **결정**: Training 데이터에서 오심·전신쇠약·호흡곤란의 FP를 채굴해 2배 가중 샘플링함.
+- **이유**: 해당 증상에서 근거 없는 양성 예측과 낮은 precision이 확인됨.
+- **결과**: 공식 Validation에서 Macro F1 0.6185, Micro F1 0.6378을 기록함. FP는 감소했지만 FN과 오심 누락이 증가함.
+- **상태/후속**: 오심 hard-negative를 제외하고 화자 역할 토큰을 비교하는 후속 실험으로 변경함.
+- **관련**: [`m3_hardnegative_validation_summary.json`](../reports/mission3/m3_hardnegative_validation_summary.json).
 
 ## 2026-10-02 — [M2] 운영진 답변: `text` 근거의 라벨 교정은 학습에 쓸 수 없다 — 교정본으로 학습한 두 제출 후보는 제공된 라벨로 다시 학습한다
 
@@ -597,6 +616,14 @@
 - **후속 조치**: 제출 전 확인 목록(팀 규정 정리 문서)에 "threshold 0.5 고정" 항목이 이미 있다.
   Calibration(확률값 자체를 더 정확하게 만드는 것)은 허용되지만, 그 뒤에도 기준선은 0.5다.
 - **관련**: M2-EXP-002, M2-EXP-009(`docs/experiment_log.md`).
+
+## 2026-09-28 — [M3] 오답 분석 결과를 라벨 재검수와 학습 대상 분리에 사용
+
+- **결정**: 전사 단서를 기준으로 라벨 재검수 대상과 hard-negative 학습 대상을 분리함.
+- **이유**: 일부 FP가 모델 오류가 아니라 원본 라벨 누락일 가능성이 확인됨.
+- **결과**: 5,867개 오류 중 명확한 단서 444건, 단서 부족·모호 5,423건으로 분류됨.
+- **상태/후속**: 자동 분석은 검토 우선순위로만 사용하고 라벨 변경 전 수동 확인을 수행함.
+- **관련**: [`m3_error_analysis_summary.json`](../reports/mission3/m3_error_analysis_summary.json).
 
 ## 2026-09-27 — [M2] L2(CNN) 제출 차단 문제 해결 시도 — 별도 브랜치의 CNN 경로 (main 미병합, 공식 검증은 아직)
 

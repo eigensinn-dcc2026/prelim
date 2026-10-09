@@ -1,0 +1,24 @@
+{
+  "experiment_id": "M3-HARDNEG-001",
+  "date": "2026-10-03",
+  "evaluation": {
+    "dataset": "official Validation",
+    "num_samples": 3640,
+    "macro_f1": 0.6185380297,
+    "micro_f1": 0.6377738996,
+    "fp": 1789,
+    "fn": 1947
+  },
+  "comparison_reference": {
+    "macro_f1": 0.5709,
+    "fp": 4426,
+    "fn": 1441
+  },
+  "training_summary": {
+    "model": "klue/roberta-large",
+    "hard_negative_symptoms": ["오심", "전신쇠약", "호흡곤란"],
+    "hard_negative_oversample": 2.0
+  },
+  "interpretation": "False positives decreased, while false negatives increased and nausea recall declined.",
+  "caveat": "This file summarizes report inputs. The original Colab official_validation_metrics.json and training log were not available locally for independent verification."
+}

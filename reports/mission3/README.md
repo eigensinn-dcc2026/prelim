@@ -9,6 +9,9 @@
 | `m3_turn_chunk_validation_metrics.json` | 발화 턴 청크의 공식 Validation 지표 | 기계 판독 JSON |
 | `m3_weighted_diagnosis_sources.json` | 강한 가중치 모델 결과를 정리한 출처 기록 | 화면 결과 전사·추가 확인 필요 |
 | `m3_threshold_comparison.json` | 임계값 변경 전후 증상별 지표 | 선택 임계값 배열 미보존 |
+| `m3_error_analysis_summary.json` | 공식 Validation 오답의 전사 단서 분류 요약 | 가공 요약·상세 전사 미포함 |
+| `m3_hardnegative_validation_summary.json` | hard-negative 모델의 공식 Validation 지표와 이전 실행 비교 | 보고용 집계·원본 실행 로그 추가 확인 필요 |
+| `m3_role_official_validation_metrics.json` | 역할 토큰 비교 후 최종 모델의 공식 Validation 지표 | 실행 화면 전사·원본 JSON 추가 확인 필요 |
 
 가중치 및 임계값 관련 파일은 실험을 수행했다는 근거로 보존하지만, 누락된 원본 결과와 설정을 확인하기 전까지 최종 성능 근거로 사용하지 않습니다.
 
