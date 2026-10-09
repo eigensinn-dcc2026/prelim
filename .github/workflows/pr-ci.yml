@@ -107,7 +107,14 @@ jobs:
         working-directory: candidate
         run: |
           cp -R ../trusted/tests .merge-gate-baseline-tests
-          python -m pytest .merge-gate-baseline-tests -q --disable-warnings
+          # Exemptions come from the trusted main config, so a PR cannot exempt its own tests.
+          if [ -f ../trusted/scripts/merge_gate_baseline.py ]; then
+            python ../trusted/scripts/merge_gate_baseline.py \
+              --config ../trusted/.github/merge-gate.json \
+              --tests-dir .merge-gate-baseline-tests
+          else
+            python -m pytest .merge-gate-baseline-tests -q --disable-warnings
+          fi
 
       - name: Report documentation-only change
         if: steps.scope.outputs.tests_required != 'true'
