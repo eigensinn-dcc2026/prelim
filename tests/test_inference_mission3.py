@@ -34,8 +34,9 @@ SYMPTOMS = [
 ]
 
 
-def test_binarize_has_no_post_processing():
-    """Organizer ruling 2026-10-09: rows all below 0.5 stay empty (no argmax fill)."""
+def test_apply_min1_cases():
+    """The min-1 rule is gone (organizer ruling 2026-10-09): rows all below 0.5 stay
+    empty, no argmax fill. Name kept because the PR policy forbids renaming tests."""
 
     probabilities = np.array(
         [
