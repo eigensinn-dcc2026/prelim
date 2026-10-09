@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-10-10 — [공통] 제출은 Mission별 폴더 3개 + PPT 1개, 폴더마다 inference.py 1회 실행 (주최 측 답변)
+
+- **답변 요지**: Mission별 코드 폴더 3개와 pptx 1개로 제출한다. 각 폴더의 `inference.py`를 한 번 실행하면 결과가 나와야 한다. tokenizer·config·weight는 제출물에 포함하고 인터넷 다운로드 없이 실행되어야 한다. `requirements.txt`로 실행 환경을 재현할 수 있어야 하고, 학습 과정과 주요 결과는 ipynb 또는 PPT에 정리한다. 가중치 용량·추론 시간 제한은 언급이 없다. 계산 효율 정보(파라미터 수, 컴퓨팅 환경, Validation 추론 batch size·시간) 명시를 권장한다.
+- **결정**: 저장소 루트의 통합 `inference.py`는 개발용으로 두고, 제출용으로 `submission/mission{N}/` 폴더를 따로 만든다. M3부터 시작하고 M1·M2 담당자도 같은 구조(`inference.py`, 모델 코드, `requirements.txt`, 학습 ipynb, ckpt)로 맞춘다.
+- **이유**: 지금 구조는 루트 `inference.py` 하나가 세 Mission을 나눠 처리해서 "Mission별 폴더" 요건과 맞지 않는다.
+- **후속**: ① M3 폴더 완성·새 환경 검증 ② 최종 학습을 ipynb로 실행해 로그 남기기 ③ Mission별 `requirements.txt` 버전 고정(M3는 완료) ④ M1·M2 폴더. M3 계산 효율 값은 `submission/mission3/README.md`.
+- **근거**: `docs/submission_format.md`의 「주최 측 답변 (2026-10-10)」.
+
+---
+
 ## 2026-10-09 — [M3] KcBERT R-Drop 일관성 정규화(M3-KCBERT-011) 기각
 
 - **결정**: R-Drop(대칭 KL 일관성 손실)은 채택하지 않는다. KCBERT-005 단일 모델을 유지한다.
