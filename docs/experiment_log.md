@@ -163,6 +163,7 @@
 | M3-REEVAL-P1~P3 | 2026-10-05 | P1 KcBERT 앞 256 / P2 token vs turn 청크 동일조건 대조 / P3 완화 가중 BCE | 후보 정의만 있음, 미실행 | 후보(P0 이후) | |
 | M3-ROBERTA-002 | 2026-10-09 | 재평가: klue/roberta-large 앞 256토큰 + 강화 가중 BCE(pos_weight clip 1~6), ROBERTA-001과 손실 가중만 다름, 80:20 동일 분할, threshold=0.5, seed 42/43/44, T4 | 1차 실행 budget_hours 5h 초과로 중단(301분). 완료분: seed 42 Macro F1 0.6271, seed 43 0.6218, seed 44 epoch 2 0.6218(epoch 3 직전 중단). 학습 붕괴 없음 | 재시도(예산 6h로 늘려 이어가기, 최종 판정은 3-seed 평균 후) | 실험 결과 `dcc-lab` `results/M3-ROBERTA-002/` |
 | M3-ROBERTA-002 (재시도) | 2026-10-09 | 위와 동일 설정, 완료 seed·ckpt_last 이어가기 (budget 6h) | 3-seed 평균 Macro F1 **0.6241**(0.6271/0.6218/0.6235; ROBERTA-001 0.6113 대비 +0.0128), Micro F1 0.6526. 오심 F1 0.258, 두통 0.516, 전신쇠약 0.556. 학습 붕괴 없음. 소요 42.9분 | 채택(성공 기준 충족: +0.01 이상, 3 seed 모두 기준 초과). KCBERT-012(0.6265)와는 seed 편차 범위 내. 공식 Val 확인 전 | 코드 PR #86, 실험 결과 `dcc-lab` `results/M3-ROBERTA-002/metrics.json` |
+| M3-ROBERTA-003 | 2026-10-10 | klue/roberta-large 앞 256토큰 + 강화 가중 BCE + soft macro-F1 손실(가중치 1.0), ROBERTA-002와 손실만 다름, 80:20 동일 분할, threshold=0.5, seed 42/43/44, T4 | 1차 실행 budget_hours 3h 초과로 중단(182분). 완료분: seed 42 Macro F1 0.6441, seed 43 0.6404 (ROBERTA-002 0.6241 초과), seed 44 epoch 1 0.6333(epoch 2 도중 중단). 학습 붕괴 없음 | 재시도(예산 4h로 늘려 seed 44 이어가기, 최종 판정은 3-seed 평균 후) | 실험 결과 `dcc-lab` `results/M3-ROBERTA-003/` |
 
 > 최초 KcBERT의 0.5861은 Training **90:10 내부 검증** 결과이고, 청크 모델의 0.5496/0.5365는
 > **공식 Validation** 결과이므로 점수만으로 직접 우열을 판단하지 않습니다.
