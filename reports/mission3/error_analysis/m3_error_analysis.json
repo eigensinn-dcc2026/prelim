@@ -1,0 +1,545 @@
+{
+ "per_symptom": {
+  "고열": {
+   "support": 1037,
+   "prevalence": 0.179,
+   "precision": 0.568,
+   "recall": 0.637,
+   "f1": 0.601,
+   "kw_rate_in_pos": 0.53,
+   "kw_rate_in_pos_caller": 0.436,
+   "kw_rate_in_neg": 0.158,
+   "label_given_kw": 0.422,
+   "fn_without_kw": 0.809,
+   "fp_top_true": [
+    [
+     "전신쇠약",
+     187
+    ],
+    [
+     "호흡곤란",
+     129
+    ],
+    [
+     "구토",
+     89
+    ],
+    [
+     "복통",
+     88
+    ]
+   ],
+   "fn_top_pred_instead": [
+    [
+     "전신쇠약",
+     86
+    ],
+    [
+     "어지러움",
+     58
+    ],
+    [
+     "구토",
+     53
+    ],
+    [
+     "오심",
+     44
+    ]
+   ]
+  },
+  "구토": {
+   "support": 893,
+   "prevalence": 0.154,
+   "precision": 0.454,
+   "recall": 0.523,
+   "f1": 0.486,
+   "kw_rate_in_pos": 0.512,
+   "kw_rate_in_pos_caller": 0.486,
+   "kw_rate_in_neg": 0.042,
+   "label_given_kw": 0.688,
+   "fn_without_kw": 0.817,
+   "fp_top_true": [
+    [
+     "복통",
+     223
+    ],
+    [
+     "어지러움",
+     186
+    ],
+    [
+     "오심",
+     94
+    ],
+    [
+     "고열",
+     91
+    ]
+   ],
+   "fn_top_pred_instead": [
+    [
+     "전신쇠약",
+     94
+    ],
+    [
+     "오심",
+     57
+    ],
+    [
+     "고열",
+     52
+    ],
+    [
+     "어지러움",
+     52
+    ]
+   ]
+  },
+  "두통": {
+   "support": 581,
+   "prevalence": 0.1,
+   "precision": 0.397,
+   "recall": 0.422,
+   "f1": 0.409,
+   "kw_rate_in_pos": 0.363,
+   "kw_rate_in_pos_caller": 0.329,
+   "kw_rate_in_neg": 0.019,
+   "label_given_kw": 0.676,
+   "fn_without_kw": 0.887,
+   "fp_top_true": [
+    [
+     "어지러움",
+     162
+    ],
+    [
+     "열상",
+     87
+    ],
+    [
+     "오심",
+     60
+    ],
+    [
+     "복통",
+     51
+    ]
+   ],
+   "fn_top_pred_instead": [
+    [
+     "어지러움",
+     68
+    ],
+    [
+     "전신쇠약",
+     66
+    ],
+    [
+     "오심",
+     40
+    ],
+    [
+     "열상",
+     39
+    ]
+   ]
+  },
+  "복통": {
+   "support": 1354,
+   "prevalence": 0.234,
+   "precision": 0.783,
+   "recall": 0.694,
+   "f1": 0.736,
+   "kw_rate_in_pos": 0.581,
+   "kw_rate_in_pos_caller": 0.506,
+   "kw_rate_in_neg": 0.024,
+   "label_given_kw": 0.88,
+   "fn_without_kw": 0.901,
+   "fp_top_true": [
+    [
+     "어지러움",
+     82
+    ],
+    [
+     "구토",
+     75
+    ],
+    [
+     "오심",
+     61
+    ],
+    [
+     "전신쇠약",
+     60
+    ]
+   ],
+   "fn_top_pred_instead": [
+    [
+     "전신쇠약",
+     110
+    ],
+    [
+     "어지러움",
+     88
+    ],
+    [
+     "오심",
+     76
+    ],
+    [
+     "고열",
+     47
+    ]
+   ]
+  },
+  "어지러움": {
+   "support": 1267,
+   "prevalence": 0.219,
+   "precision": 0.577,
+   "recall": 0.639,
+   "f1": 0.607,
+   "kw_rate_in_pos": 0.51,
+   "kw_rate_in_pos_caller": 0.486,
+   "kw_rate_in_neg": 0.043,
+   "label_given_kw": 0.769,
+   "fn_without_kw": 0.84,
+   "fp_top_true": [
+    [
+     "전신쇠약",
+     178
+    ],
+    [
+     "복통",
+     133
+    ],
+    [
+     "구토",
+     130
+    ],
+    [
+     "두통",
+     125
+    ]
+   ],
+   "fn_top_pred_instead": [
+    [
+     "전신쇠약",
+     94
+    ],
+    [
+     "호흡곤란",
+     56
+    ],
+    [
+     "두통",
+     55
+    ],
+    [
+     "열상",
+     55
+    ]
+   ]
+  },
+  "열상": {
+   "support": 693,
+   "prevalence": 0.12,
+   "precision": 0.733,
+   "recall": 0.89,
+   "f1": 0.804,
+   "kw_rate_in_pos": 0.623,
+   "kw_rate_in_pos_caller": 0.566,
+   "kw_rate_in_neg": 0.036,
+   "label_given_kw": 0.702,
+   "fn_without_kw": 0.803,
+   "fp_top_true": [
+    [
+     "어지러움",
+     87
+    ],
+    [
+     "두통",
+     65
+    ],
+    [
+     "전신쇠약",
+     49
+    ],
+    [
+     "오심",
+     23
+    ]
+   ],
+   "fn_top_pred_instead": [
+    [
+     "어지러움",
+     14
+    ],
+    [
+     "전신쇠약",
+     13
+    ],
+    [
+     "오심",
+     8
+    ],
+    [
+     "호흡곤란",
+     6
+    ]
+   ]
+  },
+  "오심": {
+   "support": 668,
+   "prevalence": 0.115,
+   "precision": 0.259,
+   "recall": 0.394,
+   "f1": 0.312,
+   "kw_rate_in_pos": 0.114,
+   "kw_rate_in_pos_caller": 0.1,
+   "kw_rate_in_neg": 0.019,
+   "label_given_kw": 0.444,
+   "fn_without_kw": 0.941,
+   "fp_top_true": [
+    [
+     "어지러움",
+     299
+    ],
+    [
+     "복통",
+     250
+    ],
+    [
+     "구토",
+     231
+    ],
+    [
+     "전신쇠약",
+     98
+    ]
+   ],
+   "fn_top_pred_instead": [
+    [
+     "전신쇠약",
+     77
+    ],
+    [
+     "고열",
+     42
+    ],
+    [
+     "어지러움",
+     38
+    ],
+    [
+     "호흡곤란",
+     36
+    ]
+   ]
+  },
+  "전신쇠약": {
+   "support": 1062,
+   "prevalence": 0.183,
+   "precision": 0.444,
+   "recall": 0.636,
+   "f1": 0.523,
+   "kw_rate_in_pos": 0.243,
+   "kw_rate_in_pos_caller": 0.172,
+   "kw_rate_in_neg": 0.041,
+   "label_given_kw": 0.572,
+   "fn_without_kw": 0.938,
+   "fp_top_true": [
+    [
+     "어지러움",
+     249
+    ],
+    [
+     "고열",
+     218
+    ],
+    [
+     "호흡곤란",
+     190
+    ],
+    [
+     "구토",
+     154
+    ]
+   ],
+   "fn_top_pred_instead": [
+    [
+     "어지러움",
+     73
+    ],
+    [
+     "오심",
+     57
+    ],
+    [
+     "호흡곤란",
+     56
+    ],
+    [
+     "고열",
+     55
+    ]
+   ]
+  },
+  "호흡곤란": {
+   "support": 785,
+   "prevalence": 0.136,
+   "precision": 0.576,
+   "recall": 0.697,
+   "f1": 0.631,
+   "kw_rate_in_pos": 0.704,
+   "kw_rate_in_pos_caller": 0.633,
+   "kw_rate_in_neg": 0.168,
+   "label_given_kw": 0.396,
+   "fn_without_kw": 0.676,
+   "fp_top_true": [
+    [
+     "전신쇠약",
+     164
+    ],
+    [
+     "고열",
+     107
+    ],
+    [
+     "어지러움",
+     86
+    ],
+    [
+     "복통",
+     61
+    ]
+   ],
+   "fn_top_pred_instead": [
+    [
+     "전신쇠약",
+     65
+    ],
+    [
+     "어지러움",
+     41
+    ],
+    [
+     "고열",
+     36
+    ],
+    [
+     "오심",
+     31
+    ]
+   ]
+  }
+ },
+ "pair": {
+  "오심만": 403,
+  "구토만": 628,
+  "둘다": 265,
+  "오심라벨_구토표현만": 175,
+  "오심라벨_표현둘다없음": 417,
+  "메스꺼움표현있음_오심라벨없음": 95,
+  "메스꺼움표현있음_전체": 171,
+  "두통라벨_신고자발화에만표현없음(상담원만)": 18,
+  "두통라벨_표현없음": 370
+ },
+ "non_target_labels": [
+  [
+   "기타",
+   700
+  ],
+  [
+   "기타통증",
+   499
+  ],
+  [
+   "설사",
+   319
+  ],
+  [
+   "기침",
+   210
+  ],
+  [
+   "의식장애",
+   153
+  ],
+  [
+   "그 밖의출혈",
+   139
+  ],
+  [
+   "찰과상",
+   137
+  ],
+  [
+   "실신",
+   112
+  ],
+  [
+   "흉통",
+   103
+  ],
+  [
+   "타박상",
+   97
+  ]
+ ],
+ "recall_by_evidence": {
+  "고열": {
+   "recall_with_evidence": 0.869,
+   "n_with": 550,
+   "recall_without": 0.376,
+   "n_without": 487
+  },
+  "구토": {
+   "recall_with_evidence": 0.829,
+   "n_with": 457,
+   "recall_without": 0.202,
+   "n_without": 436
+  },
+  "두통": {
+   "recall_with_evidence": 0.82,
+   "n_with": 211,
+   "recall_without": 0.195,
+   "n_without": 370
+  },
+  "복통": {
+   "recall_with_evidence": 0.948,
+   "n_with": 786,
+   "recall_without": 0.343,
+   "n_without": 568
+  },
+  "어지러움": {
+   "recall_with_evidence": 0.887,
+   "n_with": 646,
+   "recall_without": 0.382,
+   "n_without": 621
+  },
+  "열상": {
+   "recall_with_evidence": 0.965,
+   "n_with": 432,
+   "recall_without": 0.766,
+   "n_without": 261
+  },
+  "오심": {
+   "recall_with_evidence": 0.684,
+   "n_with": 76,
+   "recall_without": 0.356,
+   "n_without": 592
+  },
+  "전신쇠약": {
+   "recall_with_evidence": 0.907,
+   "n_with": 258,
+   "recall_without": 0.549,
+   "n_without": 804
+  },
+  "호흡곤란": {
+   "recall_with_evidence": 0.861,
+   "n_with": 553,
+   "recall_without": 0.306,
+   "n_without": 232
+  }
+ }
+}
