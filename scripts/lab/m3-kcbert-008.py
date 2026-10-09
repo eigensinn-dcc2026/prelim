@@ -158,17 +158,26 @@ def chunk_windows(content_ids, special_tokens=2):
     return windows
 
 
+def encode_call(text, tokenizer):
+    """Use only the wrapper's callable interface and special-token IDs."""
+    cls_id, sep_id, pad_id = (tokenizer.cls_token_id, tokenizer.sep_token_id,
+                              tokenizer.pad_token_id)
+    if any(token_id is None for token_id in (cls_id, sep_id, pad_id)):
+        raise ValueError("KcBERT tokenizer requires CLS, SEP and PAD token IDs")
+    content = tokenizer(text, add_special_tokens=False, truncation=False)["input_ids"]
+    for window in chunk_windows(content):
+        ids = [cls_id] + list(window) + [sep_id]
+        padding = CONFIG["max_length"] - len(ids)
+        yield ids + [pad_id] * padding, [1] * len(ids) + [0] * padding
+
+
 def tokenize_calls(rows, tokenizer):
     import torch
     ids, masks, offsets = [], [], [0]
     for row in rows:
-        content = tokenizer(row["text"], add_special_tokens=False, truncation=False)["input_ids"]
-        for window in chunk_windows(content, tokenizer.num_special_tokens_to_add(pair=False)):
-            encoded = tokenizer.prepare_for_model(window, add_special_tokens=True,
-                                                   padding="max_length", max_length=256,
-                                                   return_attention_mask=True)
-            ids.append(encoded["input_ids"])
-            masks.append(encoded["attention_mask"])
+        for input_ids, attention_mask in encode_call(row["text"], tokenizer):
+            ids.append(input_ids)
+            masks.append(attention_mask)
         offsets.append(len(ids))
     return dict(input_ids=torch.tensor(ids, dtype=torch.long),
                 attention_mask=torch.tensor(masks, dtype=torch.long),
@@ -329,12 +338,32 @@ def smoke():
     assert [w[0] for w in windows] == [0, 128, 256]
     assert windows[0][128:] == windows[1][:126]
     assert windows[-1][-1] == 509
+    # Colab wrappers need not expose prepare_for_model, pad, or special-token
+    # builder methods. Exercise the same encoding path used by token caching.
+    class WrapperTokenizer:
+        cls_token_id, sep_token_id, pad_token_id = 101, 102, 0
+
+        def __call__(self, text, *, add_special_tokens, truncation):
+            assert not add_special_tokens and not truncation
+            return {"input_ids": list(range(1000, 1000 + int(text)))}
+
+    tokenizer = WrapperTokenizer()
+    for length in (0, 1, 254, 255, 382, 383, 1000):
+        encoded = list(encode_call(str(length), tokenizer))
+        expected = chunk_windows(list(range(1000, 1000 + length)))
+        assert len(encoded) == len(expected)
+        for (ids, mask), window in zip(encoded, expected):
+            active = len(window) + 2
+            assert len(ids) == len(mask) == 256
+            assert ids[:active] == [101] + window + [102]
+            assert ids[active:] == [0] * (256 - active)
+            assert mask == [1] * active + [0] * (256 - active)
     with tempfile.TemporaryDirectory() as name:
         p = Path(name) / "check.json"
         write_json(p, {"exp_id": EXP_ID})
         assert json.loads(p.read_text())["exp_id"] == EXP_ID
         assert list(p.parent.iterdir()) == [p]
-    print("smoke OK: window boundaries, overlap, cap, weight formula, text whitelist, atomic writes; no training")
+    print("smoke OK: wrapper-compatible special tokens, padding/masks, window boundaries, overlap, cap, weight formula, text whitelist, atomic writes; no training")
 
 
 def main():
