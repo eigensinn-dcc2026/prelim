@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-10-09 — [M3] klue/roberta-large 인코더(M3-ROBERTA-001) 채택
+
+- **결정**: klue/roberta-large 앞 256토큰 + 완화 가중 BCE 설정을 채택 후보로 인정하고 코드 PR #74를 `lab-adopted`로 둔다.
+- **이유**: 동일 분할·threshold 0.5에서 3-seed 평균 Macro F1 0.6113으로 기준 KCBERT-003(0.5990) 대비 +0.0123, 3개 seed 모두 기준 초과(seed 편차 ±0.002). 다만 KCBERT-005(0.6092), KLUEBERT-001(0.6145)과는 사실상 동급이고 오심 F1은 0.175로 여전히 약하다.
+- **후속**: ckpt 약 1.3GB라 제출 용량을 확인한다. 인코더 교체 단독 변형은 재제안하지 않고 오심·두통 개선에 집중한다. 근거: `docs/experiment_log.md` M3-ROBERTA-001 행.
+
+---
+
 ## 2026-10-09 — [M3] klue/bert-base 인코더 교체(M3-KLUEBERT-001) 기각
 
 - **결정**: 인코더를 klue/bert-base로 바꾸는 방식은 채택하지 않는다. KCBERT-005 단일 모델을 유지한다. 코드 PR #82는 닫는다.
