@@ -41,6 +41,7 @@
 | M1-EXP-001-val 파생 | 2026-09-10 | 정확도가 얼마나 믿을만한지 확인하는 통계 방법(부트스트랩)으로 95% 신뢰구간 계산, 10,000번 반복, seed=42 | GBM [94.20, 95.60] / LR [94.40, 95.82] | 정확도 수치의 신뢰도 확인용 | [`m1_val_bootstrap_ci.json`](../reports/mission1/m1_val_bootstrap_ci.json) |
 | M1-VAL-ERR-001 | 2026-09-10 | 어떤 경우에 틀리는지 분석(발화 길이 / 목소리 겹침 / 피처 분포별) | 상세 결과는 보고서 참조 | 일단 마무리 | [`m1_val_error_analysis.json`](../reports/mission1/m1_val_error_analysis.json), [`M1_error_analysis_report.md`](../reports/mission1/M1_error_analysis_report.md) |
 | M1-INF-001 | 2026-10-05 | 제출용 CLI 추론(`scripts/mission1_inference.py`): WAV+JSON → speaker=1 구간 52D → LR → CSV(`audio file name`, `gender`). 새 학습 없음 | 구현 완료. 스모크(헤더·행 수·UTF-8)는 미확인 | 제출 점검 진행 중 | [`m1_submission_checklist.md`](../reports/mission1/m1_submission_checklist.md) |
+| M1-XVEC-001 | 2026-10-10 | WavLM-base-plus-sv x-vector(신고자 구간 앞 20초, 512차원)를 52D 특징에 붙여 LR 학습. 학습 데이터를 8:2로 나눠 내부 확인(통화 단위, seed=42), 공식 Val 미사용 | 결합 LR 97.38% / x-vector 단독 97.07% / 52D 단독 95.02% (결합 +2.36%p, McNemar p=3.5e-20). 단일 seed, 소요 73.6분 | 채택 (제출 후보 판단은 공식 Val 예산 안에서 별도 진행) | [`results/M1-XVEC-001`](https://github.com/sooyahh/dcc-lab/tree/main/results/M1-XVEC-001) |
 
 ## Mission 2 — 신고자/119대원 분류 (Accuracy)
 

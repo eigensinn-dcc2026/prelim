@@ -15,6 +15,12 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-10 — [M1] x-vector + 52D 음향 특징 결합 LR(M1-XVEC-001) 채택
+
+- **결정**: 채택. 내부 홀드아웃 정확도 0.9738로 52D 단독 LR(0.9502) 대비 +2.36%p, 성공 기준(+1.0%p) 충족.
+- **이유**: 같은 분할 paired McNemar p=3.5e-20, 남녀 recall 모두 개선. 공식 Val 미사용, Training 서울만 사용, 규정 위반 없음. x-vector 단독(0.9707)도 크게 앞서 개선 대부분이 x-vector에서 나온다.
+- **후속**: 공식 Validation 확인 전이므로 제출 후보 판단은 공식 Val 예산 안에서 별도 진행. 제출 추론에는 x-vector 모델 로컬 경로와 추론 시간 확인 필요. 코드 PR #112는 병합 조건 충족 시 병합. 근거: `docs/experiment_log.md` M1-XVEC-001 행.
+
 
 ## 2026-10-10 — [M3] klue/roberta-large + soft macro-F1 손실(M3-ROBERTA-003) 채택
 
