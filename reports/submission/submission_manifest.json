@@ -1,0 +1,313 @@
+{
+  "status": "draft_missing_m2_artifacts",
+  "ready_for_final_submission": false,
+  "archive_name": "DCC2026_eigensinn_submission_DRAFT.zip",
+  "archive_bytes": 1504326624,
+  "archive_sha256": "4f237c448820a5e5c4439355584d4810bb4d3177cb7964fe4833689ee1c72d98",
+  "unpacked_bytes": 1757409697,
+  "files": [
+    {
+      "path": "DCC2026_예선_결과정리.pptx",
+      "bytes": 4684874,
+      "sha256": "e29a5f806a0de48d406e86dd74b64258b29a91b746e7a202d8f9326226baa6cd"
+    },
+    {
+      "path": "mission1/dcc_data/__init__.py",
+      "bytes": 224,
+      "sha256": "e9eb24d361066281dfa5fd719ad5f7beb75be5d4f65ded7a8545873e57288492"
+    },
+    {
+      "path": "mission1/dcc_data/audio.py",
+      "bytes": 3183,
+      "sha256": "0beb458ed6ddce148a5ee49f69f7b36cf0e3258d377284a914c16c45c68fb7ba"
+    },
+    {
+      "path": "mission1/dcc_data/colab_env.py",
+      "bytes": 4091,
+      "sha256": "1e7d18ff73bde93dfcd115f9407bee486ba41bf5a59aa9cced0f6dae5b0cbbe7"
+    },
+    {
+      "path": "mission1/dcc_data/guards.py",
+      "bytes": 4569,
+      "sha256": "f63a933b45f3619eeefdc1ac595c278bbc7bd1b24564b1d0388b5323eca0f300"
+    },
+    {
+      "path": "mission1/dcc_data/manifest.py",
+      "bytes": 5388,
+      "sha256": "fa3ddf20437d71119c123a1183356b3ed00d79958094f7bc746e74fe965e26e2"
+    },
+    {
+      "path": "mission1/dcc_data/mission1.py",
+      "bytes": 6146,
+      "sha256": "e0fc9d933da1d7f3cdbf4d28f1d96b3ae155b542ee5751f426581c8ff9006ca6"
+    },
+    {
+      "path": "mission1/dcc_data/mission1_features.py",
+      "bytes": 6068,
+      "sha256": "64a33986ac034ad558c660def2a0dce1fb5cf92663c7105c2b96e55cd2dd5f7b"
+    },
+    {
+      "path": "mission1/dcc_data/mission1_train.py",
+      "bytes": 9934,
+      "sha256": "586f5374d75a0cfa51d8fc305d6f1525810baca31386cebad9456cb2ad500fdf"
+    },
+    {
+      "path": "mission1/dcc_data/mission2.py",
+      "bytes": 4320,
+      "sha256": "95201a2fbc3ee325e499d57df216044b930466ea02981980994a2d10ee8a0c7d"
+    },
+    {
+      "path": "mission1/dcc_data/mission2_features.py",
+      "bytes": 23704,
+      "sha256": "90dac6c87581a24db0982da1492b3ec84ed88c8626b6031b72c05082126e4af0"
+    },
+    {
+      "path": "mission1/dcc_data/mission2_train.py",
+      "bytes": 7768,
+      "sha256": "63f62786fc8aa251df02a3b77be4ae6a7e21e0c184ee7e22a82d321fa4389d07"
+    },
+    {
+      "path": "mission1/inference.py",
+      "bytes": 1227,
+      "sha256": "8b459c4170c22ce1a292c368c9a3a71038c9ef2005ba49a4fc470f53a78a7ce4"
+    },
+    {
+      "path": "mission1/m1_xvec001_combined.ckpt",
+      "bytes": 19393,
+      "sha256": "4fffb8aa97c2f3083b05820ca45b84ecddbc60c5162e02961546f37d133dd9d5"
+    },
+    {
+      "path": "mission1/mission1_model.py",
+      "bytes": 4145,
+      "sha256": "1e90b6238376fd8ea8e60443b4cc403e66eea98e4cfba7133340a2a1f188d610"
+    },
+    {
+      "path": "mission1/README.md",
+      "bytes": 1958,
+      "sha256": "1543e6f6cf490e63824c764bca5d83e5a35cb9db4c9913ff2105d086d3186e3e"
+    },
+    {
+      "path": "mission1/requirements.txt",
+      "bytes": 173,
+      "sha256": "8e86f600d9b335b8598de13ad555be64882b366c327b6b10675f36dfd84cfbeb"
+    },
+    {
+      "path": "mission1/training.ipynb",
+      "bytes": 26457,
+      "sha256": "7d318e6cf599f564c65d5a8df74c643e8dd68a2e33d684c8381952d61e1bf4b6"
+    },
+    {
+      "path": "mission1/training_requirements.txt",
+      "bytes": 44,
+      "sha256": "3d00f1cc8ee2d9a5e7acfca780c2ee2c7ea0735af391923a6ecdf9accdeb570e"
+    },
+    {
+      "path": "mission1/xvector-model/config.json",
+      "bytes": 58639,
+      "sha256": "c6ac8c0ce55b18d4612677931036fe5ce78093e87361c552a173f00a0bb07514"
+    },
+    {
+      "path": "mission1/xvector-model/dcc_revision.json",
+      "bytes": 105,
+      "sha256": "475344e555f19caee31c0c77d4feba21583370a6f7cd139d0c32ce2be0ce76dd"
+    },
+    {
+      "path": "mission1/xvector-model/model.safetensors",
+      "bytes": 404479908,
+      "sha256": "94c3defe08248d81c7b2bd0a058ea9985269cefed13076434669c47fade41182"
+    },
+    {
+      "path": "mission1/xvector-model/preprocessor_config.json",
+      "bytes": 215,
+      "sha256": "99272fe8ccfab114b68b478681ea47ee3a1ce62bb788cb92dd6e4f69fb1f1da2"
+    },
+    {
+      "path": "mission2/dcc_data/__init__.py",
+      "bytes": 224,
+      "sha256": "e9eb24d361066281dfa5fd719ad5f7beb75be5d4f65ded7a8545873e57288492"
+    },
+    {
+      "path": "mission2/dcc_data/audio.py",
+      "bytes": 3183,
+      "sha256": "0beb458ed6ddce148a5ee49f69f7b36cf0e3258d377284a914c16c45c68fb7ba"
+    },
+    {
+      "path": "mission2/dcc_data/guards.py",
+      "bytes": 4569,
+      "sha256": "f63a933b45f3619eeefdc1ac595c278bbc7bd1b24564b1d0388b5323eca0f300"
+    },
+    {
+      "path": "mission2/dcc_data/manifest.py",
+      "bytes": 5388,
+      "sha256": "fa3ddf20437d71119c123a1183356b3ed00d79958094f7bc746e74fe965e26e2"
+    },
+    {
+      "path": "mission2/dcc_data/mission2.py",
+      "bytes": 4320,
+      "sha256": "95201a2fbc3ee325e499d57df216044b930466ea02981980994a2d10ee8a0c7d"
+    },
+    {
+      "path": "mission2/dcc_data/mission2_checkpoint.py",
+      "bytes": 13471,
+      "sha256": "619d779719b12192640e54f6268b72a8b1c8ae7ede69cd12196fc876754dc474"
+    },
+    {
+      "path": "mission2/dcc_data/mission2_cnn.py",
+      "bytes": 19967,
+      "sha256": "e71f2e4625f9014c1b4ab419addb3eda5e03310f9a8f78d87a3b286a1fa4498e"
+    },
+    {
+      "path": "mission2/dcc_data/mission2_features.py",
+      "bytes": 23704,
+      "sha256": "90dac6c87581a24db0982da1492b3ec84ed88c8626b6031b72c05082126e4af0"
+    },
+    {
+      "path": "mission2/dcc_data/mission2_spectrogram.py",
+      "bytes": 15061,
+      "sha256": "7e4b71b95960a4c8a65ed91a800d5835ab9b0e64205f32bfb5e2f3456bb0f6b8"
+    },
+    {
+      "path": "mission2/dcc_data/mission2_train.py",
+      "bytes": 7768,
+      "sha256": "63f62786fc8aa251df02a3b77be4ae6a7e21e0c184ee7e22a82d321fa4389d07"
+    },
+    {
+      "path": "mission2/inference.py",
+      "bytes": 999,
+      "sha256": "dc21e3700add189525f80fb6973e6fc1187967a6f223db6ede9a7ca4196e800a"
+    },
+    {
+      "path": "mission2/mission2_model.py",
+      "bytes": 10718,
+      "sha256": "7e8ec2a2843dcd215b94e3ea3ddafaec4607674719d4b05628391241c0c3ce2b"
+    },
+    {
+      "path": "mission2/mission2_pipeline.py",
+      "bytes": 17059,
+      "sha256": "39b4ae69ee5c32f7e0f1204b70b5244b8e4fc338b48055a4c48fb3adba83fce5"
+    },
+    {
+      "path": "mission2/pack_ensemble.py",
+      "bytes": 3780,
+      "sha256": "d97b0505b87eab84ff6c28e126b5e712b31393b8cd4e58c7aa98afdbd6c41e6b"
+    },
+    {
+      "path": "mission2/README.md",
+      "bytes": 2251,
+      "sha256": "f845ad09c2a6a473cf8eddc35967f4aa33120c0f3ec687615fd1f1932642b092"
+    },
+    {
+      "path": "mission2/requirements.txt",
+      "bytes": 148,
+      "sha256": "576065cc1c55a93b676e01519be0e0cf7b606c2cc9b880f7fcb0222144d78b65"
+    },
+    {
+      "path": "mission2/training_reference.ipynb",
+      "bytes": 63585,
+      "sha256": "e9b0ca1cf2ecc72d17c91574d30d7d73b09664a2e1a4c5672b10bc2b6919c700"
+    },
+    {
+      "path": "mission3/dcc_data/__init__.py",
+      "bytes": 224,
+      "sha256": "e9eb24d361066281dfa5fd719ad5f7beb75be5d4f65ded7a8545873e57288492"
+    },
+    {
+      "path": "mission3/dcc_data/colab_env.py",
+      "bytes": 4091,
+      "sha256": "1e7d18ff73bde93dfcd115f9407bee486ba41bf5a59aa9cced0f6dae5b0cbbe7"
+    },
+    {
+      "path": "mission3/dcc_data/guards.py",
+      "bytes": 4569,
+      "sha256": "f63a933b45f3619eeefdc1ac595c278bbc7bd1b24564b1d0388b5323eca0f300"
+    },
+    {
+      "path": "mission3/dcc_data/manifest.py",
+      "bytes": 5388,
+      "sha256": "fa3ddf20437d71119c123a1183356b3ed00d79958094f7bc746e74fe965e26e2"
+    },
+    {
+      "path": "mission3/inference.py",
+      "bytes": 2335,
+      "sha256": "0e7787386a9f03dab282187040de87b609caceb47cab85970f74bc565f04710a"
+    },
+    {
+      "path": "mission3/m3_roberta003_seed42.pt",
+      "bytes": 1347790829,
+      "sha256": "bbc0bd7a5f320df78bc20e59fc98827c6d9bb9367d23ac45367d7c2ff9a56e7e"
+    },
+    {
+      "path": "mission3/mission3_model.py",
+      "bytes": 4740,
+      "sha256": "cfe6139af86c6f7d639334626d029a7d12c29a0ba72398b900223a6faf25f96b"
+    },
+    {
+      "path": "mission3/README.md",
+      "bytes": 3574,
+      "sha256": "6927950d653132983adc84624a1a94b560719850bdd34fe72e666cb4917c6353"
+    },
+    {
+      "path": "mission3/requirements.txt",
+      "bytes": 145,
+      "sha256": "543243acd305a84db77a29b095a9bcd4cd799763e60344fff9d4ef6f78f983e2"
+    },
+    {
+      "path": "mission3/training.ipynb",
+      "bytes": 44978,
+      "sha256": "9f47cd9f5199add69131deadf92a0777245ec7545ef3e8cabcbf6160a5fa3e16"
+    },
+    {
+      "path": "mission3/training_requirements.txt",
+      "bytes": 96,
+      "sha256": "8c2435e1b44c9efcc1b0e5ab83439d05f4cb12acb8881a5f9960258894c0941c"
+    }
+  ],
+  "checks": {
+    "mission1": {
+      "status": "passed",
+      "rows": 2,
+      "elapsed_seconds": 138.4908002000302,
+      "allowed_inputs_only": true,
+      "matches_full_validation_csv": true,
+      "offline": true
+    },
+    "mission3": {
+      "status": "passed",
+      "rows": 2,
+      "elapsed_seconds": 120.31618429999799,
+      "allowed_inputs_only": true,
+      "matches_full_validation_csv": true,
+      "offline": true
+    },
+    "mission2": {
+      "status": "code_only_passed",
+      "rows": 67,
+      "random_test_weights": true,
+      "final_checkpoint_verified": false,
+      "allowed_inputs_only": true,
+      "fallback_rows": 0
+    }
+  },
+  "presentation": {
+    "slides": 19,
+    "sha256": "e29a5f806a0de48d406e86dd74b64258b29a91b746e7a202d8f9326226baa6cd",
+    "structural_checks": "passed",
+    "native_chart_workbooks": "passed",
+    "visual_review": "performed",
+    "layout_warnings": "four intentional index/title overlaps on contents slide 3",
+    "native_powerpoint_open_verified": false
+  },
+  "training_records": {
+    "m1_m3": "original training code and real lab completion records preserved as cited markdown; no fabricated code outputs",
+    "m2": "reference notebook only; selected run's executed notebook unavailable"
+  },
+  "missing": [
+    "M2-RERUN-001 selected 3-seed CNN checkpoint",
+    "M2-RERUN-001 executed training notebook/log"
+  ],
+  "fresh_environment_install_verified": false,
+  "archive_crc_verified": true,
+  "source_data_included": false,
+  "test_weights_included": false,
+  "uploaded": false
+}

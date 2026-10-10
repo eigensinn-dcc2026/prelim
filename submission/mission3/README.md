@@ -10,7 +10,7 @@
 | `mission3_model.py` | 모델 코드(RoBERTa 분류기, 체크포인트 로딩, 확률 계산) |
 | `requirements.txt` | 추론용 패키지, 버전 고정 |
 | `m3_roberta003_seed42.pt` | **최종 후보 가중치**, 1,347,790,829 bytes. Git 제외. SHA256 `bbc0bd7a5f320df78bc20e59fc98827c6d9bb9367d23ac45367d7c2ff9a56e7e` |
-| 학습 ipynb | 최종 학습 로그. 최종 설정 확정 후 추가 예정 |
+| `training.ipynb` | 실제 M3-ROBERTA-003 원본 학습 코드와 GPU 완료 작업의 seed별 학습 기록. 이번에 다시 학습한 노트북으로 표시하지 않음 |
 
 가중치에는 tokenizer·config 텍스트가 함께 들어 있어 **인터넷 없이** 실행됩니다.
 
@@ -29,7 +29,7 @@ python inference.py --audio_dir {wav folder} --label_dir {json folder} --ckpt_pa
 
 `M3-ROBERTA-003`(klue/roberta-large, 강화 가중 BCE + soft macro-F1, 앞 256토큰, seed 42, epoch 3)을 선택했다. 공식 Validation Macro F1 **0.6433**으로 KCBERT-005(0.6246) 대비 **+0.0187**, 채택 기준 +0.01을 넘는다. 3-seed 내부 평균 0.6427도 ROBERTA-002(0.6241)보다 +0.0186 높다. seed 42는 사전에 정한 대표 seed다.
 
-3모델 앙상블(공식 0.6510)은 이 단일 모델 대비 +0.0077로 추가 모델 채택 기준 +0.01에 못 미쳐 사용하지 않는다. threshold 0.5와 빈 예측 `[]` 처리도 유지한다. 이번 선택은 검증된 학습 체크포인트의 교체이며, 전체 Training 최종 재학습을 수행했다는 뜻은 아니다. 학습 ipynb와 최종 제출 전 새 환경 재현은 별도 준비 항목이다.
+3모델 앙상블(공식 0.6510)은 이 단일 모델 대비 +0.0077로 추가 모델 채택 기준 +0.01에 못 미쳐 사용하지 않는다. threshold 0.5와 빈 예측 `[]` 처리도 유지한다. 이번 선택은 검증된 학습 체크포인트의 교체이며, 전체 Training 최종 재학습을 수행했다는 뜻은 아니다. `training.ipynb`의 markdown에는 실제 완료 기록을 보존하고 코드 셀의 실행 출력은 비워 두었다. 원래 학습 환경과 Training 라벨 zip을 준비하면 재현할 수 있다. 추론용 requirements 외에 학습에는 scikit-learn도 필요하다. 별도 새 환경에 패키지를 처음 설치하는 검증은 남아 있다.
 
 근거: `reports/mission3/official_val/README.md`, `reports/mission3/ensemble/results/ensemble_multi_result.json`.
 
