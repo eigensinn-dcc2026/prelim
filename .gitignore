@@ -27,3 +27,8 @@ reports/mission2/m2_error_analysis_full.csv
 # PowerPoint lock files (created while a .pptx is open, never commit)
 ~$*.pptx
 ppt/node_modules/
+
+# Submission checkpoints are copied in at packaging time, never committed
+submission/**/*.pt
+submission/**/*.pth
+submission/**/*.ckpt
