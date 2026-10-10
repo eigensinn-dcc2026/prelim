@@ -18,11 +18,25 @@ from .mission3_context_experiment import digest, file_hash, metrics, write_json
 def validate_final(payload):
     source=payload.get("source",{})
     gate=source.get("internal_gate",{})
-    if (payload.get("format")!=context.FORMAT or payload.get("method") not in ("memory","evidence")
+    old=payload.get("format")==context.FORMAT and payload.get("method") in ("memory","evidence")
+    new=payload.get("format")=="dcc-m3-evidence-v2" and payload.get("mode") in ("head_tail","multi","states")
+    loss=payload.get("format")==baseline.FORMAT and source.get("kind") in ("bce","asl")
+    if (not (old or new or loss)
         or source.get("smoke",True) or source.get("training_rows")!=29200
         or source.get("representative_seed")!=42 or source.get("official_validation_used") is not False
         or not gate.get("passed") or not gate.get("checks") or not all(gate["checks"].values())):
         raise ValueError("Official evaluation requires a full Training seed42 candidate with a passed internal gate")
+    if (new or loss) and (not gate.get("contribution_checks") or not all(gate["contribution_checks"].values())):
+        raise ValueError("New information/loss must beat its matched controls")
+
+
+def candidate_probabilities(model,tokenizer,docs,names,batch_size):
+    if getattr(model,"checkpoint_format",None)=="dcc-m3-evidence-v2":
+        from dcc_inference.mission3_evidence import probabilities
+        return probabilities(model,tokenizer,docs,names,batch_size=batch_size)
+    if getattr(model,"requires_documents",False):
+        return context.probabilities(model,tokenizer,docs,names,batch_size=batch_size)
+    return baseline.probabilities(model,tokenizer,[baseline.transcript(doc) for doc in docs],batch_size=batch_size)
 
 
 def evaluate_official(checkpoint,label_dir,output,registry,device=None,batch_size=32,expected_rows=3640):
@@ -56,7 +70,7 @@ def evaluate_official(checkpoint,label_dir,output,registry,device=None,batch_siz
         with registry.open("x",encoding="utf-8") as stream:
             json.dump(dict(specification=specification,status="in_progress",output=str(output.resolve())),stream,indent=2)
     output.mkdir(parents=True,exist_ok=True)
-    model,tokenizer,_,_=context.load_payload(payload,device)
+    model,tokenizer,_,_=baseline.load_checkpoint(checkpoint,device)
     started=time.monotonic()
     predictions=[]
     for start in range(0,len(paths),batch_size):
@@ -68,7 +82,7 @@ def evaluate_official(checkpoint,label_dir,output,registry,device=None,batch_siz
                     raise ValueError("Official inference shard order changed")
                 probs=cached["probs"].copy()
         else:
-            probs=context.probabilities(model,tokenizer,docs[start:start+batch_size],chunk_names,batch_size=batch_size)
+            probs=candidate_probabilities(model,tokenizer,docs[start:start+batch_size],chunk_names,batch_size)
             np.savez_compressed(shard,names=chunk_names,probs=probs)
         if probs.shape!=(len(chunk_names),9) or not np.isfinite(probs).all():
             raise ValueError("Invalid official prediction shard")
@@ -100,14 +114,16 @@ def package_candidate(checkpoint,official_result,output,root):
     if output.exists() and any(output.iterdir()):
         raise ValueError("Use a new candidate directory; existing submission files are protected")
     output.mkdir(parents=True,exist_ok=True)
-    template=root/"submission"/"mission3_context"
+    legacy=payload.get("format")==context.FORMAT
+    template=root/"submission"/("mission3_context" if legacy else "mission3_evidence")
     for name in ("inference.py","requirements.txt","README.md"):
         shutil.copy2(template/name,output/name)
-    for name in ("mission3_bert.py","mission3_context.py"):
+    for name in (("mission3_bert.py","mission3_context.py") if legacy else ("mission3_bert.py","mission3_evidence.py")):
         shutil.copy2(root/"src"/"dcc_inference"/name,output/name)
+    if not legacy:shutil.copy2(root/"src"/"dcc_data"/"mission3_evidence_data.py",output/"mission3_evidence_data.py")
     shutil.copy2(checkpoint,output/"mission3.pt")
     shutil.copy2(official_result,output/"official_metrics.json")
     manifest={path.name:file_hash(path) for path in sorted(output.iterdir()) if path.is_file()}
-    write_json(output/"freeze.json",dict(method=payload["method"],seed=42,threshold=.5,
+    write_json(output/"freeze.json",dict(method=payload.get("method",payload.get("mode",payload.get("source",{}).get("kind"))),seed=42,threshold=.5,
                                        official_macro_f1=result["metrics"]["macro_f1"],files=manifest))
     return output

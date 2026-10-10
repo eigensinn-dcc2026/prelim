@@ -177,7 +177,10 @@ def predict(audio_dir: Path, label_dir: Path, ckpt_path: Path | None = None) -> 
         names = [json_path.name for json_path in json_paths]
         model, tokenizer, symptoms, max_length = mission3_bert.load_checkpoint(ckpt_path)
         if getattr(model, "requires_documents", False):
-            from .mission3_context import probabilities as context_probabilities
+            if getattr(model,"checkpoint_format",None)=="dcc-m3-evidence-v2":
+                from .mission3_evidence import probabilities as context_probabilities
+            else:
+                from .mission3_context import probabilities as context_probabilities
             documents = [json.loads(path.read_text(encoding="utf-8-sig")) for path in json_paths]
             probabilities = context_probabilities(model, tokenizer, documents, names, max_length)
         else:

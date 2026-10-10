@@ -1,0 +1,109 @@
+{
+  "rows": 29200,
+  "truncated_calls": 11642,
+  "token_quantiles": {
+    "0.5": 228.0,
+    "0.9": 395.0,
+    "0.95": 458.0,
+    "0.99": 587.0
+  },
+  "false_negative_lexical_location": {
+    "고열": {
+      "false_negative": 411,
+      "no_lexical_cue": 328,
+      "cue_only_after_front": 19,
+      "cue_in_front": 64
+    },
+    "구토": {
+      "false_negative": 397,
+      "no_lexical_cue": 380,
+      "cue_only_after_front": 7,
+      "cue_in_front": 10
+    },
+    "두통": {
+      "false_negative": 283,
+      "no_lexical_cue": 275,
+      "cue_only_after_front": 6,
+      "cue_in_front": 2
+    },
+    "복통": {
+      "false_negative": 334,
+      "no_lexical_cue": 320,
+      "cue_only_after_front": 7,
+      "cue_in_front": 7
+    },
+    "어지러움": {
+      "false_negative": 458,
+      "no_lexical_cue": 423,
+      "cue_only_after_front": 14,
+      "cue_in_front": 21
+    },
+    "열상": {
+      "false_negative": 58,
+      "no_lexical_cue": 49,
+      "cue_only_after_front": 4,
+      "cue_in_front": 5
+    },
+    "오심": {
+      "false_negative": 408,
+      "no_lexical_cue": 396,
+      "cue_only_after_front": 3,
+      "cue_in_front": 9
+    },
+    "전신쇠약": {
+      "false_negative": 457,
+      "no_lexical_cue": 430,
+      "cue_only_after_front": 4,
+      "cue_in_front": 23
+    },
+    "호흡곤란": {
+      "false_negative": 249,
+      "no_lexical_cue": 173,
+      "cue_only_after_front": 17,
+      "cue_in_front": 59
+    }
+  },
+  "state_order": [
+    "positive",
+    "negative",
+    "unknown"
+  ],
+  "caveat": "Rules are weak supervision, not manual evidence labels. No holdout states are used for training.",
+  "weak_state_counts_omitted_reason": "Initial rules were revised after Training-only audit; regenerate counts in the full run.",
+  "provenance": {
+    "base_checkpoint_sha256": "bbc0bd7a5f320df78bc20e59fc98827c6d9bb9367d23ac45367d7c2ff9a56e7e",
+    "rows_sha256": "d2b1c79e9a5f9781d9c9bcefd70873f50c9afafca64e2fc888d62ccbea659ca6",
+    "split_sha256": "c168831a3008f8fecaa43f0d319143d428d8f8f0fbdb42a79e672ebffb2db267",
+    "recipe": {
+      "head_epochs": 10,
+      "head_batch": 128,
+      "head_lr": 0.001,
+      "encoder_epochs": 1,
+      "encoder_lr": 1e-06,
+      "head_fine_lr": 0.0001,
+      "effective_batch": 16,
+      "base_micro_batch": 8,
+      "window_micro_batch": 2,
+      "state_weight": 0.1,
+      "weight_decay": 0.01,
+      "gamma_pos": 0.0,
+      "gamma_neg": 4.0,
+      "asl_clip": 0.05,
+      "threshold": 0.5,
+      "seeds": [
+        42,
+        43,
+        44
+      ],
+      "max_windows": 6
+    },
+    "config": {
+      "dimension": 128,
+      "dropout": 0.1,
+      "max_length": 256,
+      "max_windows": 6
+    },
+    "smoke": false,
+    "implementation_sha256": "ab0885dcbb4663a0e2d58cf645bdf9ab7e474bb58a6442b8e8608202da7b7082"
+  }
+}

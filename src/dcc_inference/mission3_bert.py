@@ -142,6 +142,12 @@ def load_checkpoint(path: str | Path, device: str | None = None):
     from transformers import AutoTokenizer
 
     payload = torch.load(Path(path), map_location="cpu", weights_only=True)
+    if isinstance(payload, dict) and payload.get("format") == "dcc-m3-evidence-v2":
+        try:
+            from .mission3_evidence import load_payload
+        except ImportError:
+            from mission3_evidence import load_payload
+        return load_payload(payload, device)
     if isinstance(payload, dict) and payload.get("format") == "dcc-m3-context-v1":
         try:
             from .mission3_context import load_payload
