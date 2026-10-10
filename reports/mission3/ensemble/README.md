@@ -60,9 +60,10 @@
 | TF-IDF | LR | 0.5689 | 0.174 | 0.123 | +0.172 | 0.187 |
 | KCBERT-005 | BCE + pos_weight | 0.6246 | **0.035** | **0.080** | +0.019 | 0.129 |
 | KCBERT-012 | + soft-F1 (λ=1) | 0.6351 | 0.059 | 0.087 | +0.017 | 0.149 |
+| ROBERTA-002 | BCE + pos_weight | 0.6304 | **0.028** | **0.076** | +0.009 | 0.122 |
 | ROBERTA-003 | + soft-F1 (λ=1) | **0.6433** | 0.052 | 0.083 | +0.020 | 0.147 |
 
-- soft-F1은 **보정(ECE·Brier)을 약간 나쁘게 하는 대신 F1을 올렸습니다**(KcBERT: ECE 0.035→0.059, F1 +0.011).
+- soft-F1은 **보정(ECE·Brier)을 약간 나쁘게 하는 대신 F1을 올렸습니다.** 두 인코더에서 같은 방향입니다. KcBERT는 ECE 0.035→0.059에 F1 +0.011, RoBERTa는 ECE 0.028→0.052에 F1 +0.013입니다(`results/calibration_r2+r3.json`).
 - 평균 확률이 위로 쏠린 정도는 비슷하고(+0.019→+0.017), 0.5 이상으로 예측하는 비율이 실제 양성 비율에 가까워졌습니다(0.129→0.149). 확률을 전체적으로 올린 게 아니라 확신이 더 뚜렷해진 쪽입니다.
 - 그래서 "calibration 개선"이 아니라 **"0.5 기준에서 F1이 최대가 되도록 학습한 손실 설계"**로 설명합니다. λ를 작게 섞었을 때의 비교는 M3-KCBERT-016(lab)에서 진행 중입니다.
 
@@ -76,7 +77,7 @@
 - `m3_stacking.py`: 선형 메타 모델 스태킹입니다.
 - `m3_calibration.py`: ECE, Brier, 확률 쏠림을 계산합니다.
 - `results/`: 2차 분석 결과 JSON입니다.
-- `probs/`: 홀드아웃과 공식 Val의 확률입니다(p0, k5, k12, r3). 파일명, 확률, 정답만 들어 있고 전사 원문은 없습니다.
+- `probs/`: 홀드아웃과 공식 Val의 확률입니다(p0, k5, k12, r2, r3). 파일명, 확률, 정답만 들어 있고 전사 원문은 없습니다.
 
 ```bash
 python reports/mission3/ensemble/m3_dump_probs.py <repo>/src <repo> <label_dir> <ckpt> reports/mission3/ensemble/probs/<name>.npz
