@@ -1,0 +1,92 @@
+{
+  "checked_at": "2026-10-10",
+  "comparison_kind": "existing_results_audit_no_new_evaluation",
+  "official_validation": {
+    "calls": 3640,
+    "utterances": 111947
+  },
+  "candidates": [
+    {
+      "id": "M2-MFCC-001",
+      "owner": "yeonwoo",
+      "model": "MFCC40 + LR",
+      "split": "official_validation",
+      "accuracy": 0.8091,
+      "source": "notebooks/mission2_yeonwoo_baseline.ipynb"
+    },
+    {
+      "id": "M2-MODEL-M04",
+      "owner": "yeonwoo",
+      "model": "42D + MLP",
+      "split": "official_validation",
+      "accuracy": 0.8529,
+      "source": "notebooks/mission2_model_experiments.ipynb"
+    },
+    {
+      "id": "M2-AF-R3",
+      "owner": "yeonwoo",
+      "model": "59D + MLP",
+      "split": "internal_holdout",
+      "accuracy": 0.874558,
+      "official_accuracy": null,
+      "checkpoint_found": false,
+      "source": "https://github.com/eigensinn-dcc2026/prelim/pull/25"
+    },
+    {
+      "id": "M2-REP-001",
+      "owner": "yeonwoo",
+      "model": "clean 59D + MLP",
+      "split": "internal_holdout",
+      "accuracy": 0.87376,
+      "official_accuracy": null,
+      "checkpoint_found": false,
+      "source": "https://github.com/eigensinn-dcc2026/prelim/pull/35"
+    },
+    {
+      "id": "M2-RETRAIN-001-L1",
+      "model": "53D + LightGBM provided labels",
+      "split": "official_validation",
+      "accuracy": 0.8644,
+      "source": "reports/mission2/m2_l1_official_validation_result_providedlabels.json"
+    },
+    {
+      "id": "M2-ENS-003",
+      "model": "SpeakerCNNLarge seed 1/2/3 ensemble",
+      "split": "official_validation",
+      "accuracy_rounded": 0.9155,
+      "correct": 102485,
+      "source": "reports/mission2/m2_l2_official_validation_result_rawlabels_ensemble.json"
+    },
+    {
+      "id": "M2-RERUN-001",
+      "model": "SpeakerCNNLarge seed 1/2/3 ensemble rerun from raw",
+      "split": "official_validation",
+      "accuracy_rounded": 0.9149,
+      "correct": 102419,
+      "source": "docs/experiment_log.md#mission-2",
+      "checkpoint_sha256_prefix": "19ea482a",
+      "checkpoint_sha256_suffix": "3246",
+      "artifact_location_from_log": "Drive m2_cache/m2_rerun_from_raw/rerun_2026-10-06b/",
+      "artifact_verified_in_this_audit": false
+    }
+  ],
+  "decision": {
+    "preferred_candidate": "M2-RERUN-001",
+    "reason": "Rebuilt from original data with epoch logs, and documented full official inference evaluation. It sacrifices only 66 correct utterances relative to the older 91.55% ensemble.",
+    "gap_vs_yeonwoo_best_verified_official_percentage_points_rounded": 6.2,
+    "comparison_to_latest_59d": "Unavailable: 87.38% is internal, not official; do not infer inferiority from unequal splits.",
+    "activation_requires": "Obtain original rerun checkpoint and logs, verify full SHA256 and offline submission inference before replacing the active M2 default."
+  },
+  "search_scope": [
+    "latest main and all yeonwoo branches/PRs",
+    "wldusdn03 authored PRs and issues",
+    "local dcc workspace checkpoints and outputs",
+    "accessible My Drive dcc_runs and competition result folders",
+    "Google Drive connector: accessible drives and sharedWithMe metadata; m2, 59D, MLP, yeonwoo, 연우, rerun_2026-10-06b and checkpoint-name filters"
+  ],
+  "limitations": [
+    "Scores rounded in historical notebooks/log are not more precise than their source.",
+    "No paired significance comparison against the 59D MLP was possible.",
+    "Other team members' private Drive folders are not accessible in this workspace."
+  ]
+}

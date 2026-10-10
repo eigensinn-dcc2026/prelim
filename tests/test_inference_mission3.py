@@ -260,7 +260,7 @@ def test_default_ckpt_is_used_when_none_given(tmp_path: Path, monkeypatch: pytes
     label_dir = tmp_path / "labels"
     _write_labels(label_dir)
     assert mission3.DEFAULT_CKPT.parent == ROOT / "checkpoints" / "mission3"
-    assert mission3.DEFAULT_CKPT.name == "mission3_tfidf_logreg.joblib"
+    assert mission3.DEFAULT_CKPT.name == "m3_roberta003_seed42.pt"
     monkeypatch.setattr(mission3, "DEFAULT_CKPT", ckpt)
     frame = mission3.predict(tmp_path / "audio", label_dir)
     assert len(frame) == 4

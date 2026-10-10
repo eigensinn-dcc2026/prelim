@@ -1,0 +1,5 @@
+# Offline weights are supplied with the submission, never uploaded to GitHub.
+*.pt
+*.pth
+*.ckpt
+outputs/

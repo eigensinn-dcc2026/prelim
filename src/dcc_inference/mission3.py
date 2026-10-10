@@ -40,8 +40,8 @@ COLUMNS = ("label file name", "symptom")
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPOSITORY_ROOT / "scripts" / "mission3_baseline 최종 수정본.py"
 
-# Same filename ``train_baseline`` writes. Not committed (see checkpoints/ in .gitignore).
-CKPT_FILENAME = "mission3_tfidf_logreg.joblib"
+# Final representative seed; self-contained offline export (not committed).
+CKPT_FILENAME = "m3_roberta003_seed42.pt"
 DEFAULT_CKPT = REPOSITORY_ROOT / "checkpoints" / "mission3" / CKPT_FILENAME
 
 # Fixed by the competition rules. Not the checkpoint's stored threshold.

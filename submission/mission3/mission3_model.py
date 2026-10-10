@@ -1,4 +1,4 @@
-"""Mission 3 model code: KcBERT multilabel classifier loaded from one offline checkpoint.
+"""Mission 3 model code: RoBERTa multilabel classifier from one offline checkpoint.
 
 The checkpoint (.pt) holds the trained weights, the label list and the text of
 config.json / tokenizer files, so nothing is downloaded at inference time.
@@ -42,7 +42,7 @@ def read_text(json_path: str | Path) -> str:
 
 
 def _build(files: dict[str, str], dropout: float, n_labels: int):
-    """BERT encoder + dropout + linear head on the first token."""
+    """AutoModel encoder + dropout + linear head on the first token."""
 
     import torch
     from transformers import AutoConfig, AutoModel

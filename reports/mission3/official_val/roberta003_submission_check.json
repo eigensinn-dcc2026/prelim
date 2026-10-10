@@ -1,0 +1,53 @@
+{
+  "rows": 3640,
+  "macro_f1": 0.6433196258959997,
+  "micro_f1": 0.6580992229527795,
+  "macro_precision": 0.6761525044171826,
+  "macro_recall": 0.6165218953935168,
+  "empty_predictions": 123,
+  "per_symptom_f1": {
+    "고열": 0.6902800658978583,
+    "구토": 0.594704684317719,
+    "두통": 0.5111441307578009,
+    "복통": 0.8210659898477157,
+    "어지러움": 0.650032829940906,
+    "열상": 0.8807733619763695,
+    "오심": 0.39289678135405104,
+    "전신쇠약": 0.5808936825885979,
+    "호흡곤란": 0.6680851063829787
+  },
+  "source": {
+    "exp_id": "M3-ROBERTA-003",
+    "model": "klue/roberta-large",
+    "revision": "28d9112",
+    "seed": 42,
+    "epoch": 3,
+    "lab_ckpt_sha256": "ebc43e909b243524514488678710972722a6896a5d0b6c40a3ff52e9b1276b1f"
+  },
+  "checkpoint_sha256": {
+    "evaluated": "bbc0bd7a5f320df78bc20e59fc98827c6d9bb9367d23ac45367d7c2ff9a56e7e",
+    "packaged": "bbc0bd7a5f320df78bc20e59fc98827c6d9bb9367d23ac45367d7c2ff9a56e7e"
+  },
+  "checkpoint_bytes": 1347790829,
+  "parameter_count": 336665609,
+  "threshold": 0.5,
+  "max_length": 256,
+  "batch_size": 32,
+  "inference_device": "cpu",
+  "offline_environment": {
+    "HF_HUB_OFFLINE": "1",
+    "TRANSFORMERS_OFFLINE": "1"
+  },
+  "process_wall_seconds": 5478.823078632355,
+  "process_wall_duration_includes_startup": true,
+  "historical_official_macro_f1_rounded": 0.6433,
+  "matches_historical_rounding": true,
+  "inference_elapsed_seconds": 5477.6,
+  "inference_seconds_per_call": 1.504835164835165,
+  "torch_threads": 4,
+  "torch_version": "2.12.1+cpu",
+  "transformers_version": "4.57.6",
+  "concurrent_other_workloads": "M1 CPU feature extraction and test execution",
+  "baseline_official_macro_f1_rounded": 0.6246,
+  "gain_vs_baseline_rounded": 0.0187
+}
