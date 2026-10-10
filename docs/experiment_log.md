@@ -45,6 +45,7 @@
 | M1-XVEC-001-OFFVAL | 2026-10-10 | 학습된 M1-XVEC-001 결합 LR(52D + x-vector)을 재학습 없이 공식 Validation 3,640건에 처음 평가. 모델 선택·threshold 튜닝 없음 | 공식 Val 97.47% (기존 52D LR 95.11%, +2.36%p). 성별 recall 여성 97.96% / 남성 96.91%. 소요 23.2분(T4) | 채택 (M1 제출 후보로 갱신, 공식 Val 1회 사용) | [`results/M1-XVEC-001-OFFVAL`](https://github.com/sooyahh/dcc-lab/tree/main/results/M1-XVEC-001-OFFVAL) |
 | M1-XVEC-002 (1차) | 2026-10-10 | x-vector를 신고자 구간 앞 20초 1개 대신 20초 창 최대 4개 평균으로 뽑아 52D에 붙여 LR 학습. 통화 단위 8:2 내부 확인(seed=42), 공식 Val 미사용 | 실행 시간 초과(4시간)로 중단, 지표 없음. 특징 청크 13/15 완료 | 재시도 (예산 3시간으로 이어서 재실행, 완료 청크 재사용) | [`results/M1-XVEC-002`](https://github.com/sooyahh/dcc-lab/tree/main/results/M1-XVEC-002) |
 | M1-XVEC-002 (2차) | 2026-10-10 | 1차 중단 이후 남은 특징 청크와 LR만 이어서 실행. 52D에 20초 창 최대 4개 평균 x-vector를 붙여 LR 학습(통화 단위 8:2 내부 확인, seed=42), 공식 Val 미사용 | 평균 x-vector 결합 LR 97.72% / 앞 20초 결합 LR 97.38%(재현) / 52D 단독 95.02%. 차이 +0.34%p, McNemar p=0.022. 40초 초과 통화 96.79%→97.73%. 단일 seed, 소요 34.0분 | 기각 (성공 기준 +0.4%p 미달, 추론 비용 증가) | [`results/M1-XVEC-002`](https://github.com/sooyahh/dcc-lab/tree/main/results/M1-XVEC-002) |
+| M1-ECAPA-001 (1차) | 2026-10-10 | 52D + x-vector에 ECAPA-TDNN(speechbrain) 임베딩을 더한 결합 LR (commit `1a88417`, 통화 단위 8:2 내부 확인, seed=42), 공식 Val 미사용 | 실행 환경 오류로 중단, 지표 없음(0.2분). Colab torchaudio에 `list_audio_backends`가 없어 speechbrain 1.0.3 import 실패 | 재시도 (코드 유지, 실행 명령에서 torchaudio 호환 shim 후 재실행) | [`results/M1-ECAPA-001`](https://github.com/sooyahh/dcc-lab/tree/main/results/M1-ECAPA-001) |
 
 ## Mission 2 — 신고자/119대원 분류 (Accuracy)
 
