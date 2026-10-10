@@ -1,0 +1,41 @@
+{
+  "exp_id": "M3-KCELECTRA-001",
+  "mission": 3,
+  "title": "KcELECTRA 앞 256 + 강화 가중 BCE + soft-F1",
+  "model": "beomi/KcELECTRA-base-v2022",
+  "model_revision": "8728557",
+  "model_revision_source": "https://huggingface.co/beomi/KcELECTRA-base-v2022/commits/main",
+  "uses_official_val": false,
+  "baseline": {
+    "exp_id": "M3-ROBERTA-003",
+    "value": 0.6441,
+    "metric": "macro_f1 seed 42"
+  },
+  "settings": {
+    "seed": 42,
+    "epochs": 3,
+    "lr": 2e-05,
+    "max_length": 256,
+    "batch_size": 16,
+    "micro_batch_size": 8,
+    "warmup_ratio": 0.1,
+    "weight_decay": 0.01,
+    "fp16": true,
+    "threshold": 0.5,
+    "threshold_operator": ">=",
+    "pos_weight": "clip(0.5 * sqrt(neg / max(pos, 1)), 1, 6)",
+    "soft_f1_weight": 1.0,
+    "split": "P0 Training call_id-disjoint 80:20; seed 42"
+  },
+  "success_criteria": "holdout macro_f1 >= 0.6541; seed 43/44 only proposed as follow-up",
+  "artifacts": [
+    "metrics.json",
+    "best.ckpt",
+    "ckpt_last.pt",
+    "holdout_probs.npy",
+    "holdout_ids.json",
+    "split.json"
+  ],
+  "command": "python scripts/lab/m3-kcelectra-001.py --out \"$LAB_OUT\"",
+  "notes": "Final epoch 3; no threshold tuning or postprocessing; Training/TL_서울_구급.zip staged to LAB_WORK; model prepared before data."
+}
