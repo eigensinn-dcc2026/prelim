@@ -1,0 +1,103 @@
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791644252.358028   19074 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791644255.026375   19074 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+I0000 00:00:1791644255.026916   19074 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+feature cache 32/29200
+feature cache 672/29200
+feature cache 1312/29200
+feature cache 1952/29200
+feature cache 2592/29200
+feature cache 3232/29200
+feature cache 3872/29200
+feature cache 4512/29200
+feature cache 5152/29200
+feature cache 5792/29200
+feature cache 6432/29200
+feature cache 7072/29200
+feature cache 7712/29200
+feature cache 8352/29200
+feature cache 8992/29200
+feature cache 9632/29200
+feature cache 10272/29200
+feature cache 10912/29200
+feature cache 11552/29200
+feature cache 12192/29200
+feature cache 12832/29200
+feature cache 13472/29200
+feature cache 14112/29200
+feature cache 14752/29200
+feature cache 15392/29200
+feature cache 16032/29200
+feature cache 16672/29200
+feature cache 17312/29200
+feature cache 17952/29200
+feature cache 18592/29200
+feature cache 19232/29200
+feature cache 19872/29200
+feature cache 20512/29200
+feature cache 21152/29200
+feature cache 21792/29200
+feature cache 22432/29200
+feature cache 23072/29200
+feature cache 23712/29200
+feature cache 24352/29200
+feature cache 24992/29200
+feature cache 25632/29200
+feature cache 26272/29200
+feature cache 26912/29200
+feature cache 27552/29200
+feature cache 28192/29200
+feature cache 28832/29200
+Starting control: seed=42, encoder_lr=1e-6, head_lr=1e-4, epoch=1
+encoder control seed=42 0/23408
+encoder control seed=42 1600/23408
+encoder control seed=42 3200/23408
+encoder control seed=42 4800/23408
+encoder control seed=42 6400/23408
+encoder control seed=42 8000/23408
+encoder control seed=42 9600/23408
+encoder control seed=42 11200/23408
+encoder control seed=42 12800/23408
+encoder control seed=42 14400/23408
+encoder control seed=42 16000/23408
+encoder control seed=42 17600/23408
+encoder control seed=42 19200/23408
+encoder control seed=42 20800/23408
+encoder control seed=42 22400/23408
+Completed control: macro=0.640592, micro=0.653724
+Starting memory: seed=42, encoder_lr=1e-6, head_lr=1e-4, epoch=1
+encoder memory seed=42 0/23408
+encoder memory seed=42 1600/23408
+encoder memory seed=42 3200/23408
+encoder memory seed=42 4800/23408
+encoder memory seed=42 6400/23408
+encoder memory seed=42 8000/23408
+encoder memory seed=42 9600/23408
+encoder memory seed=42 11200/23408
+encoder memory seed=42 12800/23408
+encoder memory seed=42 14400/23408
+encoder memory seed=42 16000/23408
+encoder memory seed=42 17600/23408
+encoder memory seed=42 19200/23408
+encoder memory seed=42 20800/23408
+encoder memory seed=42 22400/23408
+Completed memory: macro=0.640794, micro=0.654096
+Starting evidence: seed=42, encoder_lr=1e-6, head_lr=1e-4, epoch=1
+encoder evidence seed=42 0/23408
+encoder evidence seed=42 1600/23408
+encoder evidence seed=42 3200/23408
+encoder evidence seed=42 4800/23408
+encoder evidence seed=42 6400/23408
+encoder evidence seed=42 8000/23408
+encoder evidence seed=42 9600/23408
+encoder evidence seed=42 11200/23408
+encoder evidence seed=42 12800/23408
+encoder evidence seed=42 14400/23408
+encoder evidence seed=42 16000/23408
+encoder evidence seed=42 17600/23408
+encoder evidence seed=42 19200/23408
+encoder evidence seed=42 20800/23408
+encoder evidence seed=42 22400/23408
+Completed evidence: macro=0.640496, micro=0.653670
+{"status": "fine_pilots_failed", "selected_method": null, "elapsed_seconds": 1362.6682596330002}

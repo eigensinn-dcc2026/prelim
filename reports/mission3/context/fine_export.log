@@ -1,0 +1,29 @@
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791646428.633587   28548 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791646431.316688   28548 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+I0000 00:00:1791646431.317324   28548 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+Exported experimental control: 1350044781 bytes
+Exported experimental memory: 1449428731 bytes
+Exported experimental evidence: 1350045191 bytes
+{
+  "experimental": true,
+  "qualified_for_submission": false,
+  "checkpoints": {
+    "control_seed42_experimental.pt": {
+      "bytes": 1350044781,
+      "sha256": "324abe5d87ca79e4e79b3765a7c1df2e0c70b6bf441c6f3d2fee824e9dd6363d",
+      "method": "control"
+    },
+    "memory_seed42_experimental.pt": {
+      "bytes": 1449428731,
+      "sha256": "3a524f8b5e0c1970bcbc37a1d7dfddd568c3704654304c700ba71e588aa136bd",
+      "method": "memory"
+    },
+    "evidence_seed42_experimental.pt": {
+      "bytes": 1350045191,
+      "sha256": "640a6cb32070bf606d769ef05c6d246ef49d5179d7dbcb71f30f26aa9b186130",
+      "method": "evidence"
+    }
+  }
+}

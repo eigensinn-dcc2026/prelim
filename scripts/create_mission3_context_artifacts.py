@@ -17,7 +17,8 @@ def create_notebook(results):
     md,code=nbf.v4.new_markdown_cell,nbf.v4.new_code_cell
     notebook.cells=[
         md("# M3: 유사 사례 대조와 질문·답변 근거\n\n"
-           "## tl;dr\n\n전체 실험 완료 전에는 성능 향상을 주장하지 않습니다. 이 노트북은 고정된 설정, 실행 로그, "
+           "## tl;dr\n\n동결 학습과 사용자 요청의 인코더 1 epoch 추가 학습 모두 기존 앙상블을 넘지 못했습니다. "
+           "추가 학습 A 0.6408 / B 0.6405, 기존 앙상블 0.6539로 현재 제출 후보를 유지합니다. 이 노트북은 고정된 설정, 실행 로그, "
            "내부 검증 및 채택 결정을 보여 주는 실행 기록입니다. `smoke=true` 결과는 구현 점검용입니다."),
         md("## Context & Methods\n\nA: 증상별 양성 8·음성 8의 표현과 유사도 차이, 전체 이웃 32건의 라벨 일치도를 읽습니다. "
            "B: 현재 발화와 뒤의 두 발화 묶음을 증상별 attention으로 읽습니다. 통화 전체 표현만 받는 보정 모델을 함께 학습합니다.\n\n"
@@ -30,6 +31,7 @@ def create_notebook(results):
         code("from pathlib import Path\nimport json, sys, subprocess\nimport numpy as np\nimport pandas as pd\n"
              "ROOT = Path.cwd()\nif ROOT.name == 'notebooks': ROOT = ROOT.parent\n"
              f"RESULTS = ROOT / {str(results).replace(chr(92),'/')!r}\n"
+             "TRAINING_RESULTS = ROOT / 'outputs/m3_context_gpu/run'\n"
              "TRAIN_LABEL_DIR = ROOT / 'data/raw_merged/Training/2.라벨링데이터/TL_서울_구급'\n"
              "BASE_CKPT = ROOT / 'checkpoints/mission3/m3_roberta003_seed42.pt'\n"
              "REFERENCE_DIR = ROOT / 'reports/mission3/ensemble/probs'\n"
@@ -41,16 +43,25 @@ def create_notebook(results):
         code("if RUN_TRAINING:\n"
              "    command = [sys.executable, '-u', str(ROOT/'scripts/train_mission3_context.py'),\n"
              "        '--train-label-dir', str(TRAIN_LABEL_DIR), '--base-ckpt', str(BASE_CKPT),\n"
-             "        '--reference-probs-dir', str(REFERENCE_DIR), '--out', str(RESULTS),\n"
+             "        '--reference-probs-dir', str(REFERENCE_DIR), '--out', str(TRAINING_RESULTS),\n"
              "        '--phase', PHASE, '--smoke-rows', str(SMOKE_ROWS), '--max-hours', str(MAX_HOURS)]\n"
-             "    RESULTS.mkdir(parents=True, exist_ok=True)\n"
-             "    with (RESULTS/'execution.log').open('a', encoding='utf-8') as log:\n"
+             "    TRAINING_RESULTS.mkdir(parents=True, exist_ok=True)\n"
+             "    with (TRAINING_RESULTS/'execution.log').open('a', encoding='utf-8') as log:\n"
              "        process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8')\n"
              "        for line in process.stdout:\n            print(line, end=''); log.write(line); log.flush()\n"
              "        if process.wait(): raise RuntimeError('Training failed; inspect execution.log')\n"
              "else:\n    print('Saved-run inspection mode; training is not launched.')"),
-        md("## Results\n\n### 3. 실제 실행 상태와 비교"),
-        code("summary_path = RESULTS/'metrics.json'\nsummary = json.loads(summary_path.read_text(encoding='utf-8')) if summary_path.exists() else {}\n"
+        md("## Results\n\n### 3. 실제 실행 상태와 비교\n\n"
+           "동결 학습 실패 이후 사용자 요청으로 seed 42 인코더 1 epoch 확장 실험을 완료했습니다. "
+           "원래 동결 결과를 보존하고 CLS 대조군·A·B를 같은 조건으로 비교합니다. 단일 seed만으로는 채택하지 않습니다."),
+        code("summary_path = RESULTS/'metrics.json'\n"
+             "if not summary_path.exists():\n"
+             "    snapshot = ROOT/'reports/mission3/context/fine_metrics.json'\n"
+             "    recovered = ROOT/'reports/mission3/context/fine_stdout_summary.json'\n"
+             "    summary_path = snapshot if snapshot.exists() else recovered if recovered.exists() else ROOT/'reports/mission3/context/frozen_metrics.json'\n"
+             "summary = json.loads(summary_path.read_text(encoding='utf-8')) if summary_path.exists() else {}\n"
+             "print('Measured source:', summary_path)\n"
+             "print('Provenance:', json.dumps(summary.get('provenance', {'kind':'metrics_json'}), ensure_ascii=False))\n"
              "print('Status:', summary.get('status', 'not_run'))\nprint('Smoke only:', summary.get('smoke', 'unknown'))\n"
              "table = pd.DataFrame([{ 'model': name, 'macro_f1': item['macro_f1'], 'micro_f1': item['micro_f1'], 'calls': item['rows']}\n"
              "                      for name, item in summary.get('pilot', {}).items()])\n"
@@ -74,11 +85,24 @@ def create_notebook(results):
              "display(pd.DataFrame(repeat_table).round(4))\n"
              "print(json.dumps(summary.get('gate', {'status':'not_available'}), ensure_ascii=False, indent=2))"),
         md("## Takeaways\n\n공식 점수 0.6540 이상일 때만 별도 패키지를 채택합니다. 목표 0.67과 실제 결과를 구분합니다. "
-           "현재 후보 교체는 이 노트북을 열거나 축소 실행하는 것으로 발생하지 않습니다."),
+           "두 pilot이 실패해 3개 seed·구성 요소 제거·최종 Training·공식 평가는 실행하지 않았습니다. "
+           "사용자가 전달한 원본 결과 ZIP의 지표·로그·holdout 예측을 검증해 보존했습니다. "
+           "세 실험 가중치는 GPU 세션 종료로 삭제됐습니다. 새 모델 채택과 별도 공식 평가는 수행하지 않았습니다."),
         code("print('Measured decision:', summary.get('status','not_run'))\n"
              "print('Selected method:', summary.get('selected_method'))\n"
              "print('Reports:', RESULTS/'report.md')\n"
              "print('Official evaluation is a separate, once-only command after full Training.')"),
+        md("### 확장 실험 재개\n\n"
+           "Colab에서는 `scripts/finetune_mission3_context_pilot.py`에 원래 `--run-dir`와 별도 `--out`을 지정합니다. "
+           "전체 데이터 source hash와 epoch-10 head를 확인하며, 원래 누적 예산을 공유합니다. "
+           "학습률 encoder 1e-6 / head 1e-4, seed 42, 1 epoch, 임계값 0.5를 유지합니다. "
+           "정규식·질문 부분집합은 전체 전사본의 규칙으로 정의하며, 모델이 보는 범위는 앞 256토큰입니다."),
+        code("log_path = RESULTS/'execution.log'\n"
+             "if log_path.exists():\n"
+             "    print(log_path.read_text(encoding='utf-8')[-12000:])\n"
+             "else:\n"
+             "    saved_log = ROOT/'reports/mission3/context/fine_execution.log'\n"
+             "    print(saved_log.read_text(encoding='utf-8')[-12000:] if saved_log.exists() else 'No saved fine log available.')"),
     ]
     path=ROOT/"notebooks/M3_context_experiment.ipynb"
     nbf.validate(notebook);nbf.write(notebook,path)
