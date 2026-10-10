@@ -11,13 +11,17 @@ python inference.py --audio_dir <Validation/1.원천데이터> --label_dir <Vali
 
 | 모델 | 체크포인트 | 공식 Val Macro F1 | Micro F1 | 빈 예측 |
 |---|---|---|---|---|
-| P0 TF-IDF + OvR LR (현 제출본) | `mission3_tfidf_logreg.joblib` (SHA256 `6dc08608…5ff7b8`) | 0.5689 | 0.5802 | 183 |
-| **KCBERT-005 seed 42** | `m3_kcbert005_seed42.pt` (SHA256 `77519f12…6c0d3b`) | **0.6246** | **0.6417** | 299 |
+| P0 TF-IDF + OvR LR | `mission3_tfidf_logreg.joblib` (SHA256 `6dc08608…5ff7b8`) | 0.5689 | 0.5802 | 183 |
+| KCBERT-005 seed 42 (현 제출본) | `m3_kcbert005_seed42.pt` (SHA256 `77519f12…6c0d3b`) | 0.6246 | 0.6417 | 299 |
+| KCBERT-012 seed 42 (soft-F1) | `m3_kcbert012_seed42.pt` (SHA256 `29da73dd…5830f6`) | 0.6351 | 0.6463 | 148 |
+| **ROBERTA-003 seed 42** (roberta-large, soft-F1) | `m3_roberta003_seed42.pt` (SHA256 `bbc0bd7a…ff9a56e7e`, 1,347,790,829 bytes) | **0.6433** | **0.6581** | 123 |
 
 - 차이는 **+0.0557**로 채택 기준(+0.01)을 충족합니다.
 - KCBERT-005 seed 42는 lab 스크립트가 미리 정한 대표 seed입니다. 홀드아웃 점수로 고르지 않았습니다.
 - 증상별 F1(KCBERT-005): 열상 0.864, 복통 0.802, 고열 0.671, 호흡곤란 0.651, 어지러움 0.640, 구토 0.563, 전신쇠약 0.534, 두통 0.518, 오심 0.378.
   - 오류 분석(`../error_analysis/README.md`)에서 예상한 대로 오심·두통·전신쇠약이 가장 낮습니다.
+
+2026-10-10 추가: KCBERT-012와 ROBERTA-003을 같은 방식으로 내보내 채점했습니다. 둘 다 홀드아웃 재채점 값이 lab 기록과 일치합니다(ROBERTA-003 0.6441 동일, KCBERT-012 0.6336 vs lab 0.6337, CPU fp32와 GPU fp16의 차이). ROBERTA-003의 CPU 추론 시간은 공식 Val 3,640건에 2,098초(샘플당 약 0.58초)입니다. 앙상블은 `../ensemble/README.md`를 보세요.
 
 ## 추론 경로 일치 확인
 
