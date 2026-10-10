@@ -15,6 +15,12 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-10 — [M1] 고정 결합 LR(M1-XVEC-001) 공식 Validation 평가(M1-XVEC-001-OFFVAL) 채택
+
+- **결정**: 채택. 공식 Validation 3,640건 정확도 0.9747로 기존 52D LR(0.9511) 대비 +2.36%p라 성공 기준(+0.5%p)을 충족한다. M1 제출 후보를 52D+x-vector 결합 LR(M1-XVEC-001)로 바꾼다.
+- **이유**: Training holdout 0.9738과 공식 Val 0.9747이 거의 같아 개선이 재현된다. 재학습·모델 선택·threshold 튜닝 없이 고정 모델을 평가했고(`fitting_performed=false`), 성별 recall(여 0.9796 / 남 0.9691)도 한쪽으로 쏠리지 않는다. 규정 위반 없음.
+- **후속**: 공식 Val 예산(미션당 6) 중 1회 사용. 제출 추론에서 WavLM 로컬 경로 사용과 추론 시간을 확인한다. 근거: `docs/experiment_log.md` M1-XVEC-001-OFFVAL 행
+
 ## 2026-10-10 — [M3] Qwen2.5-1.5B LoRA 분류(M3-QWEN-001) 기각
 
 - **결정**: 기각. seed 42 Macro F1 0.6127로 ROBERTA-003(0.6441) 대비 -0.0314라 성공 기준(0.6541)에 크게 못 미친다. LLM(LoRA) 분류기는 채택하지 않고 ROBERTA-003 구성을 유지한다.
