@@ -142,6 +142,12 @@ def load_checkpoint(path: str | Path, device: str | None = None):
     from transformers import AutoTokenizer
 
     payload = torch.load(Path(path), map_location="cpu", weights_only=True)
+    if isinstance(payload, dict) and payload.get("format") == "dcc-m3-context-v1":
+        try:
+            from .mission3_context import load_payload
+        except ImportError:  # offline standalone package
+            from mission3_context import load_payload
+        return load_payload(payload, device)
     if not isinstance(payload, dict) or payload.get("format") != FORMAT:
         raise ValueError(
             f"{path} is not a {FORMAT} checkpoint; export the lab best.ckpt with "
@@ -168,6 +174,9 @@ def probabilities(model, tokenizer, texts: Sequence[str], max_length: int = MAX_
 
     import torch
 
+    if getattr(model, "requires_documents", False):
+        raise ValueError("Use mission3_context.probabilities with raw documents and file names; "
+                         "joined strings lose utterance boundaries and retrieval exclusions")
     device = next(model.parameters()).device
     # Sort by length so each padded batch is short; results go back to input order.
     order = sorted(range(len(texts)), key=lambda index: len(texts[index]))

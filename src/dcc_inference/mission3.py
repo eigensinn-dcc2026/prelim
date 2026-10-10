@@ -25,6 +25,7 @@ with the organizers at the 10-10 mentoring.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -174,9 +175,14 @@ def predict(audio_dir: Path, label_dir: Path, ckpt_path: Path | None = None) -> 
     if mission3_bert.is_bert_checkpoint(ckpt_path):
         # BERT-family export (scripts/mission3_export_bert_ckpt.py): lab training text rule.
         names = [json_path.name for json_path in json_paths]
-        texts = [mission3_bert.read_text(json_path) for json_path in json_paths]
         model, tokenizer, symptoms, max_length = mission3_bert.load_checkpoint(ckpt_path)
-        probabilities = mission3_bert.probabilities(model, tokenizer, texts, max_length)
+        if getattr(model, "requires_documents", False):
+            from .mission3_context import probabilities as context_probabilities
+            documents = [json.loads(path.read_text(encoding="utf-8-sig")) for path in json_paths]
+            probabilities = context_probabilities(model, tokenizer, documents, names, max_length)
+        else:
+            texts = [mission3_bert.read_text(json_path) for json_path in json_paths]
+            probabilities = mission3_bert.probabilities(model, tokenizer, texts, max_length)
     else:
         script = _script()
         names = []
