@@ -1,0 +1,78 @@
+{
+  "checked_at": "2026-10-10T19:47:52+09:00",
+  "shared_folder_url": "https://drive.google.com/drive/folders/17D_6n2E36GTlRE8Yj3HcaNTYeSr8-ZXx",
+  "folder_name": "comparison",
+  "files": [
+    "summary.json",
+    "comparison.csv",
+    "paired_slices.csv",
+    "validation_predictions.parquet"
+  ],
+  "checkpoint_present": false,
+  "official_validation_result_present": false,
+  "experiment_id": "clean59d_egemaps88d_20261004T190153_4dbd7177",
+  "evaluation_split": "Training internal call-group holdout",
+  "split": {
+    "seed": 42,
+    "test_size": 0.2,
+    "total_rows": 889358,
+    "train_rows": 711467,
+    "validation_rows": 177891,
+    "train_calls": 23360,
+    "validation_calls": 5840,
+    "call_overlap": 0,
+    "train_keys_hash": "1e297c22fff7fef9d4b8cf6f1319b526e3e7097373e3bfb889cc3f21bcdc0f95",
+    "validation_keys_hash": "d7a387b986bbc3b037e1db2df67a4e8dfba91727a2186d1dfcd54ad1fc7dbc07",
+    "train_idx_sha256": "c6b7602c181367c8dfe2260064db977b3795d5632b3fc446cdc3389ba20a0d09",
+    "validation_idx_sha256": "7a3b9ac54da179e1e5f7d01672a1b181a923b5cff4013d230673b5c3ad868f1b"
+  },
+  "official_validation_used": false,
+  "prediction_verification": {
+    "rows": 177891,
+    "unique_record_keys": 177891,
+    "unique_calls": 5840,
+    "record_key_split_prefix": "Training",
+    "parquet_sha256": "b0c94fa3f7c3cecffb21555b7a154d71bf2ee63798b17bf40633c25a4a3f0b74",
+    "hash_matches_summary": true,
+    "independent_rescore_matches_summary": true
+  },
+  "models": [
+    {
+      "dimension": 59,
+      "accuracy": 0.8737597742437785,
+      "correct": 155434,
+      "sample_count": 177891,
+      "confusion_matrix": [
+        [
+          72265,
+          13086
+        ],
+        [
+          9371,
+          83169
+        ]
+      ]
+    },
+    {
+      "dimension": 88,
+      "accuracy": 0.8639897465301786,
+      "correct": 153696,
+      "sample_count": 177891,
+      "confusion_matrix": [
+        [
+          70299,
+          15052
+        ],
+        [
+          9143,
+          83397
+        ]
+      ]
+    }
+  ],
+  "official_validation_expected": {
+    "calls": 3640,
+    "utterances": 111947
+  },
+  "conclusion": "Confirmed internal metrics only. This folder contains neither model weights nor official Validation results; do not compare these internal accuracies directly with official CNN accuracy."
+}

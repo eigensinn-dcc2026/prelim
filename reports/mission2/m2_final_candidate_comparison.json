@@ -37,10 +37,14 @@
       "owner": "yeonwoo",
       "model": "clean 59D + MLP",
       "split": "internal_holdout",
-      "accuracy": 0.87376,
+      "accuracy": 0.8737597742437785,
       "official_accuracy": null,
       "checkpoint_found": false,
-      "source": "https://github.com/eigensinn-dcc2026/prelim/pull/35"
+      "source": "https://github.com/eigensinn-dcc2026/prelim/pull/35",
+      "internal_predictions_verified": true,
+      "shared_folder_source": "https://drive.google.com/drive/folders/17D_6n2E36GTlRE8Yj3HcaNTYeSr8-ZXx",
+      "internal_eval_utterances": 177891,
+      "internal_eval_calls": 5840
     },
     {
       "id": "M2-RETRAIN-001-L1",
@@ -82,11 +86,13 @@
     "wldusdn03 authored PRs and issues",
     "local dcc workspace checkpoints and outputs",
     "accessible My Drive dcc_runs and competition result folders",
-    "Google Drive connector: accessible drives and sharedWithMe metadata; m2, 59D, MLP, yeonwoo, 연우, rerun_2026-10-06b and checkpoint-name filters"
+    "Google Drive connector: accessible drives and sharedWithMe metadata; m2, 59D, MLP, yeonwoo, 연우, rerun_2026-10-06b and checkpoint-name filters",
+    "User-provided shared comparison folder: all four files listed; summary metadata and prediction parquet inspected and independently rescored."
   ],
   "limitations": [
     "Scores rounded in historical notebooks/log are not more precise than their source.",
     "No paired significance comparison against the 59D MLP was possible.",
     "Other team members' private Drive folders are not accessible in this workspace."
-  ]
+  ],
+  "shared_folder_verification": "reports/mission2/yeonwoo_shared_folder_audit.json"
 }

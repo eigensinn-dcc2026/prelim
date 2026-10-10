@@ -23,3 +23,14 @@
 재학습본의 보관 경로는 기존 로그상 `Drive m2_cache/m2_rerun_from_raw/rerun_2026-10-06b/`, 앙상블 SHA256은 `19ea482a…3246`이다. 현재 계정의 접근 가능한 Drive에는 그 경로가 없었다. **이번 작업에서 가중치 실물·전체 해시를 검증했다고 표시하지 않는다.** 파일 확보와 전체 SHA256 대조, 제출 폴더에서 오프라인 실행 확인 전에는 기존 M2 기본 경로를 바꾸지 않는다.
 
 상세 비교와 검색 범위는 `m2_final_candidate_comparison.json`에 기록했다.
+
+## 사용자 공유 폴더 확인 — 2026-10-10
+
+[공유 comparison 폴더](https://drive.google.com/drive/folders/17D_6n2E36GTlRE8Yj3HcaNTYeSr8-ZXx)에는 `summary.json`, `comparison.csv`, `paired_slices.csv`, `validation_predictions.parquet` 네 파일이 있다. 가중치 파일은 없다.
+
+보고서의 `official_validation_used=false`, 분할의 Training 내부 80:20(총 889,358발화 중 177,891발화, 5,840통화), 예측 `record_key`의 모든 접두사가 `Training`임을 확인했다. 공식 Validation의 3,640통화·111,947발화와 다르다. Parquet 전체 SHA256이 보고서와 일치하고, 예측을 독립 재채점한 결과도 정확히 일치했다.
+
+- clean 59D MLP: **87.375977%**, 155,434 / 177,891.
+- eGeMAPS 88D MLP: **86.398975%**, 153,696 / 177,891.
+
+따라서 최신 59D의 내부 점수와 예측은 실물로 확인됐지만, **가중치와 공식 점수는 이 폴더에서 확인되지 않았다.** CNN 공식 91.49%와 같은 분할에서 우열을 확인했다는 뜻이 아니며 기존 우선 후보 결정을 유지한다. 상세 검증은 `yeonwoo_shared_folder_audit.json`에 기록했다.
