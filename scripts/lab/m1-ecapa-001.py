@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import random
+import shutil
 import tempfile
 import time
 import zipfile
@@ -33,9 +34,36 @@ CONFIG = dict(exp_id=EXP_ID, seed=SEED, model=MODEL_ID, revision=REVISION,
 HEADS = ["a", "b", "c", "d"]
 
 
+def patch_torchaudio_backend(torchaudio):
+    """SpeechBrain 1.0.3 probes an API removed by newer torchaudio.
+
+    encode_batch receives tensors, so this experiment needs no torchaudio file
+    backend. Report none rather than claiming an unavailable decoder exists.
+    Preserve the real API on older versions.
+    """
+    if not hasattr(torchaudio, "list_audio_backends"):
+        torchaudio.list_audio_backends = lambda: []
+
+
+def stage_model(root, local, required):
+    """Copy snapshot files atomically; SpeechBrain must never write to Drive.
+
+    Refresh the small set of model files on every process start to recover from
+    interrupted copies and avoid trusting a stale local snapshot.
+    """
+    local.mkdir(parents=True, exist_ok=True)
+    for name in required:
+        atomic(local / name, lambda tmp, name=name: shutil.copyfile(root / name, tmp))
+    return local
+
+
 def prepare_model(torch):
     from huggingface_hub import snapshot_download
+    import torchaudio
+    patch_torchaudio_backend(torchaudio)
+    # The compatibility shim must run before any SpeechBrain import.
     from speechbrain.inference.classifiers import EncoderClassifier
+    from speechbrain.utils.fetching import LocalStrategy
     root = Path(os.environ["DCC_RUN_ROOT"]) / "models" / "spkrec-ecapa-voxceleb"
     marker = root / "dcc_revision.json"
     identity = dict(repo_id=MODEL_ID, revision=REVISION)
@@ -49,11 +77,16 @@ def prepare_model(torch):
                           allow_patterns=required)
     if not all((root / name).is_file() for name in required):
         raise ValueError("Incomplete ECAPA snapshot")
+    local = stage_model(
+        root, Path(os.environ["LAB_WORK"]) / EXP_ID.lower() / "models"
+        / "spkrec-ecapa-voxceleb" / REVISION, required)
     # Upstream YAML has explicit HF paths: override them before collection.
-    # Optional custom.py lookup also uses this local directory; every loadable is local.
+    # All source and collection paths are local, including label_encoder.ckpt.
+    # COPY also avoids symlinks on filesystems that do not support them.
     model = EncoderClassifier.from_hparams(
-        source=str(root), savedir=str(root),
-        overrides={"pretrained_path": str(root)},
+        source=str(local), savedir=str(local),
+        overrides={"pretrained_path": str(local)},
+        local_strategy=LocalStrategy.COPY,
         run_opts={"device": "cuda" if torch.cuda.is_available() else "cpu"})
     model.eval()
     with torch.inference_mode():
@@ -332,7 +365,25 @@ def smoke():
         write_json(root / "config.json", CONFIG)
         assert json.loads((root / "config.json").read_text()) == CONFIG
         assert len(REVISION) == 40 and HEADS == ["a", "b", "c", "d"]
-    print("ECAPA smoke OK: fixed model identity and head order; no training")
+        drive, local = root / "drive", root / "work"
+        drive.mkdir()
+        (drive / "label_encoder.txt").write_text("labels")
+        stage_model(drive, local, ["label_encoder.txt"])
+        assert (local / "label_encoder.txt").read_text() == "labels"
+        assert not (local / "label_encoder.txt").is_symlink()
+        (local / "label_encoder.txt").write_text("interrupted/stale")
+        stage_model(drive, local, ["label_encoder.txt"])
+        assert (local / "label_encoder.txt").read_text() == "labels"
+        assert sorted(p.name for p in drive.iterdir()) == ["label_encoder.txt"]
+        from types import SimpleNamespace
+        missing = SimpleNamespace()
+        patch_torchaudio_backend(missing)
+        assert missing.list_audio_backends() == []
+        existing = SimpleNamespace(list_audio_backends=lambda: ["existing"])
+        original = existing.list_audio_backends
+        patch_torchaudio_backend(existing)
+        assert existing.list_audio_backends is original
+    print("ECAPA smoke OK: local model copies and torchaudio shim; no training")
 
 
 if __name__ == "__main__":
