@@ -1,0 +1,25 @@
+{
+  "exp_id": "M3-E5-001",
+  "mission": 3,
+  "title": "intfloat/multilingual-e5-large 앞 256 + 강화 가중 BCE + soft-F1 (ROBERTA-003 설정, 모델만 교체)",
+  "hypothesis": "문장 표현 학습(대조 학습)으로 다듬어진 다국어 large 인코더가 통화 전체 상황 표현에 유리하다. 입력 앞에 'query: ' 접두어를 붙이는 모델 규약을 따른다",
+  "change_vs_baseline": "M3-ROBERTA-003 대비 인코더만 intfloat/multilingual-e5-large로 교체, lr 1e-05. BCEWithLogits(pos_weight = clip(0.5 * sqrt(neg/max(pos,1)),1,6), Training 분할에서만 계산) + 1.0*(1-mean_j softF1_j), microbatch 8 fp32. 앞 256토큰, warmup 10%, weight decay 0.01, fp16, 실효 batch 16, 3 epochs, P0와 같은 80:20 split, threshold >= 0.5 고정, seed 42. 첫 토큰 + dropout 0.1 + Linear 9 헤드. 하이퍼파라미터 탐색 없음.",
+  "baseline": {
+    "exp_id": "M3-ROBERTA-003",
+    "metric": "macro_f1 seed 42 (80:20 split, thr 0.5)",
+    "value": 0.6441
+  },
+  "branch": "",
+  "commit": "",
+  "command": "python scripts/lab/m3-e5-001.py --out \"$LAB_OUT\"",
+  "uses_official_val": false,
+  "success_criteria": "seed 42 holdout Macro F1 0.6541 이상이면 seed 43/44 후속 제안. 본 실험은 seed 42만 실행. 성적에 관계없이 holdout 5792건의 9개 증상 확률을 holdout_probs.npy, split holdout 순서의 파일 ID를 holdout_ids.json에 저장. 증상별 F1, Macro/Micro F1, 빈 예측 수, ECE/Brier, epoch별 Macro F1, 학습 시간, revision을 metrics.json에 기록.",
+  "gpu": "T4",
+  "budget_hours": 3,
+  "priority": 3,
+  "notes": "Training/TL_서울_구급.zip을 LAB_WORK로 복사 후 추출. 고정 revision을 DCC_RUN_ROOT/models/multilingual-e5-large에 다운로드 후 local_files_only 로드. epoch마다 ckpt_last.pt를 원자적으로 저장하여 재개. 공식 Validation 미사용.",
+  "model_revision": "ab10c1a7f42e74530fe7ae5be82e6d4f11a719eb",
+  "model_revision_source": "https://huggingface.co/intfloat/multilingual-e5-large/commit/ab10c1a7f42e74530fe7ae5be82e6d4f11a719eb",
+  "split_sha256": "62f9d08abdfdd6b9f9ebd2763ed2dd8a6a97755dcc7195cb6e3ed07117d58762",
+  "split_sha256_source": "reports/mission3/ensemble/probs/p0_holdout.npz names: sorted NFC filenames, newline-delimited with trailing newline; identical to val_files.txt hashing"
+}
