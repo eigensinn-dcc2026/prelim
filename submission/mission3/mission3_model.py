@@ -1,7 +1,14 @@
-"""Mission 3 model code: KcBERT multilabel classifier loaded from one offline checkpoint.
+"""Mission 3 model code: BERT-family multilabel classifiers loaded from one offline checkpoint.
 
-The checkpoint (.pt) holds the trained weights, the label list and the text of
-config.json / tokenizer files, so nothing is downloaded at inference time.
+Two checkpoint formats, both a single ``.pt`` read with ``torch.load(weights_only=True)``:
+
+- ``dcc-m3-bert-v1``: one encoder (KcBERT / RoBERTa) + linear head, with the text of
+  config.json / tokenizer files, so nothing is downloaded at inference time.
+- ``dcc-m3-ens-v1``: a fixed-weight probability average of several such encoders and one
+  TF-IDF + logistic-regression model (vocabulary, idf and coefficients stored as plain arrays).
+  ``p = sum_k w_k * p_k`` with weights fixed at build time (chosen on the internal Training
+  holdout, never on the official Validation), then the same ``p >= 0.5`` decision.
+
 Input is the call transcript only (``utterances[].text``).
 """
 
@@ -16,6 +23,7 @@ from typing import Any, Sequence
 import numpy as np
 
 FORMAT = "dcc-m3-bert-v1"
+ENSEMBLE_FORMAT = "dcc-m3-ens-v1"
 # The 9 evaluated symptoms, in the order the output cell is written.
 LABELS = ("고열", "구토", "두통", "복통", "어지러움", "열상", "오심", "전신쇠약", "호흡곤란")
 MAX_LENGTH = 256
@@ -65,13 +73,14 @@ def _build(files: dict[str, str], dropout: float, n_labels: int):
     return Classifier()
 
 
-def load_checkpoint(path: str | Path, device: str | None = None):
+def load_checkpoint(path: str | Path, device: str | None = None, payload: dict | None = None):
     """``(model, tokenizer, labels, max_length)``, fully offline."""
 
     import torch
     from transformers import AutoTokenizer
 
-    payload = torch.load(Path(path), map_location="cpu", weights_only=True)
+    if payload is None:
+        payload = torch.load(Path(path), map_location="cpu", weights_only=True)
     if not isinstance(payload, dict) or payload.get("format") != FORMAT:
         raise ValueError(f"{path} is not a {FORMAT} checkpoint")
     labels = tuple(str(label) for label in payload["labels"])
@@ -113,3 +122,74 @@ def symptom_cell(binary_row: Sequence[int]) -> str:
     """``str(list)`` of the positive labels in LABELS order, e.g. ``['두통', '복통']``."""
 
     return str([label for label, flag in zip(LABELS, binary_row) if int(flag) == 1])
+
+
+def tfidf_probabilities(tfidf: dict, texts: Sequence[str]) -> np.ndarray:
+    """TF-IDF (sublinear tf, smooth idf, l2) + per-symptom logistic regression, from plain arrays.
+
+    Same features as sklearn ``TfidfVectorizer`` with the stored parameters and vocabulary, and the
+    same probabilities as ``OneVsRestClassifier(LogisticRegression).predict_proba`` (multilabel).
+    """
+
+    from scipy.sparse import csr_matrix
+    from sklearn.feature_extraction.text import TfidfVectorizer
+
+    params = dict(tfidf["params"])
+    params["ngram_range"] = tuple(params["ngram_range"])
+    analyzer = TfidfVectorizer(**params).build_analyzer()  # tokenization only; nothing is fitted
+    index = {term: i for i, term in enumerate(tfidf["vocabulary"])}
+    rows, cols, vals = [], [], []
+    for r, text in enumerate(texts):
+        counts: dict[int, int] = {}
+        for token in analyzer(text):
+            j = index.get(token)
+            if j is not None:
+                counts[j] = counts.get(j, 0) + 1
+        for j, c in counts.items():
+            rows.append(r); cols.append(j); vals.append(c)
+    x = csr_matrix((np.asarray(vals, dtype=np.float64), (rows, cols)), shape=(len(texts), len(index)))
+    if params.get("sublinear_tf"):
+        x.data = np.log(x.data) + 1.0
+    x = x.multiply(np.asarray(tfidf["idf"], dtype=np.float64)).tocsr()
+    norms = np.sqrt(np.asarray(x.multiply(x).sum(axis=1)).ravel())
+    norms[norms == 0] = 1.0
+    x = csr_matrix(x.multiply(1.0 / norms[:, None]))
+    logits = x @ np.asarray(tfidf["coef"], dtype=np.float64).T + np.asarray(tfidf["intercept"], dtype=np.float64)
+    return (1.0 / (1.0 + np.exp(-logits))).astype(np.float32)
+
+
+def predict_probabilities(path: str | Path, texts: Sequence[str], batch_size: int = 32,
+                          device: str | None = None) -> np.ndarray:
+    """``(len(texts), 9)`` probabilities for either checkpoint format (members run one at a time)."""
+
+    import gc
+    import torch
+
+    payload = torch.load(Path(path), map_location="cpu", weights_only=True)
+    fmt = payload.get("format") if isinstance(payload, dict) else None
+    if fmt == FORMAT:
+        model, tokenizer, _, max_length = load_checkpoint(path, device, payload)
+        return probabilities(model, tokenizer, texts, max_length, batch_size)
+    if fmt != ENSEMBLE_FORMAT:
+        raise ValueError(f"{path} is neither {FORMAT} nor {ENSEMBLE_FORMAT}")
+    if tuple(str(label) for label in payload["labels"]) != LABELS:
+        raise ValueError("ensemble labels differ from the 9 Mission 3 labels")
+    total = np.zeros((len(texts), len(LABELS)), dtype=np.float64)
+    weight_sum = 0.0
+    for member in payload["members"]:
+        w = float(member["weight"])
+        if member["kind"] == "bert":
+            model, tokenizer, _, max_length = load_checkpoint(path, device, dict(member["checkpoint"]))
+            total += w * probabilities(model, tokenizer, texts, max_length, batch_size)
+            del model
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        elif member["kind"] == "tfidf":
+            total += w * tfidf_probabilities(member, texts)
+        else:
+            raise ValueError(f"unknown ensemble member kind {member['kind']!r}")
+        weight_sum += w
+    if abs(weight_sum - 1.0) > 1e-6:
+        raise ValueError(f"ensemble weights sum to {weight_sum}, not 1")
+    return total.astype(np.float32)

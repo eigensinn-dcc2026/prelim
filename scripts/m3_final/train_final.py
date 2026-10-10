@@ -173,6 +173,30 @@ def train_seed(seed, out, model_path, tokens, targets, pos_weight, epochs):
     return ckpt, history
 
 
+ENSEMBLE_WEIGHTS = dict(bert=0.55, tfidf=0.45)  # chosen on the 80:20 holdout (ROBERTA-003 seed average + P0), never on the official Val
+
+
+def train_tfidf(rows, out):
+    """P0 TF-IDF + OvR logistic regression with the P0 script's parameters, on all Training rows."""
+    import joblib
+    import numpy as np
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.multiclass import OneVsRestClassifier
+
+    random.seed(42); np.random.seed(42)
+    vectorizer = TfidfVectorizer(analyzer="word", ngram_range=(1, 2), min_df=2, max_features=50000, sublinear_tf=True)
+    x = vectorizer.fit_transform([r["text"] for r in rows])
+    classifier = OneVsRestClassifier(LogisticRegression(max_iter=1000, class_weight="balanced", solver="liblinear",
+                                                        random_state=42), n_jobs=1)
+    classifier.fit(x, np.array([r["labels"] for r in rows]))
+    path = out / "mission3_tfidf_logreg_full.joblib"
+    joblib.dump(dict(vectorizer=vectorizer, classifier=classifier, target_symptoms=LABELS, threshold=0.5,
+                     seed=42, model_name="tfidf_ovr_logreg (P0 parameters, all Training)"), path)
+    log(f"TF-IDF trained on {len(rows)} rows, vocabulary {len(vectorizer.vocabulary_)} -> {path.name}")
+    return path
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--train_dir", required=True, type=Path)
@@ -183,6 +207,9 @@ def main():
     ap.add_argument("--quick", action="store_true", help="512 rows, 1 epoch: check speed and plumbing")
     ap.add_argument("--limit", type=int, help="use only the first N rows (smoke test; implies 1 epoch)")
     ap.add_argument("--val_limit", type=int, help="score only the first N Validation files (smoke test)")
+    ap.add_argument("--ensemble", action="store_true",
+                    help="also train TF-IDF on all rows and pack seeds + TF-IDF into m3_ensemble_full.pt "
+                         f"(weights {ENSEMBLE_WEIGHTS}, fixed in advance)")
     args = ap.parse_args()
 
     import torch
@@ -222,6 +249,19 @@ def main():
         log(f"exported {pt.name} ({record['output_bytes']:,} bytes, sha256 {record['output_sha256'][:12]}...)")
         if args.val_dir:
             score_val(pt, args.val_dir, args.out / f"seed_{seed}", args.val_limit)
+    if args.ensemble:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import build_ensemble
+        tfidf = train_tfidf(rows, args.out)
+        ens = args.out / "m3_ensemble_full.pt"
+        build_ensemble.main(["--bert", *[str(args.out / f"m3_roberta003_full_seed{s}.pt") for s in args.seeds],
+                             "--bert_weight", str(ENSEMBLE_WEIGHTS["bert"]), "--tfidf", str(tfidf),
+                             "--tfidf_weight", str(ENSEMBLE_WEIGHTS["tfidf"]), "--out", str(ens)])
+        log(f"ensemble {ens.name}: {ens.stat().st_size:,} bytes")
+        if args.val_dir:
+            ens_dir = args.out / "ensemble"
+            ens_dir.mkdir(exist_ok=True)
+            score_val(ens, args.val_dir, ens_dir, args.val_limit)
 
 
 def score_val(pt, val_dir, seed_dir, limit=None):
@@ -238,8 +278,9 @@ def score_val(pt, val_dir, seed_dir, limit=None):
         s = {unicodedata.normalize("NFC", x.strip()) for x in ([s] if isinstance(s, str) else s) if isinstance(x, str)}
         gold.append([int(lab in s) for lab in LABELS])
     started = time.monotonic()
-    model, tok, _, ml = mission3_bert.load_checkpoint(pt)
-    probs = mission3_bert.probabilities(model, tok, texts, ml)
+    sys.path.insert(0, str(ROOT / "submission" / "mission3"))
+    import mission3_model  # the submission code path: handles single and ensemble checkpoints
+    probs = mission3_model.predict_probabilities(pt, texts, 32)
     seconds = time.monotonic() - started
     gold, pred = np.array(gold), (probs >= 0.5).astype(int)
     res = dict(rows=len(paths), macro_f1=float(f1_score(gold, pred, average="macro", zero_division=0)),

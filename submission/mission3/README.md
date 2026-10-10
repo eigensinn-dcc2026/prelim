@@ -14,6 +14,8 @@
 
 가중치에는 tokenizer·config 텍스트가 함께 들어 있어 **인터넷 없이** 실행됩니다.
 
+`--ckpt_path`는 단일 모델 `.pt`(`dcc-m3-bert-v1`)와 앙상블 `.pt`(`dcc-m3-ens-v1`) 모두 받습니다. 앙상블은 RoBERTa seed 여러 개와 TF-IDF의 확률을 미리 정한 고정 가중치로 평균한 뒤 `≥ 0.5`로 판정합니다. 만드는 방법은 `scripts/m3_final/`(최종 학습 키트)를 보세요.
+
 ## 실행
 
 ```bash

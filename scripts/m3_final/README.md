@@ -1,17 +1,22 @@
 # Mission 3 최종 학습 키트 (도서관 PC, RTX 5060 Ti 16GB)
 
-M3-ROBERTA-003 설정(klue/roberta-large + soft-F1)으로 **Training 100%**를 학습합니다. 결과물은 세 가지입니다.
-1. 제출용 가중치 `.pt` (seed별, 인터넷 없이 추론 가능)
+M3-ROBERTA-003 설정(klue/roberta-large + soft-F1)으로 **Training 100%**를 학습합니다. TF-IDF도 다시 학습해 **최종 제출 앙상블**을 만듭니다.
+
+결과물은 세 가지입니다.
+1. **제출용 `m3_ensemble_full.pt` 하나:** `p = 0.55 × (RoBERTa seed 42·43·44 평균) + 0.45 × TF-IDF`, 판정 `p ≥ 0.5`. 인터넷 없이 추론됩니다. seed별 `.pt`도 함께 남습니다.
 2. 공식 Validation 점수 (평가에만 사용)
 3. **학습 로그가 담긴 실행된 ipynb** (필수 제출물)
+
+앙상블 가중치 0.55 : 0.45는 80:20 내부 홀드아웃에서 미리 정했습니다(공식 Val은 선택에 쓰지 않음). 80% 학습 모델 기준 공식 Val은 단일 seed 0.6433, 이 앙상블 0.6529였습니다.
 
 | 파일 | 역할 |
 |---|---|
 | `m3_final_train.ipynb` | 실행할 노트북. 이 노트북을 실행하고 저장한 것이 학습 로그 제출물입니다 |
-| `train_final.py` | 학습, 내보내기, 채점 코드 (노트북이 `%run`으로 부름) |
+| `train_final.py` | 학습, 내보내기, 채점 코드 (노트북이 `%run`으로 부름). `--ensemble`이면 TF-IDF 학습과 앙상블 `.pt` 생성까지 합니다 |
+| `build_ensemble.py` | seed별 `.pt`와 TF-IDF joblib을 앙상블 `.pt` 하나로 묶습니다 (`train_final.py --ensemble`이 자동 호출) |
 | `requirements-train.txt` | 패키지 버전 (torch는 따로 설치) |
 
-예상 시간은 seed당 30~40분입니다(T4 78분의 2~2.5배 속도로 가정). 정확한 값은 3단계 속도 확인으로 정합니다.
+예상 시간은 seed당 30~40분입니다(T4 78분의 2~2.5배 속도로 가정). TF-IDF는 1분 정도 걸리고, 공식 Val 채점은 GPU에서 seed마다 수 분입니다. 정확한 값은 3단계 속도 확인으로 정합니다. 시간이 부족하면 `M3_SEEDS="42"`로 단일 모델만 만들 수 있습니다(이때 앙상블은 만들지 않음).
 
 ## 0. 준비물 (Google Drive `MyDrive/대학부 데이터 압축해제/대학부 데이터/`)
 - `Training/TL_서울_구급.zip` (54MB): Training 라벨
@@ -39,6 +44,7 @@ $env:M3_TRAIN_DIR = "C:\dcc_data\Training\TL_서울_구급"
 $env:M3_VAL_DIR   = "C:\dcc_data\Validation\VL_서울_구급"
 $env:M3_SEEDS     = "42 43 44"     # 시간이 부족하면 "42"
 $env:M3_RUN_QUICK = "1"            # 512행 1 epoch 속도 확인을 먼저 실행
+$env:M3_ENSEMBLE  = "1"            # seed 3개일 때 TF-IDF 학습과 앙상블 .pt 생성까지 (기본 1)
 ```
 모델(`klue/roberta-large` revision `28d9112`, 1.35GB)은 처음 실행할 때 `model_cache/`에 자동으로 받습니다.
 
@@ -57,11 +63,13 @@ python -m jupyter nbconvert --to notebook --execute --inplace --ExecutePreproces
 
 노트북 없이 스크립트만 돌릴 때(로그 ipynb는 남지 않음):
 ```powershell
-python scripts/m3_final/train_final.py --train_dir C:\dcc_data\Training\TL_서울_구급 --out runs/m3_final --seeds 42 43 44 --val_dir C:\dcc_data\Validation\VL_서울_구급
+python scripts/m3_final/train_final.py --train_dir C:\dcc_data\Training\TL_서울_구급 --out runs/m3_final --seeds 42 43 44 --val_dir C:\dcc_data\Validation\VL_서울_구급 --ensemble
 ```
 
 ## 4. 결과물 (`runs/m3_final/`)
-- `m3_roberta003_full_seed<s>.pt`: 제출용 가중치. `submission/mission3/inference.py --ckpt_path`에 그대로 씁니다.
+- **`m3_ensemble_full.pt`: 최종 제출 가중치(약 4GB).** `submission/mission3/inference.py --ckpt_path`에 그대로 씁니다. `ensemble/val_score.json`에 공식 Val 점수가 있습니다.
+- `m3_roberta003_full_seed<s>.pt`: seed별 단일 모델. 앙상블이 문제일 때의 대안입니다.
+- `mission3_tfidf_logreg_full.joblib`: TF-IDF (P0 설정, Training 전체)
 - `*.pt.json`: 크기, SHA256, 학습 기록
 - `seed_<s>/val_score.json`: 공식 Val 점수와 추론 시간 (계산 효율 보고용)
 - `seed_<s>/history.json`: epoch별 loss와 시간
