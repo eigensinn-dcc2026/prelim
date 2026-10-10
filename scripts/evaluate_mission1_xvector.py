@@ -90,6 +90,12 @@ def main():
                     input_sha256=hashlib.sha256("".join(
                         name + sha256(jsons[name]) + sha256(wavs[name]) for name in names
                     ).encode()).hexdigest(), max_seconds=20, min_seconds=.5)
+    if identity["head_sha256"] != "4fffb8aa97c2f3083b05820ca45b84ecddbc60c5162e02961546f37d133dd9d5":
+        raise ValueError("head does not match the fixed M1-XVEC-001 candidate")
+    if identity["encoder_sha256"] != "94c3defe08248d81c7b2bd0a058ea9985269cefed13076434669c47fade41182":
+        raise ValueError("encoder does not match the fixed WavLM snapshot")
+    if identity["model_revision"] != {"repo_id": "microsoft/wavlm-base-plus-sv", "revision": "1bfd64eca136543feb28c5ffaf05381c6af33121"}:
+        raise ValueError("WavLM revision mismatch")
     identity_path = args.out / "identity.json"
     if identity_path.exists() and json.loads(identity_path.read_text()) != identity:
         raise ValueError("cached feature identity mismatch")
