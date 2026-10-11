@@ -49,6 +49,9 @@ def extract(zip_path: Path, dest: Path) -> Path:
 
 def copy(src: Path, dst_dir: Path):
     dst_dir.mkdir(parents=True, exist_ok=True)
+    if (dst_dir / src.name).exists() and (dst_dir / src.name).stat().st_size == src.stat().st_size and src.suffix == ".pt"             and src.name.startswith("m3_roberta003_full_seed"):
+        log(f"{src.name} already on Drive (resume copy), skipped")
+        return
     tmp = dst_dir / (src.name + ".partial")
     shutil.copyfile(src, tmp)
     os.replace(tmp, dst_dir / src.name)
@@ -73,7 +76,10 @@ def main():
     executed = NOTEBOOK.with_name("m3_final_train.executed.ipynb")
     env = dict(os.environ, M3_TRAIN_DIR=str(train_dir), M3_VAL_DIR=str(val_dir), M3_OUT=str(runs),
                M3_MODEL_CACHE=str(Path(os.environ["DCC_RUN_ROOT"]) / "models"), M3_SEEDS=SEEDS,
-               M3_RUN_QUICK="0", M3_ENSEMBLE="1", M3_DROP_LAB_CKPT="1")
+               M3_RUN_QUICK="0", M3_ENSEMBLE="1", M3_DROP_LAB_CKPT="1",
+               # survive a lost Colab session: finished seeds are kept on Drive and reused by the next attempt
+               M3_RESUME_DIR=str(args.out), M3_PROGRESS_LOG=str(args.out / "progress.log"))
+    args.out.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(NOTEBOOK, executed)  # run a copy so the tracked notebook stays clean
     cmd = [sys.executable, "-m", "jupyter", "nbconvert", "--to", "notebook", "--execute", "--inplace",
            "--ExecutePreprocessor.timeout=-1", "--ExecutePreprocessor.kernel_name=python3", str(executed)]

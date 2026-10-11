@@ -50,7 +50,24 @@ def sha256(path):
 
 
 def log(msg):
-    print(time.strftime("[%H:%M:%S] ") + msg, flush=True)
+    line = time.strftime("[%H:%M:%S] ") + msg
+    print(line, flush=True)
+    progress = os.environ.get("M3_PROGRESS_LOG")  # live log on Drive (notebook output is saved only at the end)
+    if progress:
+        try:
+            with open(progress, "a", encoding="utf-8") as handle:
+                handle.write(line + "\n")
+        except OSError:
+            pass
+
+
+def copy_atomic(src, dst_dir):
+    import shutil
+    dst_dir = Path(dst_dir)
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    tmp = dst_dir / (Path(src).name + ".partial")
+    shutil.copyfile(src, tmp)
+    os.replace(tmp, dst_dir / Path(src).name)
 
 
 def transcript(doc):
@@ -207,6 +224,9 @@ def main():
     ap.add_argument("--quick", action="store_true", help="512 rows, 1 epoch: check speed and plumbing")
     ap.add_argument("--limit", type=int, help="use only the first N rows (smoke test; implies 1 epoch)")
     ap.add_argument("--val_limit", type=int, help="score only the first N Validation files (smoke test)")
+    ap.add_argument("--resume_dir", type=Path, default=os.environ.get("M3_RESUME_DIR") or None,
+                    help="persistent folder (e.g. Drive): each finished seed's .pt is copied here, and a seed whose "
+                         ".pt + .pt.json already exist here is reused instead of retrained (survives a lost session)")
     ap.add_argument("--drop_lab_ckpt", action="store_true",
                     help="delete seed_<s>/best.ckpt right after it is exported to the .pt (saves 1.35GB per seed)")
     ap.add_argument("--ensemble", action="store_true",
@@ -243,15 +263,35 @@ def main():
 
     for seed in args.seeds:
         log(f"=== seed {seed} ===")
-        ckpt, history = train_seed(seed, args.out, model_path, tokens, targets, pos_weight, epochs)
         pt = args.out / f"m3_roberta003_full_seed{seed}.pt"
+        saved = Path(args.resume_dir) / pt.name if args.resume_dir else None
+        if saved and saved.exists() and saved.with_suffix(".pt.json").exists():
+            record = json.loads(saved.with_suffix(".pt.json").read_text(encoding="utf-8"))
+            if (record.get("output_bytes") == saved.stat().st_size and record.get("rows") == len(rows)
+                    and record.get("epochs") == epochs):
+                copy_atomic(saved, args.out)
+                copy_atomic(saved.with_suffix(".pt.json"), args.out)
+                (args.out / f"seed_{seed}").mkdir(parents=True, exist_ok=True)
+                (args.out / f"seed_{seed}" / "history.json").write_text(
+                    json.dumps(record["history"], ensure_ascii=False, indent=1), encoding="utf-8")
+                log(f"resumed seed {seed} from {saved} (trained in an earlier session, sha256 {record['output_sha256'][:12]}...)")
+                if args.val_dir:
+                    score_val(pt, args.val_dir, args.out / f"seed_{seed}", args.val_limit)
+                continue
+            log(f"ignoring {saved}: record does not match this run")
+        ckpt, history = train_seed(seed, args.out, model_path, tokens, targets, pos_weight, epochs)
         meta = mission3_bert.export_checkpoint(ckpt, model_path, pt)
-        record = dict(meta, output=pt.name, output_bytes=pt.stat().st_size, output_sha256=sha256(pt), history=history)
+        record = dict(meta, output=pt.name, output_bytes=pt.stat().st_size, output_sha256=sha256(pt), history=history,
+                      rows=len(rows), epochs=epochs)
         pt.with_suffix(pt.suffix + ".json").write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
         log(f"exported {pt.name} ({record['output_bytes']:,} bytes, sha256 {record['output_sha256'][:12]}...)")
         if args.drop_lab_ckpt:
             ckpt.unlink()
             log(f"deleted {ckpt.relative_to(args.out)} (the exported .pt holds the same weights)")
+        if args.resume_dir:
+            copy_atomic(pt, args.resume_dir)
+            copy_atomic(pt.with_suffix(pt.suffix + ".json"), args.resume_dir)
+            log(f"saved {pt.name} to {args.resume_dir} (resume point)")
         if args.val_dir:
             score_val(pt, args.val_dir, args.out / f"seed_{seed}", args.val_limit)
     if args.ensemble:
