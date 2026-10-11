@@ -1,0 +1,4 @@
+rob alone 0.6411799894078397
+rob+lr 0.645300756508691 [(np.float64(0.5), np.float64(0.5), 0.0), (np.float64(0.5), np.float64(0.5), 0.0), (np.float64(0.45), np.float64(0.55), 0.0), (np.float64(0.5), np.float64(0.5), 0.0), (np.float64(0.5), np.float64(0.5), 0.0)]
+rob+lr+lgbm 0.6449100542892511 [(np.float64(0.5), np.float64(0.5), np.float64(0.0)), (np.float64(0.5), np.float64(0.45), np.float64(0.05)), (np.float64(0.45), np.float64(0.55), np.float64(0.0)), (np.float64(0.5), np.float64(0.5), np.float64(0.0)), (np.float64(0.5), np.float64(0.5), np.float64(0.0))]
+gain -0.0003907022194399312 CI95 [-0.0007742274866431697, -5.806356220922203e-06]
