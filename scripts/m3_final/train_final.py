@@ -207,6 +207,8 @@ def main():
     ap.add_argument("--quick", action="store_true", help="512 rows, 1 epoch: check speed and plumbing")
     ap.add_argument("--limit", type=int, help="use only the first N rows (smoke test; implies 1 epoch)")
     ap.add_argument("--val_limit", type=int, help="score only the first N Validation files (smoke test)")
+    ap.add_argument("--drop_lab_ckpt", action="store_true",
+                    help="delete seed_<s>/best.ckpt right after it is exported to the .pt (saves 1.35GB per seed)")
     ap.add_argument("--ensemble", action="store_true",
                     help="also train TF-IDF on all rows and pack seeds + TF-IDF into m3_ensemble_full.pt "
                          f"(weights {ENSEMBLE_WEIGHTS}, fixed in advance)")
@@ -247,6 +249,9 @@ def main():
         record = dict(meta, output=pt.name, output_bytes=pt.stat().st_size, output_sha256=sha256(pt), history=history)
         pt.with_suffix(pt.suffix + ".json").write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
         log(f"exported {pt.name} ({record['output_bytes']:,} bytes, sha256 {record['output_sha256'][:12]}...)")
+        if args.drop_lab_ckpt:
+            ckpt.unlink()
+            log(f"deleted {ckpt.relative_to(args.out)} (the exported .pt holds the same weights)")
         if args.val_dir:
             score_val(pt, args.val_dir, args.out / f"seed_{seed}", args.val_limit)
     if args.ensemble:
