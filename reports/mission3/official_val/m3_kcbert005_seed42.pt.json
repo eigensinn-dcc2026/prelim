@@ -1,0 +1,27 @@
+{
+  "format": "dcc-m3-bert-v1",
+  "labels": [
+    "고열",
+    "구토",
+    "두통",
+    "복통",
+    "어지러움",
+    "열상",
+    "오심",
+    "전신쇠약",
+    "호흡곤란"
+  ],
+  "max_length": 256,
+  "dropout": 0.1,
+  "source": {
+    "exp_id": "M3-KCBERT-005",
+    "model": "beomi/kcbert-base",
+    "revision": "0f2f3f8",
+    "seed": 42,
+    "epoch": 3,
+    "lab_ckpt_sha256": "03d3b632a4f9a2bf66079e44f4caea2d896a760cf0a37c635d5e1e842c08cc6b"
+  },
+  "output": "m3_kcbert005_seed42.pt",
+  "output_bytes": 436017645,
+  "output_sha256": "77519f12ae3127ed4ebf197115e795ff3c3318894b26f7f6f90f0a44bb6c0d3b"
+}

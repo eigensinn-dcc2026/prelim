@@ -98,12 +98,17 @@ def test_m3_commands_use_selected_python_and_absolute_scripts(monkeypatch, tmp_p
         "PREDICTION_PATH": tmp_path / "outputs/mission3.csv",
         "subprocess": types.SimpleNamespace(run=lambda args, **kwargs: calls.append((args, kwargs))),
     }
-    for index in [7, 8]:
+    # cell 7 installs iterative-stratification only when it is missing, cell 8 trains, cell 9 runs root inference.py
+    for index in [7, 8, 9]:
         exec("".join(notebook("reports/M3_baseline.ipynb")["cells"][index]["source"]), namespace)
-    assert calls[0][0][:2] == [sys.executable, str(tmp_path / "scripts/mission3_baseline.py")]
-    assert calls[1][0][:2] == [sys.executable, str(tmp_path / "scripts/inference.py")]
-    assert calls[0][0][-6:] == ["--threshold", "0.5", "--test_size", "0.2", "--seed", "42"]
-    assert all(kwargs == {"cwd": tmp_path, "check": True} for _, kwargs in calls)
+    scripts = [(args, kwargs) for args, kwargs in calls if args[1:2] != ["-m"]]
+    assert [args[:2] for args, _ in scripts] == [
+        [sys.executable, str(tmp_path / "scripts/mission3_baseline.py")],
+        [sys.executable, str(tmp_path / "inference.py")],
+    ]
+    assert scripts[0][0][-6:] == ["--threshold", "0.5", "--test_size", "0.2", "--seed", "42"]
+    assert all(kwargs == {"cwd": tmp_path, "check": True} for _, kwargs in scripts)
+    assert all(args[0] == sys.executable for args, _ in calls)
 
 
 def test_colab_mount_is_conditional(monkeypatch, tmp_path):

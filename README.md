@@ -4,6 +4,8 @@
 
 이 문서는 저장소의 현재 상태, Mission별 진행 상황, 주요 경로와 작업 시작 방법을 빠르게 파악하기 위한 안내서입니다. 실험 수치의 원본은 [`docs/experiment_log.md`](./docs/experiment_log.md), 모델·방법론의 채택·기각·보류 근거는 [`docs/decisions.md`](./docs/decisions.md)에서 관리합니다.
 
+외부 PC에서 이 브랜치의 작업을 이어가려면 [`EXTERNAL_PC.md`](./EXTERNAL_PC.md)의 코드 다운로드, 환경 설치, 데이터·모델 연결 절차를 따릅니다.
+
 ## Mission 구성
 
 | Mission | 문제 | 입력 | 평가지표 |

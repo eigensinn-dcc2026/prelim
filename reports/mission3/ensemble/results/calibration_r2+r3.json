@@ -1,0 +1,302 @@
+{
+ "r2/holdout": {
+  "avg": {
+   "ece": 0.0278,
+   "brier": 0.0762,
+   "bias": 0.0096,
+   "pred_pos_rate": 0.1233,
+   "true_pos_rate": 0.16,
+   "macro_f1": 0.627
+  },
+  "per_symptom": {
+   "고열": {
+    "ece": 0.0312,
+    "brier": 0.0837,
+    "bias": -0.0035,
+    "pred_pos_rate": 0.1291,
+    "true_pos_rate": 0.179
+   },
+   "구토": {
+    "ece": 0.0234,
+    "brier": 0.0849,
+    "bias": 0.0128,
+    "pred_pos_rate": 0.1036,
+    "true_pos_rate": 0.1542
+   },
+   "두통": {
+    "ece": 0.0272,
+    "brier": 0.0666,
+    "bias": 0.0235,
+    "pred_pos_rate": 0.0699,
+    "true_pos_rate": 0.1003
+   },
+   "복통": {
+    "ece": 0.0268,
+    "brier": 0.0695,
+    "bias": -0.003,
+    "pred_pos_rate": 0.1975,
+    "true_pos_rate": 0.2338
+   },
+   "어지러움": {
+    "ece": 0.032,
+    "brier": 0.1004,
+    "bias": 0.0017,
+    "pred_pos_rate": 0.1749,
+    "true_pos_rate": 0.2188
+   },
+   "열상": {
+    "ece": 0.0111,
+    "brier": 0.0206,
+    "bias": 0.0106,
+    "pred_pos_rate": 0.1243,
+    "true_pos_rate": 0.1196
+   },
+   "오심": {
+    "ece": 0.0387,
+    "brier": 0.0926,
+    "bias": 0.0386,
+    "pred_pos_rate": 0.0551,
+    "true_pos_rate": 0.1153
+   },
+   "전신쇠약": {
+    "ece": 0.0361,
+    "brier": 0.104,
+    "bias": -0.0025,
+    "pred_pos_rate": 0.1378,
+    "true_pos_rate": 0.1834
+   },
+   "호흡곤란": {
+    "ece": 0.024,
+    "brier": 0.0639,
+    "bias": 0.008,
+    "pred_pos_rate": 0.1174,
+    "true_pos_rate": 0.1355
+   }
+  }
+ },
+ "r2/val": {
+  "avg": {
+   "ece": 0.0283,
+   "brier": 0.076,
+   "bias": 0.0087,
+   "pred_pos_rate": 0.1216,
+   "true_pos_rate": 0.1598,
+   "macro_f1": 0.6304
+  },
+  "per_symptom": {
+   "고열": {
+    "ece": 0.0287,
+    "brier": 0.0821,
+    "bias": -0.0129,
+    "pred_pos_rate": 0.128,
+    "true_pos_rate": 0.1863
+   },
+   "구토": {
+    "ece": 0.0218,
+    "brier": 0.0845,
+    "bias": 0.016,
+    "pred_pos_rate": 0.0992,
+    "true_pos_rate": 0.1475
+   },
+   "두통": {
+    "ece": 0.0208,
+    "brier": 0.0659,
+    "bias": 0.0165,
+    "pred_pos_rate": 0.0621,
+    "true_pos_rate": 0.1027
+   },
+   "복통": {
+    "ece": 0.0259,
+    "brier": 0.0648,
+    "bias": -0.001,
+    "pred_pos_rate": 0.1959,
+    "true_pos_rate": 0.2302
+   },
+   "어지러움": {
+    "ece": 0.0399,
+    "brier": 0.101,
+    "bias": 0.0101,
+    "pred_pos_rate": 0.1739,
+    "true_pos_rate": 0.2126
+   },
+   "열상": {
+    "ece": 0.01,
+    "brier": 0.0222,
+    "bias": 0.0044,
+    "pred_pos_rate": 0.125,
+    "true_pos_rate": 0.1272
+   },
+   "오심": {
+    "ece": 0.0386,
+    "brier": 0.0944,
+    "bias": 0.0374,
+    "pred_pos_rate": 0.0566,
+    "true_pos_rate": 0.1179
+   },
+   "전신쇠약": {
+    "ece": 0.0388,
+    "brier": 0.1026,
+    "bias": 0.0063,
+    "pred_pos_rate": 0.1415,
+    "true_pos_rate": 0.1788
+   },
+   "호흡곤란": {
+    "ece": 0.0303,
+    "brier": 0.0668,
+    "bias": 0.0019,
+    "pred_pos_rate": 0.1126,
+    "true_pos_rate": 0.1352
+   }
+  }
+ },
+ "r3/holdout": {
+  "avg": {
+   "ece": 0.0517,
+   "brier": 0.083,
+   "bias": 0.021,
+   "pred_pos_rate": 0.1487,
+   "true_pos_rate": 0.16,
+   "macro_f1": 0.6441
+  },
+  "per_symptom": {
+   "고열": {
+    "ece": 0.0523,
+    "brier": 0.0899,
+    "bias": 0.0047,
+    "pred_pos_rate": 0.1488,
+    "true_pos_rate": 0.179
+   },
+   "구토": {
+    "ece": 0.0494,
+    "brier": 0.0905,
+    "bias": 0.0262,
+    "pred_pos_rate": 0.1245,
+    "true_pos_rate": 0.1542
+   },
+   "두통": {
+    "ece": 0.0441,
+    "brier": 0.074,
+    "bias": 0.034,
+    "pred_pos_rate": 0.095,
+    "true_pos_rate": 0.1003
+   },
+   "복통": {
+    "ece": 0.0488,
+    "brier": 0.0738,
+    "bias": -0.0066,
+    "pred_pos_rate": 0.2068,
+    "true_pos_rate": 0.2338
+   },
+   "어지러움": {
+    "ece": 0.0678,
+    "brier": 0.1093,
+    "bias": 0.0143,
+    "pred_pos_rate": 0.2065,
+    "true_pos_rate": 0.2188
+   },
+   "열상": {
+    "ece": 0.0139,
+    "brier": 0.0225,
+    "bias": 0.0129,
+    "pred_pos_rate": 0.1281,
+    "true_pos_rate": 0.1196
+   },
+   "오심": {
+    "ece": 0.0747,
+    "brier": 0.1064,
+    "bias": 0.0737,
+    "pred_pos_rate": 0.125,
+    "true_pos_rate": 0.1153
+   },
+   "전신쇠약": {
+    "ece": 0.0732,
+    "brier": 0.114,
+    "bias": 0.0166,
+    "pred_pos_rate": 0.1727,
+    "true_pos_rate": 0.1834
+   },
+   "호흡곤란": {
+    "ece": 0.041,
+    "brier": 0.0663,
+    "bias": 0.0128,
+    "pred_pos_rate": 0.131,
+    "true_pos_rate": 0.1355
+   }
+  }
+ },
+ "r3/val": {
+  "avg": {
+   "ece": 0.0515,
+   "brier": 0.0826,
+   "bias": 0.0199,
+   "pred_pos_rate": 0.1466,
+   "true_pos_rate": 0.1598,
+   "macro_f1": 0.6433
+  },
+  "per_symptom": {
+   "고열": {
+    "ece": 0.0461,
+    "brier": 0.085,
+    "bias": -0.0054,
+    "pred_pos_rate": 0.1473,
+    "true_pos_rate": 0.1863
+   },
+   "구토": {
+    "ece": 0.044,
+    "brier": 0.0905,
+    "bias": 0.0303,
+    "pred_pos_rate": 0.1223,
+    "true_pos_rate": 0.1475
+   },
+   "두통": {
+    "ece": 0.0399,
+    "brier": 0.0729,
+    "bias": 0.0238,
+    "pred_pos_rate": 0.0821,
+    "true_pos_rate": 0.1027
+   },
+   "복통": {
+    "ece": 0.0437,
+    "brier": 0.0668,
+    "bias": -0.0045,
+    "pred_pos_rate": 0.2027,
+    "true_pos_rate": 0.2302
+   },
+   "어지러움": {
+    "ece": 0.0755,
+    "brier": 0.1112,
+    "bias": 0.0224,
+    "pred_pos_rate": 0.2058,
+    "true_pos_rate": 0.2126
+   },
+   "열상": {
+    "ece": 0.016,
+    "brier": 0.0247,
+    "bias": 0.0071,
+    "pred_pos_rate": 0.1286,
+    "true_pos_rate": 0.1272
+   },
+   "오심": {
+    "ece": 0.0769,
+    "brier": 0.1089,
+    "bias": 0.0731,
+    "pred_pos_rate": 0.1297,
+    "true_pos_rate": 0.1179
+   },
+   "전신쇠약": {
+    "ece": 0.0757,
+    "brier": 0.1127,
+    "bias": 0.0263,
+    "pred_pos_rate": 0.1777,
+    "true_pos_rate": 0.1788
+   },
+   "호흡곤란": {
+    "ece": 0.0454,
+    "brier": 0.0711,
+    "bias": 0.0063,
+    "pred_pos_rate": 0.1231,
+    "true_pos_rate": 0.1352
+   }
+  }
+ }
+}
