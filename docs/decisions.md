@@ -15,6 +15,12 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-11 — [M2] WavLM-base-plus 미세조정(M2-SSL-002) 기각
+
+- **결정**: 기각. WavLM-base-plus 미세조정 발화 분류는 SpeakerCNNLarge 대신 쓰지 않는다. M2 SSL 계열(고정 임베딩·미세조정) 후속 탐색은 중단한다.
+- **이유**: 같은 6,000통화 학습·1,500통화 holdout에서 CNN 90.03% vs WavLM 85.65%(−4.38%p), 5개 묶음 모두 열세, McNemar p≈7e-167. 대원 recall 73.4%로 쏠리고 1초 미만 발화가 특히 약했다(74.2% vs 86.2%). 추론도 공식 Val CPU 약 415분으로 L2 앙상블(85.3분)의 약 5배다.
+- **후속**: 코드 PR #159는 닫는다. 근거: `docs/experiment_log.md` M2-SSL-002 행
+
 ## 2026-10-11 — [M3] DeBERTa-v3 xlarge 인코더 교체(M3-DEBERTA-001) 기각
 
 - **결정**: 기각. ROBERTA-003 설정에서 인코더를 team-lucid/deberta-v3-xlarge-korean으로 바꾼 구성은 채택하지 않는다.
