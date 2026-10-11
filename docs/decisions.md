@@ -15,6 +15,13 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-11 — [M3] 8B LLM 교사(M3-TEACHER-001) 기각
+
+- **결정**: 기각. kanana-1.5-8b-base LoRA 교사 fold 0이 epoch 1 Macro F1 0.6212로 게이트 0.635에 못 미쳤다. fold 1~4 확장과 RoBERTa 증류는 진행하지 않는다.
+- **이유**: 같은 fold의 RoBERTa(ROB5F-001 fold 0 0.6403)보다 -0.019 낮고, 오심 0.275·빈 예측 6.47%로 근거 없는 라벨 추론도 나아지지 않았다. Qwen2.5-1.5B(M3-QWEN-001)에 이어 LLM 인코더가 RoBERTa-large를 넘지 못했다. A100 62.6분.
+- **후속**: 최종 학습은 ROBERTA-003 설정을 유지한다. LLM 교사·증류 계열은 재제안하지 않는다. 근거: `docs/experiment_log.md` M3-TEACHER-001 행
+
+
 ## 2026-10-11 — [M3] ROBERTA-003 설정 5-fold OOF(M3-ROB5F-001) 채택
 
 - **결정**: 채택. fold 앙상블 멤버 5개와 OOF 확률을 앞으로의 재료로 쓴다.
