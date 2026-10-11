@@ -397,12 +397,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=os.environ.get("LAB_OUT"))
     parser.add_argument("--smoke", action="store_true")
+    parser.add_argument("--seeds", nargs="+", type=int, default=SEEDS,
+                        help="Run a single seed (42) for a pilot before a full 3-seed run.")
     args = parser.parse_args()
     if args.smoke:
         smoke()
         return
     if not args.out:
         parser.error("--out or LAB_OUT required")
+    if not args.seeds or len(set(args.seeds)) != len(args.seeds) or any(seed not in SEEDS for seed in args.seeds):
+        parser.error("--seeds must be unique values from 42, 43, 44.")
     if os.environ.get("LAB_EXP_ID", EXP_ID) != EXP_ID:
         raise ValueError("LAB_EXP_ID mismatch")
     model_path, tokenizer = prepare_model()  # Before all data preparation.
@@ -412,9 +416,10 @@ def main():
     work = Path(os.environ["LAB_WORK"]) / EXP_ID.lower()
     out.mkdir(parents=True, exist_ok=True)
     work.mkdir(parents=True, exist_ok=True)
-    if (out / "config.json").exists() and json.loads((out / "config.json").read_text()) != CONFIG:
+    run_config = {**CONFIG, "training_seeds": args.seeds}
+    if (out / "config.json").exists() and json.loads((out / "config.json").read_text()) != run_config:
         raise ValueError("Output directory belongs to a different configuration")
-    write_json(out / "config.json", CONFIG)
+    write_json(out / "config.json", run_config)
     if (out / "metrics.json").exists():
         if not (out / "best.ckpt").exists():
             raise ValueError("Completed metrics exist without best.ckpt")
@@ -433,15 +438,16 @@ def main():
                                 max_length=256, return_tensors="pt"))
         atomic_write(cache, lambda p: torch.save(tokens, p))
     targets = torch.tensor([r["labels"] for r in rows], dtype=torch.float32)
-    results = [run_seed(seed, out, model_path, tokens, targets, train, holdout, pos_weight) for seed in SEEDS]
-    # Fixed representative seed 42, not a seed selected using holdout performance.
-    atomic_write(out / "best.ckpt", lambda p: shutil.copyfile(out / "seed_42" / "best.ckpt", p))
-    mean_macro = sum(r["macro_f1"] for r in results) / 3
+    results = [run_seed(seed, out, model_path, tokens, targets, train, holdout, pos_weight) for seed in args.seeds]
+    # Deterministic representative (first selected seed), not chosen by holdout score.
+    representative_seed = args.seeds[0]
+    atomic_write(out / "best.ckpt", lambda p: shutil.copyfile(out / f"seed_{representative_seed}" / "best.ckpt", p))
+    mean_macro = sum(r["macro_f1"] for r in results) / len(results)
     metrics = dict(exp_id=EXP_ID, primary_metric=dict(name="macro_f1", value=mean_macro, split="internal_holdout"),
-                   metrics=dict(seeds=results, mean_micro_f1=sum(r["micro_f1"] for r in results) / 3,
-                                mean_per_symptom_f1={s: sum(r["per_symptom_f1"][s] for r in results) / 3 for s in LABELS}),
-                   seed=42, seeds=SEEDS, train_rows=len(train), eval_rows=len(holdout), official_val=None,
-                   ckpt="best.ckpt", notes="Final epoch 3; threshold >=0.5 fixed; empty predictions unchanged; seed42 representative checkpoint. "
+                   metrics=dict(seeds=results, mean_micro_f1=sum(r["micro_f1"] for r in results) / len(results),
+                                mean_per_symptom_f1={s: sum(r["per_symptom_f1"][s] for r in results) / len(results) for s in LABELS}),
+                   seed=representative_seed, seeds=args.seeds, train_rows=len(train), eval_rows=len(holdout), official_val=None,
+                   ckpt="best.ckpt", notes="Final epoch 3; threshold >=0.5 fixed; empty predictions unchanged; first-seed representative checkpoint. "
                    "M3-KCBERT-012 split reused; BCE + soft macro-F1 + training-only 0.2 PLCP and 0.2 CLCP; "
                    "weights computed from Training partition only; official Validation unused.")
     write_json(out / "metrics.json", metrics)
