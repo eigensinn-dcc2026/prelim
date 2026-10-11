@@ -142,26 +142,59 @@ def load_baseline(root):
     return data, split
 
 
+def stage_model(root, local, required):
+    """Copy snapshot files atomically; SpeechBrain must never write to Drive.
+
+    Refresh the small set of model files on every process start to recover from
+    interrupted copies and avoid trusting a stale local snapshot.
+    """
+    local.mkdir(parents=True, exist_ok=True)
+    for name in required:
+        atomic(local / name, lambda tmp, name=name: shutil.copyfile(root / name, tmp))
+    return local
+
+
 def prepare_model():
     import torch
+    from huggingface_hub import snapshot_download
     import torchaudio
     if not hasattr(torchaudio, 'list_audio_backends'):
         torchaudio.list_audio_backends = lambda: []
-    from huggingface_hub import snapshot_download
-    from speechbrain.inference.speaker import EncoderClassifier
-    root = Path(os.environ['DCC_RUN_ROOT']) / 'models' / 'spkrec-ecapa-voxceleb'
-    marker = root / 'dcc_revision.json'
+    # The compatibility shim must run before any SpeechBrain import.
+    from speechbrain.inference.classifiers import EncoderClassifier
+    from speechbrain.utils.fetching import LocalStrategy
+    root = Path(os.environ["DCC_RUN_ROOT"]) / "models" / "spkrec-ecapa-voxceleb"
+    marker = root / "dcc_revision.json"
     identity = dict(repo_id=MODEL_ID, revision=REVISION)
+    required = ["hyperparams.yaml", "embedding_model.ckpt", "mean_var_norm_emb.ckpt",
+                "classifier.ckpt", "label_encoder.txt"]
     if marker.exists():
         if json.loads(marker.read_text()) != identity:
-            raise ValueError('ECAPA revision mismatch')
-    else:
-        snapshot_download(repo_id=MODEL_ID, revision=REVISION, local_dir=str(root))
-    # Local source and local custom module prevent SpeechBrain's remote fallback.
-    model = EncoderClassifier.from_hparams(source=str(root), savedir=str(root),
-                run_opts={'device': 'cuda' if torch.cuda.is_available() else 'cpu'})
+            raise ValueError(f"ECAPA revision mismatch: {root}")
+    if not marker.exists() or not all((root / name).is_file() for name in required):
+        snapshot_download(repo_id=MODEL_ID, revision=REVISION, local_dir=str(root),
+                          allow_patterns=required)
+    if not all((root / name).is_file() for name in required):
+        raise ValueError("Incomplete ECAPA snapshot")
+    local = stage_model(
+        root, Path(os.environ["LAB_WORK"]) / EXP_ID.lower() / "models"
+        / "spkrec-ecapa-voxceleb" / REVISION, required)
+    # Upstream YAML has explicit HF paths: override them before collection.
+    # All source and collection paths are local, including label_encoder.ckpt.
+    # COPY also avoids symlinks on filesystems that do not support them.
+    model = EncoderClassifier.from_hparams(
+        source=str(local), savedir=str(local),
+        overrides={"pretrained_path": str(local)},
+        local_strategy=LocalStrategy.COPY,
+        run_opts={"device": "cuda" if torch.cuda.is_available() else "cpu"})
+    model.eval()
+    with torch.inference_mode():
+        check = model.encode_batch(torch.zeros(1, 8000, device=model.device))
+    if check.numel() != 192 or not torch.isfinite(check).all():
+        raise ValueError("Expected finite 192D ECAPA output")
     write_json(marker, identity)
     return model
+
 
 
 def extract(out, work, rows, cached, model):
