@@ -15,6 +15,12 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-11 — [M3] 5-fold OOF seed 43(M3-ROB5F-002) 채택
+
+- **결정**: 채택. ROBERTA-003 설정 5-fold(seed 43)의 fold 모델 5개와 OOF 확률을 앙상블·분석용 재료로 확보한다.
+- **이유**: OOF Macro F1 0.6420으로 성공 기준(≥ 0.635)을 충족했고 ROB5F-001(0.6412)·ROBERTA-003(0.6427)과 seed 편차 이내다. 학습 붕괴 없음, 공식 Val 미사용.
+- **후속**: seed 44(ROB5F-003) 완료 후 fold·seed 확률을 재학습 없이 재사용. 근거: `docs/experiment_log.md` M3-ROB5F-002 행
+
 ## 2026-10-11 — [M2] WavLM-base-plus 미세조정(M2-SSL-002) 기각
 
 - **결정**: 기각. WavLM-base-plus 미세조정 발화 분류는 SpeakerCNNLarge 대신 쓰지 않는다. M2 SSL 계열(고정 임베딩·미세조정) 후속 탐색은 중단한다.
