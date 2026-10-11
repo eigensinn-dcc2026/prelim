@@ -107,9 +107,64 @@ def transcript(doc):
                                  if isinstance(u.get("text", ""), str) else ""] if text)
 
 
+def probe_tokenizer(tokenizer):
+    """Exercise the exact tokenization options used for Training before model loading."""
+    encoded = tokenizer(["환자가 두통과 고열을 호소합니다.", "호흡곤란 " * 600],
+                        padding="max_length", truncation=True, max_length=256,
+                        return_token_type_ids=False)
+    for ids, mask in zip(encoded["input_ids"], encoded["attention_mask"]):
+        if len(ids) != 256 or len(mask) != 256 or not any(mask):
+            raise ValueError("Tokenizer probe: invalid padded batch")
+        active = [token for token, keep in zip(ids, mask) if keep]
+        if active[0] != tokenizer.cls_token_id or active[-1] != tokenizer.sep_token_id:
+            raise ValueError("Tokenizer probe: missing CLS/SEP framing")
+        if not any(token not in tokenizer.all_special_ids for token in active):
+            raise ValueError("Tokenizer probe: Korean text contains only special/unknown tokens")
+        if any(token != tokenizer.pad_token_id for token, keep in zip(ids, mask) if not keep):
+            raise ValueError("Tokenizer probe: invalid padding IDs")
+    if len(encoded["input_ids"]) != 2:
+        raise ValueError("Tokenizer probe: incorrect batch size")
+
+
+def load_tokenizer(root):
+    from transformers import AutoTokenizer, PreTrainedTokenizerFast
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(root, local_files_only=True)
+        probe_tokenizer(tokenizer)
+        return tokenizer
+    except (TypeError, ValueError, OSError) as exc:
+        # Transformers' DebertaV2 conversion can pass a dict to Unigram.
+        # Reading the serialized backend bypasses that conversion and preserves
+        # the model's vocabulary, normalization and special-token processor.
+        tokenizer_file = root / "tokenizer.json"
+        if not tokenizer_file.is_file():
+            raise RuntimeError(f"AutoTokenizer failed and local tokenizer.json is missing: {root}") from exc
+        print(f"AutoTokenizer probe failed ({type(exc).__name__}: {exc}); "
+              "loading local tokenizer.json directly", flush=True)
+        settings = {}
+        for name in ("tokenizer_config.json", "special_tokens_map.json"):
+            path = root / name
+            if path.exists():
+                settings.update(json.loads(path.read_text(encoding="utf-8")))
+        special = {}
+        for name in ("unk_token", "sep_token", "pad_token", "cls_token", "mask_token",
+                     "bos_token", "eos_token", "additional_special_tokens"):
+            value = settings.get(name)
+            if value is not None:
+                def content(token):
+                    return token["content"] if isinstance(token, dict) else token
+                special[name] = [content(t) for t in value] if isinstance(value, list) else content(value)
+        tokenizer = PreTrainedTokenizerFast(tokenizer_file=str(tokenizer_file),
+                                            model_max_length=256,
+                                            padding_side=settings.get("padding_side", "right"),
+                                            truncation_side="right", **special)
+        probe_tokenizer(tokenizer)
+        return tokenizer
+
+
 def prepare_model():
     from huggingface_hub import snapshot_download
-    from transformers import AutoModel, AutoTokenizer
+    from transformers import AutoModel
     root = Path(os.environ["DCC_RUN_ROOT"]) / "models" / "deberta-v3-xlarge-korean"
     marker = root / "dcc_revision.json"
     if marker.exists():
@@ -118,7 +173,7 @@ def prepare_model():
     else:
         snapshot_download(repo_id=MODEL_ID, revision=REVISION, local_dir=str(root),
                           allow_patterns=["config.json", "tokenizer*", "special_tokens_map.json", "model.safetensors"])
-    tokenizer = AutoTokenizer.from_pretrained(root, local_files_only=True)
+    tokenizer = load_tokenizer(root)
     # Fail before touching the data if the cached model cannot actually be loaded.
     probe = AutoModel.from_pretrained(root, local_files_only=True)
     del probe
@@ -388,10 +443,42 @@ def smoke():
     assert weights([[1] * 9] * 2) == [1.] * 9
     assert transcript({"utterances": [{"text": " 가\n 나 "}, {"text": "다", "Speaker": "ignored"}]}) == "가 나 다"
     with tempfile.TemporaryDirectory() as name:
+        # Reproduce the reported conversion failure without downloading weights.
+        from unittest.mock import Mock, patch
+        import sys
+        from types import SimpleNamespace
+        root = Path(name) / "model"
+        root.mkdir()
+        (root / "tokenizer.json").write_text("{}")
+        (root / "special_tokens_map.json").write_text(json.dumps({
+            "cls_token": {"content": "[CLS]"}, "sep_token": "[SEP]",
+            "pad_token": "[PAD]", "unk_token": "[UNK]"}))
+        fake = Mock(cls_token_id=1, sep_token_id=2, pad_token_id=0,
+                    all_special_ids=[0, 1, 2, 3])
+        valid = {"input_ids": [[1, 4, 2] + [0] * 253, [1] + [4] * 254 + [2]],
+                 "attention_mask": [[1] * 3 + [0] * 253, [1] * 256]}
+        fake.return_value = valid
+        auto = Mock()
+        auto.from_pretrained.side_effect = TypeError("'dict' object is not an instance of 'Sequence'")
+        fast = Mock(return_value=fake)
+        with patch.dict(sys.modules, transformers=SimpleNamespace(
+                AutoTokenizer=auto, PreTrainedTokenizerFast=fast)):
+            assert load_tokenizer(root) is fake
+        auto.from_pretrained.assert_called_once_with(root, local_files_only=True)
+        assert fast.call_args.kwargs["tokenizer_file"] == str(root / "tokenizer.json")
+        assert fast.call_args.kwargs["cls_token"] == "[CLS]"
+        assert fake.call_args.kwargs["truncation"] is True
+        fake.return_value = dict(valid, input_ids=[[4] * 256] * 2)
+        try:
+            probe_tokenizer(fake)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Tokenizer probe accepted missing special tokens")
         p = Path(name) / "check.json"
         write_json(p, {"exp_id": EXP_ID})
         assert json.loads(p.read_text())["exp_id"] == EXP_ID
-        assert list(p.parent.iterdir()) == [p]
+        assert not list(p.parent.glob("*.tmp"))
         source = Path(name) / "source.ckpt"
         source.write_bytes(b"local checkpoint")
         destination = Path(name) / "drive" / "best.ckpt"
@@ -408,7 +495,7 @@ def smoke():
             sleep.assert_called_once_with(2)
         assert destination.read_bytes() == source.read_bytes()
         assert not destination.with_name("best.ckpt.tmp").exists()
-    print("smoke OK: available loss checks, weights, text whitelist, atomic writes; no training")
+    print("smoke OK: tokenizer fallback/probe, available loss checks, weights, text whitelist, atomic writes; no training")
 
 
 def main():
