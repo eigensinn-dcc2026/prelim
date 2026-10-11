@@ -49,6 +49,10 @@ GitHub 공개 전환은 데이터·모델·미커밋 파일을 추가로 업로�
 GPU가 없는 PC에서는 백업의 `resume_colab.ipynb`로 Colab GPU와 기존 공식 Drive를 연결할 수 있습니다.
 코드 수정만 한다면 이 공개 브랜치를 clone하는 것으로 충분합니다.
 
+Windows에서 M2 eGeMAPS 실험의 `opensmile==2.6.0`을 사용할 때는 가상환경 설치 경로를 영문으로 둡니다.
+한글이 포함된 설치 경로에서는 openSMILE 설정 파일 경로 처리 중 `UnicodeEncodeError`가 발생할 수 있습니다.
+이 경로 문제는 Colab의 `/content` 환경에서는 적용되지 않습니다.
+
 ## PPT
 
 Node.js 설치 후 저장소의 `ppt/README.md`에 따라 `ppt/build_deck.js`를 수정하고 재생성합니다.

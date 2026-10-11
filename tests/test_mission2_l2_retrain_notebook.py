@@ -20,8 +20,11 @@ NB_PATH = REPO / "notebooks" / "mission2_l2_retrain.ipynb"
 GEN_PATH = REPO / "notebooks" / "gen" / "make_l2_nb.py"
 CODE_ZIP_SHA = "f1526b1df25fe9c9a5c985e01521df244955ceea5af256604000b4d717c92407"
 TRAIN_PACKED_LINE = (
-    'TRAIN_PACKED_SHA256 = {"m2_spectrograms_packed.npy": "", '
-    '"m2_spectrogram_index_packed.parquet": ""}'
+    # Recorded SHA256 of the completed 2026-10-08 local cache build.
+    'TRAIN_PACKED_SHA256 = {"m2_spectrograms_packed.npy": '
+    '"69a770c8100f6851c2f6a642a801dc1e0dd0a14691bc3b37f047ebf2ba4712b8", '
+    '"m2_spectrogram_index_packed.parquet": '
+    '"6afe3caacbf5916e291009849d4ff27d32ead3699b80c1a23ec038c4eda79aad"}'
 )
 
 
