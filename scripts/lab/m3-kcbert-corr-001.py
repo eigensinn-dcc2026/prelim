@@ -32,7 +32,8 @@ CONFIG = dict(exp_id=EXP_ID, model=MODEL_ID, revision=REVISION, max_length=256,
               split_seed=42, holdout_ratio=0.2, labels=LABELS,
               weight_formula="clip(0.5 * sqrt(neg / max(pos, 1)), 1, 6)",
               baseline_source="M3-KCBERT-012; auxiliary pair/conditional label loss only",
-              soft_f1_weight=1.0, soft_f1_epsilon=1e-8, threshold_operator=">=",\n              plcp_weight=0.2, clcp_weight=0.2, aux_training_only=True)
+              soft_f1_weight=1.0, soft_f1_epsilon=1e-8, threshold_operator=">=",
+              plcp_weight=0.2, clcp_weight=0.2, aux_training_only=True)
 
 
 def atomic_write(path, writer):
@@ -290,7 +291,9 @@ def run_seed(seed, out, model_path, tokens, targets, train, holdout, pos_weight)
             scaler.update()
             total += loss.item()
             total_bce += bce.item()
-            total_soft_f1_loss += soft_f1_loss.item()\n            total_pair_loss += pair_loss.item()\n            total_conditional_loss += conditional_loss.item()
+            total_soft_f1_loss += soft_f1_loss.item()
+            total_pair_loss += pair_loss.item()
+            total_conditional_loss += conditional_loss.item()
             if step % 200 == 0:
                 print(f"seed={seed} epoch={epoch} step={step} loss={loss.item():.4f}", flush=True)
         model.eval()
@@ -311,7 +314,9 @@ def run_seed(seed, out, model_path, tokens, targets, train, holdout, pos_weight)
                       train_loss=total / (step + 1),
                       train_bce=total_bce / (step + 1),
                       train_soft_f1_loss=total_soft_f1_loss / (step + 1),
-                      train_soft_f1=1 - total_soft_f1_loss / (step + 1),\n                      train_plcp_loss=total_pair_loss / (step + 1),\n                      train_clcp_loss=total_conditional_loss / (step + 1))
+                      train_soft_f1=1 - total_soft_f1_loss / (step + 1),
+                      train_plcp_loss=total_pair_loss / (step + 1),
+                      train_clcp_loss=total_conditional_loss / (step + 1))
         history.append(result)
         state = dict(config=CONFIG, seed=seed, epoch=epoch, model=model.state_dict(),
                      optimizer=optimizer.state_dict(), scheduler=None, scaler=scaler.state_dict(), history=history,
