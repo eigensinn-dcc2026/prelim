@@ -201,8 +201,11 @@ def prepare_split(out, rows):
         raise ValueError("Invalid split partition")
     if {rows[i]["call_id"] for i in train} & {rows[i]["call_id"] for i in holdout}:
         raise ValueError("call_id leakage")
+    # Evaluation and probability exports must share val_files.txt row order.
+    # Keep the persisted split and Training order unchanged.
+    holdout = sorted(holdout, key=lambda i: rows[i]["file"])
     atomic_write(out / "val_files.txt", lambda p: p.write_text(
-        "\n".join(sorted(rows[i]["file"] for i in holdout)) + "\n", encoding="utf-8"))
+        "\n".join(rows[i]["file"] for i in holdout) + "\n", encoding="utf-8"))
     return train, holdout
 
 
