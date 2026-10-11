@@ -40,3 +40,13 @@ python scripts/lab/m3-kcbert-corr-001.py
 - 성능 결과 및 ADOPT/REJECT/INCONCLUSIVE: **미정**
 
 제출일(10/14) 전에 검증이 불가능하면 예선 제출 모델에 섞지 않고 본선용 실험으로 보존한다.
+
+## Colab 첫 실험 (seed 42)
+
+1. `notebooks/mission3/M3_KCBERT_CORR_001_COLAB.ipynb`를 Colab에서 연다.
+2. **T4 GPU**로 설정하고 **`대학부 데이터`** Drive 바로가기를 준비한다.
+3. 셀 ①~⑦을 순서대로 실행한다. 노트북에는 PR의 실험 코드와 `colab_env.py`가 **내장**되어 있으므로 비공개 GitHub clone이나 토큰이 필요 없다.
+4. 셀 ⑥은 `--seeds 42`로 먼저 1회 학습한다. 팀 실험 기록에 있는 동일 split의 **KCBERT-012 seed42 Macro F1 0.6337**과 셀 ⑦에서 비교한다.
+5. 개선 가능성이 보이면 **새 출력 폴더**에서 `--seeds 42 43 44`를 수행하고 기존 KCBERT-012 3-seed 평균 0.6265와 비교한다. 동일 `LAB_OUT`에서 1-seed와 3-seed 실행을 혼합하면 안 된다.
+
+**실행 여부 확인:** 첫 파일 작성만으로 학습이 완료되는 것이 아니다. `LAB_OUT/metrics.json` 생성과 셀 ⑦ 점수를 확인할 때까지 결과를 주장하지 않는다. PR은 그 전까지 Draft로 유지한다.
