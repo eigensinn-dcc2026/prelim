@@ -15,6 +15,12 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-11 — [M3] ROBERTA-003 설정 5-fold OOF(M3-ROB5F-001) 채택
+
+- **결정**: 채택. fold 앙상블 멤버 5개와 OOF 확률을 앞으로의 재료로 쓴다.
+- **이유**: 5개 fold 모두 3 epoch 완료, OOF Macro F1 0.6412(fold 0.6382~0.6446)로 성공 기준 0.635를 넘고 ROBERTA-003(0.6427)과 같은 수준이다. 학습 붕괴 없음, 빈 예측 2.63%, 공식 Val 미사용.
+- **후속**: 앙상블 가중치·교사 비교는 저장된 `fold{k}_probs.npy`·`oof_probs.npy`를 재학습 없이 재사용한다. 근거: `docs/experiment_log.md` M3-ROB5F-001 행
+
 ## 2026-10-11 — [M3] klue/roberta-large 입력 512토큰(M3-ROBERTA-007) 기각
 
 - **결정**: 기각. seed 42 holdout Macro F1 0.6515로 ROBERTA-003(0.6441) 대비 +0.0074라 성공 기준(0.6541)에 못 미친다. 코드 PR #151은 닫는다.
