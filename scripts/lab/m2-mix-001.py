@@ -100,7 +100,23 @@ def zip_members(root, work, folder, suffix):
     return archive, members
 
 
-def make_split(ids, out, run_root, work):
+def label_call_members(archive, members):
+    """Index by JSON _id (stem fallback), retaining stems for audio pairing."""
+    calls = {}
+    stems = {}
+    for stem, member in sorted(members.items()):
+        document = json.loads(archive.read(member))
+        call_id = str(document.get('_id') or stem)
+        if call_id in calls:
+            raise ValueError(f'duplicate JSON call_id {call_id!r}: '
+                             f'{stems[call_id]!r}, {stem!r}')
+        calls[call_id] = member
+        stems[call_id] = stem
+    return calls, stems
+
+
+def make_split(ids, out, run_root, work, stems=None):
+    ids = set(ids)
     own = out / 'split.json'
     prior = run_root / 'lab/M2-SSL-002/split.json'
     path = own if own.exists() else prior
@@ -128,8 +144,22 @@ def make_split(ids, out, run_root, work):
         source = 'fallback_random.Random(42).sample_sorted_H_then_S_then_D'
         verified = False
     for k, count in [('H', 1500), ('S', 6000), ('D', 300)]:
-        if len(split[k]) != count or len(set(split[k])) != count or not set(split[k]) <= set(ids):
-            raise ValueError(f'invalid {k} split')
+        values = split[k]
+        if any(not isinstance(value, str) for value in values):
+            raise ValueError(f'{path}: invalid {k} split: call IDs must be strings; '
+                             f'sample={values[:5]!r}')
+        missing = set(values) - ids
+        if len(values) != count or len(set(values)) != count or missing:
+            stem_ids = set(stems.values()) if stems else set()
+            raise ValueError(
+                f'{path}: invalid {k} split: expected={count}, rows={len(values)}, '
+                f'unique={len(set(values))}, available_json_call_ids={len(ids)}, '
+                f'missing={len(missing)}, missing_sample={sorted(missing)[:5]!r}, '
+                f'json_call_id_sample={sorted(ids)[:5]!r}, '
+                f'stem_sample={sorted(stem_ids)[:5]!r}, '
+                f'missing_matching_filename_stems={len(missing & stem_ids)}; '
+                'call IDs use JSON _id with filename stem fallback; '
+                'the saved split is not regenerated on validation failure')
     if set(split['H']) & set(split['S']) or not set(split['D']) <= set(split['S']):
         raise ValueError('call split contamination')
     hashes = {k: digest(split[k]) for k in ('H', 'S', 'D')}
@@ -158,7 +188,8 @@ def prepare(out, work, run_root):
     try:
         if set(lm) != set(am) or len(lm) != 29200:
             raise ValueError('expected exactly 29,200 paired Training Seoul calls')
-        split = make_split(lm, out, run_root, work)
+        lm, stems = label_call_members(labels, lm)
+        split = make_split(lm, out, run_root, work, stems=stems)
         calls = sorted(set(split['S']) | set(split['H']))
         # Persistent per-call chunks live INSIDE one append-only large file.
         # progress.json commits byte offsets; interrupted trailing writes truncate.
@@ -178,11 +209,12 @@ def prepare(out, work, run_root):
         for call in calls:
             if call in done:
                 continue
-            jp, wp = unpack / f'{call}.json', unpack / f'{call}.wav'
+            stem = stems[call]
+            jp, wp = unpack / f'{stem}.json', unpack / f'{stem}.wav'
             jp.write_bytes(labels.read(lm[call]))
-            with audio.open(am[call]) as src, wp.open('wb') as dst:
+            with audio.open(am[stem]) as src, wp.open('wb') as dst:
                 shutil.copyfileobj(src, dst)
-            row = ManifestRow('Training', call, wp.name, jp.name)
+            row = ManifestRow('Training', stem, wp.name, jp.name)
             records = build_utterance_records(row, unpack)
             waveform, sr = read_call_waveform(wp)
             if sr != 8000 or any(r.call_id != call for r in records):
