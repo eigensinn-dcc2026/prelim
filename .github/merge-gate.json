@@ -17,6 +17,7 @@
   ],
   "allowed_test_file_deletions": [],
   "allowed_test_function_deletions": [],
+  "allowed_baseline_test_failures": [],
   "required_checks": [
     "PR CI / policy",
     "PR CI / tests"
