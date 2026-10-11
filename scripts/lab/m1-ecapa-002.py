@@ -83,8 +83,10 @@ def save_npy(path, array):
 
 
 def window_bounds(length, sr=16000):
-    if length <= 0:
-        raise ValueError('Empty caller waveform')
+    if length < 0:
+        raise ValueError('Negative caller waveform length')
+    if length == 0:
+        return [(0, 0)]
     return [(start, min(start + 20 * sr, length))
             for start in range(0, min(length, 80 * sr), 20 * sr)
             if start == 0 or min(start + 20 * sr, length) - start >= 3 * sr]
@@ -94,33 +96,38 @@ def average_windows(vectors, lengths):
     import numpy as np
     normalized = vectors / np.maximum(np.linalg.norm(vectors, axis=-1, keepdims=True), 1e-12)
     result = (normalized * lengths[..., None]).sum(axis=1)
+    # A zero-length call still has one padded first window.
+    empty = lengths.sum(axis=1) == 0
+    result[empty] = normalized[empty, 0]
     return result / np.maximum(np.linalg.norm(result, axis=1, keepdims=True), 1e-12)
 
 
 def load_baseline(root):
-    """Require cache row identifiers; never infer an unverified row order."""
+    """Load legacy x-vector chunks; split rows_sha256 verifies manifest order."""
     import numpy as np
     split = json.loads((root / 'split.json').read_text())
     chunks = []
     offset = 0
     for path in sorted((root / 'features').glob('chunk_*.npz')):
         with np.load(path, allow_pickle=False) as z:
-            required = ['acoustic', 'window_xvectors', 'window_lengths', 'durations', 'window_counts', 'stems']
+            required = ['acoustic', 'window_xvectors', 'window_lengths', 'durations', 'window_counts']
             if not all(k in z for k in required):
                 raise ValueError(f'Cache requires {required}: {path}')
             item = {k: z[k].copy() for k in required}
-        n = len(item['stems'])
+        n = len(item['acoustic'])
+        if n == 0:
+            raise ValueError('Empty baseline chunk')
         if path.name != f'chunk_{offset:05d}_{offset+n:05d}.npz':
             raise ValueError('Non-contiguous baseline chunks')
         if item['acoustic'].shape != (n, 52) or item['window_xvectors'].shape != (n, 4, 512) or item['window_lengths'].shape != (n, 4):
             raise ValueError(f'Invalid baseline shape: {path}')
         if item['durations'].shape != (n,) or item['window_counts'].shape != (n,):
             raise ValueError('Invalid baseline metadata shape')
-        for key in required[:-1]:
+        for key in required:
             if not np.isfinite(item[key]).all():
                 raise ValueError(f'Nonfinite baseline {key}')
         lengths = item['window_lengths']
-        if (lengths < 0).any() or (lengths.sum(1) <= 0).any() or not np.array_equal((lengths > 0).sum(1), item['window_counts']):
+        if (lengths < 0).any() or not np.array_equal(np.maximum(1, (lengths > 0).sum(1)), item['window_counts']):
             raise ValueError('Invalid baseline window weights/counts')
         chunks.append(item)
         offset += n
@@ -130,7 +137,7 @@ def load_baseline(root):
     train, val = np.asarray(split['train']), np.asarray(split['holdout'])
     if (train.shape != (23360,) or val.shape != (5840,)
             or not np.array_equal(np.sort(np.concatenate([train, val])), np.arange(29200))
-            or len(set(data['stems'].tolist())) != 29200 or 'rows_sha256' not in split):
+            or 'rows_sha256' not in split):
         raise ValueError('Invalid cached row identity/split')
     return data, split
 
@@ -185,7 +192,7 @@ def extract(out, work, rows, cached, model):
                 began = time.perf_counter()
                 for w, (a, b) in enumerate(bounds):
                     audio = wave[0, a:b]
-                    if sr != 16000:
+                    if sr != 16000 and len(audio):
                         audio = librosa.resample(audio, orig_sr=sr, target_sr=16000)
                     audio = np.pad(np.asarray(audio, dtype=np.float32), (0, max(0, 8000-len(audio))))
                     with torch.inference_mode():
@@ -214,7 +221,7 @@ def extract(out, work, rows, cached, model):
                 or item['ecapa_seconds'].shape != (stop-start,)
                 or (item['ecapa_seconds'] < 0).any()
                 or not np.allclose(item['window_lengths'], cached['window_lengths'][start:stop], atol=1e-3, rtol=0)
-                or not np.array_equal((item['window_lengths'] > 0).sum(1), item['window_counts'])):
+                or not np.array_equal(np.maximum(1, (item['window_lengths'] > 0).sum(1)), item['window_counts'])):
             raise ValueError(f'Invalid ECAPA chunk: {path}')
         collected.append(item)
         print(f'ECAPA chunk complete {start}:{stop}', flush=True)
@@ -250,24 +257,25 @@ def main():
     out, work = args.out, Path(os.environ['LAB_WORK']) / EXP_ID.lower()
     out.mkdir(parents=True, exist_ok=True)
     work.mkdir(parents=True, exist_ok=True)
+    rows, genders, calls = baseline_helpers().prepare_rows(work)
+    row_identity = dict(calls=calls, genders=genders, paths=[(r.wav_path, r.json_path) for r in rows])
+    digest = hashlib.sha256(json.dumps(row_identity, sort_keys=True).encode()).hexdigest()
+    y = encode_gender(genders)
+    train, val = train_test_split(np.arange(len(rows)), test_size=.2, stratify=y, random_state=42)
+    if (len(rows) != 29200 or len({r.stem for r in rows}) != len(rows)
+            or digest != split['rows_sha256']
+            or train.tolist() != split['train'] or val.tolist() != split['holdout']):
+        raise ValueError('Baseline manifest/split does not match Training')
     identity = dict(CONFIG, baseline_split=split,
-                    stems_sha256=hashlib.sha256(json.dumps(cached['stems'].tolist()).encode()).hexdigest(),
+                    stems_sha256=hashlib.sha256(json.dumps([r.stem for r in rows]).encode()).hexdigest(),
                     baseline_arrays_sha256={k: hashlib.sha256(v.tobytes()).hexdigest()
-                                            for k, v in cached.items() if k != 'stems'})
+                                            for k, v in cached.items()})
     if (out / 'config.json').exists() and json.loads((out / 'config.json').read_text()) != identity:
         raise ValueError('Output configuration mismatch')
     write_json(out / 'config.json', identity)
     if (out / 'metrics.json').exists() and (out / 'best.ckpt').exists():
         print('Experiment already complete')
         return
-    rows, genders, calls = baseline_helpers().prepare_rows(work)
-    row_identity = dict(calls=calls, genders=genders, paths=[(r.wav_path, r.json_path) for r in rows])
-    digest = hashlib.sha256(json.dumps(row_identity, sort_keys=True).encode()).hexdigest()
-    y = encode_gender(genders)
-    train, val = train_test_split(np.arange(len(rows)), test_size=.2, stratify=y, random_state=42)
-    if (cached['stems'].tolist() != [r.stem for r in rows] or digest != split['rows_sha256']
-            or train.tolist() != split['train'] or val.tolist() != split['holdout']):
-        raise ValueError('Baseline manifest/split does not match Training')
     write_json(out / 'manifest.json', dict(stems=[r.stem for r in rows], calls=calls, genders=genders))
     ecapa = extract(out, work, rows, cached, model)
     del model
@@ -353,17 +361,37 @@ def main():
 
 
 def smoke():
+    import numpy as np
+    assert window_bounds(0) == [(0, 0)]
+    assert window_bounds(7999) == [(0, 7999)]
+    vectors = np.array([[[3., 4.], [0., 0.]]])
+    assert np.allclose(average_windows(vectors, np.zeros((1, 2))), [[.6, .8]])
+    assert np.allclose(average_windows(vectors, np.array([[.1, 0.]])), [[.6, .8]])
     assert window_bounds(16000) == [(0, 16000)]
     assert len(window_bounds(22*16000)) == 1
     assert len(window_bounds(23*16000)) == 2
     assert len(window_bounds(100*16000)) == 4
     with tempfile.TemporaryDirectory() as directory:
-        target = Path(directory) / 'atomic.json'
+        root = Path(directory)
+        (root / 'features').mkdir()
+        write_json(root / 'split.json', {})
+        # Legacy cache has no stems; reach the total-row check successfully.
+        save_npz(root / 'features' / 'chunk_00000_00002.npz',
+                 acoustic=np.zeros((2, 52)), window_xvectors=np.zeros((2, 4, 512)),
+                 window_lengths=np.array([[0., 0., 0., 0.], [.1, 0., 0., 0.]]),
+                 durations=np.array([0., .1]), window_counts=np.ones(2))
+        try:
+            load_baseline(root)
+        except ValueError as error:
+            assert str(error) == 'Expected 29200 cached rows, got 2', str(error)
+        else:
+            raise AssertionError('Incomplete cache accepted')
+        target = root / 'atomic.json'
         write_json(target, CONFIG)
         assert json.loads(target.read_text()) == CONFIG
         write_json(target, {'resume': True})
         assert json.loads(target.read_text()) == {'resume': True}
-    print('Smoke OK: windows, local serialization and atomic publication; no training/download')
+    print('Smoke OK: legacy cache without stems, zero/short windows and pooling, local serialization and atomic publication; no training/download')
 
 
 if __name__ == '__main__':
