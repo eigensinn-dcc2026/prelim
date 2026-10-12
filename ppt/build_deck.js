@@ -24,13 +24,14 @@ const HB = 0.704; // 공식 헤더 띠 높이 (13.333 x 7.5 캔버스 기준, �
 const F = "맑은 고딕";
 const W = 13.333, M = 0.5, CW = W - 2 * M;
 const TEAM = "eigensinn";
+const IC = "figures/icons/"; // ppt/tools/make_icons.py 로 생성
 
 // ---------- Mission 2 교체 지점 (원고의 ⟪M2 교체⟫) ----------
 // M2 제출 모델을 바꾸면 이 블록만 고친다. 11·12·13·14·18·19장이 모두 여기서 읽는다.
 // 현재 값: CNN 3-seed 앙상블 (submission/mission2/README.md, experiment_log.md M2-RERUN-001)
 const M2 = {
   // 11장 문제·제약·최종 모델
-  core12: "발화 조각 하나만 보고 신고자인지 대원인지 가린다. log-mel 스펙트로그램과 CNN 3개의 평균으로 공식 Validation 91.49%.",
+  core12: "발화 하나만 보고 신고자/대원을 가린다. log-mel + CNN 3개 평균, 공식 Validation 91.49%.",
   // 구조도 (flow 함수 입력): 앞 단계 → 앙상블 멤버 → 판정
   flow: {
     pre: [["발화 구간", "startAt~endAt만"], ["log-mel", "40 mel · 8 kHz"], ["길이 맞춤", "300프레임\n그 발화만 사용"]], preW: 1.95,
@@ -38,15 +39,15 @@ const M2 = {
     post: [["확률 평균", "≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 2.0,
   },
   why: [
-    "대원은 헤드셋·정해진 말투, 신고자는 휴대전화·잡음 → 음향 차이가 있다.",
-    "통계 특징(L1)으로 성능을 먼저 확인한 뒤 CNN(L2)으로 넘어갔다.",
-    "사전학습 모델과 외부 데이터 없이 처음부터 학습했다.",
+    ["음향 차이", "대원 헤드셋·정해진 말투\n신고자 휴대전화·잡음"],
+    ["단계적 검증", "통계 특징(L1) → CNN(L2)"],
+    ["처음부터 학습", "사전학습·외부 데이터 없음"],
   ],
   // 12장 성능 개선 과정 (막대 차트: 공식 Validation Accuracy)
-  core13: "통계 특징 86.44% → CNN 90.98% → 3-seed 앙상블 91.49%. CNN의 이득은 목소리가 겹친 구간에 몰려 있었다.",
+  core13: "86.44% → 90.98% → 91.49%. CNN의 이득은 목소리가 겹친 구간에 몰려 있었다.",
   chart: { labels: ["L1 LightGBM", "L2 CNN 단일", "L2 CNN\n3-seed 앙상블"], values: [86.44, 90.98, 91.49] },
   gainTitle: "■ CNN의 이득이 몰린 곳",
-  gains: [["약 +7%p", "목소리가 겹친 구간"], ["약 +2%p", "겹치지 않은 구간"]],
+  gains: [["약 +7%p", "겹친 구간"], ["약 +2%p", "겹치지 않은 구간"]],
   gainNote: "통계 특징(L1) 대비 CNN 단일 모델의 개선 폭 (공식 Validation)",
   finding: "제출 방식(한 발화씩 추론)으로 바꾸자 정확도가 떨어졌다. 원인은 학습 때의 배치 패딩과 추론 방식 차이였고, 모든 발화를 자기 자신만으로 같은 길이까지 채우도록 맞춰 회복했다.",
   // 13장 다른 접근 — 마지막 행이 보류 중인 WavLM 미세조정
@@ -56,8 +57,8 @@ const M2 = {
   core15: "공식 Validation 91.49%. 원본 데이터부터 다시 학습해도 같은 수준이 재현됐다.",
   acc: "91.49%",
   recalls: [["87.15%", "대원 recall"], ["95.51%", "신고자 recall"]],
-  repro: "원본 데이터부터 노트북 하나로 다시 학습한 결과가 이전 앙상블과 거의 같았다.",
-  improve: "대원 recall이 신고자보다 낮다. \"네\", \"여보세요\" 같은 짧은 응답은 두 화자가 비슷하게 들리고, 규칙상 통화 맥락을 쓸 수 없어 짧은 발화의 정보량이 적다.",
+  repro: "원본부터 다시 학습해도 같은 수준(91.49%)",
+  improve: "대원 recall이 더 낮다.\n\"네\", \"여보세요\" 같은 짧은 응답은 두 화자가 비슷하게 들리고, 규칙상 통화 맥락을 쓸 수 없다.",
   // 18장 성능 요약 표, 19장 향후 계획
   summary: { task: "M2 신고자/대원", model: "log-mel + CNN × 3", val: "91.49%", gain: "+5.05%p" },
   future: "사전학습 음성 모델(WavLM) 앙상블의 공식 검증, 짧은 응답 발화 보강",
@@ -96,11 +97,16 @@ function card(slide, x, y, w, h, fill = C.white) {
   slide.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h, fill: { color: fill }, rectRadius: 0.1, line: { color: C.line, width: 1 }, shadow: shadow() });
 }
 // 제목바가 달린 프로세스 박스 (가이드 3.5)
-function stepBox(slide, x, y, w, h, title, body, barColor = C.blue, bodySize = 12) {
+function stepBox(slide, x, y, w, h, title, body, barColor = C.blue, bodySize = 12, icon = null) {
   card(slide, x, y, w, h);
   slide.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h: 0.5, fill: { color: barColor }, rectRadius: 0.1, line: { color: barColor } });
   slide.addShape(pres.shapes.RECTANGLE, { x, y: 0.3 + y, w, h: 0.2, fill: { color: barColor }, line: { color: barColor } });
   txt(slide, title, { x, y, w, h: 0.5, fontSize: 14, bold: true, color: C.white, align: "center", valign: "middle" });
+  if (icon) {
+    slide.addImage({ path: icon, x: x + w / 2 - 0.32, y: y + 0.68, w: 0.64, h: 0.64 });
+    txt(slide, body, { x: x + 0.12, y: y + 1.4, w: w - 0.24, h: h - 1.5, fontSize: bodySize, color: C.text, align: "center", valign: "top", paraSpaceAfter: 4 });
+    return;
+  }
   txt(slide, body, { x: x + 0.12, y: y + 0.58, w: w - 0.24, h: h - 0.66, fontSize: bodySize, color: C.text, align: "center", valign: "middle", paraSpaceAfter: 4 });
 }
 function arrow(slide, x, y, w = 0.28, h = 0.4, color = C.sky) {
@@ -111,7 +117,7 @@ function steps(slide, items, y, h, o = {}) {
   const n = items.length, bw = o.bw || 2.1, gap = (CW - n * bw) / (n - 1);
   items.forEach(([t, b, col], i) => {
     const x = M + i * (bw + gap);
-    stepBox(slide, x, y, bw, h, t, b, col || (i === n - 1 ? C.sky : C.blue), o.bodySize);
+    stepBox(slide, x, y, bw, h, t, b, col || (i === n - 1 ? C.sky : C.blue), o.bodySize, o.icons ? o.icons[i] : null);
     if (i < n - 1) arrow(slide, x + bw + (gap - 0.24) / 2, y + h / 2 - 0.19, 0.24, 0.38);
   });
 }
@@ -222,16 +228,17 @@ function flow(slide, x, y, w, h, f) {
 {
   const s = pres.addSlide();
   s.addImage({ path: TPL.header, x: 0, y: 0, w: W, h: HB, sizing: { type: "cover", w: W, h: HB } });
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: W / 2 - 1.1, y: 1.3, w: 2.2, h: 0.4, fill: { color: C.sky }, rectRadius: 0.08, line: { color: C.sky } });
-  txt(s, "대학부 예선", { x: W / 2 - 1.1, y: 1.3, w: 2.2, h: 0.4, fontSize: 14, bold: true, color: C.white, align: "center", valign: "middle" });
-  txt(s, "2026 데이터+AI 크리에이터 캠프  |  결과 정리", { x: M, y: 1.85, w: CW, h: 0.4, fontSize: 13, color: C.sub, align: "center" });
-  txt(s, "전화대화 음성 및 전사 데이터를 이용한", { x: M, y: 2.8, w: CW, h: 0.6, fontSize: 28, bold: true, align: "center" });
-  txt(s, "응급상황 인식", { x: M, y: 3.4, w: CW, h: 0.9, fontSize: 44, bold: true, color: C.blue, align: "center" });
-  txt(s, "Mission 1~3 수행 결과 정리", { x: M, y: 4.35, w: CW, h: 0.5, fontSize: 20, color: C.sub, align: "center" });
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: W / 2 - 3.2, y: 5.3, w: 6.4, h: 0.7, fill: { color: C.white }, rectRadius: 0.1, line: { color: C.line, width: 1 }, shadow: shadow() });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: W / 2 - 1.1, y: 1.0, w: 2.2, h: 0.4, fill: { color: C.sky }, rectRadius: 0.08, line: { color: C.sky } });
+  txt(s, "대학부 예선", { x: W / 2 - 1.1, y: 1.0, w: 2.2, h: 0.4, fontSize: 14, bold: true, color: C.white, align: "center", valign: "middle" });
+  txt(s, "2026 데이터+AI 크리에이터 캠프  |  결과 정리", { x: M, y: 1.5, w: CW, h: 0.4, fontSize: 13, color: C.sub, align: "center" });
+  txt(s, "전화대화 음성 및 전사 데이터를 이용한", { x: M, y: 2.05, w: CW, h: 0.6, fontSize: 28, bold: true, align: "center" });
+  txt(s, "응급상황 인식", { x: M, y: 2.6, w: CW, h: 0.9, fontSize: 44, bold: true, color: C.blue, align: "center" });
+  { const hh = 2.05, hw = hh * 1884 / 712; s.addImage({ path: "figures/canva/hero_call_flow_crop.png", x: (W - hw) / 2, y: 4.05, w: hw, h: hh }); }
+  txt(s, "Mission 1~3 수행 결과 정리", { x: M, y: 3.5, w: CW, h: 0.5, fontSize: 20, color: C.sub, align: "center" });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: W / 2 - 3.2, y: 6.25, w: 6.4, h: 0.7, fill: { color: C.white }, rectRadius: 0.1, line: { color: C.line, width: 1 }, shadow: shadow() });
   txt(s, [{ text: "팀 eigensinn", options: { bold: true, color: C.blue } }, { text: "   김장수 · 김광희 · 지연우 · 이수빈 · 조지은", options: { color: C.text } }],
-    { x: W / 2 - 3.2, y: 5.3, w: 6.4, h: 0.7, fontSize: 15, align: "center", valign: "middle" });
-  txt(s, "제출일 2026. 10. 14", { x: W - M - 4, y: 6.9, w: 4, h: 0.35, fontSize: 12, color: C.sub, align: "right" });
+    { x: W / 2 - 3.2, y: 6.25, w: 6.4, h: 0.7, fontSize: 15, align: "center", valign: "middle" });
+  txt(s, "제출일 2026. 10. 14", { x: W - M - 4, y: 7.05, w: 4, h: 0.3, fontSize: 12, color: C.sub, align: "right" });
   s.addNotes("프로젝트 타이틀. 공식 표지 바로 뒤에 배치해 제목·팀명을 보강.");
 }
 
@@ -252,6 +259,7 @@ function flow(slide, x, y, w, h, f) {
   secs.forEach(([n, name, items], i) => {
     const x = M + i * (cw + 0.3);
     txt(s, n, { x, y: 2.1, w: cw, h: 1.5, fontSize: 96, bold: true, color: C.bigNum });
+    s.addImage({ path: IC + ["sec_prep", "sec_data", "sec_mission", "sec_wrap"][i] + ".png", x: x + cw - 0.95, y: 2.2, w: 0.7, h: 0.7 });
     txt(s, name, { x: x + 0.1, y: 3.15, w: cw - 0.1, h: 0.55, fontSize: 22, bold: true });
     s.addShape(pres.shapes.LINE, { x: x + 0.1, y: 3.85, w: cw - 0.3, h: 0, line: { color: C.line, width: 1 } });
     txt(s, items.map((t, k) => ({ text: `${k + 1}. ${t}`, options: { breakLine: k < items.length - 1 } })),
@@ -268,17 +276,17 @@ function flow(slide, x, y, w, h, f) {
   header(s, "01", "준비 과정", "(1) 발대식 전 사전 학습 로드맵", 4);
   coreMsg(s, "처음 보는 데이터로도  QA → Baseline → 검증 → 통제 실험 → 제출  흐름을 끝까지 돌 수 있도록 대회 전에 미리 연습");
   const items = [
-    ["W1  기초", "Python·pandas\n타이타닉 EDA\n(결측치·분포)"],
-    ["W2  Baseline", "첫 모델 학습\n실험 로그 작성\n(Titanic 등)"],
-    ["W3  데이터 QA", "CIFAR-10\n누락·중복·분포\n점검"],
-    ["W4  통제 실험", "baseline 결함\n감사\n변수 하나씩 비교"],
-    ["W5  데이터 정제", "이상치 점수\n기준값 사전 고정\n3조건 비교"],
+    ["W1  기초", "Python·pandas\n타이타닉 EDA"],
+    ["W2  Baseline", "첫 모델 학습\n실험 로그"],
+    ["W3  데이터 QA", "CIFAR-10\n누락·중복 점검"],
+    ["W4  통제 실험", "baseline 감사\n변수 하나씩"],
+    ["W5  데이터 정제", "이상치 점수\n기준 사전 고정"],
     ["W6  제출 연습", "제출 패키지\n채점 스크립트"],
   ].map(([t, b], i) => [t, b, i === 0 ? C.sky : C.blue]);
-  steps(s, items, 2.55, 2.1, { bw: 1.78 });
+  steps(s, items, 2.55, 2.1, { bw: 1.78, bodySize: 11.5, icons: ["w1", "w2", "w3", "w4", "w5", "w6"].map(n => IC + n + ".png") });
   insight(s, M, 5.0, CW, 1.3, [
     { text: "예선에 그대로 가져온 습관  ", options: { bold: true, color: C.blue, breakLine: true } },
-    { text: "데이터 무결성 점검을 모델보다 먼저  ·  실험마다 ID와 로그 남기기  ·  한 번에 변수 하나만 바꿔 비교  ·  기준값은 결과를 보기 전에 고정" },
+    { text: "점검이 모델보다 먼저  ·  실험마다 ID·로그  ·  변수는 하나씩  ·  기준은 결과 보기 전에 고정" },
   ]);
   caption(s, "근거: GitHub eigensinn-dcc2026/step0 (2026.07.14 ~ 08.23), 팀원별 notebooks/ 및 outputs/ 실습 산출물");
   s.addNotes("근거: GitHub eigensinn-dcc2026/step0 README의 W1~W6 로드맵, 팀원별 notebooks/·outputs/.");
@@ -334,29 +342,36 @@ function flow(slide, x, y, w, h, f) {
   coreMsg(s, "세 미션 모두 \"쉬운 단서 하나\"로는 풀리지 않는다. 이 발견이 미션별 모델 선택의 출발점이다.");
   const cards = [
     ["figures/gender_distribution.png", "M1 성별",
-      "성별 비율은 균형. 통화 길이·음량 같은 요약 특징으로는 성별이 거의 갈리지 않음",
-      "세부 음색을 담는 화자 임베딩(x-vector) 도입"],
-    ["figures/speaker_duration_buckets.png", "M2 화자",
-      "거의 모든 통화에서 목소리가 겹침. 발화 길이만으로는 화자를 구분하기 어려움",
-      "소리 모양 전체를 보는 CNN 도입"],
+      "성별 비율은 균형. 길이·음량 같은 요약 특징으로는 성별이 거의 안 갈림",
+      "음색을 담는 화자 임베딩(x-vector)"],
+    ["overlap", "M2 화자",
+      "통화의 98%에 겹침이 있지만 시간은 중앙값 3.8%. 길이만으로는 구분이 어려움",
+      "소리 모양 전체를 보는 CNN"],
     ["figures/symptom_prevalence.png", "M3 증상",
-      "세 통화 중 한 통화는 증상이 2개 이상. 증상별 빈도 차이가 큼",
-      "증상 9개를 각각 0/1로 푸는 다중 레이블 구성, 증상별로 따로 점검"],
+      "세 통화 중 하나는 증상이 2개 이상. 증상별 빈도 차이가 큼",
+      "증상 9개를 각각 0/1로 푸는 다중 레이블"],
   ];
   const cw = (CW - 2 * 0.3) / 3;
   cards.forEach(([path, t, found, design], i) => {
     const x = M + i * (cw + 0.3);
     card(s, x, 2.45, cw, 4.4);
-    title(s, t, x + 0.2, 2.56, cw - 0.4, 15);
-    fig(s, path, x + 0.2, 2.98, cw - 0.4, 2.05);
+    s.addImage({ path: IC + ["m1", "m2", "m3"][i] + ".png", x: x + cw - 0.75, y: 2.52, w: 0.45, h: 0.45 });
+    title(s, t, x + 0.2, 2.56, cw - 1.1, 15);
+    if (path === "overlap") {
+      s.addShape(pres.shapes.RECTANGLE, { x: x + 0.2, y: 2.98, w: cw - 0.4, h: 2.6, fill: { color: C.white }, line: { color: C.line, width: 1 } });
+      barChart(s, ["겹침이 있는\n통화 비율", "통화당 겹침 시간\n(중앙값)"], [98.15, 3.82], {
+        name: "%", x: x + 0.25, y: 3.02, w: cw - 0.5, h: 2.52, chartColors: [C.sky, C.red], title: "Training 통화 기준 (%)", titleFontSize: 11,
+        dataLabelFormatCode: "0.00", dataLabelFontSize: 14, catAxisLabelFontSize: 11.5, valAxisMinVal: 0, valAxisMaxVal: 115, valAxisHidden: true, valGridLine: { style: "none" },
+      });
+    } else fig(s, path, x + 0.2, 2.98, cw - 0.4, 2.6);
     txt(s, [
-      { text: "발견  ", options: { bold: true, breakLine: true } },
+      { text: "발견  ", options: { bold: true } },
       { text: found, options: { breakLine: true } },
-      { text: "설계에 반영한 점  ", options: { bold: true, color: C.blue, breakLine: true } },
+      { text: "설계  ", options: { bold: true, color: C.blue } },
       { text: design },
-    ], { x: x + 0.2, y: 5.15, w: cw - 0.4, h: 1.65, fontSize: 12, paraSpaceAfter: 4 });
+    ], { x: x + 0.2, y: 5.68, w: cw - 0.4, h: 1.15, fontSize: 11.5, paraSpaceAfter: 4 });
   });
-  caption(s, "근거: reports/eda/eda_report.md, reports/eda/figures/");
+  caption(s, "근거: reports/eda/eda_report.md (M2 겹침: 7.2절 Training), reports/eda/figures/");
   s.addNotes("근거: reports/eda/eda_report.md, reports/eda/figures/(gender_distribution, speaker_duration_buckets, symptom_prevalence), docs/experiment_log.md COM-EDA-001.");
 }
 
@@ -368,7 +383,7 @@ function flow(slide, x, y, w, h, f) {
 {
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 문제와 최종 모델", 7);
-  coreMsg(s, "신고자 음성에서 음향 특징과 화자 임베딩을 함께 뽑아 로지스틱 회귀로 분류한다. 공식 Validation Accuracy 98.10%.");
+  coreMsg(s, "음향 특징 + 화자 임베딩 → 로지스틱 회귀. 공식 Validation Accuracy 98.10%.");
   const lw = 9.05;
   txt(s, [strong("■ 문제   "), { text: "신고자 발화 음성 → 성별(F/M)   ·   지표 Accuracy" }], { x: M, y: 2.45, w: lw, h: 0.4, fontSize: 15 });
   flow(s, M, 2.95, lw, 1.7, {
@@ -424,10 +439,10 @@ function flow(slide, x, y, w, h, f) {
   coreMsg(s, "점수가 올라도 미리 정한 기준을 못 넘으면 채택하지 않았다.");
   table(s, [
     ["시도", "판정", "이유"],
-    ["LightGBM", strong("LR 채택"), "점수 차이가 작고 더 단순·해석 쉬움"],
-    ["RBF-SVM 분류기", strong("기각", C.red), "이득이 기준 미달, 추론이 훨씬 느림"],
-    ["ECAPA 임베딩 추가·교체", strong("기각", C.red), "이득이 기준 미달"],
-    ["x-vector LR + ECAPA LR 확률 평균", strong("기각", C.red), "공식 Val 98.30%로 소폭 높았지만 미리 정한 기준 미달, 차이가 우연과 구분되지 않음"],
+    ["LightGBM", strong("✓ LR 채택"), "점수 차이가 작고 더 단순·해석 쉬움"],
+    ["RBF-SVM 분류기", strong("✗ 기각", C.red), "이득이 기준 미달, 추론이 훨씬 느림"],
+    ["ECAPA 임베딩 추가·교체", strong("✗ 기각", C.red), "이득이 기준 미달"],
+    ["x-vector LR + ECAPA LR 확률 평균", strong("✗ 기각", C.red), "공식 Val 98.30%로 소폭 높았지만 미리 정한 기준 미달, 차이가 우연과 구분되지 않음"],
   ], M, 2.45, [3.5, 1.4, 7.43], { rowH: 0.62, fontSize: 13 });
   insight(s, M, 5.75, CW, 1.05, [
     { text: "공식 Val에서 더 높았던 모델을 왜 버렸나?  ", options: { bold: true, color: C.blue, breakLine: true } },
@@ -477,10 +492,19 @@ function flow(slide, x, y, w, h, f) {
   card(s, rx, 2.45, rw, 0.95, C.light);
   txt(s, [{ text: M2.acc, options: { fontSize: 28, bold: true, color: C.blue } }, { text: "   공식 Validation", options: { fontSize: 12, color: C.sub } }],
     { x: rx, y: 2.45, w: rw, h: 0.95, align: "center", valign: "middle" });
-  flow(s, M, 3.6, CW, 1.55, M2.flow);
-  title(s, "■ 왜 이 구조인가", M, 5.35, CW, 16);
-  bullets(s, M2.why, M, 5.78, CW, 1.1, 13);
-  caption(s, "근거: " + M2.evidence);
+  flow(s, M, 3.55, CW, 1.15, M2.flow);
+  // 합성 도식(실제 통화 아님): ppt/tools/make_m2_synthetic.py
+  const fw = 6.6, fh = fw * 482 / 1658;
+  s.addShape(pres.shapes.RECTANGLE, { x: M, y: 4.9, w: fw + 0.16, h: fh + 0.16, fill: { color: C.white }, line: { color: C.line, width: 1 } });
+  s.addImage({ path: "figures/m2_synthetic_waveform.png", x: M + 0.08, y: 4.98, w: fw, h: fh });
+  const wx = M + fw + 0.4, ww = W - M - wx, wh = (fh + 0.16 - 2 * 0.12) / 3;
+  M2.why.forEach(([k, v], i) => {
+    const y = 4.9 + i * (wh + 0.12);
+    card(s, wx, y, ww, wh, i === 0 ? C.light : C.white);
+    txt(s, k, { x: wx + 0.15, y, w: 1.45, h: wh, fontSize: 13, bold: true, color: C.blue, valign: "middle" });
+    txt(s, v, { x: wx + 1.6, y, w: ww - 1.7, h: wh, fontSize: 11.5, valign: "middle" });
+  });
+  caption(s, "※ 왼쪽 도식은 합성 신호(실제 통화 아님).  근거: " + M2.evidence);
   s.addNotes("근거: " + M2.evidence + ". 제약은 출제문제·주최측 Q&A(2026.09.15), 추론 방식은 submission/mission2/README.md '추론' 절.");
 }
 
@@ -498,9 +522,14 @@ function flow(slide, x, y, w, h, f) {
   const rx = M + lw + 0.3, rw = W - M - rx;
   card(s, rx, 2.45, rw, 2.15);
   title(s, M2.gainTitle, rx + 0.2, 2.56, rw - 0.4);
-  const gw = (rw - 0.4) / M2.gains.length;
-  M2.gains.forEach(([n, l], i) => stat(s, rx + 0.2 + i * gw, 2.95, gw, n, l, i === 0 ? C.blue : C.sky, 30));
-  txt(s, M2.gainNote, { x: rx + 0.2, y: 4.18, w: rw - 0.4, h: 0.3, fontSize: 10, color: C.sub, align: "center" });
+  const iw = 2.6, ih = iw * 744 / 1806;
+  s.addImage({ path: "figures/canva/speakers_overlap_crop.png", x: rx + 0.2, y: 3.0, w: iw, h: ih });
+  M2.gains.forEach(([n, l], i) => {
+    const y = 3.0 + i * 0.58;
+    txt(s, n, { x: rx + 3.0, y, w: 1.5, h: 0.5, fontSize: 24, bold: true, color: i === 0 ? C.blue : C.sky, valign: "middle" });
+    txt(s, l, { x: rx + 4.45, y, w: rw - 4.55, h: 0.5, fontSize: 11.5, color: C.sub, valign: "middle" });
+  });
+  txt(s, M2.gainNote, { x: rx + 0.2, y: 4.2, w: rw - 0.4, h: 0.3, fontSize: 10, color: C.sub, align: "center" });
   insight(s, rx, 4.75, rw, 2.05, [
     { text: "발견  ", options: { bold: true, color: C.blue, breakLine: true } },
     { text: M2.finding },
@@ -514,7 +543,7 @@ function flow(slide, x, y, w, h, f) {
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 다른 접근과 기각·보류 이유", 13);
   coreMsg(s, M2.core14);
-  const red = t => strong(t, C.red);
+  const red = t => strong("✗ " + t, C.red);
   const [lastTry, lastVerdict, lastWhy] = M2.lastRow;
   table(s, [
     ["시도", "판정", "이유"],
@@ -538,8 +567,13 @@ function flow(slide, x, y, w, h, f) {
   card(s, M, 2.45, lw, 4.35);
   stat(s, M, 2.75, lw, M2.acc, "Accuracy (공식 Validation)", C.blue, 48);
   s.addShape(pres.shapes.LINE, { x: M + 0.4, y: 4.25, w: lw - 0.8, h: 0, line: { color: C.line, width: 1 } });
-  const hw = lw / M2.recalls.length;
-  M2.recalls.forEach(([n, l], i) => stat(s, M + i * hw, 4.55, hw, n, l, C.sky, 30));
+  M2.recalls.forEach(([n, l], i) => {
+    const y = 4.45 + i * 1.05, bx = M + 0.4, bw = lw - 0.8, pct = parseFloat(n) / 100, col = i === 0 ? C.red : C.sky;
+    txt(s, l, { x: bx, y, w: 2.0, h: 0.35, fontSize: 13, bold: true, color: C.sub, valign: "middle" });
+    txt(s, n, { x: bx + bw - 1.8, y, w: 1.8, h: 0.35, fontSize: 20, bold: true, color: col, align: "right", valign: "middle" });
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: bx, y: y + 0.42, w: bw, h: 0.22, fill: { color: C.line }, rectRadius: 0.1, line: { color: C.line } });
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: bx, y: y + 0.42, w: bw * pct, h: 0.22, fill: { color: col }, rectRadius: 0.1, line: { color: col } });
+  });
   const rx = M + lw + 0.3, rw = W - M - rx;
   card(s, rx, 2.45, rw, 1.6);
   title(s, "■ 재현성", rx + 0.25, 2.6, rw - 0.5, 16);
@@ -560,15 +594,22 @@ function flow(slide, x, y, w, h, f) {
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 문제 정의와 접근", 15);
   coreMsg(s, "TF-IDF 기준선부터 RoBERTa 문맥 모델을 검증하고, 최종 3-seed + TF-IDF 앙상블 채택");
-  const prob = [["입력", "119 통화 전사문\n(utterances[].text만)"], ["출력", "증상 9종 중 0~9개\n(다중 레이블)"], ["평가", "Macro F1\n(증상별 F1 평균)"], ["대상", "고열·구토·두통·복통·어지러움·열상·오심·전신쇠약·호흡곤란"]];
+  const prob = [["입력", "119 통화 전사문\n(utterances[].text만)"], ["출력", "증상 9종 중 0~9개\n(다중 레이블)"], ["평가", "Macro F1\n(증상별 F1 평균)"]];
+  const symNames = ["고열", "구토", "두통", "복통", "어지러움", "열상", "오심", "전신쇠약", "호흡곤란"];
   const lw = 4.1;
   card(s, M, 2.45, lw, 4.35);
   title(s, "■ 문제 정의", M + 0.25, 2.6, lw - 0.5, 18);
   prob.forEach(([k, v], i) => {
-    const y = 3.15 + i * 0.9;
+    const y = 3.05 + i * 0.62;
     s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: M + 0.25, y, w: 0.95, h: 0.36, fill: { color: C.blue }, rectRadius: 0.08, line: { color: C.blue } });
     txt(s, k, { x: M + 0.25, y, w: 0.95, h: 0.36, fontSize: 12, bold: true, color: C.white, align: "center", valign: "middle" });
-    txt(s, v, { x: M + 1.35, y: y - 0.02, w: lw - 1.55, h: 0.8, fontSize: 12 });
+    txt(s, v, { x: M + 1.35, y: y - 0.04, w: lw - 1.55, h: 0.55, fontSize: 11.5 });
+  });
+  symNames.forEach((nm, i) => {
+    const row = i < 5 ? 0 : 1, col = row ? i - 5 : i, cell = (lw - 0.5) / 5, off = row ? cell / 2 : 0;
+    const cx = M + 0.25 + off + col * cell + cell / 2, y = 4.95 + row * 0.95;
+    s.addImage({ path: "figures/canva/sym_" + i + ".png", x: cx - 0.26, y, w: 0.52, h: 0.52 });
+    txt(s, nm, { x: cx - cell / 2, y: y + 0.56, w: cell, h: 0.22, fontSize: 9.5, color: C.sub, align: "center" });
   });
   const rx = M + lw + 0.4, rw = W - M - rx;
   txt(s, "■ 모델 구성", { x: rx, y: 2.45, w: rw, h: 0.4, fontSize: 18, bold: true });
@@ -600,10 +641,12 @@ function flow(slide, x, y, w, h, f) {
     { text: "빈 예측 149건", options: { breakLine: true } },
     { text: "앙상블 가중치\nRoBERTa 평균 0.55\n+ TF-IDF 0.45", options: { fontSize: 10.5 } },
   ]);
-  barChart(s, ["RoBERTa s42", "RoBERTa s43", "RoBERTa s44", "최종 앙상블"], [0.6479, 0.6441, 0.6445, 0.6534], {
-    name: "Macro F1", dataLabelFormatCode: "0.0000", x: M + 2.95, y: 2.95, w: 4.1, h: 3.35, chartColors: [C.line, C.sky, C.blue, C.mint],
-    title: "최종 RoBERTa 시드별·앙상블 공식 Val F1", titleFontSize: 10, dataLabelFontSize: 10, dataLabelFontBold: false,
-    valAxisMinVal: 0, valAxisMaxVal: 0.75, catAxisLabelFontSize: 9,
+  // 증상별 F1 (최종 앙상블, 공식 Val) — 낮은 3개만 빨강. 근거: dcc-lab results/M3-FINAL-002/metrics.json
+  const sym = [["열상", 0.8828], ["복통", 0.8271], ["고열", 0.7001], ["호흡곤란", 0.6795], ["어지러움", 0.657], ["구토", 0.6088], ["전신쇠약", 0.5939], ["두통", 0.5315], ["오심", 0.4]];
+  barChart(s, sym.map(r => r[0]), sym.map(r => r[1]), {
+    name: "F1", barDir: "bar", catAxisOrientation: "maxMin", dataLabelFormatCode: "0.00", x: M + 2.95, y: 2.6, w: 4.2, h: 4.1,
+    chartColors: sym.map((r, i) => (i >= 6 ? C.red : C.sky)), showTitle: true, title: "증상별 F1 (최종 앙상블, 공식 Val)", titleFontSize: 11,
+    dataLabelFontSize: 11, dataLabelFontBold: false, valAxisMinVal: 0, valAxisMaxVal: 1, valAxisHidden: true, valGridLine: { style: "none" }, catAxisLabelFontSize: 12,
   });
   const rx = M + 7.6, rw = W - M - rx;
   card(s, rx, 2.45, rw, 2.75);
@@ -615,8 +658,8 @@ function flow(slide, x, y, w, h, f) {
     txt(s, v, { x: rx + rw - 1.6, y, w: 1.2, h: 0.42, fontSize: 13, bold: true, color: last ? C.white : C.blue, align: "right", valign: "middle" });
   });
   card(s, rx, 5.35, rw, 1.45, C.bgGray);
-  title(s, "■ 증상별 약점", rx + 0.2, 5.47, rw - 0.4);
-  txt(s, "오심 · 두통 · 전신쇠약", { x: rx + 0.2, y: 5.92, w: rw - 0.4, h: 0.6, fontSize: 18, bold: true, color: C.red, align: "center", valign: "middle" });
+  title(s, "■ 가장 약한 증상 (빨강)", rx + 0.2, 5.47, rw - 0.4);
+  txt(s, "오심 0.40 · 두통 0.53 · 전신쇠약 0.59", { x: rx + 0.2, y: 5.92, w: rw - 0.4, h: 0.6, fontSize: 15, bold: true, color: C.red, align: "center", valign: "middle" });
   caption(s, "근거: submission/mission3/README.md, m3_final_train.executed.ipynb. 모델별 점수 차이가 특정 원인만의 효과임을 뜻하지 않음.");
   s.addNotes("근거: submission/mission3/README.md 결과 표(seed 42·43·44 0.6479/0.6441/0.6445, 앙상블 0.6534, Micro 0.6690, 빈 예측 149). 개선 흐름: M3-OFFVAL-001(TF-IDF 0.5689, KcBERT 0.6246), M3-OFFVAL-002(RoBERTa-large 0.6433), M3-FINAL-002(앙상블 0.6534). 증상별 약점: M3-FINAL-002(오심·두통·전신쇠약 F1이 가장 낮음).");
 }
@@ -645,12 +688,18 @@ function flow(slide, x, y, w, h, f) {
   ], C.mintLight, 11.5);
   const rx = M + lw + 0.3, rw = W - M - rx;
   card(s, rx, 4.15, rw, 2.7);
-  title(s, "■ 오류 분석 — 점수가 낮은 증상의 원인", rx + 0.25, 4.27, rw - 0.5);
-  bullets(s, [
-    [{ text: "정답 양성 라벨의 " }, strong("약 절반은 통화 내용에 근거가 없다."), { text: " 오심·전신쇠약에서 특히 높다." }],
-    [{ text: "두 모델이 모두 놓친 양성의 대부분이 이런 \"근거 없는 라벨\"이었고, 근거가 있는 라벨은 약 90%를 맞혔다 → " }, strong("점수가 낮은 증상의 원인이 모델보다 데이터 쪽에 있다.")],
-    "TF-IDF는 근거 없는 라벨에 강하고 BERT 계열은 부정 표현(\"열은 없어요\") 오탐이 적다 → 서로 보완해서 앙상블했다.",
-  ], rx + 0.25, 4.68, rw - 0.5, 2.1, 11.5);
+  title(s, "■ 오류 분석 — 전사에 직접 표현이 없는 양성 라벨", rx + 0.25, 4.27, rw - 0.5);
+  s.addChart(pres.charts.DOUGHNUT, [{ name: "양성 라벨", labels: ["직접 표현 없음", "직접 표현 있음"], values: [52, 48] }], {
+    x: rx + 0.1, y: 4.65, w: 2.7, h: 2.15, holeSize: 62, chartColors: [C.red, C.line], showLegend: false, showPercent: false, showValue: false, showLabel: false, dataBorder: { pt: 1, color: "FFFFFF" },
+  });
+  txt(s, "약 52%", { x: rx + 0.1, y: 5.35, w: 2.7, h: 0.5, fontSize: 19, bold: true, color: C.red, align: "center", valign: "middle" });
+  txt(s, "양성 라벨 중\n표현 없음", { x: rx + 0.1, y: 5.82, w: 2.7, h: 0.5, fontSize: 10.5, color: C.sub, align: "center" });
+  [["92%", "두 모델이 놓친 양성 중\n직접 표현 없는 라벨", C.red], ["약 90%", "표현 있는 라벨 중\n맞힌 비율", C.sky]].forEach(([n, l, col], i) => {
+    const x = rx + 3.0 + i * ((rw - 3.2) / 2);
+    stat(s, x, 4.75, (rw - 3.2) / 2 - 0.1, n, "", col, 30);
+    txt(s, l, { x, y: 5.5, w: (rw - 3.2) / 2 - 0.1, h: 0.6, fontSize: 11, color: C.sub, align: "center" });
+  });
+  txt(s, "→ 두 모델의 오류가 달라 앙상블로 보완\n(키워드 정규식 기준 탐색, 오라벨 단정 아님)", { x: rx + 3.0, y: 6.2, w: rw - 3.2, h: 0.55, fontSize: 10.5, bold: true, color: C.blue, align: "center", valign: "middle" });
   caption(s, "근거: docs/decisions.md M3-FINAL-002, docs/experiment_log.md M3-ERR-001. 키워드 정규식 기준의 탐색적 결과이며 오라벨로 단정하지 않음.");
   s.addNotes("근거: docs/decisions.md (M3-FINAL-002, 2026-10-11), submission/mission3/README.md, docs/experiment_log.md M3-ENS-001(과거 결합 기각)·M3-ERR-001(양성 라벨 약 52% 근거 없음, 오심 89%·전신쇠약 76%, 두 모델 모두 놓친 양성의 92%가 근거 없는 라벨, 근거 있는 라벨 약 90% 적중), reports/mission3/error_analysis/README.md. '근거 없음'은 키워드 정규식 기준이다. 직접 표기되지 않는 증상도 있을 수 있어 라벨 오류라고 단정하면 안 된다(이수빈 님 PR #200 문구).");
 }
@@ -661,15 +710,25 @@ function flow(slide, x, y, w, h, f) {
 {
   const s = pres.addSlide();
   header(s, "04", "종합 및 시사점", "(1) 성능 요약과 교훈", 18);
-  coreMsg(s, "세 미션 모두 공식 Validation은 채점에만 쓰고, 점수보다 검증의 정직함을 우선했다.");
+  coreMsg(s, "공식 Validation은 튜닝에 쓰지 않고, 결과를 보기 전에 고정한 기준만 확인했다.");
   const v = t => strong(t);
-  table(s, [
-    ["Mission", "최종 모델", "지표", "공식 Val", "Baseline 대비"],
-    ["M1 신고자 성별", "음향 특징 + WavLM x-vector + LR", "Accuracy", v("98.10%"), "+2.99%p"],
-    [M2.summary.task, M2.summary.model, "Accuracy", v(M2.summary.val), M2.summary.gain],
-    ["M3 증상 9종", "RoBERTa-large × 3 + TF-IDF", "Macro F1", v("0.6534"), "+0.0845"],
-  ], M, 2.45, [2.4, 4.4, 1.6, 1.8, 2.13], { rowH: 0.5, align: "center", fontSize: 13 });
-  txt(s, "baseline: M1 95.11%, M2 86.44%, M3 0.5689", { x: M, y: 4.5, w: CW, h: 0.3, fontSize: 11, color: C.sub, align: "right" });
+  const tiles = [
+    ["M1 신고자 성별", "음향 특징 + x-vector + LR", "98.10%", "+2.99%p"],
+    [M2.summary.task, M2.summary.model, M2.summary.val, M2.summary.gain],
+    ["M3 증상 9종", "RoBERTa-large × 3 + TF-IDF", "0.6534", "+0.0845"],
+  ];
+  const tw = (CW - 2 * 0.3) / 3;
+  tiles.forEach(([t, m, val, gain], i) => {
+    const x = M + i * (tw + 0.3);
+    card(s, x, 2.45, tw, 2.2);
+    txt(s, t, { x: x + 0.25, y: 2.55, w: tw - 0.5, h: 0.4, fontSize: 15, bold: true, color: C.blue });
+    txt(s, val, { x: x + 0.25, y: 2.95, w: tw * 0.6, h: 0.9, fontSize: 38, bold: true, color: C.blue, valign: "middle" });
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: x + tw - 1.55, y: 3.15, w: 1.3, h: 0.5, fill: { color: C.mintLight }, rectRadius: 0.1, line: { color: C.mint } });
+    txt(s, "▲ " + gain, { x: x + tw - 1.55, y: 3.15, w: 1.3, h: 0.5, fontSize: 13, bold: true, color: "2E7D32", align: "center", valign: "middle" });
+    txt(s, m, { x: x + 0.25, y: 3.95, w: tw - 0.5, h: 0.3, fontSize: 11.5, color: C.sub });
+    txt(s, i === 2 ? "Macro F1 · 공식 Val" : "Accuracy · 공식 Val", { x: x + 0.25, y: 4.25, w: tw - 0.5, h: 0.3, fontSize: 10.5, color: C.sub });
+  });
+  txt(s, "baseline: M1 95.11%, M2 86.44%, M3 0.5689", { x: M, y: 4.7, w: CW, h: 0.25, fontSize: 11, color: C.sub, align: "right" });
   const lessons = [
     ["기준은 결과를 보기 전에\n고정한다","결과를 본 뒤 기준을 낮추면 Validation에 과적합된다"],
     ["기각도 기록한다", "효과 없던 실험과 그 이유를 decisions.md에 남겨 같은 시도를 반복하지 않음"],
@@ -694,12 +753,16 @@ function flow(slide, x, y, w, h, f) {
   const s = pres.addSlide();
   header(s, "04", "종합 및 시사점", "(2) 사회안전 시사점과 향후 계획", 19);
   coreMsg(s, "세 미션을 이으면, 신고 전화가 들어오는 순간부터 출동 판단까지를 돕는 하나의 흐름이 된다.");
-  steps(s, [
-    ["Mission 2", "신고자 발화 분리", C.blue],
-    ["Mission 1", "신고자 성별", C.blue],
-    ["Mission 3", "증상 태깅", C.blue],
-    ["상황실 화면", "자동 기록", C.mint],
-  ], 2.45, 1.3, { bw: 2.6, bodySize: 14 });
+  // 신고 전화 → M2 → M1 → M3 → 상황실 (아이콘 흐름)
+  const fl = [["flow_call", "신고 전화", "음성 입력"], ["flow_m2", "Mission 2", "신고자 발화 분리"], ["flow_m1", "Mission 1", "신고자 성별"], ["flow_m3", "Mission 3", "증상 태깅"], ["flow_screen", "상황실 화면", "자동 기록"]];
+  const fgap = CW / fl.length;
+  fl.forEach(([ic, t, sub], i) => {
+    const cx = M + fgap * i + fgap / 2;
+    s.addImage({ path: IC + ic + ".png", x: cx - 0.4, y: 2.4, w: 0.8, h: 0.8 });
+    txt(s, t, { x: cx - fgap / 2 + 0.1, y: 3.25, w: fgap - 0.2, h: 0.3, fontSize: 14, bold: true, color: i === 4 ? "5E8E2A" : C.blue, align: "center" });
+    txt(s, sub, { x: cx - fgap / 2 + 0.1, y: 3.55, w: fgap - 0.2, h: 0.28, fontSize: 11.5, color: C.sub, align: "center" });
+    if (i < fl.length - 1) arrow(s, cx + fgap / 2 - 0.14, 2.62, 0.28, 0.36);
+  });
   const lw = 5.0, rw = CW - lw - 0.4; // 향후 계획 문장이 길어 오른쪽을 넓게
   card(s, M, 3.95, lw, 2.3);
   title(s, "■ 기대효과", M + 0.25, 4.07, lw - 0.5, 18);
