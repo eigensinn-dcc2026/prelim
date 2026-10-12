@@ -11,7 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 import uuid
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 import librosa
 import numpy as np
@@ -55,6 +55,7 @@ class Clean59D:
     feature_names: tuple[str, ...]
     provenance_fingerprint: str
     chain_root: Path
+    raw_source_verification: Mapping[str, Any] | None = None
 
 
 def _digest_json(value: Any) -> str:
@@ -193,13 +194,14 @@ def _artifact_contract(name: str, source: pd.DataFrame,
 
 def _artifact_metadata(name: str, source: pd.DataFrame, base: Mapping[str, Any],
                        inventory_signature: str, artifact_hash: str,
-                       parent: Mapping[str, Any]) -> dict[str, Any]:
+                       parent: Mapping[str, Any], *,
+                       dependency_versions: Mapping[str, str] | None = None) -> dict[str, Any]:
     names, extractor = _artifact_contract(name, source, inventory_signature)
     return {
         "cache_schema_version": CLEAN_CACHE_SCHEMA, "artifact_id": name,
         "builder_contract_version": BUILDER_CONTRACT_VERSION,
-        "dependency_versions": {"librosa": librosa.__version__,
-                                "numpy": np.__version__, "pandas": pd.__version__},
+        "dependency_versions": dict(dependency_versions) if dependency_versions is not None else {
+            "librosa": librosa.__version__, "numpy": np.__version__, "pandas": pd.__version__},
         "source_manifest_schema_version": base["source_manifest_schema_version"],
         "manifest_recorded_source_signature": base["manifest_recorded_source_signature"],
         "source_manifest_sha256": base["source_manifest_sha256"],
@@ -380,8 +382,16 @@ def load_clean_stage4_59d(
     manifest_metadata_path: str | Path, raw_root: str | Path, *,
     expected_rows: int = EXPECTED_OFFICIAL_ROWS["Training"],
     expected_calls: int = EXPECTED_OFFICIAL_CALLS["Training"],
+    transfer_identity_path: str | Path | None = None,
+    fixed_validation_record_keys: Sequence[str] | None = None,
 ) -> Clean59D:
-    """Strictly load new-schema artifacts; historical caches cannot enter."""
+    """Load the frozen chain using filesystem identity or explicit transfer proof.
+
+    The default retains the original filesystem/version checks. Supplying a
+    transfer identity requires all raw WAV/JSON bytes to match that prior proof;
+    recorded builder mtimes/versions remain historical metadata. This does not
+    retroactively prove the bytes used at build time when that proof is absent.
+    """
     chain_root = Path(chain_root)
     chain = json.loads((chain_root / "chain.json").read_text(encoding="utf-8"))
     fingerprint = chain.pop("provenance_fingerprint", None)
@@ -392,9 +402,46 @@ def load_clean_stage4_59d(
     manifest_path = Path(manifest_path)
     manifest_metadata_path = Path(manifest_metadata_path)
     manifest_meta = json.loads(manifest_metadata_path.read_text(encoding="utf-8"))
-    source = _source_rows(pd.read_parquet(manifest_path),
+    # The feature-grid caller supplies the already persisted Stage 6 keys. The
+    # loader then validates against those keys without creating/re-splitting
+    # the rows; its default behavior remains unchanged for existing callers.
+    if fixed_validation_record_keys is None:
+        source_manifest = pd.read_parquet(manifest_path)
+    else:
+        source_manifest = pd.read_parquet(
+            manifest_path,
+            filters=[("split", "==", "Training")],
+        )
+    source = _source_rows(source_manifest,
                           expected_rows=expected_rows, expected_calls=expected_calls)
-    inventory = _raw_inventory_signature(source, Path(raw_root))
+    raw_verification = None
+    cache_versions = None
+    if transfer_identity_path is None:
+        inventory = _raw_inventory_signature(source, Path(raw_root))
+    else:
+        from .mission2_egemaps_colab import verify_transfer_identity
+
+        verified = verify_transfer_identity(source, manifest_path, manifest_metadata_path,
+                                            raw_root, transfer_identity_path)
+        if verified["clean_reference_fingerprint"] != fingerprint:
+            raise ValueError("clean chain and transfer identity fingerprints differ")
+        # Staging creates new mtimes. Preserve the builder's inventory in cache
+        # metadata, and require the independent byte proof for the current raw.
+        inventory = chain["source_inventory_signature"]
+        cache_versions = json.loads((chain_root / "mfcc40.json").read_text(encoding="utf-8")).get("dependency_versions")
+        if (not isinstance(cache_versions, dict) or set(cache_versions) != {"librosa", "numpy", "pandas"}
+                or not all(isinstance(value, str) and value for value in cache_versions.values())):
+            raise ValueError("clean cache builder dependency metadata differs")
+        raw_verification = {
+            "mode": "shared_training_transfer_sha256",
+            "transfer_identity_sha256": _file_sha256(Path(transfer_identity_path)),
+            "raw_content_sha256": verified["raw_content_sha256"],
+            "raw_file_count": verified["raw_file_count"],
+            "build_source_inventory_signature": inventory,
+            "build_time_content_proof": chain.get("source_content_proof"),
+            "cache_dependency_versions": cache_versions,
+            "note": "Transfer-time raw bytes verified; historical build-time proof status is unchanged.",
+        }
     base = {
         "source_manifest_schema_version": manifest_meta.get("schema_version"),
         "manifest_recorded_source_signature": manifest_meta.get("source_signature"),
@@ -431,7 +478,8 @@ def load_clean_stage4_59d(
         if chain["artifact_hashes"].get(name) != hash_value:
             raise ValueError(f"clean artifact hash differs: {name}")
         observed = json.loads((chain_root / f"{name}.json").read_text(encoding="utf-8"))
-        expected = _artifact_metadata(name, source, base, inventory, hash_value, parent)
+        expected = _artifact_metadata(name, source, base, inventory, hash_value, parent,
+                                      dependency_versions=cache_versions)
         if observed != expected:
             raise ValueError(f"clean artifact metadata differs: {name}")
         if name == "mfcc40":
@@ -471,10 +519,33 @@ def load_clean_stage4_59d(
     if (X.shape != (expected_rows, 59) or not np.isfinite(X).all()
             or tuple(chain["assembly_order"]) != clean_59d_feature_names()):
         raise ValueError("clean 59D dimension/order/finite contract differs")
-    train_idx, validation_idx, split_audit = create_fixed_internal_split(
-        calls, split_function=standalone_group_split_indices,
-        expected_contract=EXPECTED_INTERNAL_SPLIT if expected_rows == EXPECTED_OFFICIAL_ROWS["Training"] else None,
-    )
+    if fixed_validation_record_keys is None:
+        train_idx, validation_idx, split_audit = create_fixed_internal_split(
+            calls, split_function=standalone_group_split_indices,
+            expected_contract=EXPECTED_INTERNAL_SPLIT if expected_rows == EXPECTED_OFFICIAL_ROWS["Training"] else None,
+        )
+    else:
+        persisted_keys = np.asarray(fixed_validation_record_keys).astype(str)
+        if len(np.unique(persisted_keys)) != len(persisted_keys):
+            raise ValueError("persisted Internal Validation record_key is duplicated")
+        key_index = {key: index for index, key in enumerate(keys)}
+        if any(key not in key_index for key in persisted_keys):
+            raise ValueError("persisted Internal Validation key is absent from Training")
+        validation_idx = np.sort(np.fromiter((key_index[key] for key in persisted_keys), dtype=np.int64))
+        train_mask = np.ones(len(keys), dtype=bool)
+        train_mask[validation_idx] = False
+        train_idx = np.flatnonzero(train_mask)
+        train_calls, validation_calls = set(calls[train_idx]), set(calls[validation_idx])
+        split_audit = {
+            "seed": 42, "test_size": 0.2, "total_rows": int(len(keys)),
+            "train_rows": int(len(train_idx)), "validation_rows": int(len(validation_idx)),
+            "train_calls": int(len(train_calls)), "validation_calls": int(len(validation_calls)),
+            "call_overlap": int(len(train_calls & validation_calls)),
+        }
+        expected_split = EXPECTED_INTERNAL_SPLIT if expected_rows == EXPECTED_OFFICIAL_ROWS["Training"] else None
+        if expected_split is not None and any(split_audit[name] != value for name, value in expected_split.items()):
+            raise ValueError("persisted Internal Split row/call counts differ")
     if set(calls[train_idx]) & set(calls[validation_idx]) or split_audit["seed"] != 42:
         raise ValueError("clean 59D fixed call split contract differs")
-    return Clean59D(X, y, keys, calls, clean_59d_feature_names(), fingerprint, chain_root)
+    return Clean59D(X, y, keys, calls, clean_59d_feature_names(), fingerprint, chain_root,
+                    raw_source_verification=raw_verification)
