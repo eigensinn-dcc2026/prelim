@@ -1,0 +1,45 @@
+# Temporary, branch-scoped PPT build. Remove after generated PPTX is committed.
+name: Temporary M3 PPT build (branch only)
+on:
+  push:
+    branches:
+      - subin/ppt-mission3-compliant-20261012
+    paths:
+      - ".github/workflows/m3-ppt-build-once.yml"
+      - "ppt/build_deck.js"
+
+permissions:
+  contents: write
+
+jobs:
+  build-ppt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out this branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Use Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ppt/package-lock.json
+      - name: Rebuild PPTX ONLY from committed build_deck.js
+        working-directory: ppt
+        run: |
+          npm ci --no-audit --no-fund
+          node build_deck.js DCC2026_예선_결과정리.pptx
+      - name: Commit generated PPTX into this branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- ppt/DCC2026_예선_결과정리.pptx
+          if git diff --cached --quiet; then
+            echo 'Generated PPTX unchanged.'
+          else
+            git commit -m 'build(ppt): regenerate PPTX from Mission 3 source'
+            git push origin HEAD:subin/ppt-mission3-compliant-20261012
+          fi
