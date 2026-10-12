@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Build the Mission 2 L2 input cache: one log-mel spectrogram .npy per
-utterance, plus an index parquet (call_id, utt_idx, speaker, npy_path, and the
-split / n_mels / hop_length / n_fft / sample_rate it was built with -- the provenance
-train_mission2_cnn.py checks before it will train on an index).
+"""Mission 2 L2 입력 캐시를 만든다. 발화마다 log-mel 스펙트로그램 .npy 하나와,
+인덱스 parquet(call_id, utt_idx, speaker, npy_path, 그리고 만들 때 쓴 split / n_mels /
+hop_length / n_fft / sample_rate)를 만든다. 뒤의 값들은 train_mission2_cnn.py가
+이 인덱스로 학습하기 전에 확인하는 출처(provenance) 정보다.
 
-Mirrors scripts/build_mission2_dataset.py's sampling/manifest handling;
-only the output format differs (a spectrogram doesn't fit a flat tabular
-row). See dcc_data.mission2_spectrogram's module docstring for why this
-exists on top of the L1 feature cache.
+샘플링/manifest 처리는 scripts/build_mission2_dataset.py와 같고, 출력 형식만 다르다
+(스펙트로그램은 평평한 표의 한 행에 들어가지 않는다). L1 feature 캐시 위에 이 캐시가
+왜 따로 있는지는 dcc_data.mission2_spectrogram의 모듈 docstring을 본다.
 
-Usage:
+사용법:
     python scripts/build_mission2_spectrograms.py \\
         --manifest data/manifests/dcc_manifest_v1.csv \\
         --data-root data/raw \\
@@ -40,10 +39,10 @@ from dcc_data.mission2_spectrogram import (  # noqa: E402
 
 BUILDERS = {"training": build_seoul_training_spectrograms, "validation": build_seoul_validation_spectrograms}
 
-# Where each split's cache goes when --output-dir/--index-output/--failures-log are not given. The two
-# splits must never share a default: a Validation cache written over the Training paths would look like
-# a Training index to anything that reads the default path (see also train_mission2_cnn.py, which
-# refuses an index that isn't stamped as Training).
+# --output-dir/--index-output/--failures-log를 주지 않았을 때 split별 캐시가 들어가는 기본 위치.
+# 두 split의 기본값은 절대 같으면 안 된다. Validation 캐시가 Training 경로 위에 쓰이면, 기본 경로를
+# 읽는 쪽에서는 그것이 Training 인덱스로 보이기 때문이다 (Training으로 표시되지 않은 인덱스는
+# 거부하는 train_mission2_cnn.py도 참고).
 DEFAULT_CACHE_PATHS = {
     "training": {
         "output_dir": Path("data/m2_spectrograms"),

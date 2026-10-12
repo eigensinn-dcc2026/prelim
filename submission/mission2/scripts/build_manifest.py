@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the location-only DCC manifest without modifying raw data."""
+"""원본 데이터를 건드리지 않고, 파일 위치만 담은 DCC manifest를 만든다."""
 
 from __future__ import annotations
 

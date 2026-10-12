@@ -1,50 +1,44 @@
 #!/usr/bin/env python3
-"""Train the Mission 2 L2 model: a small CNN over log-mel spectrograms.
+"""Mission 2 L2 모델을 학습한다: log-mel 스펙트로그램 위의 작은 CNN.
 
-Reads the spectrogram index produced by scripts/build_mission2_spectrograms.py
-(and refuses any index that isn't stamped as built from Training -- see
-dcc_data.mission2_spectrogram.assert_training_spectrogram_index),
-reuses the exact same call_id-grouped 80/20 split as the L1 baseline
-(dcc_data.mission2_train.make_group_split) so accuracy is comparable, and
-trains dcc_data.mission2_cnn.SpeakerCNN.
+scripts/build_mission2_spectrograms.py가 만든 스펙트로그램 인덱스를 읽고
+(Training으로 만들었다고 표시되지 않은 인덱스는 거부한다. dcc_data.mission2_spectrogram.
+assert_training_spectrogram_index 참고), 정확도를 비교할 수 있도록 L1 baseline과 똑같은
+call_id 단위 80/20 분할(dcc_data.mission2_train.make_group_split)을 다시 쓰고,
+dcc_data.mission2_cnn.SpeakerCNNLarge를 학습한다.
 
-Uses ReduceLROnPlateau (halves the LR once val accuracy stops improving)
-and always reports/saves the *best* epoch's checkpoint and metrics, not
-whatever the last epoch happened to be -- a first Colab run showed val_acc
-swinging 20+ points between adjacent epochs late in training (train_loss
-still falling smoothly the whole time, the classic "LR too high" symptom),
-and the final epoch can land mid-oscillation, far worse than the peak
-already reached.
+ReduceLROnPlateau를 쓰고(val 정확도가 더 오르지 않으면 학습률을 절반으로), 마지막 에폭이
+아니라 항상 *가장 좋았던* 에폭의 체크포인트와 지표를 보고/저장한다. 첫 Colab 실행에서
+학습 후반에 val_acc가 인접한 에폭 사이에서 20포인트 넘게 출렁였고(그동안 train_loss는 계속
+부드럽게 줄었다. 전형적인 "학습률이 너무 높다"는 증상), 마지막 에폭이 출렁이는 중간에 걸려서
+이미 도달한 정점보다 훨씬 나쁠 수 있기 때문이다.
 
---resume continues from --model-output instead of starting over: a second
-Colab run (same 3,000-call sample) hit its best (86.11%) on the very last
-of 20 epochs, meaning it likely hadn't converged -- re-running 20 fresh
-epochs to get back to where training already was would waste ~20 minutes
-on GPU. The checkpoint carries the *last* epoch's model/optimizer/scheduler
-state (to resume the LR schedule and Adam's momentum exactly where they
-were) separately from the *best* epoch's model state (for inference), so a
-resumed run that doesn't beat the standing best still doesn't overwrite it.
-A resumed run saves a checkpoint stamped with *its* index provenance, so --resume first checks that the
-file it continues from records exactly the same config (model, mel settings, label source, split, seeds --
-dcc_data.mission2_checkpoint.require_resumable_checkpoint) and refuses one that records nothing, e.g. any
-file written before the config was stored.
+--resume은 처음부터 다시 하지 않고 --model-output에서 이어서 학습한다. 두 번째 Colab 실행
+(같은 3,000통화 샘플)은 20에폭 중 맨 마지막에 최고(86.11%)를 찍었고, 이는 아직 수렴하지
+않았다는 뜻이다. 학습이 이미 도달한 지점까지 가려고 새로 20에폭을 다시 돌리면 GPU에서 약
+20분이 낭비된다. 체크포인트는 *마지막* 에폭의 model/optimizer/scheduler 상태(학습률 스케줄과
+Adam의 모멘텀을 그 시점 그대로 이어가려는 것)를 *최고* 에폭의 모델 상태(추론용)와 따로 담는다.
+그래서 이어서 학습한 실행이 기존 최고를 넘지 못해도 최고 기록을 덮어쓰지 않는다.
+이어서 학습한 실행은 *자신의* 인덱스 출처(provenance)를 도장으로 찍은 체크포인트를 저장하므로,
+--resume은 먼저 이어갈 파일이 정확히 같은 설정(모델, mel 설정, 라벨 출처, split, 시드.
+dcc_data.mission2_checkpoint.require_resumable_checkpoint)을 기록하고 있는지 확인하고,
+아무것도 기록하지 않은 파일(설정을 저장하기 전에 쓴 모든 파일)은 거부한다.
 
-CPU works for a small smoke run; for anything close to the full dataset,
-run this on Colab GPU (pass --device cuda) the same way the team already
-runs scripts/build_mission2_dataset.py there.
+작은 스모크 실행은 CPU로도 되지만, 전체 데이터에 가까운 규모는 Colab GPU(--device cuda)에서
+돌린다. 팀이 scripts/build_mission2_dataset.py를 거기서 돌리는 것과 같은 방식이다.
 
-Usage:
+사용법:
     python scripts/train_mission2_cnn.py \\
         --index data/m2_spectrogram_index.parquet \\
         --spectrogram-dir data/m2_spectrograms \\
         --epochs 20 --device cuda \\
         --model-output checkpoints/mission2/m2_cnn.pt
 
-    # continue training the same checkpoint for 20 more epochs:
+    # 같은 체크포인트를 20에폭 더 이어서 학습한다:
     python scripts/train_mission2_cnn.py ... --epochs 20 --resume
 
-    # the full-dataset Colab recipe (--packed-spectrograms, --amp, --pad-to-multiple, --early-stop-patience),
-    # one epoch per call so a disconnect loses at most one epoch:
+    # 전체 데이터셋용 Colab 방식 (--packed-spectrograms, --amp, --pad-to-multiple, --early-stop-patience).
+    # 호출 한 번에 1에폭씩 돌려서, 연결이 끊겨도 최대 1에폭만 잃는다:
     python scripts/train_mission2_cnn.py --index data/m2_spectrogram_index_packed.parquet \\
         --packed-spectrograms data/m2_spectrograms_packed.npy --model large --device cuda \\
         --amp --pad-to-multiple 8 --cudnn-benchmark --num-workers 2 \\
@@ -70,14 +64,10 @@ import torch  # noqa: E402
 from sklearn.metrics import confusion_matrix, recall_score  # noqa: E402
 
 from dcc_data.mission2_cnn import (  # noqa: E402
-    SpeakerCNN,
     SpeakerCNNLarge,
     PackedSpectrogramDataset,
-    SpeakerCNNLargeWithDuration,
     SpectrogramDataset,
-    SpectrogramWithDurationDataset,
     collate_batch,
-    collate_batch_with_duration,
     evaluate,
     move_optimizer_state_to_device,
     train_with_best_checkpoint,
@@ -86,12 +76,9 @@ from dcc_data.mission2_checkpoint import build_checkpoint_metadata, require_resu
 from dcc_data.mission2_spectrogram import assert_training_spectrogram_index  # noqa: E402
 from dcc_data.mission2_train import make_group_split  # noqa: E402
 
-MODEL_CLASSES = {"small": SpeakerCNN, "large": SpeakerCNNLarge, "large-duration": SpeakerCNNLargeWithDuration}
-# large-duration's loader yields (specs, duration, label) instead of (specs,
-# label) -- see SpeakerCNNLargeWithDuration's docstring -- so its Dataset/
-# collate_fn differ too; every other model shares the plain pair.
-DATASET_CLASSES = {"small": SpectrogramDataset, "large": SpectrogramDataset, "large-duration": SpectrogramWithDurationDataset}
-COLLATE_FNS = {"small": collate_batch, "large": collate_batch, "large-duration": collate_batch_with_duration}
+MODEL_CLASSES = {"large": SpeakerCNNLarge}
+DATASET_CLASSES = {"large": SpectrogramDataset}
+COLLATE_FNS = {"large": collate_batch}
 
 
 def parse_args() -> argparse.Namespace:
@@ -114,9 +101,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument(
-        "--model", type=str, default="small", choices=list(MODEL_CLASSES),
-        help="small=SpeakerCNN (25.7k params), large=SpeakerCNNLarge (422k params), "
-        "large-duration=SpeakerCNNLarge + this utterance's own duration_sec as an explicit input",
+        "--model", type=str, default="large", choices=list(MODEL_CLASSES),
+        help="large=SpeakerCNNLarge (422k params)",
     )
     parser.add_argument("--model-output", type=Path, default=Path("checkpoints/mission2/m2_cnn.pt"))
     parser.add_argument("--resume", action="store_true", help="continue from --model-output instead of a fresh model")
@@ -143,8 +129,6 @@ def parse_args() -> argparse.Namespace:
         "val_acc; a --resume run that finds the checkpoint already stopped trains nothing and leaves it as is",
     )
     args = parser.parse_args()
-    if args.model == "large-duration" and (args.packed_spectrograms is not None or args.pad_to_multiple > 1):
-        parser.error("--packed-spectrograms / --pad-to-multiple support --model small/large only")
     if args.amp and args.device != "cuda":
         parser.error("--amp needs --device cuda")
     if args.pad_to_multiple < 1:
@@ -185,8 +169,8 @@ def main() -> int:
     torch.backends.cudnn.benchmark = args.cudnn_benchmark
 
     df = pd.read_parquet(args.index)
-    # Refuse anything that isn't stamped as built from Training: the official Validation folder must
-    # never reach the loss/backprop, even by pointing --index at the wrong cache.
+    # Training으로 만들었다고 표시되지 않은 것은 거부한다. --index를 엉뚱한 캐시로 줘도
+    # 공식 Validation 폴더가 loss/역전파에 들어가는 일은 절대 없어야 한다.
     index_provenance = assert_training_spectrogram_index(df)
     print(f"index provenance: {index_provenance}")
     train_idx, val_idx = make_group_split(df, seed=args.seed, test_size=args.test_size)
@@ -218,9 +202,9 @@ def main() -> int:
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=args.lr_patience)
     scaler = torch.amp.GradScaler("cuda") if args.amp else None
 
-    # What this run will stamp on the checkpoint it saves. Built up front because --resume must first prove that
-    # the file it continues from was trained with exactly this (see require_resumable_checkpoint): otherwise
-    # old weights trained on other labels/settings would leave this run stamped with today's provenance.
+    # 이번 실행이 저장할 체크포인트에 찍을 내용. --resume은 이어갈 파일이 정확히 이것으로 학습됐음을
+    # 먼저 증명해야 하므로 미리 만들어 둔다 (require_resumable_checkpoint 참고). 그렇지 않으면
+    # 다른 라벨/설정으로 학습한 옛 가중치가 오늘의 출처 도장을 달고 나오게 된다.
     checkpoint_metadata = build_checkpoint_metadata(
         model_name=args.model,
         model_class=model_cls.__name__,
@@ -251,11 +235,11 @@ def main() -> int:
         epochs_already_trained = checkpoint["total_epochs_trained"]
         if scaler is not None and checkpoint.get("scaler_state_dict") is not None:
             scaler.load_state_dict(checkpoint["scaler_state_dict"])
-        # Continue the random sequence (shuffle order, dropout) instead of restarting it from torch_seed, which
-        # would replay the first run's data order in every resumed chunk.
+        # 난수열(셔플 순서, dropout)을 torch_seed에서 다시 시작하지 않고 이어간다. 다시 시작하면
+        # 이어서 학습하는 모든 구간마다 첫 실행의 데이터 순서가 되풀이된다.
         if "rng_state" in checkpoint:
             _restore_rng_state(checkpoint["rng_state"], train_shuffle_generator)
-        else:  # saved before the random state was recorded: at least don't replay epoch 1's order
+        else:  # 난수 상태를 기록하기 전에 저장된 파일: 적어도 1에폭째의 순서를 되풀이하지는 않는다
             resumed_seed = torch_seed + epochs_already_trained
             random.seed(resumed_seed)
             torch.manual_seed(resumed_seed)
@@ -285,7 +269,7 @@ def main() -> int:
         )
         epoch_start = time.time()
 
-    # Early stopping counts from the best epoch over every run so far, this one included.
+    # 조기 종료는 이번 실행을 포함해 지금까지 모든 실행에서의 최고 에폭부터 센다.
     running_best = {"val_acc": prev_best_val_acc, "epoch": prev_best_epoch}
 
     def should_stop(record: dict) -> bool:
@@ -330,14 +314,14 @@ def main() -> int:
             "total_epochs_trained": total_epochs_trained,
             "rng_state": _capture_rng_state(train_shuffle_generator),
             "scaler_state_dict": scaler.state_dict() if scaler is not None else None,
-            # How this run trained (speed settings, not what the model is) -- a record only, never checked.
+            # 이번 실행이 어떻게 학습했는지 (속도 설정이며 모델이 무엇인지와는 무관). 기록용일 뿐 확인하지 않는다.
             "training_options": {
                 "amp": args.amp, "pad_to_multiple": args.pad_to_multiple, "batch_size": args.batch_size,
                 "lr": args.lr, "lr_patience": args.lr_patience, "early_stop_patience": args.early_stop_patience,
                 "packed_spectrograms": args.packed_spectrograms is not None,
             },
-            # What this checkpoint was trained with -- scripts/mission2_inference.py refuses to run it if
-            # that differs from how it would run it (see dcc_data.mission2_checkpoint).
+            # 이 체크포인트가 무엇으로 학습됐는지. scripts/mission2_inference.py는 이것이 추론에 쓸
+            # 설정과 다르면 실행을 거부한다 (dcc_data.mission2_checkpoint 참고).
             "metadata": checkpoint_metadata,
         },
         args.model_output,

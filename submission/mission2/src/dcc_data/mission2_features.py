@@ -1,25 +1,22 @@
-"""Mission 2 baseline (L1) feature pipeline: acoustic statistics only.
+"""Mission 2 baseline(L1) feature 파이프라인: 음향 통계만 쓴다.
 
-Builds on the repository's existing manifest/guards/audio primitives instead
-of re-implementing wav<->json pairing or split isolation:
+wav<->json 짝짓기나 split 분리를 다시 구현하지 않고, 저장소에 이미 있는
+manifest/guards/audio 기본 부품 위에 만든다.
 
-- ``dcc_data.manifest`` already pairs wav/json files by filename stem (the
-  ``audioPath`` field inside each JSON is known to be unreliable -- see
-  ``manifest.build_manifest``). We reuse its output (a loaded manifest) here.
-- ``dcc_data.guards.ensure_training_rows`` already enforces that Validation
-  data cannot reach a training path. We call it rather than re-checking
-  ``row.split`` by hand.
-- ``dcc_data.audio`` already does dependency-light PCM WAV reading. We read
-  each call's WAV exactly once (``read_wav_frames(path, 0, frame_count)``)
-  and slice utterances from the in-memory array, instead of reopening the
-  file per utterance -- opening per utterance was measured (see the M2
-  baseline planning notes) to be the dominant cost at ~30 utterances/call.
+- ``dcc_data.manifest``는 이미 wav/json 파일을 파일 이름 stem으로 짝짓는다 (각 JSON 안의
+  ``audioPath`` 필드는 믿을 수 없는 것으로 알려져 있다. ``manifest.build_manifest`` 참고).
+  여기서는 그 출력(불러온 manifest)을 그대로 쓴다.
+- ``dcc_data.guards.ensure_training_rows``는 이미 Validation 데이터가 학습 경로로 들어가지
+  못하게 강제한다. ``row.split``을 손으로 다시 검사하지 않고 이것을 호출한다.
+- ``dcc_data.audio``는 이미 의존성이 가벼운 PCM WAV 읽기를 한다. 통화마다 WAV를 딱 한 번만
+  읽고(``read_wav_frames(path, 0, frame_count)``) 메모리에 올린 배열에서 발화를 잘라 낸다.
+  발화마다 파일을 다시 열지 않는다. 통화당 발화가 약 30개일 때 발화마다 여는 것이 가장 큰
+  비용임을 측정했다 (M2 baseline 계획 노트 참고).
 
-Only ``startAt``/``endAt``/``speaker`` are ever read from a labeling JSON's
-utterances. ``text`` is never touched. ``utt_idx`` (the utterance's position
-in the JSON) is carried only so downstream code can restore submission row
-order -- it must never be used as a model feature, since the contest
-explicitly forbids order-derived signals ("발화의 홀짝 등 순서 사용불가").
+라벨링 JSON의 발화에서 읽는 것은 ``startAt``/``endAt``/``speaker``뿐이다. ``text``는 절대
+건드리지 않는다. ``utt_idx``(JSON 안에서 발화의 위치)는 뒤쪽 코드가 제출 행 순서를 복원할 수
+있도록 들고만 다닌다. 대회가 순서에서 나오는 신호를 명시적으로 금지하므로("발화의 홀짝 등
+순서 사용불가") 모델 feature로는 절대 쓰면 안 된다.
 """
 
 from __future__ import annotations
@@ -34,16 +31,13 @@ from numbers import Real
 from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable
 
-# Must be set before numpy/librosa are imported (BLAS thread count is fixed
-# at library load time). build_seoul_training_dataset()'s max_workers > 1
-# path already parallelizes across OS processes; without this, each
-# process's own BLAS backend ALSO spawns one thread per CPU core on top of
-# that -- N worker processes x C BLAS threads each is pure oversubscription.
-# On a 12-core/16GB machine this reliably crashed every worker ("OpenBLAS
-# error: Memory allocation still failed after 10 retries" / Windows "paging
-# file too small") with as few as 4 workers. Every caller of this module
-# (the CLI script, tests, ad-hoc notebooks) benefits from pinning this here
-# rather than each having to remember to set it themselves.
+# numpy/librosa를 import하기 전에 설정해야 한다 (BLAS 스레드 수는 라이브러리를 불러올 때 정해진다).
+# build_seoul_training_dataset()의 max_workers > 1 경로는 이미 OS 프로세스 단위로 병렬화한다.
+# 이걸 설정하지 않으면 각 프로세스의 BLAS 백엔드가 그 위에 CPU 코어마다 스레드를 또 만들어,
+# worker N개 x BLAS 스레드 C개가 순전히 과잉 구독이 된다. 12코어/16GB 컴퓨터에서는 worker가
+# 4개만 돼도 모든 worker가 거의 확실히 죽었다 ("OpenBLAS error: Memory allocation still failed
+# after 10 retries" / Windows "paging file too small"). 이 모듈을 쓰는 모든 호출부(CLI 스크립트,
+# 테스트, 즉석 노트북)가 각자 이 설정을 기억하지 않아도 되도록 여기서 한 번에 고정한다.
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
@@ -59,10 +53,9 @@ from .mission2 import milliseconds_to_frame
 
 
 # ---------------------------------------------------------------------------
-# Region filtering (Training must be Seoul-only; see the contest rules and
-# the team EDA). ManifestRow does not carry a region field, so we recover it
-# from the path using the same "TS_<region>_구급"-style folder convention
-# scripts/audit_dcc_dataset.py already relies on for the same purpose.
+# 지역 필터 (Training은 서울만 써야 한다. 대회 규칙과 팀 EDA 참고). ManifestRow에는 지역
+# 필드가 없으므로, scripts/audit_dcc_dataset.py가 같은 목적으로 이미 기대는
+# "TS_<region>_구급" 식의 폴더 규칙을 써서 경로에서 지역을 알아낸다.
 # ---------------------------------------------------------------------------
 
 _REGION_DIR_RE = re.compile(r"^(TS|TL|VS|VL)_([^_]+)_구급$")
@@ -70,14 +63,12 @@ SEOUL_REGION = unicodedata.normalize("NFC", "서울")
 
 
 def path_region(relative_path: str) -> str | None:
-    """Return the region token encoded in a manifest-relative path, if any.
+    """manifest 기준 상대 경로에 들어 있는 지역 토큰을 돌려준다. 없으면 None.
 
-    Paths that started life as Korean-named folders inside a zip archive (as
-    this dataset's do) can arrive as NFD (decomposed jamo) instead of NFC
-    (precomposed) -- the two render identically but compare unequal, and NFD
-    also breaks a literal match against "_구급$" in the regex below. Every
-    path part is normalized to NFC before matching so this is independent of
-    whatever form the filesystem/zip handed us.
+    zip 아카이브 안의 한글 이름 폴더에서 시작한 경로(이 데이터셋이 그렇다)는 NFC(조합형)가 아니라
+    NFD(자모 분해형)로 도착할 수 있다. 둘은 똑같이 보이지만 비교하면 다르고, NFD는 아래 정규식의
+    "_구급$"와의 글자 그대로 매칭도 깨뜨린다. 그래서 파일시스템/zip이 어떤 형태를 주든 상관없도록
+    매칭 전에 모든 경로 구성요소를 NFC로 정규화한다.
     """
 
     for part in PurePosixPath(relative_path).parts:
@@ -93,13 +84,12 @@ def is_seoul_path(relative_path: str) -> bool:
 
 
 def select_seoul_training_rows(rows: Iterable[ManifestRow]) -> list[ManifestRow]:
-    """Training-only, Seoul-only rows -- the only rows this pipeline may use.
+    """Training 전용, 서울 전용 행. 이 파이프라인이 쓸 수 있는 유일한 행이다.
 
-    ``ensure_training_rows`` is a fail-fast *assertion* that a batch is
-    already pure Training (it raises on a mixed batch, it does not filter)
-    -- see ``dcc_data.guards``. A manifest loaded via ``load_manifest``
-    normally contains both splits together, so we filter by ``row.split``
-    first and then run the guard as defense-in-depth against a filtering bug.
+    ``ensure_training_rows``는 배치가 이미 순수한 Training임을 확인하는 fail-fast *단언*이다
+    (섞여 있으면 예외를 내며, 걸러 주지는 않는다. ``dcc_data.guards`` 참고). ``load_manifest``로
+    불러온 manifest에는 보통 두 split이 함께 들어 있으므로, 먼저 ``row.split``으로 거른 뒤
+    필터링 버그에 대비한 이중 방어로 이 검사를 돌린다.
     """
 
     training_only = [row for row in rows if row.split == TRAINING]
@@ -112,12 +102,11 @@ def select_seoul_training_rows(rows: Iterable[ManifestRow]) -> list[ManifestRow]
 
 
 def select_seoul_validation_rows(rows: Iterable[ManifestRow]) -> list[ManifestRow]:
-    """Validation-only, Seoul-only rows.
+    """Validation 전용, 서울 전용 행.
 
-    For evaluation/early-stopping/checkpoint-selection only, per the contest
-    rules -- nothing that consumes this may call ``.fit()``/backprop on it.
-    Mirrors ``select_seoul_training_rows`` exactly, gated on ``VALIDATION``
-    instead of ``TRAINING`` via the same ``ensure_split`` guard.
+    대회 규칙상 평가/조기 종료/체크포인트 선택에만 쓴다. 이것을 받아 쓰는 코드는 여기에
+    ``.fit()``이나 역전파를 호출하면 안 된다. ``select_seoul_training_rows``와 똑같고,
+    같은 ``ensure_split`` 검사를 ``TRAINING`` 대신 ``VALIDATION`` 기준으로 쓴다.
     """
 
     validation_only = [row for row in rows if row.split == VALIDATION]
@@ -130,10 +119,9 @@ def select_seoul_validation_rows(rows: Iterable[ManifestRow]) -> list[ManifestRo
 
 
 def sample_calls(rows: list[ManifestRow], n_calls: int, seed: int) -> list[ManifestRow]:
-    """Reproducibly sample ``n_calls`` calls (not utterances) by call/row.
+    """통화/행 단위로 ``n_calls``개 통화(발화가 아님)를 항상 같은 결과로 뽑는다.
 
-    Sampling at the call level (rather than the utterance level) is required
-    for GroupShuffleSplit-by-call_id to make sense downstream.
+    발화 단위가 아니라 통화 단위로 뽑아야, 뒤에서 call_id 기준 GroupShuffleSplit이 의미가 있다.
     """
 
     if n_calls <= 0 or n_calls >= len(rows):
@@ -142,7 +130,7 @@ def sample_calls(rows: list[ManifestRow], n_calls: int, seed: int) -> list[Manif
 
 
 # ---------------------------------------------------------------------------
-# Module A: utterance-level index (metadata only, no audio touched here)
+# 모듈 A: 발화 단위 인덱스 (메타데이터만 다루며, 여기서는 오디오를 건드리지 않는다)
 # ---------------------------------------------------------------------------
 
 
@@ -170,14 +158,14 @@ def _load_call_utterances(json_path: Path) -> tuple[str, list[dict]]:
 
 
 def build_utterance_records(row: ManifestRow, data_root: Path) -> list[UtteranceRecord]:
-    """Expand one call's manifest row into its utterance-level index rows.
+    """통화 하나의 manifest 행을 발화 단위 인덱스 행들로 펼친다.
 
-    Only ``startAt``/``endAt``/``speaker`` are read from each utterance --
-    never ``text`` (Mission 2 forbids using transcript content as a feature).
+    각 발화에서 읽는 것은 ``startAt``/``endAt``/``speaker``뿐이다. ``text``는 절대 읽지 않는다
+    (Mission 2는 전사 내용을 feature로 쓰는 것을 금지한다).
 
-    ``speaker`` is used exactly as the provided label file has it. The organizers ruled (2026-10-01) that
-    speaker labels may not be corrected, or training data selected, on the basis of ``text``; suspected
-    label errors are listed in reports/mission2/m2_label_noise_suspected_calls.md instead of being fixed.
+    ``speaker``는 제공된 라벨 파일에 있는 값 그대로 쓴다. 주최 측이 (2026-10-01) ``text``를 근거로
+    화자 라벨을 고치거나 학습 데이터를 선별하면 안 된다고 판정했다. 라벨 오류로 의심되는 것은
+    고치지 않고 reports/mission2/m2_label_noise_suspected_calls.md에 목록으로만 남긴다.
     """
 
     json_path = data_root / row.json_path
@@ -219,12 +207,12 @@ def build_utterance_records(row: ManifestRow, data_root: Path) -> list[Utterance
 
 
 # ---------------------------------------------------------------------------
-# Audio access: one WAV open per call, in-memory slicing per utterance
+# 오디오 접근: 통화마다 WAV를 한 번만 열고, 발화는 메모리에서 잘라 낸다
 # ---------------------------------------------------------------------------
 
 
 def read_call_waveform(wav_path: Path) -> tuple[np.ndarray, int]:
-    """Read an entire call's WAV once. Team EDA confirmed all WAVs are mono."""
+    """통화 전체의 WAV를 한 번 읽는다. 팀 EDA로 모든 WAV가 모노임을 확인했다."""
 
     info = read_wav_info(wav_path)
     if info.channels != 1:
@@ -247,11 +235,10 @@ def utterance_frame_range(
 
 
 def slice_and_pad(waveform: np.ndarray, start_frame: int, end_frame: int, min_length: int) -> np.ndarray:
-    """Slice one utterance out of a call waveform, zero-padding short segments.
+    """통화 파형에서 발화 하나를 잘라 내고, 짧은 구간은 0으로 채운다.
 
-    Short utterances must not be discarded (the contest's own 100ms-and-under
-    utterances are real data, not noise) -- they are zero-padded up to
-    ``min_length`` so downstream STFT-based features never crash on them.
+    짧은 발화를 버리면 안 된다 (대회 데이터의 100ms 이하 발화도 잡음이 아니라 실제 데이터다).
+    그래서 ``min_length``까지 0으로 채워, 뒤쪽 STFT 기반 feature가 이런 발화에서 죽지 않게 한다.
     """
 
     segment = waveform[start_frame:end_frame]
@@ -261,14 +248,14 @@ def slice_and_pad(waveform: np.ndarray, start_frame: int, end_frame: int, min_le
 
 
 # ---------------------------------------------------------------------------
-# Module B: 53-dim acoustic feature vector (duration + spectral statistics)
+# 모듈 B: 53차원 음향 feature 벡터 (길이 + 스펙트럼 통계)
 # ---------------------------------------------------------------------------
 
 N_FFT = 512
 HOP_LENGTH = 160
 N_MFCC = 20
-N_ACOUSTIC_FEATURES = 52  # MFCC/RMS/ZCR/spectral only -- acoustic_feature_vector()'s own contract
-N_FEATURES = 53  # duration_sec + the 52 acoustic statistics below
+N_ACOUSTIC_FEATURES = 52  # MFCC/RMS/ZCR/spectral만. acoustic_feature_vector() 자신의 약속
+N_FEATURES = 53  # duration_sec + 아래의 음향 통계 52개
 
 FEATURE_COLUMNS: tuple[str, ...] = (
     "duration_sec",
@@ -291,7 +278,7 @@ assert len(FEATURE_COLUMNS) == N_FEATURES
 
 
 def acoustic_feature_vector(segment: np.ndarray, sample_rate: int) -> np.ndarray:
-    """52-dim MFCC/RMS/ZCR/spectral statistics. Caller prepends duration_sec."""
+    """52차원 MFCC/RMS/ZCR/spectral 통계. duration_sec은 호출하는 쪽에서 앞에 붙인다."""
 
     if len(segment) < N_FFT:
         segment = np.pad(segment, (0, N_FFT - len(segment)))
@@ -323,7 +310,7 @@ def acoustic_feature_vector(segment: np.ndarray, sample_rate: int) -> np.ndarray
 
 
 def utterance_feature_vector(segment: np.ndarray, sample_rate: int, duration_sec: float) -> np.ndarray:
-    """The context-free 53-dim vector for one utterance in isolation."""
+    """발화 하나를 따로 떼어 본, 문맥에 의존하지 않는 53차원 벡터."""
 
     acoustic = acoustic_feature_vector(segment, sample_rate)
     vector = np.concatenate([np.array([duration_sec], dtype=np.float32), acoustic])
@@ -333,7 +320,7 @@ def utterance_feature_vector(segment: np.ndarray, sample_rate: int, duration_sec
 
 
 # ---------------------------------------------------------------------------
-# Module C + orchestration: sample calls, build the index, extract features
+# 모듈 C + 오케스트레이션: 통화 샘플링, 인덱스 만들기, feature 추출
 # ---------------------------------------------------------------------------
 
 OnCallDone = Callable[[int, int], None]
@@ -342,13 +329,11 @@ _CallResult = tuple[list[UtteranceRecord], list[dict], list[dict]]
 
 
 def _process_one_call(row: ManifestRow, data_root: Path) -> _CallResult:
-    """Process exactly one call end-to-end: index + feature extraction.
+    """통화 하나를 처음부터 끝까지 처리한다: 인덱스 + feature 추출.
 
-    Pure function of ``(row, data_root)`` with no shared state -- this is the
-    unit of work ``build_seoul_training_dataset`` uses for both its
-    sequential loop and its process-pool path, and it must stay a top-level
-    function (not a closure) so it can be pickled and sent to worker
-    processes on Windows (spawn start method).
+    ``(row, data_root)``만으로 결정되는 순수 함수이고 공유 상태가 없다. ``build_seoul_training_dataset``이
+    순차 루프와 process-pool 경로 양쪽에서 쓰는 작업 단위다. Windows(spawn 시작 방식)에서
+    worker 프로세스로 pickle해서 보낼 수 있도록 (클로저가 아닌) 최상위 함수로 남아 있어야 한다.
     """
 
     index_records: list[UtteranceRecord] = []
@@ -358,7 +343,7 @@ def _process_one_call(row: ManifestRow, data_root: Path) -> _CallResult:
     wav_path = data_root / row.wav_path
     try:
         records = build_utterance_records(row, data_root)
-    except Exception as exc:  # noqa: BLE001 - see module docstring: logged, not swallowed
+    except Exception as exc:  # noqa: BLE001 - 기록하며, 삼키지 않는다
         failures.append(
             {
                 "stage": "index",
@@ -376,7 +361,7 @@ def _process_one_call(row: ManifestRow, data_root: Path) -> _CallResult:
 
     try:
         waveform, sample_rate = read_call_waveform(wav_path)
-    except Exception as exc:  # noqa: BLE001 - see module docstring
+    except Exception as exc:  # noqa: BLE001 - 기록하며, 삼키지 않는다
         for record in records:
             failures.append(
                 {
@@ -399,7 +384,7 @@ def _process_one_call(row: ManifestRow, data_root: Path) -> _CallResult:
             )
             segment = slice_and_pad(waveform, start_frame, end_frame, N_FFT)
             vector = utterance_feature_vector(segment, sample_rate, record.duration_sec)
-        except Exception as exc:  # noqa: BLE001 - see module docstring
+        except Exception as exc:  # noqa: BLE001 - 기록하며, 삼키지 않는다
             failures.append(
                 {
                     "stage": "feature",
@@ -436,27 +421,22 @@ def _build_seoul_dataset(
     on_call_done: OnCallDone | None = None,
     max_workers: int = 1,
 ) -> tuple[list[UtteranceRecord], list[dict], list[dict]]:
-    """Shared sample+extract loop behind both the Training and Validation
-    builders below -- the only difference between them is which
-    ``select_seoul_*_rows`` filter produced ``seoul_rows``.
+    """아래 Training/Validation 빌더가 같이 쓰는 샘플링 + 추출 루프. 둘의 유일한 차이는
+    ``seoul_rows``를 만든 필터가 어느 ``select_seoul_*_rows``인지다.
 
-    ``index_sink``/``feature_sink``/``failure_sink`` may be passed in so a
-    caller (e.g. the CLI script) can flush partial progress mid-run; they are
-    mutated in place and also returned for convenience.
+    ``index_sink``/``feature_sink``/``failure_sink``를 밖에서 넘길 수 있어서, 호출하는 쪽
+    (예: CLI 스크립트)이 실행 중간에 진행 상황을 중간 저장할 수 있다. 이들은 제자리에서
+    바뀌고, 편의를 위해 돌려주기도 한다.
 
-    A failure extracting one utterance's features never drops that utterance
-    from the index (module A) and never aborts the rest of the call -- it is
-    recorded in ``failure_sink`` with the call_id/utt_idx/reason instead, per
-    the "원인 로깅 없는 광범위한 except 금지" rule: broad catches are used
-    here because audio/librosa failure modes are numerous, but every one is
-    logged with enough detail to act on.
+    발화 하나의 feature 추출이 실패해도 그 발화를 인덱스(모듈 A)에서 빼지 않고, 그 통화의
+    나머지를 중단시키지도 않는다. 대신 call_id/utt_idx/원인과 함께 ``failure_sink``에 기록한다.
+    "원인 로깅 없는 광범위한 except 금지" 규칙에 따른 것이다. 여기서 넓은 except를 쓰는 이유는
+    오디오/librosa의 실패 유형이 많기 때문이지만, 모든 실패는 조치할 수 있을 만큼 자세히 기록된다.
 
-    ``max_workers`` > 1 processes calls in parallel via a process pool -- each
-    call only touches its own wav file and has no shared state, so this is a
-    pure speed optimization: the aggregate contents of the three sinks are
-    identical to a ``max_workers=1`` run (just interleaved in a different,
-    completion-order-dependent sequence, which nothing downstream relies on --
-    utt_idx order *within* a call is unaffected either way).
+    ``max_workers`` > 1이면 process pool로 통화를 병렬 처리한다. 각 통화는 자기 wav 파일만 건드리고
+    공유 상태가 없으므로 순전히 속도 최적화다. 세 sink의 전체 내용은 ``max_workers=1`` 실행과 같다
+    (끝나는 순서에 따라 섞이는 순서만 다르지만, 뒤쪽에서 그 순서에 기대는 것은 없다.
+    통화 *안에서의* utt_idx 순서는 어느 쪽이든 영향받지 않는다).
     """
 
     index_sink = index_sink if index_sink is not None else []
@@ -502,9 +482,9 @@ def build_seoul_training_dataset(
     on_call_done: OnCallDone | None = None,
     max_workers: int = 1,
 ) -> tuple[list[UtteranceRecord], list[dict], list[dict]]:
-    """Sample Seoul/Training calls and build the utterance index + feature cache.
+    """서울/Training 통화를 샘플링해서 발화 인덱스와 feature 캐시를 만든다.
 
-    See ``_build_seoul_dataset`` for the shared extraction-loop contract.
+    공통 추출 루프의 약속은 ``_build_seoul_dataset``을 본다.
     """
 
     return _build_seoul_dataset(
@@ -532,15 +512,12 @@ def build_seoul_validation_dataset(
     on_call_done: OnCallDone | None = None,
     max_workers: int = 1,
 ) -> tuple[list[UtteranceRecord], list[dict], list[dict]]:
-    """Sample Seoul/Validation calls and build the utterance index + feature cache.
+    """서울/Validation 통화를 샘플링해서 발화 인덱스와 feature 캐시를 만든다.
 
-    Same extraction pipeline as ``build_seoul_training_dataset`` (same 53
-    feature columns, labels as provided), gated on
-    ``select_seoul_validation_rows`` instead -- for evaluation only, per the
-    contest rules (see that function's docstring). ``n_calls=-1`` (default)
-    takes every available Validation call rather than truncating, since
-    Validation is already much smaller than Training and there's no reason
-    to subsample it further.
+    ``build_seoul_training_dataset``과 같은 추출 파이프라인이다 (같은 53개 feature 열, 라벨은
+    제공된 그대로). 다만 ``select_seoul_validation_rows``로 거른다. 대회 규칙상 평가 전용이다
+    (그 함수의 docstring 참고). ``n_calls=-1``(기본값)이면 자르지 않고 쓸 수 있는 Validation
+    통화를 전부 가져온다. Validation은 이미 Training보다 훨씬 작아서 더 줄여 뽑을 이유가 없다.
     """
 
     return _build_seoul_dataset(
@@ -554,18 +531,3 @@ def build_seoul_validation_dataset(
         on_call_done=on_call_done,
         max_workers=max_workers,
     )
-
-
-# ---------------------------------------------------------------------------
-# Module E support: flat stem pairing for inference (no Training/Validation
-# path component is guaranteed in the folders the grader hands us, so
-# dcc_data.manifest.build_manifest -- which requires exactly that -- does not
-# apply here; this mirrors its pairing logic without the split requirement).
-# ---------------------------------------------------------------------------
-
-
-def pair_by_stem(audio_dir: Path, label_dir: Path) -> list[tuple[str, Path, Path]]:
-    wav_files = {p.stem: p for p in Path(audio_dir).rglob("*.wav")}
-    json_files = {p.stem: p for p in Path(label_dir).rglob("*.json")}
-    common = sorted(set(wav_files) & set(json_files))
-    return [(stem, wav_files[stem], json_files[stem]) for stem in common]

@@ -1,4 +1,4 @@
-"""Fail-fast guards for manifest integrity and split isolation."""
+"""manifest 무결성과 split 분리를 지키기 위한 fail-fast 검사 모음."""
 
 from __future__ import annotations
 
@@ -13,31 +13,31 @@ VALID_SPLITS = frozenset({TRAINING, VALIDATION})
 
 
 class DataGuardError(ValueError):
-    """Base class for DCC data guard failures."""
+    """DCC 데이터 검사 실패의 기본 예외 클래스."""
 
 
 class UnknownSplitError(DataGuardError):
-    """Raised when a path does not contain exactly one recognized split."""
+    """경로에 인식 가능한 split이 정확히 하나 들어 있지 않을 때 발생한다."""
 
 
 class ManifestPairingError(DataGuardError):
-    """Raised when a stem does not have exactly one WAV and one JSON file."""
+    """같은 stem에 WAV와 JSON이 정확히 하나씩 있지 않을 때 발생한다."""
 
 
 class DuplicateIdentifierError(DataGuardError):
-    """Raised when a split contains a duplicate identifier."""
+    """한 split 안에 중복된 식별자가 있을 때 발생한다."""
 
 
 class CrossSplitIdentifierError(DataGuardError):
-    """Raised when an identifier appears in both Training and Validation."""
+    """같은 식별자가 Training과 Validation 양쪽에 나타날 때 발생한다."""
 
 
 class SplitContaminationError(DataGuardError):
-    """Raised when data from an unexpected split reaches a guarded path."""
+    """예상하지 않은 split의 데이터가 보호된 경로로 들어왔을 때 발생한다."""
 
 
 def split_from_path(path: str | Path) -> str:
-    """Return the exact split component from a relative or absolute path."""
+    """상대 경로든 절대 경로든, 경로에서 split 구성요소를 정확히 하나 꺼내 돌려준다."""
 
     candidates = [part for part in Path(path).parts if part in VALID_SPLITS]
     if len(candidates) != 1:
@@ -51,7 +51,7 @@ def split_from_path(path: str | Path) -> str:
 def validate_manifest_rows(
     rows: Iterable[Any], data_root: str | Path | None = None
 ) -> None:
-    """Validate uniqueness, path/split agreement, and optional file existence."""
+    """식별자 유일성, 경로와 split의 일치 여부, (선택) 파일 존재 여부를 검사한다."""
 
     materialized = list(rows)
     root = Path(data_root).resolve() if data_root is not None else None
@@ -95,7 +95,7 @@ def validate_manifest_rows(
 
 
 def ensure_split(rows: Iterable[Any], expected_split: str) -> list[Any]:
-    """Materialize rows and fail if any row is from another split."""
+    """행들을 리스트로 만든 뒤, 다른 split의 행이 하나라도 있으면 실패시킨다."""
 
     if expected_split not in VALID_SPLITS:
         raise UnknownSplitError(f"Unknown expected split: {expected_split!r}")
@@ -111,13 +111,13 @@ def ensure_split(rows: Iterable[Any], expected_split: str) -> list[Any]:
 
 
 def ensure_training_rows(rows: Iterable[Any]) -> list[Any]:
-    """Return rows only when every row belongs to Training."""
+    """모든 행이 Training일 때만 행들을 돌려준다."""
 
     return ensure_split(rows, TRAINING)
 
 
 def ensure_training_batch(batch: Mapping[str, Any]) -> None:
-    """Fail immediately if a batch contains a non-Training provenance split."""
+    """배치에 Training이 아닌 출처 split이 섞여 있으면 즉시 실패시킨다."""
 
     if "split" not in batch:
         raise SplitContaminationError("Training batch has no split provenance")

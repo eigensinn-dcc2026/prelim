@@ -1,13 +1,10 @@
-"""Mission 2 L2 model: a small CNN over log-mel spectrograms.
+"""Mission 2 L2 모델: log-mel 스펙트로그램 위의 작은 CNN.
 
-See dcc_data.mission2_spectrogram's module docstring for why (L1's
-per-utterance summary statistics plateaued without closing the two error
-modes that matter -- duration-bucket bias and the overlap gap).
+왜 이 모델을 쓰는지는 dcc_data.mission2_spectrogram의 모듈 docstring을 본다
+(L1의 발화별 요약 통계는, 중요한 두 오류 유형인 길이 구간 편향과 겹침 격차를 줄이지 못한 채
+정체됐다).
 
-Kept intentionally small (3 conv blocks) -- this is a first correctness
-pass, not a tuned architecture; the team can widen/deepen it once the
-pipeline is confirmed to work on Colab GPU (this module is exercised here
-only with tiny CPU-only smoke tests, see tests/test_mission2_cnn.py).
+모델은 SpeakerCNNLarge(conv 블록 4개, 채널 32->64->128->256)이다.
 """
 
 from __future__ import annotations
@@ -23,11 +20,10 @@ from .mission2_spectrogram import N_MELS, SPEC_FLOOR_DB
 
 
 class SpectrogramDataset(torch.utils.data.Dataset):
-    """Reads precomputed .npy spectrograms named by an index DataFrame's
-    ``npy_path`` column (relative to ``spectrogram_dir``) -- see
-    dcc_data.mission2_spectrogram.build_seoul_training_spectrograms, which
-    produces exactly this index. Loading a saved array is far cheaper than
-    re-decoding audio + recomputing the spectrogram every epoch.
+    """미리 계산해 둔 .npy 스펙트로그램을 읽는다. 어떤 파일인지는 인덱스 DataFrame의
+    ``npy_path`` 열(``spectrogram_dir`` 기준 상대 경로)이 알려 준다. 이 인덱스를 정확히 만드는 것이
+    dcc_data.mission2_spectrogram.build_seoul_training_spectrograms다. 저장된 배열을 읽는 편이
+    매 에폭마다 오디오를 다시 디코딩하고 스펙트로그램을 다시 계산하는 것보다 훨씬 싸다.
     """
 
     def __init__(self, index_df: pd.DataFrame, spectrogram_dir: str | Path) -> None:
@@ -44,18 +40,17 @@ class SpectrogramDataset(torch.utils.data.Dataset):
 
 
 class PackedSpectrogramDataset(torch.utils.data.Dataset):
-    """SpectrogramDataset's items, read from one packed array instead of one .npy file per utterance.
+    """SpectrogramDataset과 같은 항목을, 발화마다 .npy 파일을 따로 읽지 않고 묶어 둔 배열 하나에서 읽는다.
 
-    ``packed_path`` is the .npy written by scripts/pack_mission2_spectrograms.py: every utterance's
-    spectrogram transposed to (n_frames, n_mels) and stacked along the frame axis, stored as float16.
-    ``index_df`` row i's spectrogram is ``packed[frame_offset : frame_offset + n_frames].T``. One memory-mapped
-    file avoids opening ~700k small files every epoch, and float16 halves it (~7 GB for the full Training set)
-    so it fits in Colab's page cache. float16 costs nothing under --amp, whose first conv rounds its input to
-    float16 anyway.
+    ``packed_path``는 scripts/pack_mission2_spectrograms.py가 쓴 .npy다. 모든 발화의 스펙트로그램을
+    (n_frames, n_mels)로 뒤집어 프레임 축으로 이어 붙인 float16 배열이다.
+    ``index_df``의 i번째 행의 스펙트로그램은 ``packed[frame_offset : frame_offset + n_frames].T``다.
+    메모리 매핑된 파일 하나라서 매 에폭마다 약 70만 개의 작은 파일을 열지 않아도 되고, float16이라
+    크기가 절반(Training 전체 약 7 GB)이어서 Colab의 page cache에 들어간다. --amp에서는 첫 conv가
+    어차피 입력을 float16으로 반올림하므로 float16으로 둬도 손해가 없다.
 
-    Items are returned as float32, exactly the (n_mels, n_frames) tensors SpectrogramDataset returns, so
-    collate_batch and the models are unchanged. The file is opened lazily, in whichever (worker) process
-    first reads from it.
+    항목은 float32로 돌려주며, SpectrogramDataset이 돌려주는 (n_mels, n_frames) 텐서와 정확히 같다.
+    그래서 collate_batch와 모델은 바뀌지 않는다. 파일은 처음 읽는 (worker) 프로세스에서 필요할 때 연다.
     """
 
     def __init__(self, index_df: pd.DataFrame, packed_path: str | Path) -> None:
@@ -80,15 +75,14 @@ class PackedSpectrogramDataset(torch.utils.data.Dataset):
 def collate_batch(
     batch: list[tuple[torch.Tensor, int]], pad_to_multiple: int = 1
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Pad every spectrogram in the batch to the batch's own max frame count.
+    """배치의 모든 스펙트로그램을 그 배치의 최대 프레임 수에 맞춰 채운다.
 
-    Padding uses SPEC_FLOOR_DB (silence under mel_spectrogram's own
-    normalization), never 0.0 -- 0 dB would read as this utterance's
-    *loudest* frame instead of padding.
+    채우는 값은 SPEC_FLOOR_DB(mel_spectrogram 자체 정규화에서의 무음)이고, 0.0은 절대 쓰지 않는다.
+    0 dB는 채움이 아니라 그 발화의 *가장 큰* 프레임으로 읽히기 때문이다.
 
-    ``pad_to_multiple`` > 1 rounds that length up to a multiple of it (at most ``pad_to_multiple - 1`` more
-    silent frames, on batches already padded to ~400 frames on average). Far fewer distinct input shapes is what
-    lets cudnn.benchmark pick and cache a fast kernel per shape; 1 keeps the exact batch max.
+    ``pad_to_multiple``이 1보다 크면 그 길이를 그 배수로 올림한다 (이미 평균 약 400프레임까지 채워진
+    배치에서 무음 프레임이 최대 ``pad_to_multiple - 1``개 늘어날 뿐이다). 입력 모양의 종류가 훨씬
+    줄어들어야 cudnn.benchmark가 모양마다 빠른 커널을 골라 캐시할 수 있다. 1이면 배치 최대값을 그대로 쓴다.
     """
 
     specs, labels = zip(*batch)
@@ -103,82 +97,9 @@ def collate_batch(
     return padded, labels_tensor
 
 
-class SpectrogramWithDurationDataset(SpectrogramDataset):
-    """Like SpectrogramDataset, but also yields each utterance's own
-    ``duration_sec`` (its own startAt/endAt span -- allowed, see
-    SpeakerCNNLargeWithDuration) alongside its spectrogram and label.
-
-    A separate class (rather than adding duration to SpectrogramDataset
-    itself) so every existing SpectrogramDataset/collate_batch caller --
-    the shipped 91.22% pipeline in particular -- is untouched.
-    """
-
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, float, int]:
-        row = self.index_df.iloc[idx]
-        spec = np.load(self.spectrogram_dir / row["npy_path"])
-        return torch.from_numpy(spec), float(row["duration_sec"]), int(row["speaker"])
-
-
-def collate_batch_with_duration(
-    batch: list[tuple[torch.Tensor, float, int]],
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Like collate_batch, plus stacking each item's own duration_sec into a
-    (batch,) float tensor.
-    """
-
-    specs, durations, labels = zip(*batch)
-    n_mels = specs[0].shape[0]
-    max_frames = max(spec.shape[1] for spec in specs)
-
-    padded = torch.full((len(specs), 1, n_mels, max_frames), SPEC_FLOOR_DB, dtype=torch.float32)
-    for i, spec in enumerate(specs):
-        padded[i, 0, :, : spec.shape[1]] = spec
-    durations_tensor = torch.tensor(durations, dtype=torch.float32)
-    labels_tensor = torch.tensor(labels, dtype=torch.long)
-    return padded, durations_tensor, labels_tensor
-
-
-class SpeakerCNN(nn.Module):
-    def __init__(self, n_mels: int = N_MELS) -> None:
-        super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(1, 16, kernel_size=3, padding=1),
-            nn.BatchNorm2d(16),
-            nn.ReLU(),
-            nn.MaxPool2d(2, ceil_mode=True),
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.MaxPool2d(2, ceil_mode=True),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-        )
-        self.pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(64, 32),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(32, 2),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.features(x)
-        x = self.pool(x)
-        return self.classifier(x)
-
-
 class SpeakerCNNLarge(nn.Module):
-    """4 conv blocks, 32->64->128->256 channels (SpeakerCNN's 3 blocks,
-    16->32->64, plateaued at 89.6-89.7% val accuracy on the full 29,200-
-    call dataset -- LR decayed to 6.25e-05, val_acc pinned in an ~0.3pp
-    band for 10 straight epochs, i.e. converged for that capacity, not for
-    lack of training). A separate class, not a resize of SpeakerCNN, so an
-    existing SpeakerCNN checkpoint still loads/resumes untouched; pass
-    --model large to scripts/train_mission2_cnn.py to use this one (with a
-    fresh --model-output, since its state_dict shape doesn't match
-    SpeakerCNN's).
+    """conv 블록 4개, 채널 32->64->128->256, 파라미터 421,954개.
+    scripts/train_mission2_cnn.py의 ``--model large``로 학습한다.
     """
 
     def __init__(self, n_mels: int = N_MELS) -> None:
@@ -215,79 +136,14 @@ class SpeakerCNNLarge(nn.Module):
         return self.classifier(x)
 
 
-class SpeakerCNNLargeWithDuration(nn.Module):
-    """SpeakerCNNLarge's conv stack, plus the utterance's own duration_sec
-    concatenated into the classifier head as an explicit scalar input.
-
-    Why: the L2 error analysis found the remaining 대원/신고자 gap
-    concentrated in short, content-free backchannel utterances ("네"/"예").
-    SpeakerCNNLarge already sees a short utterance's true frame count, but
-    only implicitly, diluted by the batch's own zero-padding -- for a very
-    short utterance, 3 rounds of MaxPool(stride 2) can leave only 1-2
-    surviving timesteps before AdaptiveAvgPool2d. Giving the model duration
-    directly (log1p-compressed, since raw seconds are strongly right-skewed)
-    lets it condition on "this is a very short utterance" without relying on
-    that weak, indirect signal. duration_sec is the current utterance's own
-    endAt-startAt span -- not derived from any other utterance in the call,
-    so this stays within the isolated-fragment rule (see
-    [[project-dcc2026-contest-rules]]).
-
-    A separate class from SpeakerCNNLarge (not a modification) so the
-    already-trained 91.22% checkpoint and scripts/train_mission2_cnn.py's
-    default path are untouched -- its classifier's first Linear has a
-    different input width (257, not 256), so an old checkpoint's state_dict
-    wouldn't load into it anyway. Pass --model large-duration to
-    scripts/train_mission2_cnn.py to train this one.
-    """
-
-    def __init__(self, n_mels: int = N_MELS) -> None:
-        super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.MaxPool2d(2, ceil_mode=True),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.MaxPool2d(2, ceil_mode=True),
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.MaxPool2d(2, ceil_mode=True),
-            nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-        )
-        self.pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.flatten = nn.Flatten()
-        self.classifier = nn.Sequential(
-            nn.Linear(256 + 1, 128),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(128, 2),
-        )
-
-    def forward(self, x: torch.Tensor, duration: torch.Tensor) -> torch.Tensor:
-        x = self.features(x)
-        x = self.pool(x)
-        x = self.flatten(x)
-        duration_feature = torch.log1p(duration.to(x.dtype)).unsqueeze(1)
-        x = torch.cat([x, duration_feature], dim=1)
-        return self.classifier(x)
-
-
 def move_optimizer_state_to_device(optimizer: torch.optim.Optimizer, device: str) -> None:
-    """Move every tensor in ``optimizer.state`` (e.g. Adam's exp_avg/
-    exp_avg_sq momentum buffers) to ``device``, in place.
+    """``optimizer.state``의 모든 텐서(예: Adam의 exp_avg/exp_avg_sq 모멘텀 버퍼)를 제자리에서
+    ``device``로 옮긴다.
 
-    Needed after ``optimizer.load_state_dict()`` from a checkpoint loaded
-    with ``map_location="cpu"``: the optimizer's internal state tensors are
-    separate from the model's parameters, so moving the model with
-    ``model.to(device)`` does *not* touch them -- the first ``step()`` after
-    a resume then fails with "Expected all tensors to be on the same
-    device" once the model's params are on cuda but the loaded momentum
-    buffers are still on cpu.
+    ``map_location="cpu"``로 불러온 체크포인트에서 ``optimizer.load_state_dict()``를 한 뒤에 필요하다.
+    optimizer의 내부 상태 텐서는 모델 파라미터와 따로 있어서 ``model.to(device)``로 모델을 옮겨도
+    *옮겨지지 않는다*. 그러면 이어서 학습할 때 첫 ``step()``이, 모델 파라미터는 cuda에 있는데
+    불러온 모멘텀 버퍼는 아직 cpu에 있어서 "Expected all tensors to be on the same device"로 실패한다.
     """
 
     for state in optimizer.state.values():
@@ -297,26 +153,24 @@ def move_optimizer_state_to_device(optimizer: torch.optim.Optimizer, device: str
 
 
 def _autocast(device: str, amp: bool):
-    """float16 autocast on cuda when ``amp``; a no-op context otherwise (also on cpu, where it is never used)."""
+    """``amp``이면 cuda에서 float16 autocast, 아니면 아무 일도 하지 않는 컨텍스트 (cpu에서도 그렇다. cpu에서는 쓰이지 않는다)."""
 
     return torch.autocast(device_type="cuda", dtype=torch.float16, enabled=amp and device == "cuda")
 
 
 def train_one_epoch(model: nn.Module, loader, optimizer, device: str, scaler=None) -> float:
-    """``loader`` yields ``(*model_inputs, labels)`` tuples -- ``(specs,
-    labels)`` for SpeakerCNN/SpeakerCNNLarge, or ``(specs, duration,
-    labels)`` for SpeakerCNNLargeWithDuration -- and ``model(*model_inputs)``
-    is called accordingly, so this one loop drives either.
+    """``loader``는 ``(*모델 입력, labels)`` 튜플을 돌려준다 (SpeakerCNNLarge는 ``(specs, labels)``).
 
-    ``scaler`` (a torch.amp.GradScaler) turns on mixed precision: the forward pass runs under float16 autocast
-    and the loss is scaled so small float16 gradients don't round to zero. None keeps plain float32.
+    ``scaler``(torch.amp.GradScaler)를 주면 혼합 정밀도를 켠다. forward는 float16 autocast로
+    돌리고, loss를 스케일해서 작은 float16 gradient가 0으로 반올림되지 않게 한다.
+    None이면 일반 float32를 쓴다.
     """
 
     model.to(device)
     model.train()
     criterion = nn.CrossEntropyLoss()
     amp = scaler is not None
-    # Summed on the device: a .item() per batch would make the CPU wait for the GPU every step.
+    # 장치 위에서 합산한다. 배치마다 .item()을 부르면 매 step마다 CPU가 GPU를 기다리게 된다.
     total_loss = torch.zeros((), dtype=torch.float64, device=device)
     n = 0
     for *inputs, labels in loader:
@@ -339,11 +193,11 @@ def train_one_epoch(model: nn.Module, loader, optimizer, device: str, scaler=Non
 
 
 def predicted_classes(logits: torch.Tensor) -> torch.Tensor:
-    """The contest's decision rule for a (batch, 2) logit tensor: class 1 iff P(speaker=1) >= 0.5.
+    """(batch, 2) logit 텐서에 대한 대회의 판정 규칙: P(speaker=1) >= 0.5 일 때만 클래스 1.
 
-    That is ``logit1 >= logit0``. ``argmax`` differs only at an exact tie, where it returns class 0 -- the
-    submission script (scripts/mission2_inference.py) already decides ties as class 1, and the accuracy that
-    picks the best epoch must be computed the same way.
+    이는 ``logit1 >= logit0``과 같다. ``argmax``는 정확히 같은 값일 때만 클래스 0을 돌려주어 다르다.
+    제출 스크립트(scripts/mission2_inference.py)는 동점을 이미 클래스 1로 정하므로, 최고 에폭을
+    고르는 정확도도 똑같은 방식으로 계산해야 한다.
     """
 
     return (logits[:, 1] >= logits[:, 0]).long()
@@ -351,8 +205,8 @@ def predicted_classes(logits: torch.Tensor) -> torch.Tensor:
 
 @torch.no_grad()
 def evaluate(model: nn.Module, loader, device: str, amp: bool = False) -> tuple[float, np.ndarray, np.ndarray]:
-    """See train_one_epoch()'s docstring for ``loader``'s tuple shape. ``amp`` runs the forward pass under
-    float16 autocast (cuda only), the same as training with a GradScaler does."""
+    """``loader``의 튜플 모양은 train_one_epoch()의 docstring을 본다. ``amp``이면 forward를
+    float16 autocast(cuda 전용)로 돌리며, GradScaler로 학습할 때와 같다."""
 
     model.to(device)
     model.eval()
@@ -370,33 +224,6 @@ def evaluate(model: nn.Module, loader, device: str, amp: bool = False) -> tuple[
     return accuracy, preds, labels_arr
 
 
-@torch.no_grad()
-def predict_with_confidence(model: nn.Module, loader, device: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Like evaluate(), plus a confidence score per prediction: the softmax
-    probability the model assigned to the class it actually predicted --
-    mirrors L1's predict_proba-based confidence column in
-    scripts/analyze_mission2_errors.py, for the same error-analysis use
-    (are wrong predictions confidently wrong, or borderline?). Always in
-    [0.5, 1.0] for a 2-class decision (an exact tie is class 1, at 0.5).
-
-    See train_one_epoch()'s docstring for ``loader``'s tuple shape.
-    """
-
-    model.to(device)
-    model.eval()
-    all_preds, all_labels, all_confidence = [], [], []
-    for *inputs, labels in loader:
-        inputs = [t.to(device) for t in inputs]
-        logits = model(*inputs)
-        probs = torch.softmax(logits, dim=1)
-        preds = predicted_classes(logits)
-        confidence = probs.gather(1, preds.unsqueeze(1)).squeeze(1)
-        all_preds.append(preds.cpu().numpy())
-        all_labels.append(labels.numpy())
-        all_confidence.append(confidence.cpu().numpy())
-    return np.concatenate(all_preds), np.concatenate(all_labels), np.concatenate(all_confidence)
-
-
 def train_with_best_checkpoint(
     model: nn.Module,
     train_loader,
@@ -410,32 +237,26 @@ def train_with_best_checkpoint(
     scaler=None,
     should_stop=None,
 ) -> dict:
-    """Train for ``epochs`` epochs, tracking whichever epoch had the best
-    val accuracy -- not just the last one.
+    """``epochs`` 에폭 동안 학습하면서, 마지막 에폭이 아니라 val 정확도가 가장 좋았던 에폭을 따로 기록한다.
 
-    A real run (see reports/mission2/, the Colab smoke test that motivated
-    this) can be unstable late in training (val_acc swinging 20+ points
-    between adjacent epochs while train_loss keeps falling smoothly -- a
-    classic "learning rate too high" symptom) without ``epochs`` being
-    tuned to stop exactly at the peak. Reporting metrics from whatever
-    epoch happened to run last is actively misleading when that epoch is
-    mid-oscillation and much worse than the best one already reached and
-    saved.
+    실제 실행(reports/mission2/, 이 방식을 만들게 한 Colab 스모크 테스트 참고)은 학습 후반에
+    불안정해질 수 있다. train_loss는 계속 부드럽게 줄어드는데 val_acc가 인접한 에폭 사이에서
+    20포인트 넘게 출렁이는 전형적인 "학습률이 너무 높다"는 증상이다. 그렇다고 ``epochs``를 정확히
+    정점에서 멈추도록 맞춰 둔 것도 아니다. 마지막으로 돈 에폭의 지표를 그대로 보고하면, 그 에폭이
+    출렁이는 중간이라 이미 도달해서 저장해 둔 최고 에폭보다 훨씬 나쁠 때 오해를 부른다.
 
-    ``scheduler`` (e.g. ReduceLROnPlateau), if given, is stepped once per
-    epoch with that epoch's val accuracy. ``on_epoch_end``, if given, is
-    called once per epoch with that epoch's history dict (for a caller that
-    wants to print live progress -- this function stays pure/side-effect
-    free otherwise, for testability).
+    ``scheduler``(예: ReduceLROnPlateau)를 주면 에폭마다 그 에폭의 val 정확도로 한 번씩 step한다.
+    ``on_epoch_end``를 주면 에폭마다 그 에폭의 history dict와 함께 한 번씩 호출된다
+    (진행 상황을 실시간으로 출력하려는 호출자용. 그 외에는 테스트하기 쉽도록 이 함수에
+    부작용이 없게 둔다).
 
-    ``scaler`` (a torch.amp.GradScaler) trains and evaluates in mixed precision (see train_one_epoch).
-    ``should_stop``, if given, is called after each epoch (after on_epoch_end) with that epoch's history dict;
-    returning True ends training there, before ``epochs`` -- for early stopping, which needs to know about
-    epochs from earlier resumed runs that this function never sees.
+    ``scaler``(torch.amp.GradScaler)를 주면 혼합 정밀도로 학습하고 평가한다 (train_one_epoch 참고).
+    ``should_stop``을 주면 매 에폭이 끝난 뒤(on_epoch_end 다음) 그 에폭의 history dict와 함께
+    호출되고, True를 돌려주면 ``epochs``에 닿기 전에 거기서 학습을 끝낸다. 조기 종료용인데,
+    이 함수가 보지 못하는 이전에 이어서 학습한 실행의 에폭도 알아야 하기 때문에 따로 둔다.
 
-    Returns a dict: best_val_acc, best_val_preds, best_val_labels,
-    best_epoch, best_model_state (state_dict, CPU tensors), history (list
-    of {epoch, train_loss, val_acc}).
+    돌려주는 dict: best_val_acc, best_val_preds, best_val_labels, best_epoch,
+    best_model_state (state_dict, CPU 텐서), history ({epoch, train_loss, val_acc}의 리스트).
     """
 
     best_val_acc = -1.0
