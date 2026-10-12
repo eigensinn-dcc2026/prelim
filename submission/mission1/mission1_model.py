@@ -164,7 +164,7 @@ def predict(audio_dir: Path, label_dir: Path, ckpt_path: Path) -> pd.DataFrame:
         try:
             x = extract_features(wav_path, json_path, processor, model, torch)
             gender = LABEL_TO_GENDER[classify(head, x)]
-        except Exception as exc:  # noqa: BLE001 - keep row count stable
+        except Exception as exc:  # noqa: BLE001 - 행 수를 유지한다
             gender = FALLBACK_GENDER
             n_fallback += 1
             print(

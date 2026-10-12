@@ -15,6 +15,12 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-12 — [M3] soft-F1 전역 집계(M3-SOFTF1-001) 기각 — 3-seed 확장하지 않음
+
+- **결정**: ROBERTA-003의 soft macro-F1을 micro-batch별로 계산하는 방식을 유지한다. 실효 배치 전체 logits로 F1을 한 번에 계산하는 전역 집계는 채택하지 않고 3-seed로 확장하지 않는다.
+- **이유**: ROBERTA-003 seed 42 체크포인트에서 1 epoch 이어 학습한 pilot에서 실효 16은 B−A +0.0008, 실효 64는 +0.0013으로 사전 고정 기준 +0.005에 못 미쳤고 seed 편차(±0.002~0.004) 이내다. ECE·Brier 악화는 10% 이내였으나 이득이 없다. 빈 예측은 전역 집계 팔에서 오히려 늘었다(132→157, 151→189).
+- **후속**: 손실의 F1 집계 범위는 더 시도하지 않는다. 근거: `docs/experiment_log.md` M3-SOFTF1-001 행, `dcc-lab` `results/M3-SOFTF1-001/metrics.json`
+
 ## 2026-10-12 — [M1] 제출 모델을 Training 100% 재학습본으로 정함(M1-REFIT-OFFVAL-001) — 공식 Validation 98.10%, 기존 (c)와 동등
 
 - **결정**: M1 제출 모델로 M1-XVEC-002 (c)와 같은 구성(StandardScaler + LogisticRegression, 52D + 다중 창 평균 x-vector 564차원, seed 42)을 Training 29,200통화 전체로 다시 학습한 헤드를 쓴다. 제출 체크포인트는 `submission/mission1/m1_model.pt`(헤드와 WavLM 가중치를 `.pt` 한 파일로 묶음)이다. 성능 향상을 확인한 교체가 아니라 **동등함을 확인한 선택**이다.
