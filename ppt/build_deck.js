@@ -659,22 +659,22 @@ missionA(15, 2, "신고자/119대원 분류",
 
 // ---------- Mission 3 — 2026-10-11 final submission (M3-FINAL-002) ----------
 missionA(18, 3, "환자 증상 인식",
-  "TF-IDF 기준선부터 RoBERTa 문맥 모델을 검증하고, 최종 3-seed + TF-IDF 앙상블 채택",
+  "9개 증상 예측: 단어 기반 기준선의 오류를 살펴보고 문맥 모델과 결합한 이유",
   [["입력", "119 통화 전사문\n(utterances[].text만)"], ["출력", "증상 9종 중 0~9개\n(다중 레이블)"], ["평가", "Macro F1\n(증상별 F1 평균)"], ["대상", "고열·구토·두통·복통·어지러움·열상·오심·전신쇠약·호흡곤란"]],
-  [["전처리", "발화 원본 순서 유지\n시간·speaker 미사용"], ["문맥 모델", "RoBERTa-large\nseed 42·43·44"], ["기준선", "TF-IDF +\n로지스틱 회귀"], ["최종 판정", "확률 55:45 평균\n증상별 ≥0.5"]],
-  ["최종 모델은 Training 29,200건 전체로 학습하고, 가중치는 Training 내부 홀드아웃에서 미리 결정",
-   "공식 Validation은 최종 평가에만 사용; 평가 데이터로 모델·임계값을 선택하지 않음",
-   "증상 9종만 평가하고 그 밖의 annotation, startAt, id 기반 정렬·사용은 배제"]);
+  [["입력 정제", "발화 text만\n원본 순서 유지"], ["초기 기준선", "TF-IDF +\n로지스틱 회귀"], ["문맥 모델", "RoBERTa-large\n3개 seed"], ["최종 예측", "확률 0.55:0.45\n증상별 0.5 판정"]],
+  ["오류 단서: 키워드 탐색에서 전사에 직접 근거가 드러나지 않는 양성 라벨을 발견",
+   "모델 비교: 키워드 표현과 문맥 표현이 다른 오류를 낼 가능성을 확인",
+   "검증 원칙: 결합 비율은 Training 내부에서 확정하고, 공식 Val은 채점만 수행"]);
 {
   const s = missionB(19, 3, "환자 증상 인식",
-    "최종 3-seed RoBERTa + TF-IDF 앙상블: 공식 Validation Macro F1 65.34%", false);
+    "최종 Macro F1 65.34% — 수치뿐 아니라 예측 오류와 추론 비용도 함께 점검", false);
   card(s, M, 2.45, 7.3, 4.35);
   txt(s, "65.34%", { x: M + 0.2, y: 2.65, w: 2.6, h: 0.75, fontSize: 38, color: C.blue, bold: true, align: "center", valign: "middle" });
   txt(s, "Macro F1 · 공식 Val 3,640건", { x: M + 0.2, y: 3.43, w: 2.6, h: 0.5, fontSize: 11.5, color: C.sub, align: "center" });
   insight(s, M + 0.2, 4.28, 2.6, 2.3, [
     { text: "Micro F1  0.6690", options: { bold: true, color: C.blue, breakLine: true } },
-    { text: "빈 예측 149건", options: { breakLine: true } },
-    { text: "앙상블 가중치\nRoBERTa 평균 0.55\n+ TF-IDF 0.45", options: { fontSize: 10.5 } },
+    { text: "증상 예측 0개  149건", options: { breakLine: true } },
+    { text: "오심 F1 0.400\n두통 F1 0.532", options: { fontSize: 11 } },
   ]);
   s.addChart(pres.charts.BAR, [{
     name: "Macro F1 (%)",
@@ -688,42 +688,52 @@ missionA(18, 3, "환자 증상 인식",
     valAxisMinVal: 0, valAxisMaxVal: 75, catAxisLabelFontSize: 9, showLegend: false,
     valGridLine: { color: C.line, size: 0.5 },
   });
-  rightCol(s, M + 7.6, [
-    { text: "모델 구성  ", options: { bold: true } }, { text: "RoBERTa-large 3개 + TF-IDF 1개", options: { breakLine: true } },
-    { text: "가중치 크기  ", options: { bold: true } }, { text: "약 4.05GB", options: { breakLine: true } },
-    { text: "추론(A100)  ", options: { bold: true } }, { text: "3,640건 109초", options: { breakLine: true } },
-    { text: "추론(CPU)  ", options: { bold: true } }, { text: "203건 표본 462초 (로딩 포함)" },
-  ], [{ text: "119 전사문에서 환자 증상을 자동 태깅해 상황실의 기록·판단을 보조" }]);
-  caption(s, "근거: submission/mission3/README.md, m3_final_train.executed.ipynb. 모델별 점수 차이가 특정 원인만의 효과임을 뜻하지 않음.");
+  // 숫자 카드보다 '발견 → 결정 → 한계'를 먼저 읽을 수 있도록 3단 카드로 요약.
+  const rx = M + 7.6, rw = W - M - rx;
+  card(s, rx, 2.45, rw, 1.25);
+  txt(s, "■ 발견: 전사에 없는 단서", { x: rx + 0.2, y: 2.56, w: rw - 0.4, h: 0.32, fontSize: 14, bold: true, color: C.blue });
+  txt(s, "키워드 탐색상 전사에 직접 근거가 드러나지 않는 양성 라벨이 존재. 이를 곧바로 오라벨로 단정하지 않음.",
+    { x: rx + 0.2, y: 2.94, w: rw - 0.4, h: 0.63, fontSize: 11.5 });
+  card(s, rx, 3.86, rw, 1.25);
+  txt(s, "■ 결정: 문맥 + 키워드 결합", { x: rx + 0.2, y: 3.97, w: rw - 0.4, h: 0.32, fontSize: 14, bold: true, color: C.blue });
+  txt(s, "RoBERTa 3-seed 평균 55% + TF-IDF 45%. 결합 비율은 Training 내부에서 미리 고정.",
+    { x: rx + 0.2, y: 4.35, w: rw - 0.4, h: 0.63, fontSize: 11.5 });
+  card(s, rx, 5.27, rw, 1.5, C.bgGray);
+  txt(s, "■ 한계: 희소 증상과 계산 비용", { x: rx + 0.2, y: 5.39, w: rw - 0.4, h: 0.32, fontSize: 14, bold: true, color: C.blue });
+  txt(s, "오심 F1 0.400 · 두통 0.532\nGPU(A100) 전체 3,640건 109초\nCPU 203건 표본 462초(로딩 포함)",
+    { x: rx + 0.2, y: 5.79, w: rw - 0.4, h: 0.87, fontSize: 11.5 });
+  caption(s, "근거: submission/mission3/README.md, docs/experiment_log.md M3-ERR-001. 키워드 기반 오류 분석은 탐색적 결과임.");
+  s.addNotes("M3-ERR-001의 '전사 근거 없음'은 키워드 정규식 기준이다. 직접 표기되지 않는 증상도 있을 수 있어 라벨 오류라고 단정하면 안 된다.");
 }
-// ---------- Mission 3 추가: 모델 선정 및 검증 ----------
+// ---------- Mission 3 추가: 근거 기반 채택·기각 의사결정 ----------
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 3  최종 모델 선정 — 검증에서 제출까지", 20);
-  coreMsg(s, "이전 앙상블 기각과 최종 앙상블 채택은 서로 다른 실험 — 검증 조건을 구분");
+  header(s, "03", "미션별 수행", "Mission 3  어떤 실험을 왜 채택·기각했는가", 20);
+  coreMsg(s, "성능 순위보다 결정 근거: 작은 개선은 기각하고, 평가 데이터는 모델 선택에 쓰지 않음");
   const steps = [
-    ["초기 기준선", "TF-IDF + LR\n0.5689", C.sky],
-    ["문맥 모델", "KcBERT-005\n0.6246", C.blue],
-    ["단일 모델", "RoBERTa-003\n0.6433", C.blue],
-    ["과거 결합", "3종 앙상블\n0.6510 (기각)", C.blue],
-    ["최종 채택", "3-seed + TF-IDF\n0.6534", C.mint],
+    ["① 기준선", "TF-IDF + LR\n공식 Val 0.5689", C.sky],
+    ["② 검증한 가설", "soft-F1 보조 손실\n내부 +0.0186", C.blue],
+    ["③ 기각한 결합", "KcBERT+RoBERTa\n내부 +0.0028", C.blue],
+    ["④ 최종 채택", "RoBERTa×3+TF-IDF\n공식 Val 0.6534", C.mint],
   ];
-  const bw = 2.1, gap = (CW - 5 * bw) / 4;
+  const bw = 2.7, gap = (CW - steps.length * bw) / (steps.length - 1);
   steps.forEach(([t, b, col], i) => {
     const x = M + i * (bw + gap);
-    stepBox(s, x, 2.5, bw, 2.0, t, b, col);
-    if (i < 4) arrow(s, x + bw + (gap - 0.28) / 2, 3.3);
+    stepBox(s, x, 2.55, bw, 2.0, t, b, col);
+    if (i < steps.length - 1) arrow(s, x + bw + (gap - 0.28) / 2, 3.35);
   });
-  insight(s, M, 4.95, CW, 0.95, [
-    { text: "선정 근거  ", options: { bold: true, color: C.blue } },
-    { text: "RoBERTa 3-seed 평균 55% + TF-IDF 45%, 임계값 0.5 고정. 결합 비율은 Training 내부 홀드아웃에서 확정." },
-  ]);
-  insight(s, M, 6.08, CW, 0.87, [
-    { text: "해석 주의  ", options: { bold: true, color: C.blue } },
-    { text: "0.6433 → 0.6534는 학습 데이터량·모델 구성이 모두 달라 통제 실험의 개선 폭으로 해석하지 않음." },
-  ], C.mintLight);
-  caption(s, "근거: docs/decisions.md (M3-FINAL-002, 2026-10-11), submission/mission3/README.md");
-  s.addNotes("기존 과거 앙상블 r3+k12+p0은 0.6510으로 기각; 최종 제출 모델은 100% Training 기반 RoBERTa 3-seed + TF-IDF 앙상블로 별도 채택.");
+  const hw = (CW - 0.36) / 2;
+  card(s, M, 4.87, hw, 1.82);
+  txt(s, "REJECT  |  왜 기각했나?", { x: M + 0.23, y: 5.0, w: hw - 0.46, h: 0.34, fontSize: 15, bold: true, color: C.blue });
+  txt(s, "동일 내부 분할에서 KcBERT+RoBERTa 결합 이득은 +0.0028. 사전 기준 +0.01에 못 미치고, 두 모델의 오류도 겹침.",
+    { x: M + 0.23, y: 5.45, w: hw - 0.46, h: 1.05, fontSize: 12 });
+  const xr = M + hw + 0.36;
+  card(s, xr, 4.87, hw, 1.82, C.mintLight);
+  txt(s, "ADOPT  |  왜 최종 채택했나?", { x: xr + 0.23, y: 5.0, w: hw - 0.46, h: 0.34, fontSize: 15, bold: true, color: C.blue });
+  txt(s, "RoBERTa 3-seed + TF-IDF의 결합 비율을 Training 내부에서 사전 확정. 전체 Training으로 학습한 뒤 공식 Val에서는 채점만 수행.",
+    { x: xr + 0.23, y: 5.45, w: hw - 0.46, h: 1.05, fontSize: 12 });
+  caption(s, "근거: docs/decisions.md M3-ENS-001·M3-ROBERTA-003·M3-FINAL-002. 내부/공식 Val 및 학습 조건이 달라 점수의 단순 차이를 인과적 개선으로 보지 않음.");
+  s.addNotes("② ROBERTA-002 대비 ROBERTA-003 동일 내부 분할 3-seed 평균 0.6241→0.6427(+0.0186). ③ M3-ENS-001 KcBERT+RoBERTa 평균 0.6455 vs ROBERTA-003 0.6427, +0.0028로 기각. ④ M3-FINAL-002 공식 Val 0.6534, Training 내부에서 미리 고른 0.55/0.45 결합. 서로 다른 데이터 조건의 단계별 수치를 한 실험의 통제된 성능 향상으로 해석하지 않음.");
 }
 
 // =====================================================================
