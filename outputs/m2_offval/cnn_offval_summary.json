@@ -1,0 +1,35 @@
+{
+  "accuracy": 0.9148882953540515,
+  "correct": 102419,
+  "utterances": 111947,
+  "threshold": 0.5,
+  "recall": {
+    "대원": 0.8715015321756895,
+    "신고자": 0.9550962101132491
+  },
+  "confusion_matrix": {
+    "labels": [
+      0,
+      1
+    ],
+    "matrix": [
+      [
+        46926,
+        6919
+      ],
+      [
+        2609,
+        55493
+      ]
+    ]
+  },
+  "seconds": 1001.3011431000195,
+  "checkpoint_sha256": "19ea482a80a2ceb2ea5b87981be0a381a11e01fd576b3ba6860ee5d7144e3246",
+  "calls_per_part": {
+    "대학부 데이터-20260823T080055Z-1-004": 831,
+    "대학부 데이터-20260823T080055Z-1-003": 909,
+    "대학부 데이터-20260823T080055Z-1-002": 921,
+    "대학부 데이터-20260823T080055Z-1-001": 979
+  },
+  "parquet": "C:\\Users\\sooyah\\Desktop\\아주대\\dcc\\01_prelim\\wt-m2-offval-cnn\\outputs\\m2_offval\\cnn_offval_probs.parquet"
+}
