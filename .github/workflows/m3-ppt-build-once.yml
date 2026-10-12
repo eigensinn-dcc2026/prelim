@@ -32,6 +32,34 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           node build_deck.js DCC2026_예선_결과정리.pptx
+      - name: Verify PPTX structure and unchanged non-M3 text
+        run: |
+          git show origin/main:ppt/DCC2026_예선_결과정리.pptx > /tmp/m3-main-before.pptx
+          python - <<'PY'
+          import re, zipfile, xml.etree.ElementTree as ET
+          from pathlib import Path
+          current=Path("ppt/DCC2026_예선_결과정리.pptx")
+          before=Path("/tmp/m3-main-before.pptx")
+          ns="{http://schemas.openxmlformats.org/drawingml/2006/main}t"
+          def slide_texts(path):
+              with zipfile.ZipFile(path) as z:
+                  slides=sorted([n for n in z.namelist() if re.fullmatch(r'ppt/slides/slide\d+\.xml',n)], key=lambda x:int(re.search(r'slide(\d+)',x).group(1)))
+                  texts=[]
+                  for sl in slides:
+                      root=ET.fromstring(z.read(sl))
+                      texts.append("".join(e.text or "" for e in root.iter(ns)))
+                  return texts
+          aft, orig=slide_texts(current),slide_texts(before)
+          assert len(aft)==23, f"expected 23 slides, got {len(aft)}"
+          assert len(orig)==23, f"main deck changed slide count: {len(orig)}"
+          for i in list(range(1,18))+[23]:
+              assert aft[i-1]==orig[i-1], f"non-M3 slide {i} text changed"
+          assert '65.34%' in aft[18], "Missing M3 final score on slide 19"
+          assert '0.6690' in aft[18], "Missing M3 Micro F1 on slide 19"
+          assert '65.34%' in aft[20], "Missing M3 score on summary slide 21"
+          assert 'RoBERTa' in aft[19] and 'TF-IDF' in aft[19], "M3 model description missing on slide 20"
+          print('PASS: 23 slides, original non-M3 content unchanged, final Mission 3 metrics present')
+          PY
       - name: Commit generated PPTX into this branch
         run: |
           git config user.name 'github-actions[bot]'
