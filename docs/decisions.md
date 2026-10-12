@@ -15,6 +15,13 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-12 — [M1] x-vector LR + ECAPA LR 확률 평균(M1-FUSE-001) 채택
+
+- **결정**: 채택. (c) x-vector 결합 LR과 (h) ECAPA 결합 LR의 확률을 0.5/0.5로 평균하는 점수 수준 결합 (k)를 M1 제출 후보로 올린다. 코드 PR #173은 `lab-adopted`로 표시한다.
+- **이유**: Training 5-fold OOF에서 (k) 98.38%로 (c) 97.97% 대비 +0.41%p(기준 ≥ +0.3%p), 5개 fold 모두 앞섰고 McNemar p=1.7e-15였다. 재현 검사 통과, 공식 Val 미사용. 다만 추론 비용이 통화당 약 0.45초(x-vector 0.394초 + ECAPA 0.058초)다.
+- **후속**: 공식 Val 평가는 별도 OFFVAL 실험으로 진행(예산 6 중 2회 사용). 근거: `docs/experiment_log.md` M1-FUSE-001 행
+
+
 ## 2026-10-12 — [M2] SpeakerCNNLarge Mixup(M2-MIX-001) 기각
 
 - **결정**: 기각. 학습 손실에 Mixup(Beta(0.2,0.2))을 더하는 방식은 채택하지 않고, 코드 PR #168은 병합 없이 닫는다.
