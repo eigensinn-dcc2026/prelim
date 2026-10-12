@@ -15,6 +15,13 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-12 — [M1] 제출 모델을 Training 100% 재학습본으로 정함(M1-REFIT-OFFVAL-001) — 공식 Validation 98.10%, 기존 (c)와 동등
+
+- **결정**: M1 제출 모델로 M1-XVEC-002 (c)와 같은 구성(StandardScaler + LogisticRegression, 52D + 다중 창 평균 x-vector 564차원, seed 42)을 Training 29,200통화 전체로 다시 학습한 헤드를 쓴다. 제출 체크포인트는 `submission/mission1/m1_model.pt`(헤드와 WavLM 가중치를 `.pt` 한 파일로 묶음)이다. 성능 향상을 확인한 교체가 아니라 **동등함을 확인한 선택**이다.
+- **이유**: 기존 (c)는 Training의 80%(23,360통화)만으로 학습했다. 같은 구성으로 전체 데이터를 쓰되 새 특징 추출, 하이퍼파라미터 탐색, threshold 조정은 하지 않았고, 학습 때 쓴 특징 캐시를 재사용했다. 공식 Val 특징 캐시(M1-XVEC-002-OFFVAL 산출물)에 적용해 한 번 채점했다. 공식 Val 3,640건 정확도 98.10%(3,571건), 성별 recall 여성 98.26% / 남성 97.92%로, (c) 98.13%(3,572건)와 예측이 99.48% 같다. 갈린 19통화는 (c)만 맞음 10 / 재학습본만 맞음 9(McNemar 정확검정 p=1)이다. 사전 고정 성공 기준은 두지 않았고, 동등하면 데이터를 더 쓴 쪽을 낸다는 총괄 결정(2026-10-12)을 따랐다.
+- **주의**: 이 모델은 holdout을 학습에 썼으므로 holdout 점수를 낼 수 없다. 공식 Val 98.10%가 유일한 독립 점수이고, Val은 채점에만 썼다(학습 편입·Backpropagation 없음). 단일 seed이다.
+- **후속**: 공식 Val 예산(미션당 6)은 이 채점을 넣어 4회 사용, 2회 남음(M1-XVEC-001-OFFVAL, M1-XVEC-002-OFFVAL, M1-FUSE-001-OFFVAL, 이번 채점). 바로 아래 FUSE 항목의 "3회 사용, 3회 남음"은 이 채점이 기록되기 전의 값이다. 일부 통화(203건 등)를 `inference.py`로 돌려 본 점검은 점수 근거로 쓰지 않아 횟수에 넣지 않았다. 근거: `docs/experiment_log.md` M1-REFIT-OFFVAL-001 행, [`submission/mission1/README.md`](../submission/mission1/README.md)
+
 ## 2026-10-12 — [M1] 고정 FUSE(M1-FUSE-001-OFFVAL) 공식 Validation 평가 기각
 
 - **결정**: 기각. M1 제출 후보는 M1-XVEC-002 (c) 다중 창 평균 x-vector 결합 LR을 유지한다. 앞서 채택한 M1-FUSE-001 항목의 "제출 후보로 올린다"는 공식 Val 결과로 철회한다.
