@@ -1,4 +1,4 @@
-// DCC 2026 대학부 예선 결과 정리 PPT — 장별 원고 v2(팀장 검토본, 21장)를 그대로 옮김
+// DCC 2026 대학부 예선 결과 정리 PPT — 장별 원고 v2(팀장 검토본)를 옮김. 데이터·규칙 장은 삭제해 20장
 // 디자인 규칙은 ppt/design_guide.md, 공식 템플릿 이미지는 ppt/figures/tpl_*.png
 const pptxgen = require("pptxgenjs");
 const pres = new pptxgen();
@@ -26,10 +26,10 @@ const W = 13.333, M = 0.5, CW = W - 2 * M;
 const TEAM = "eigensinn";
 
 // ---------- Mission 2 교체 지점 (원고의 ⟪M2 교체⟫) ----------
-// M2 제출 모델을 바꾸면 이 블록만 고친다. 12·13·14·15·19·20장이 모두 여기서 읽는다.
+// M2 제출 모델을 바꾸면 이 블록만 고친다. 11·12·13·14·18·19장이 모두 여기서 읽는다.
 // 현재 값: CNN 3-seed 앙상블 (submission/mission2/README.md, experiment_log.md M2-RERUN-001)
 const M2 = {
-  // 12장 문제·제약·최종 모델
+  // 11장 문제·제약·최종 모델
   core12: "발화 조각 하나만 보고 신고자인지 대원인지 가린다. log-mel 스펙트로그램과 CNN 3개의 평균으로 공식 Validation 91.49%.",
   pipe: [
     ["① 발화 구간", "그 발화의\n구간만 사용"],
@@ -43,27 +43,27 @@ const M2 = {
     "통계 특징(L1)으로 한계를 확인한 뒤 CNN(L2)으로 넘어갔다.",
     "사전학습 모델과 외부 데이터 없이 처음부터 학습했다.",
   ],
-  // 13장 성능 개선 과정 (막대 차트: 공식 Validation Accuracy)
+  // 12장 성능 개선 과정 (막대 차트: 공식 Validation Accuracy)
   core13: "통계 특징 86.44% → CNN 90.98% → 3-seed 앙상블 91.49%. CNN의 이득은 목소리가 겹친 구간에 몰려 있었다.",
   chart: { labels: ["L1 LightGBM", "L2 CNN 단일", "L2 CNN\n3-seed 앙상블"], values: [86.44, 90.98, 91.49] },
   gainTitle: "■ CNN의 이득이 몰린 곳",
   gains: [["약 +7%p", "목소리가 겹친 구간"], ["약 +2%p", "겹치지 않은 구간"]],
   gainNote: "통계 특징(L1) 대비 CNN 단일 모델의 개선 폭 (공식 Validation)",
   finding: "제출 방식(한 발화씩 추론)으로 바꾸자 정확도가 떨어졌다. 원인은 학습 때의 배치 패딩과 추론 방식 차이였고, 모든 발화를 자기 자신만으로 같은 길이까지 채우도록 맞춰 회복했다.",
-  // 14장 다른 접근 — 마지막 행이 보류 중인 WavLM 미세조정
+  // 13장 다른 접근 — 마지막 행이 보류 중인 WavLM 미세조정
   core14: "CNN 하나로 끝내지 않고 여러 방향을 검증했다. 효과가 없거나 규칙에 어긋난 것은 이유와 함께 기록했다.",
   lastRow: ["WavLM 미세조정 (3초 창·겹침 증강)", "보류", "공식 평가 진행 중"],
-  // 15장 최종 결과와 한계
+  // 14장 최종 결과와 보완할 점
   core15: "공식 Validation 91.49%. 원본 데이터부터 다시 학습해도 같은 수준이 재현됐다.",
   acc: "91.49%",
   recalls: [["87.15%", "대원 recall"], ["95.51%", "신고자 recall"]],
   repro: "원본 데이터부터 노트북 하나로 다시 학습한 결과가 이전 앙상블과 거의 같았다.",
-  limit: "대원 recall이 신고자보다 낮다. \"네\", \"여보세요\" 같은 짧은 응답은 두 화자가 비슷하게 들린다. 규칙상 통화 맥락을 쓸 수 없어 짧은 발화의 정보량에 한계가 있다.",
-  // 19장 성능 요약 표, 20장 향후 계획
+  improve: "대원 recall이 신고자보다 낮다. \"네\", \"여보세요\" 같은 짧은 응답은 두 화자가 비슷하게 들리고, 규칙상 통화 맥락을 쓸 수 없어 짧은 발화의 정보량이 적다.",
+  // 18장 성능 요약 표, 19장 향후 계획
   summary: { task: "M2 신고자/대원", model: "log-mel + CNN × 3", val: "91.49%", gain: "+5.05%p" },
   future: "사전학습 음성 모델(WavLM) 앙상블의 공식 검증, 짧은 응답 발화 보강",
   evidence: "submission/mission2/README.md, docs/experiment_log.md M2-RERUN-001·M2-ENS-003·M2-RETRAIN-001",
-  // 슬라이드 노트·캡션의 근거 (13·15장)
+  // 슬라이드 노트·캡션의 근거 (12·14장)
   evidence13: "근거: docs/experiment_log.md M2-RETRAIN-001, M2-ENS-003, M2-RERUN-001, M2-COMPARE-002, M2-PAD-001·002",
   notes13: "근거: L1 86.44%(M2-RETRAIN-001, 제공 라벨 재학습 L1) / CNN 단일 90.98%(M2-ENS-003 ts1) / 3-seed 앙상블 91.49%(M2-RERUN-001, submission/mission2/README.md). 겹침 구간: M2-COMPARE-002 — 겹침 L1 81.83%→L2 88.88%(+7.05%p), 안 겹침 90.01%→92.44%(+2.43%p), L2 단일 모델 기준. 패딩: M2-PAD-001(발화별 300프레임 채우기), M2-VAL-005, M2-PAD-002.",
   notes15: "근거: submission/mission2/README.md '결과와 계산 효율성' 표(91.49%, 대원 recall 87.15%, 신고자 recall 95.51%). 재현성: M2-RERUN-001(원본부터 재학습 91.49%) vs M2-ENS-003(이전 앙상블 91.55%).",
@@ -182,18 +182,16 @@ function barChart(slide, labels, values, o) {
 // =====================================================================
 {
   const s = pres.addSlide();
-  s.background = { color: C.bgGray };
-  for (let x = 0; x <= W; x += 0.5) s.addShape(pres.shapes.LINE, { x, y: 0, w: 0, h: 7.5, line: { color: "EEF0F3", width: 0.75 } });
-  for (let y = 0; y <= 7.5; y += 0.5) s.addShape(pres.shapes.LINE, { x: 0, y, w: W, h: 0, line: { color: "EEF0F3", width: 0.75 } });
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: W / 2 - 1.1, y: 0.55, w: 2.2, h: 0.4, fill: { color: C.sky }, rectRadius: 0.08, line: { color: C.sky } });
-  txt(s, "대학부 예선", { x: W / 2 - 1.1, y: 0.55, w: 2.2, h: 0.4, fontSize: 14, bold: true, color: C.white, align: "center", valign: "middle" });
-  txt(s, "2026 데이터+AI 크리에이터 캠프  |  결과 정리", { x: M, y: 1.15, w: CW, h: 0.4, fontSize: 13, color: C.sub, align: "center" });
-  txt(s, "전화대화 음성 및 전사 데이터를 이용한", { x: M, y: 2.5, w: CW, h: 0.6, fontSize: 28, bold: true, align: "center" });
-  txt(s, "응급상황 인식", { x: M, y: 3.1, w: CW, h: 0.9, fontSize: 44, bold: true, color: C.blue, align: "center" });
-  txt(s, ": Mission 1~3 수행 결과 정리", { x: M, y: 4.05, w: CW, h: 0.5, fontSize: 20, color: C.sub, align: "center" });
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: W / 2 - 3.2, y: 5.0, w: 6.4, h: 0.7, fill: { color: C.white }, rectRadius: 0.1, line: { color: C.line, width: 1 }, shadow: shadow() });
+  s.addImage({ path: TPL.header, x: 0, y: 0, w: W, h: HB, sizing: { type: "cover", w: W, h: HB } });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: W / 2 - 1.1, y: 1.3, w: 2.2, h: 0.4, fill: { color: C.sky }, rectRadius: 0.08, line: { color: C.sky } });
+  txt(s, "대학부 예선", { x: W / 2 - 1.1, y: 1.3, w: 2.2, h: 0.4, fontSize: 14, bold: true, color: C.white, align: "center", valign: "middle" });
+  txt(s, "2026 데이터+AI 크리에이터 캠프  |  결과 정리", { x: M, y: 1.85, w: CW, h: 0.4, fontSize: 13, color: C.sub, align: "center" });
+  txt(s, "전화대화 음성 및 전사 데이터를 이용한", { x: M, y: 2.8, w: CW, h: 0.6, fontSize: 28, bold: true, align: "center" });
+  txt(s, "응급상황 인식", { x: M, y: 3.4, w: CW, h: 0.9, fontSize: 44, bold: true, color: C.blue, align: "center" });
+  txt(s, "Mission 1~3 수행 결과 정리", { x: M, y: 4.35, w: CW, h: 0.5, fontSize: 20, color: C.sub, align: "center" });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: W / 2 - 3.2, y: 5.3, w: 6.4, h: 0.7, fill: { color: C.white }, rectRadius: 0.1, line: { color: C.line, width: 1 }, shadow: shadow() });
   txt(s, [{ text: "팀 eigensinn", options: { bold: true, color: C.blue } }, { text: "   김장수 · 김광희 · 지연우 · 이수빈 · 조지은", options: { color: C.text } }],
-    { x: W / 2 - 3.2, y: 5.0, w: 6.4, h: 0.7, fontSize: 15, align: "center", valign: "middle" });
+    { x: W / 2 - 3.2, y: 5.3, w: 6.4, h: 0.7, fontSize: 15, align: "center", valign: "middle" });
   txt(s, "제출일 2026. 10. 14", { x: W - M - 4, y: 6.9, w: 4, h: 0.35, fontSize: 12, color: C.sub, align: "right" });
   s.addNotes("프로젝트 타이틀. 공식 표지 바로 뒤에 배치해 제목·팀명을 보강.");
 }
@@ -207,7 +205,7 @@ function barChart(slide, labels, values, o) {
   txt(s, "목차", { x: M, y: HB + 0.2, w: 4, h: 0.6, fontSize: 28, bold: true, color: C.blue });
   const secs = [
     ["01", "준비 과정", ["사전 학습 로드맵", "팀 구성과 협업 체계"]],
-    ["02", "데이터 분석", ["데이터와 규칙 준수", "EDA 핵심 발견"]],
+    ["02", "데이터 분석", ["EDA 핵심 발견"]],
     ["03", "미션별 수행", ["Mission 1  신고자 성별 분류", "Mission 2  신고자/대원 분류", "Mission 3  환자 증상 인식"]],
     ["04", "종합 및 시사점", ["성능 요약과 교훈", "사회안전 시사점과 향후 계획"]],
   ];
@@ -220,7 +218,7 @@ function barChart(slide, labels, values, o) {
     txt(s, items.map((t, k) => ({ text: `${k + 1}. ${t}`, options: { breakLine: k < items.length - 1 } })),
       { x: x + 0.1, y: 4.05, w: cw - 0.1, h: 2.2, fontSize: 14, color: C.sub, paraSpaceAfter: 10 });
   });
-  s.addNotes("원고 v2 구성(21장) 기준 목차.");
+  s.addNotes("원고 v2 구성 기준 목차 (데이터·규칙 장 삭제 후 20장).");
 }
 
 // =====================================================================
@@ -256,13 +254,13 @@ function barChart(slide, labels, values, o) {
   coreMsg(s, "5명이 한 저장소에서 충돌 없이 일하도록 규칙·자동 검사·기록 체계를 먼저 만들고 미션에 들어갔다.");
   txt(s, "■ 역할 분담", { x: M, y: 2.45, w: 5, h: 0.4, fontSize: 18, bold: true });
   table(s, [
-    ["팀원", "준비기 역할", "예선 담당"],
-    ["김장수", "이미지 모델링·통합", "Mission 1"],
-    ["김광희", "데이터 품질·매핑", "Mission 1 · 2"],
-    ["지연우", "검증·오분류 분석", "Mission 2"],
-    ["이수빈", "시각화·리포팅", "Mission 3 · 오류분석 취합"],
-    ["조지은", "정형 모델링·EDA", "Mission 3"],
-  ], M, 2.95, [1.1, 2.0, 2.4], { rowH: 0.6, fontSize: 12.5 });
+    ["팀원", "예선 담당"],
+    ["김장수", "Mission 1 · 2 · 3"],
+    ["김광희", "Mission 2"],
+    ["지연우", "Mission 2"],
+    ["이수빈", "Mission 3"],
+    ["조지은", "Mission 3"],
+  ], M, 2.95, [1.8, 3.7], { rowH: 0.6, fontSize: 13 });
 
   const rx = 6.6, rw = W - M - rx;
   txt(s, "■ GitHub 작업 흐름", { x: rx, y: 2.45, w: rw, h: 0.4, fontSize: 18, bold: true });
@@ -289,41 +287,11 @@ function barChart(slide, labels, values, o) {
 }
 
 // =====================================================================
-// 6. 02-(1) 데이터와 규칙 준수
+// 6. 02 EDA 핵심 발견 (3단 그리드)
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "02", "데이터 분석", "(1) 데이터와 규칙 준수", 6);
-  coreMsg(s, "규칙 위반 가능성은 성능보다 먼저, 설계 단계에서 막았다.");
-  const lw = 4.1;
-  card(s, M, 2.45, lw, 4.35);
-  title(s, "■ 데이터", M + 0.25, 2.6, lw - 0.5, 18);
-  txt(s, "AI-Hub 119 신고접수 음성·전사 데이터", { x: M + 0.25, y: 3.1, w: lw - 0.5, h: 0.6, fontSize: 14 });
-  [["음성 원본", "통화 녹음 WAV"], ["전사·라벨 JSON", "발화 구간·화자·성별·증상 등"]].forEach(([a, b], i) => {
-    const y = 3.85 + i * 1.35;
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: M + 0.25, y, w: lw - 0.5, h: 1.15, fill: { color: C.light }, rectRadius: 0.1, line: { color: C.light } });
-    txt(s, [{ text: a, options: { bold: true, color: C.blue, breakLine: true } }, { text: b, options: { fontSize: 12 } }],
-      { x: M + 0.35, y, w: lw - 0.7, h: 1.15, fontSize: 15, align: "center", valign: "middle" });
-  });
-
-  const rx = M + lw + 0.35, rw = W - M - rx;
-  title(s, "■ 주최 측 답변을 우리가 어떻게 반영했나", rx, 2.55, rw, 18);
-  table(s, [
-    ["주최 측 답변", "우리가 한 것"],
-    ["M2는 같은 통화의 다른 발화 정보를 쓸 수 없다", "통화 단위 특징을 제거하고 발화 하나의 구간만 사용"],
-    [{ text: "text를 읽고 고친 라벨은 학습에 쓸 수 없다" }, "해당 모델 2개를 제공된 라벨로 다시 학습"],
-    ["공개 사전학습 모델은 로컬 추론·미세조정 허용", "M1 WavLM, M3 RoBERTa-large 사용 (외부 데이터 없음)"],
-  ], rx, 3.1, [rw / 2, rw / 2], { rowH: [0.55, 1.0, 1.0, 1.0], fontSize: 14 });
-  caption(s, "근거: 대학부 예선 출제문제 5·8쪽 조건, 주최측 Q&A 답변(2026.09.15)");
-  s.addNotes("근거: 주최측 Q&A 답변(2026.09.15), docs/experiment_log.md M2-EXP-008(통화 단위 특징 제거)·M2-RETRAIN-001(L1·L2를 제공된 라벨로 재학습), submission/mission1/README.md(WavLM), submission/mission3/README.md(RoBERTa-large).");
-}
-
-// =====================================================================
-// 7. 02-(2) EDA 핵심 발견 (3단 그리드)
-// =====================================================================
-{
-  const s = pres.addSlide();
-  header(s, "02", "데이터 분석", "(2) EDA 핵심 발견", 7);
+  header(s, "02", "데이터 분석", "EDA 핵심 발견", 6);
   coreMsg(s, "세 미션 모두 \"쉬운 단서 하나\"로는 풀리지 않는다. 이 발견이 미션별 모델 선택의 출발점이다.");
   const cards = [
     ["figures/gender_distribution.png", "M1 성별",
@@ -354,13 +322,13 @@ function barChart(slide, labels, values, o) {
 }
 
 // ======================================================================
-// Mission 1 — 신고자 성별 분류 (8~11장)
+// Mission 1 — 신고자 성별 분류 (7~10장)
 // ======================================================================
 
-// 8. 문제와 최종 모델
+// 7. 문제와 최종 모델
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 문제와 최종 모델", 8);
+  header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 문제와 최종 모델", 7);
   coreMsg(s, "신고자 음성에서 음향 특징과 화자 임베딩을 함께 뽑아 로지스틱 회귀로 분류한다. 공식 Validation Accuracy 98.10%.");
   const lw = 9.05;
   txt(s, [strong("■ 문제   "), { text: "신고자 발화 음성 → 성별(F/M)   ·   지표 Accuracy" }], { x: M, y: 2.45, w: lw, h: 0.4, fontSize: 15 });
@@ -380,7 +348,7 @@ function barChart(slide, labels, values, o) {
   title(s, "■ 왜 이 구조인가", M, 4.85, lw, 16);
   bullets(s, [
     "EDA에서 요약 통계가 성별을 못 가름 → 음색을 담는 사전학습 화자 임베딩 추가",
-    "분류기는 단순한 로지스틱 회귀로 충분했다 (더 복잡한 분류기는 이득이 기준에 못 미침 → 10장)",
+    "분류기는 단순한 로지스틱 회귀로 충분했다 (더 복잡한 분류기는 이득이 기준에 못 미침 → 9장)",
     "최종 모델은 학습 데이터 전체로 재학습했다",
   ], M, 5.3, lw, 1.5, 13);
   const rx = M + lw + 0.3, rw = W - M - rx;
@@ -391,10 +359,10 @@ function barChart(slide, labels, values, o) {
   s.addNotes("근거: submission/mission1/README.md(구성·상태), docs/experiment_log.md M1-XVEC-002-OFFVAL(다중 구간 평균 x-vector), M1-REFIT-OFFVAL-001(전체 재학습 제출 모델 98.10%).");
 }
 
-// 9. 성능 개선 과정
+// 8. 성능 개선 과정
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 성능 개선 과정", 9);
+  header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 성능 개선 과정", 8);
   coreMsg(s, "95.11% → 98.10%. 개선의 대부분은 화자 임베딩(x-vector)에서 나왔다.");
   card(s, M, 2.45, 7.3, 4.35);
   barChart(s, ["① 음향 특징 52개\n+ LR (baseline)", "② + x-vector\n(앞 20초)", "③ + 여러 구간\n평균 x-vector", "④ ③을 전체 데이터로\n재학습 (제출)"],
@@ -418,10 +386,10 @@ function barChart(slide, labels, values, o) {
   s.addNotes("근거: ① 95.11% 기존 52D LR(M1-XVEC-001-OFFVAL 비교값, docs/decisions.md 2026-10-05) / ② 97.47% M1-XVEC-001-OFFVAL / ③ 98.13% M1-XVEC-002-OFFVAL(사전 고정 기준 97.77% 충족) / ④ 98.10% M1-REFIT-OFFVAL-001. 주의 박스: M1-XVEC-002(2차) 내부 +0.34%p로 기준 +0.4%p 미달 → 기각.");
 }
 
-// 10. 채택하지 않은 시도
+// 9. 채택하지 않은 시도
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 채택하지 않은 시도", 10);
+  header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 채택하지 않은 시도", 9);
   coreMsg(s, "점수가 올라도 미리 정한 기준을 못 넘으면 채택하지 않았다.");
   table(s, [
     ["시도", "판정", "이유"],
@@ -438,10 +406,10 @@ function barChart(slide, labels, values, o) {
   s.addNotes("근거: LightGBM vs LR — docs/decisions.md 2026-10-05 / RBF-SVM — M1-HEAD-001 / ECAPA — M1-ECAPA-001(3차)·M1-ECAPA-002 / 확률 평균 — M1-FUSE-001, M1-FUSE-001-OFFVAL(98.30%, 사전 고정 기준 98.434% 미달, McNemar p=0.345).");
 }
 
-// 11. 최종 결과와 한계
+// 10. 최종 결과와 후속 과제
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 최종 결과와 한계", 11);
+  header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 최종 결과와 후속 과제", 10);
   coreMsg(s, "공식 Validation 98.10%. 남녀 recall이 고르다.");
   const lw = 5.6;
   card(s, M, 2.45, lw, 4.35);
@@ -452,24 +420,24 @@ function barChart(slide, labels, values, o) {
   stat(s, M + hw, 4.55, hw, "97.92%", "남성 recall", C.sky, 30);
   const rx = M + lw + 0.3, rw = W - M - rx;
   card(s, rx, 2.45, rw, 4.35, C.bgGray);
-  title(s, "■ 한계와 후속", rx + 0.25, 2.62, rw - 0.5, 18);
+  title(s, "■ 후속 과제", rx + 0.25, 2.62, rw - 0.5, 18);
   bullets(s, [
-    [strong("한계  "), { text: "단일 seed" }],
-    [strong("후속  "), { text: "오분류 통화의 화자 단위 정성 분석" }],
-    [strong("후속  "), { text: "피치(F0) 특징은 미검증 가설" }],
+    "여러 seed로 결과 재현 확인",
+    "오분류 통화의 화자 단위 정성 분석",
+    "피치(F0) 특징 검증 (미검증 가설)",
   ], rx + 0.25, 3.25, rw - 0.5, 3.3, 17);
   caption(s, "근거: submission/mission1/README.md 상태(2026-10-12), docs/experiment_log.md M1-REFIT-OFFVAL-001");
   s.addNotes("근거: submission/mission1/README.md — 공식 Validation 3,640건 98.10%, 여성 recall 98.26%, 남성 recall 97.92%. docs/experiment_log.md M1-REFIT-OFFVAL-001(단일 seed).");
 }
 
 // ======================================================================
-// Mission 2 — 신고자/119대원 분류 (12~15장, 수치·모델명은 상단 M2 상수)
+// Mission 2 — 신고자/119대원 분류 (11~14장, 수치·모델명은 상단 M2 상수)
 // ======================================================================
 
-// 12. 문제·제약·최종 모델
+// 11. 문제·제약·최종 모델
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 문제·제약·최종 모델", 12);
+  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 문제·제약·최종 모델", 11);
   coreMsg(s, M2.core12);
   const lw = 8.9;
   txt(s, [strong("■ 문제   "), { text: "한 발화 조각 → 신고자(1) / 대원(0)   ·   지표 Accuracy" }], { x: M, y: 2.5, w: lw, h: 0.4, fontSize: 15 });
@@ -485,10 +453,10 @@ function barChart(slide, labels, values, o) {
   s.addNotes("근거: " + M2.evidence + ". 제약은 출제문제·주최측 Q&A(2026.09.15), 추론 방식은 submission/mission2/README.md '추론' 절.");
 }
 
-// 13. 성능 개선 과정
+// 12. 성능 개선 과정
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 성능 개선 과정", 13);
+  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 성능 개선 과정", 12);
   coreMsg(s, M2.core13);
   const lw = 6.2;
   card(s, M, 2.45, lw, 4.35);
@@ -510,10 +478,10 @@ function barChart(slide, labels, values, o) {
   s.addNotes(M2.notes13);
 }
 
-// 14. 다른 접근과 기각·보류 이유
+// 13. 다른 접근과 기각·보류 이유
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 다른 접근과 기각·보류 이유", 14);
+  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 다른 접근과 기각·보류 이유", 13);
   coreMsg(s, M2.core14);
   const red = t => strong(t, C.red);
   const [lastTry, lastVerdict, lastWhy] = M2.lastRow;
@@ -530,10 +498,10 @@ function barChart(slide, labels, values, o) {
   s.addNotes("근거: 통화 단위 특징 M2-EXP-008 / 제공 라벨 재학습 M2-RETRAIN-001 / 확률 평균 M2-ENS-001 / 더 큰 CNN M2-CNN-008, 패딩 제외 풀링 M2-CNN-009, 길이 입력 M2-CNN-004·006, Mixup M2-MIX-001 / WavLM 고정 임베딩 M2-SSL-001, 기본 미세조정 M2-SSL-002 / WavLM 미세조정(3초 창·겹침 증강) M2-SSL-003. 모두 docs/experiment_log.md·docs/decisions.md.");
 }
 
-// 15. 최종 결과와 한계
+// 14. 최종 결과와 보완할 점
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 최종 결과와 한계", 15);
+  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 최종 결과와 보완할 점", 14);
   coreMsg(s, M2.core15);
   const lw = 5.6;
   card(s, M, 2.45, lw, 4.35);
@@ -546,20 +514,20 @@ function barChart(slide, labels, values, o) {
   title(s, "■ 재현성", rx + 0.25, 2.6, rw - 0.5, 16);
   txt(s, M2.repro, { x: rx + 0.25, y: 3.05, w: rw - 0.5, h: 0.9, fontSize: 14 });
   card(s, rx, 4.2, rw, 2.6, C.bgGray);
-  title(s, "■ 한계", rx + 0.25, 4.35, rw - 0.5, 16);
-  txt(s, M2.limit, { x: rx + 0.25, y: 4.8, w: rw - 0.5, h: 1.9, fontSize: 14 });
+  title(s, "■ 보완할 점", rx + 0.25, 4.35, rw - 0.5, 16);
+  txt(s, M2.improve, { x: rx + 0.25, y: 4.8, w: rw - 0.5, h: 1.9, fontSize: 14 });
   caption(s, "근거: " + M2.evidence);
   s.addNotes(M2.notes15);
 }
 
 // ======================================================================
-// Mission 3 — 환자 증상 인식 (16~18장)
+// Mission 3 — 환자 증상 인식 (15~17장)
 // ======================================================================
 
-// 16. 문제와 최종 모델 (main 유지 + 수빈 님 PR #200의 파이프라인·근거 문구)
+// 15. 문제와 최종 모델 (main 유지 + 수빈 님 PR #200의 파이프라인·근거 문구)
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 문제 정의와 접근", 16);
+  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 문제 정의와 접근", 15);
   coreMsg(s, "TF-IDF 기준선부터 RoBERTa 문맥 모델을 검증하고, 최종 3-seed + TF-IDF 앙상블 채택");
   const prob = [["입력", "119 통화 전사문\n(utterances[].text만)"], ["출력", "증상 9종 중 0~9개\n(다중 레이블)"], ["평가", "Macro F1\n(증상별 F1 평균)"], ["대상", "고열·구토·두통·복통·어지러움·열상·오심·전신쇠약·호흡곤란"]];
   const lw = 4.1;
@@ -590,23 +558,23 @@ function barChart(slide, labels, values, o) {
   s.addNotes("근거: submission/mission3/README.md '모델' 절, docs/decisions.md M3-FINAL-002. 파이프라인·'왜' 문구는 이수빈 님 PR #200(subin/ppt-m3-storytelling-20261013)에서 가져옴.");
 }
 
-// 17. 최종 결과
+// 16. 최종 결과
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 최종 결과", 17);
-  coreMsg(s, "최종 3-seed RoBERTa + TF-IDF 앙상블: 공식 Validation Macro F1 65.34%");
+  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 최종 결과", 16);
+  coreMsg(s, "최종 3-seed RoBERTa + TF-IDF 앙상블: 공식 Validation Macro F1 0.6534");
   card(s, M, 2.45, 7.3, 4.35);
-  txt(s, "65.34%", { x: M + 0.2, y: 2.65, w: 2.6, h: 0.75, fontSize: 38, color: C.blue, bold: true, align: "center", valign: "middle" });
+  txt(s, "0.6534", { x: M + 0.2, y: 2.65, w: 2.6, h: 0.75, fontSize: 38, color: C.blue, bold: true, align: "center", valign: "middle" });
   txt(s, "Macro F1 · 공식 Val 3,640건", { x: M + 0.2, y: 3.43, w: 2.6, h: 0.5, fontSize: 11.5, color: C.sub, align: "center" });
   insight(s, M + 0.2, 4.28, 2.6, 2.3, [
     { text: "Micro F1  0.6690", options: { bold: true, color: C.blue, breakLine: true } },
     { text: "빈 예측 149건", options: { breakLine: true } },
     { text: "앙상블 가중치\nRoBERTa 평균 0.55\n+ TF-IDF 0.45", options: { fontSize: 10.5 } },
   ]);
-  barChart(s, ["RoBERTa s42", "RoBERTa s43", "RoBERTa s44", "최종 앙상블"], [64.79, 64.41, 64.45, 65.34], {
-    name: "Macro F1 (%)", x: M + 2.95, y: 2.95, w: 4.1, h: 3.35, chartColors: [C.line, C.sky, C.blue, C.mint],
+  barChart(s, ["RoBERTa s42", "RoBERTa s43", "RoBERTa s44", "최종 앙상블"], [0.6479, 0.6441, 0.6445, 0.6534], {
+    name: "Macro F1", dataLabelFormatCode: "0.0000", x: M + 2.95, y: 2.95, w: 4.1, h: 3.35, chartColors: [C.line, C.sky, C.blue, C.mint],
     title: "최종 RoBERTa 시드별·앙상블 공식 Val F1", titleFontSize: 10, dataLabelFontSize: 10, dataLabelFontBold: false,
-    valAxisMinVal: 0, valAxisMaxVal: 75, catAxisLabelFontSize: 9,
+    valAxisMinVal: 0, valAxisMaxVal: 0.75, catAxisLabelFontSize: 9,
   });
   const rx = M + 7.6, rw = W - M - rx;
   card(s, rx, 2.45, rw, 2.75);
@@ -624,10 +592,10 @@ function barChart(slide, labels, values, o) {
   s.addNotes("근거: submission/mission3/README.md 결과 표(seed 42·43·44 0.6479/0.6441/0.6445, 앙상블 0.6534, Micro 0.6690, 빈 예측 149). 개선 흐름: M3-OFFVAL-001(TF-IDF 0.5689, KcBERT 0.6246), M3-OFFVAL-002(RoBERTa-large 0.6433), M3-FINAL-002(앙상블 0.6534). 증상별 약점: M3-FINAL-002(오심·두통·전신쇠약 F1이 가장 낮음).");
 }
 
-// 18. 모델 선정과 오류 분석
+// 17. 모델 선정과 오류 분석
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 모델 선정과 오류 분석", 18);
+  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 모델 선정과 오류 분석", 17);
   coreMsg(s, "이전 앙상블 기각과 최종 앙상블 채택은 서로 다른 실험 — 검증 조건을 구분");
   steps(s, [
     ["초기 기준선", "TF-IDF + LR\n0.5689", C.sky],
@@ -658,11 +626,11 @@ function barChart(slide, labels, values, o) {
 }
 
 // =====================================================================
-// 19. 04-(1) 성능 요약과 교훈
+// 18. 04-(1) 성능 요약과 교훈
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "04", "종합 및 시사점", "(1) 성능 요약과 교훈", 19);
+  header(s, "04", "종합 및 시사점", "(1) 성능 요약과 교훈", 18);
   coreMsg(s, "세 미션 모두 공식 Validation은 채점에만 쓰고, 점수보다 검증의 정직함을 우선했다.");
   const v = t => strong(t);
   table(s, [
@@ -690,11 +658,11 @@ function barChart(slide, labels, values, o) {
 }
 
 // =====================================================================
-// 20. 04-(2) 사회안전 시사점과 향후 계획 — 사회안전은 이 장 한 곳에만
+// 19. 04-(2) 사회안전 시사점과 향후 계획 — 사회안전은 이 장 한 곳에만
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "04", "종합 및 시사점", "(2) 사회안전 시사점과 향후 계획", 20);
+  header(s, "04", "종합 및 시사점", "(2) 사회안전 시사점과 향후 계획", 19);
   coreMsg(s, "세 미션을 이으면, 신고 전화가 들어오는 순간부터 출동 판단까지를 돕는 하나의 흐름이 된다.");
   steps(s, [
     ["Mission 2", "신고자 발화 분리", C.blue],
@@ -720,13 +688,13 @@ function barChart(slide, labels, values, o) {
     strong("공통  "), { text: "통화 도중 실시간 처리 시나리오 검토" },
   ], { x: rx + 0.25, y: 4.6, w: rw - 0.5, h: 1.6, fontSize: 12.5, paraSpaceAfter: 6 });
   insight(s, M, 6.4, CW, 0.5, [
-    strong("한계  "), { text: "모든 출력은 요원의 판단을 돕는 정보이며, 오분류 가능성을 감안해 사람이 최종 확인한다." },
+    strong("유의점  "), { text: "모든 출력은 요원의 판단을 돕는 정보이며, 오분류 가능성을 감안해 사람이 최종 확인한다." },
   ], C.bgGray, 12.5);
-  s.addNotes("출제문제 12쪽 필수 항목 '사회안전 시사점'은 이 장 한 곳에만 둔다(미션별 장에는 넣지 않음). 향후 계획 근거: M1 — 11장 한계, M2 — docs/experiment_log.md M2-SSL-003, M3 — M3-ERR-001·M3-FINAL-002.");
+  s.addNotes("출제문제 12쪽 필수 항목 '사회안전 시사점'은 이 장 한 곳에만 둔다(미션별 장에는 넣지 않음). 향후 계획 근거: M1 — 10장 후속 과제, M2 — docs/experiment_log.md M2-SSL-003, M3 — M3-ERR-001·M3-FINAL-002.");
 }
 
 // =====================================================================
-// 21. 마무리 — 공식 템플릿 그대로 사용 + 팀 정보만 빈 여백(2.1~2.9in)에 추가
+// 20. 마무리 — 공식 템플릿 그대로 사용 + 팀 정보만 빈 여백(2.1~2.9in)에 추가
 // =====================================================================
 {
   const s = pres.addSlide();
