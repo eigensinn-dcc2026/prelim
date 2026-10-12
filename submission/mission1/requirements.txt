@@ -1,7 +1,9 @@
-# Mission 1 inference only (versions verified with the submitted checkpoint, CPU, Python 3.11).
+# Mission 1 추론 전용 (제출 체크포인트로 CPU, Python 3.11에서 검증한 버전).
 torch==2.12.1
 transformers==4.57.6
 numpy==2.4.4
 pandas==3.0.2
 librosa==0.11.0
 scipy==1.17.1
+# librosa가 끌어오는 패키지이지만 검증한 버전으로 고정한다(고정하지 않으면 더 새 버전이 설치된다).
+scikit-learn==1.8.0
