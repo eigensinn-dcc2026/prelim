@@ -176,20 +176,55 @@ def window_starts(length):
 
 
 def load_segment(row, target_sr=SR):
-    import torchaudio
     import torch
-    info = torchaudio.info(row['wav'])
+    from torchaudio.functional import resample
+    from dcc_data.audio import read_wav_info, read_wav_frames
+    info = read_wav_info(row['wav'])
     start = round(row['startAt'] * info.sample_rate / 1000)
     end = round(row['endAt'] * info.sample_rate / 1000)
-    start = min(start, info.num_frames)
-    end = min(end, info.num_frames)
+    start = min(start, info.frame_count)
+    end = min(end, info.frame_count)
     if end <= start:
         return torch.zeros(1)
-    signal, sr = torchaudio.load(row['wav'], frame_offset=start, num_frames=end-start)
-    signal = signal.mean(0)
+    segment = read_wav_frames(row['wav'], start, end)
+    signal = torch.from_numpy(segment.waveform).mean(0)
+    sr = segment.sample_rate
     if sr != target_sr:
-        signal = torchaudio.functional.resample(signal, sr, target_sr)
+        signal = resample(signal, sr, target_sr)
     return signal
+
+
+def audio_preflight():
+    """Exercise the actual segment reader and resampler before archive preparation."""
+    import struct
+    import tempfile
+    import wave
+    import torch
+
+    with tempfile.TemporaryDirectory(prefix='m2-ssl-003-audio-') as temp:
+        path = Path(temp) / 'sample.wav'
+        # Stereo 8 kHz PCM; only the middle 100 ms is the target utterance.
+        with wave.open(str(path), 'wb') as wav:
+            wav.setnchannels(2)
+            wav.setsampwidth(2)
+            wav.setframerate(8000)
+            wav.writeframes(b''.join(struct.pack('<hh', 8192, 0) if 400 <= i < 1200
+                                    else struct.pack('<hh', -16384, -16384)
+                                    for i in range(1600)))
+        row = dict(wav=str(path), startAt=50, endAt=150)
+        original = load_segment(row, target_sr=8000)
+        if original.shape != (800,) or not torch.all(original == .125).item():
+            raise RuntimeError('audio preflight failed: segment boundaries or mono conversion')
+        signal = load_segment(row)
+        if signal.shape != (1600,) or not torch.isfinite(signal).all().item():
+            raise RuntimeError('audio preflight failed: 8 kHz to 16 kHz resampling')
+        clipped = load_segment(dict(row, startAt=150, endAt=250), target_sr=8000)
+        if clipped.shape != (400,) or not torch.all(clipped == -.5).item():
+            raise RuntimeError('audio preflight failed: end-of-file clipping')
+        empty = load_segment(dict(row, startAt=250, endAt=300))
+        if empty.shape != (1,) or empty.item() != 0:
+            raise RuntimeError('audio preflight failed: empty segment')
+    print('audio preflight OK: PCM segment, stereo mono, clipping, resampling', flush=True)
 
 
 def normalize(x):
@@ -566,8 +601,13 @@ def persist_npy(value, name, work, out):
 
 
 def smoke():
-    """No model download, training, data access, or third-party imports."""
+    """No model download, training, or competition data access."""
+    import importlib.util
     import tempfile
+    if all(importlib.util.find_spec(name) is not None for name in ('torch', 'torchaudio', 'numpy')):
+        audio_preflight()
+    else:
+        print('audio preflight SKIPPED: torch/torchaudio/numpy unavailable; required on normal startup')
     assert window_starts(1) == [0]
     assert window_starts(WIN) == [0]
     assert window_starts(WIN+1) == [0, 1]
@@ -610,7 +650,7 @@ def main():
     # Fail on model/dependency problems before touching data archives.
     backbone = prepare_model(run)
     import torch
-    import torchaudio  # noqa: F401: validate audio dependency before expensive data preparation
+    audio_preflight()
     import numpy as np
     random.seed(42)
     np.random.seed(42)
