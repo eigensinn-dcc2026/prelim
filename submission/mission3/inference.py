@@ -43,8 +43,7 @@ def main(argv: list[str] | None = None) -> int:
 
     started = time.time()
     texts = [model_code.read_text(path) for path in json_paths]
-    model, tokenizer, _, max_length = model_code.load_checkpoint(args.ckpt_path)
-    probs = model_code.probabilities(model, tokenizer, texts, max_length, BATCH_SIZE)
+    probs = model_code.predict_probabilities(args.ckpt_path, texts, BATCH_SIZE)
     binary = (probs >= model_code.THRESHOLD).astype(int)
 
     frame = pd.DataFrame(
