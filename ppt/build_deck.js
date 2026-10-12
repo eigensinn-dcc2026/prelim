@@ -657,42 +657,56 @@ missionA(15, 2, "신고자/119대원 분류",
   s.addNotes("표의 '결과'·'상태' 열은 decisions.md 최신 항목으로 계속 갱신. ECAPA 파일럿 결과가 나오면 바로 반영.");
 }
 
-// ---------- Mission 3 ----------
+// ---------- Mission 3 — 2026-10-11 final submission (M3-FINAL-002) ----------
 missionA(18, 3, "환자 증상 인식",
-  "증상 단어가 대화에 직접 등장하는 경우가 많음 — 단어 기반 모델로 출발해 문맥 모델로 확장",
-  [["입력", "신고자·대원 대화 전사 텍스트\n(그 외 라벨 사용 불가)"], ["출력", "증상 9종 중 0~9개\n(다중 레이블)"], ["평가", "Macro F1\n(증상별 F1의 평균)"], ["대상", "고열·구토·두통·복통·어지러움·열상·오심·전신쇠약·호흡곤란"]],
-  [["전처리", "발화 시간순 정렬\n9종 외 증상 제거"], ["텍스트 표현", "TF-IDF\n(단어·2단어 묶음)"], ["분류 모델", "증상별 로지스틱\n회귀 (9개)"], ["판정", "증상별 판정\n(기준값 0.5)"]],
-  ["증상 이름·표현(\"머리가 아파요\")이 전사에 직접 드러나 단어 기반이 강한 출발점",
-   "희귀 증상이 많아 Macro F1에 불리 → 증상별 성능을 따로 점검",
-   [ph("KcBERT 등 문맥 모델 결과 반영 시 갱신")]]);
+  "TF-IDF 기준선부터 RoBERTa 문맥 모델을 검증하고, 최종 3-seed + TF-IDF 앙상블 채택",
+  [["입력", "119 통화 전사문\n(utterances[].text만)"], ["출력", "증상 9종 중 0~9개\n(다중 레이블)"], ["평가", "Macro F1\n(증상별 F1 평균)"], ["대상", "고열·구토·두통·복통·어지러움·열상·오심·전신쇠약·호흡곤란"]],
+  [["전처리", "발화 원본 순서 유지\n시간·speaker 미사용"], ["문맥 모델", "RoBERTa-large\nseed 42·43·44"], ["기준선", "TF-IDF +\n로지스틱 회귀"], ["최종 판정", "확률 55:45 평균\n증상별 ≥0.5"]],
+  ["최종 모델은 Training 29,200건 전체로 학습하고, 가중치는 Training 내부 홀드아웃에서 미리 결정",
+   "공식 Validation은 최종 평가에만 사용; 평가 데이터로 모델·임계값을 선택하지 않음",
+   "증상 9종만 평가하고 그 밖의 annotation, startAt, id 기반 정렬·사용은 배제"]);
 {
-  const s = missionB(19, 3, "환자 증상 인식", [ph("최종 모델과 Macro F1 한 문장", { color: C.sub })]);
+  const s = missionB(19, 3, "환자 증상 인식",
+    "최종 3-seed RoBERTa + TF-IDF 앙상블: 공식 Validation Macro F1 65.34%", false);
   card(s, M, 2.45, 7.3, 4.35);
-  txt(s, [ph("0.000")], { x: M + 0.2, y: 2.65, w: 2.6, h: 0.75, fontSize: 40, bold: true, align: "center", valign: "middle" });
-  txt(s, "Macro F1 (공식 Validation)", { x: M + 0.2, y: 3.43, w: 2.6, h: 0.5, fontSize: 12, color: C.sub, align: "center" });
-  insight(s, M + 0.2, 4.3, 2.6, 2.3, [
-    { text: "검증 먼저  ", options: { bold: true, color: C.blue, breakLine: true } },
-    { text: "개선 수치(0.40→0.45)가 데이터 분할 방식 차이일 수 있어, 통화 중복 검사 후에만 채택", options: { fontSize: 11 } },
+  txt(s, "65.34%", { x: M + 0.2, y: 2.65, w: 2.6, h: 0.75, fontSize: 38, color: C.blue, bold: true, align: "center", valign: "middle" });
+  txt(s, "Macro F1 · 공식 Val 3,640건", { x: M + 0.2, y: 3.43, w: 2.6, h: 0.5, fontSize: 11.5, color: C.sub, align: "center" });
+  insight(s, M + 0.2, 4.28, 2.6, 2.3, [
+    { text: "Micro F1  0.6690", options: { bold: true, color: C.blue, breakLine: true } },
+    { text: "빈 예측 149건", options: { breakLine: true } },
+    { text: "앙상블 가중치\nRoBERTa 평균 0.55\n+ TF-IDF 0.45", options: { fontSize: 10.5 } },
   ]);
-  figPH(s, M + 3.0, 2.65, 4.1, 3.95, "증상 9종별 F1 가로 막대그래프\n(최고/최저 증상 강조)");
+  s.addChart(pres.charts.BAR, [{
+    name: "Macro F1 (%)",
+    labels: ["RoBERTa s42", "RoBERTa s43", "RoBERTa s44", "최종 앙상블"],
+    values: [64.79, 64.41, 64.45, 65.34],
+  }], {
+    x: M + 2.95, y: 2.95, w: 4.1, h: 3.35, barDir: "col", varyColors: true,
+    chartColors: [C.line, C.sky, C.blue, C.mint],
+    showTitle: true, title: "최종 RoBERTa 시드별·앙상블 공식 Val F1", titleFontSize: 10, titleFontFace: F,
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "0.00", dataLabelFontSize: 10,
+    valAxisMinVal: 0, valAxisMaxVal: 75, catAxisLabelFontSize: 9, showLegend: false,
+    valGridLine: { color: C.line, size: 0.5 },
+  });
   rightCol(s, M + 7.6, [
-    { text: "잘 맞춘 증상  ", options: { bold: true } }, ph("예: 호흡곤란", { breakLine: true }),
-    { text: "어려운 증상  ", options: { bold: true } }, ph("희귀 증상 · 표현이 다양한 증상"),
-  ], [ph("예: 증상 자동 태깅 → 출동 우선순위·병원 선정 보조")]);
-  caption(s, "근거: docs/experiment_log.md (M3-EXP-001~), docs/decisions.md 2026-09-20 분할 감사 항목");
+    { text: "모델 구성  ", options: { bold: true } }, { text: "RoBERTa-large 3개 + TF-IDF 1개", options: { breakLine: true } },
+    { text: "가중치 크기  ", options: { bold: true } }, { text: "약 4.05GB", options: { breakLine: true } },
+    { text: "추론(A100)  ", options: { bold: true } }, { text: "3,640건 109초", options: { breakLine: true } },
+    { text: "추론(CPU)  ", options: { bold: true } }, { text: "203건 표본 462초 (로딩 포함)" },
+  ], [{ text: "119 전사문에서 환자 증상을 자동 태깅해 상황실의 기록·판단을 보조" }]);
+  caption(s, "근거: submission/mission3/README.md, m3_final_train.executed.ipynb. 모델별 점수 차이가 특정 원인만의 효과임을 뜻하지 않음.");
 }
-
-// ---------- Mission 3 추가: 확장 계획과 검증 일정 ----------
+// ---------- Mission 3 추가: 모델 선정 및 검증 ----------
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 확장 계획과 검증 일정", 20);
-  coreMsg(s, "분할 감사부터 끝낸 뒤 TF-IDF 모델을 확정하고, 남은 기간 동안 문맥 모델로 확장");
+  header(s, "03", "미션별 수행", "Mission 3  최종 모델 선정 — 검증에서 제출까지", 20);
+  coreMsg(s, "이전 앙상블 기각과 최종 앙상블 채택은 서로 다른 실험 — 검증 조건을 구분");
   const steps = [
-    ["분할 감사", "recordId 중복·\noverlap 검사", C.sky],
-    ["TF-IDF 확정", "공식 Validation\nMacro F1 확정", C.blue],
-    ["문맥 모델 비교", "KcBERT 등\nfine-tuning", C.blue],
-    ["불균형 보정", "희귀 증상\n보정 (기준값 유지)", C.blue],
-    ["최종 선정", "10/14 이전\n모델 확정", C.mint],
+    ["초기 기준선", "TF-IDF + LR\n0.5689", C.sky],
+    ["문맥 모델", "KcBERT-005\n0.6246", C.blue],
+    ["단일 모델", "RoBERTa-003\n0.6433", C.blue],
+    ["과거 결합", "3종 앙상블\n0.6510 (기각)", C.blue],
+    ["최종 채택", "3-seed + TF-IDF\n0.6534", C.mint],
   ];
   const bw = 2.1, gap = (CW - 5 * bw) / 4;
   steps.forEach(([t, b, col], i) => {
@@ -700,16 +714,16 @@ missionA(18, 3, "환자 증상 인식",
     stepBox(s, x, 2.5, bw, 2.0, t, b, col);
     if (i < 4) arrow(s, x + bw + (gap - 0.28) / 2, 3.3);
   });
-  insight(s, M, 4.95, CW, 1.0, [
-    { text: "지금 위치  ", options: { bold: true, color: C.blue } },
-    { text: "① 분할 감사 단계 — 개선 수치(0.40→0.45)가 데이터 분할 차이인지 먼저 확인 중" },
+  insight(s, M, 4.95, CW, 0.95, [
+    { text: "선정 근거  ", options: { bold: true, color: C.blue } },
+    { text: "RoBERTa 3-seed 평균 55% + TF-IDF 45%, 임계값 0.5 고정. 결합 비율은 Training 내부 홀드아웃에서 확정." },
   ]);
-  insight(s, M, 6.1, CW, 1.0, [
-    { text: "본선 전 열어둔 방향  ", options: { bold: true, color: C.blue } },
-    { text: "문맥 모델이 TF-IDF보다 뚜렷이 낫지 않으면, 단순하고 설명 가능한 TF-IDF+로지스틱 회귀를 최종안으로 유지" },
+  insight(s, M, 6.08, CW, 0.87, [
+    { text: "해석 주의  ", options: { bold: true, color: C.blue } },
+    { text: "0.6433 → 0.6534는 학습 데이터량·모델 구성이 모두 달라 통제 실험의 개선 폭으로 해석하지 않음." },
   ], C.mintLight);
-  caption(s, "근거: docs/decisions.md 2026-09-20 분할 감사 항목, docs/experiment_log.md");
-  s.addNotes("본선 전까지 KcBERT 등 결과가 나오면 M3-B(19p)의 수치를 갱신하고, 이 장은 '실제로 더 해본 것'으로 내용 교체.");
+  caption(s, "근거: docs/decisions.md (M3-FINAL-002, 2026-10-11), submission/mission3/README.md");
+  s.addNotes("기존 과거 앙상블 r3+k12+p0은 0.6510으로 기각; 최종 제출 모델은 100% Training 기반 RoBERTa 3-seed + TF-IDF 앙상블로 별도 채택.");
 }
 
 // =====================================================================
@@ -724,7 +738,7 @@ missionA(18, 3, "환자 증상 인식",
     ["미션", "과제", "최종 모델", "지표", "공식 Validation", "상태"],
     ["Mission 1", "신고자 성별 분류", "음향 특징 + 로지스틱 회귀", "Accuracy", { text: "95.11%", options: { bold: true, color: C.blue } }, "1차 확정"],
     ["Mission 2", "신고자/119대원 분류", "Mel-spectrogram + CNN", "Accuracy", { text: "90.89%", options: { bold: true, color: C.blue } }, "개선 중"],
-    ["Mission 3", "환자 증상 인식", { text: "〔최종 모델〕", options: { color: C.ph, italic: true } }, "Macro F1", { text: "〔0.000〕", options: { color: C.ph, italic: true } }, "개선 중"],
+    ["Mission 3", "환자 증상 인식", "RoBERTa×3 + TF-IDF", "Macro F1", { text: "65.34%", options: { bold: true, color: C.blue } }, "최종 확정"],
   ], M, 2.45, [1.4, 2.6, 3.0, 1.5, 2.2, 1.63], { rowH: 0.5, align: "center" });
   const lessons = [
     ["점수보다 검증 먼저", "같은 통화가 학습·검증에 섞이는 누수를 매번 점검하고, 의심되는 개선은 보류"],
@@ -777,7 +791,7 @@ missionA(18, 3, "환자 증상 인식",
   txt(s, [
     { text: "Mission 1  ", options: { bold: true } }, ph("다음 단계", { breakLine: true }),
     { text: "Mission 2  ", options: { bold: true } }, ph("예: 여러 CNN 앙상블 · 짧은 발화 보강", { breakLine: true }),
-    { text: "Mission 3  ", options: { bold: true } }, ph("예: KcBERT 문맥 모델 적용", { breakLine: true }),
+    { text: "Mission 3  ", options: { bold: true } }, { text: "오심·두통 오류 분석, 최종 앙상블 추론 효율 개선", options: { breakLine: true } },
     { text: "공통  ", options: { bold: true } }, ph("예: 실제 상황실 적용 시나리오 검토"),
   ], { x: rx + 0.25, y: 4.9, w: hw - 0.5, h: 1.8, fontSize: 13, paraSpaceAfter: 6 });
   s.addNotes("출제문제 12쪽 필수 항목 '사회안전 시사점'이 이 장의 핵심. 미션별 결과 장의 시사점 한 줄과 표현을 맞출 것.");
