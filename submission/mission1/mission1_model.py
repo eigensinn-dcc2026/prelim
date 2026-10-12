@@ -30,8 +30,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from dcc_data.mission1 import _crop_caller_segments, _parse_caller_intervals
-from dcc_data.mission2_features import acoustic_feature_vector, pair_by_stem
+from audio_features import _crop_caller_segments, _parse_caller_intervals, acoustic_feature_vector, pair_by_stem
 
 COLUMNS = ("audio file name", "gender")
 

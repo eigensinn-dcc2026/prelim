@@ -7,7 +7,8 @@
 | 파일 | 설명 |
 |---|---|
 | `inference.py` | 공식 실행 명령 진입점 |
-| `mission1_model.py` | 모델 코드(신고자 음성 추출, 52D 음향 특징, WavLM x-vector, 예측) |
+| `mission1_model.py` | 모델 코드(WavLM x-vector, 특징 결합, 예측) |
+| `audio_features.py` | 신고자 구간 자르기, 52D 음향 특징, WAV·JSON 짝짓기. 팀 데이터 유틸에서 추론에 쓰는 18개 정의만 원문 그대로 옮겼다(40통화에서 파형과 52D 벡터가 원본과 비트 단위로 같음) |
 | `requirements.txt` | 추론용 패키지, 버전 고정 |
 | `m1_xvec002_refit_full.ckpt` | sklearn Pipeline(StandardScaler + LogisticRegression, 564 입력). git 제외(`*.ckpt`), 패키징 때 넣는다 |
 | `wavlm-base-plus-sv/` | 고정 x-vector 인코더 `microsoft/wavlm-base-plus-sv` (revision `1bfd64eca136543feb28c5ffaf05381c6af33121`, 약 404MB). git 제외, 체크포인트 옆에 둔다. 인터넷 다운로드 없음 |
