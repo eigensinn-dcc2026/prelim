@@ -12,6 +12,7 @@
 | `m1_xvec002_refit_full.ckpt` | sklearn Pipeline(StandardScaler + LogisticRegression, 564 입력). git 제외(`*.ckpt`), 패키징 때 넣는다 |
 | `wavlm-base-plus-sv/` | 고정 x-vector 인코더 `microsoft/wavlm-base-plus-sv` (revision `1bfd64eca136543feb28c5ffaf05381c6af33121`, 약 404MB). git 제외, 체크포인트 옆에 둔다. 인터넷 다운로드 없음 |
 | `mission1_train.ipynb` | 최종 학습 노트북(실행 로그 포함). Training 29,200통화 특징 캐시로 80:20 holdout(0.9774)을 재현하고, 전체 데이터로 재학습한 모델이 제출 체크포인트와 파라미터까지 완전히 같음을 확인한다. 제출 코드로 Training 50통화를 다시 추출해 캐시와 일치(52D 오차 6e-5, x-vector 오차 1e-6)함도 보인다. WavLM 특징 추출(GPU 약 5시간)은 별도 스크립트로 실행해 만든 캐시를 읽는다. 실행에는 Drive의 특징 캐시와 Training 데이터가 필요하다 |
+| `train/extract_features_colab.py` | 위 노트북이 읽는 Training 특징 캐시(52D + 창별 x-vector)를 만든 추출 스크립트. 실제 실행에 쓴 파일 그대로이며(커밋 `bb9921b`), 팀 저장소의 `dcc_data`와 Colab 러너 환경(`LAB_OUT`, `DCC_RUN_ROOT`)을 전제로 하므로 이 폴더만으로는 다시 실행되지 않는다. 같은 추출을 제출 코드(`mission1_model.extract_features`)가 하며, 노트북 5단계가 둘의 일치를 확인한다 |
 
 ## 실행
 
