@@ -668,23 +668,24 @@ function flow(slide, x, y, w, h, f) {
 {
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 모델 선정과 오류 분석", 17);
-  coreMsg(s, "이전 앙상블 기각과 최종 앙상블 채택은 서로 다른 실험 — 검증 조건을 구분");
-  // 모델별 공식 Val Macro F1 (가로 막대, 위에서 아래로 진행 순서). 회색 = 기각한 과거 결합
-  barChart(s, ["TF-IDF + LR (기준선)", "KcBERT-005", "RoBERTa-003", "과거 3종 앙상블 (기각)", "최종 RoBERTa×3 + TF-IDF"],
-    [0.5689, 0.6246, 0.6433, 0.6510, 0.6534], {
-      name: "Macro F1", barDir: "bar", catAxisOrientation: "maxMin", x: M, y: 2.3, w: CW, h: 1.75,
-      chartColors: [C.sky, C.blue, C.blue, "BDBDBD", C.mint], showTitle: false,
+  coreMsg(s, "앙상블이라고 모두 채택하지 않았다 — 내부 개선폭과 사전 기준으로 선택을 구분");
+  // 서로 다른 내부/공식 점수를 섞지 않도록, 이 도표에는 공식 Val 확인된 제출 후보 4개만 표시.
+  // M3-ENS-001 기각 근거는 아래 REJECT 카드에 내부 홀드아웃 기준으로 별도 표시.
+  barChart(s, ["TF-IDF + LR (기준선)", "KcBERT-005", "RoBERTa-003", "최종 RoBERTa×3 + TF-IDF"],
+    [0.5689, 0.6246, 0.6433, 0.6534], {
+      name: "Macro F1 · 공식 Val", barDir: "bar", catAxisOrientation: "maxMin", x: M, y: 2.3, w: CW, h: 1.75,
+      chartColors: [C.sky, C.blue, C.blue, C.mint], showTitle: false,
       valAxisMinVal: 0.5, valAxisMaxVal: 0.68, valAxisHidden: true, valGridLine: { style: "none" },
       dataLabelFormatCode: "0.0000", dataLabelFontSize: 11, catAxisLabelFontSize: 11,
     });
   const lw = 5.0;
   insight(s, M, 4.15, lw, 1.3, [
-    { text: "선정 근거  ", options: { bold: true, color: C.blue, breakLine: true } },
-    { text: "RoBERTa 3-seed 평균 55% + TF-IDF 45%, 임계값 0.5 고정. 결합 비율은 Training 내부 홀드아웃에서 확정." },
+    { text: "REJECT · 과거 결합 기각", options: { bold: true, color: C.blue, breakLine: true } },
+    { text: "KcBERT + RoBERTa: 동일 내부 분할에서 +0.0028. 사전 채택 기준 +0.01에 미달하고 오류도 많이 겹침." },
   ], C.light, 11.5);
   insight(s, M, 5.55, lw, 1.3, [
-    { text: "해석 주의  ", options: { bold: true, color: C.blue, breakLine: true } },
-    { text: "0.6433 → 0.6534는 학습 데이터량·모델 구성이 모두 달라 통제 실험의 개선 폭으로 해석하지 않음." },
+    { text: "ADOPT · 최종 가중 결합 채택", options: { bold: true, color: C.blue, breakLine: true } },
+    { text: "RoBERTa 3-seed 55% + TF-IDF 45%. 결합 비율은 Training 홀드아웃에서 사전 확정, 공식 Val은 채점만 수행." },
   ], C.mintLight, 11.5);
   const rx = M + lw + 0.3, rw = W - M - rx;
   card(s, rx, 4.15, rw, 2.7);
@@ -700,8 +701,8 @@ function flow(slide, x, y, w, h, f) {
     txt(s, l, { x, y: 5.5, w: (rw - 3.2) / 2 - 0.1, h: 0.6, fontSize: 11, color: C.sub, align: "center" });
   });
   txt(s, "→ 두 모델의 오류가 달라 앙상블로 보완\n(키워드 정규식 기준 탐색, 오라벨 단정 아님)", { x: rx + 3.0, y: 6.2, w: rw - 3.2, h: 0.55, fontSize: 10.5, bold: true, color: C.blue, align: "center", valign: "middle" });
-  caption(s, "근거: docs/decisions.md M3-FINAL-002, docs/experiment_log.md M3-ERR-001. 키워드 정규식 기준의 탐색적 결과이며 오라벨로 단정하지 않음.");
-  s.addNotes("근거: docs/decisions.md (M3-FINAL-002, 2026-10-11), submission/mission3/README.md, docs/experiment_log.md M3-ENS-001(과거 결합 기각)·M3-ERR-001(양성 라벨 약 52% 근거 없음, 오심 89%·전신쇠약 76%, 두 모델 모두 놓친 양성의 92%가 근거 없는 라벨, 근거 있는 라벨 약 90% 적중), reports/mission3/error_analysis/README.md. '근거 없음'은 키워드 정규식 기준이다. 직접 표기되지 않는 증상도 있을 수 있어 라벨 오류라고 단정하면 안 된다(이수빈 님 PR #200 문구).");
+  caption(s, "근거: docs/decisions.md M3-ENS-001·M3-FINAL-002, docs/experiment_log.md M3-ERR-001. 서로 다른 학습 조건의 공식 Val 점수 차이는 인과 효과가 아님.");
+  s.addNotes("근거: docs/decisions.md M3-ENS-001(내부 3-seed 평균 0.6455 vs RoBERTa 0.6427, +0.0028 < 사전 기준 +0.01로 기각)·M3-FINAL-002(최종 RoBERTa×3 + TF-IDF, 사전 가중치 0.55/0.45, 공식 Val 0.6534), submission/mission3/README.md, docs/experiment_log.md M3-ERR-001. 상단 차트는 공식 Val만; REJECT 카드 수치는 Training 내부 80:20 홀드아웃으로 공식 Val과 직접 비교하지 않음. 공식 Val 단일 vs 최종 점수 차이를 통제 실험의 개선으로 해석하지 않음. 오류 분석 '근거 없음'은 키워드 정규식 기준으로 오라벨 단정이 아님.");
 }
 
 // =====================================================================
