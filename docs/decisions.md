@@ -15,6 +15,19 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-12 — [M2] WavLM-large 미세조정(M2-SSL-004) 채택 — 최종 앙상블 후보 멤버
+
+- **결정**: M2-SSL-003 레시피에서 백본만 WavLM-large로 바꾼 M2-SSL-004를 채택하고 최종 앙상블 후보 멤버로 둔다.
+- **이유**: 내부 holdout(1,500통화) accuracy 0.9315로 사전 기준 0.918을 넘었고 base(0.9260)보다 +0.55%p 높다(McNemar p=1.0e-11, 5개 묶음 모두 우위). ECE 0.0072, Brier 0.0450. base+large+CNN 확률 평균은 0.9334지만 large 단독 대비 이득은 +0.2%p로 작다.
+- **후속**: 공식 Validation 평가·앙상블 구성은 M2-OFFVAL-ENS에서 정한다. CPU 추론은 공식 Val 환산 약 2,073분이라 제출 환경이 GPU인지 확인하고, large의 추론 시간 대비 이득을 앙상블 구성에서 따진다. 근거: `docs/experiment_log.md` M2-SSL-004 행, `dcc-lab` `results/M2-SSL-004/metrics.json`
+
+
+## 2026-10-12 — [M2] WavLM-base-plus 미세조정(M2-SSL-003) 채택 — 최종 앙상블 첫 멤버
+
+- **결정**: 3초 고정 창 + 슬라이딩 추론, 겹침 흉내 증강, SupCon을 쓴 WavLM-base-plus 미세조정 레시피(M2-SSL-003)를 채택하고 최종 앙상블의 첫 멤버로 둔다.
+- **이유**: 내부 holdout(1,500통화) accuracy 0.9260으로 사전 기준 0.918을 넘었고 CNN 3-seed 평균(0.9200)보다 높다(McNemar p=2.3e-10, 5개 묶음 모두 우위). WavLM+CNN 확률 평균은 0.9286으로 추가 상승했다. ECE 0.0182, Brier 0.0511.
+- **후속**: 공식 Validation 평가·앙상블은 별도 실험(M2-OFFVAL-ENS)에서 한다. CPU 추론이 공식 Val 환산 약 876분이라 제출 환경(GPU 여부)에서의 추론 시간을 확인한다. 근거: `docs/experiment_log.md` M2-SSL-003 행, `dcc-lab` `results/M2-SSL-003/metrics.json`
+
 ## 2026-10-12 — [M3] soft-F1 전역 집계(M3-SOFTF1-001) 기각 — 3-seed 확장하지 않음
 
 - **결정**: ROBERTA-003의 soft macro-F1을 micro-batch별로 계산하는 방식을 유지한다. 실효 배치 전체 logits로 F1을 한 번에 계산하는 전역 집계는 채택하지 않고 3-seed로 확장하지 않는다.
