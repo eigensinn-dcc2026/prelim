@@ -1,23 +1,21 @@
-"""Mission 1 model code (team eigensinn): caller gender from WAV + JSON.
+"""Mission 1 모델 코드 (팀 eigensinn): WAV와 JSON으로 신고자 성별을 예측한다.
 
-Per call, the caller (speaker=1) speech is cropped using only ``startAt`` /
-``endAt`` / ``speaker`` and concatenated. Features (564-d):
+통화마다 ``startAt`` / ``endAt`` / ``speaker``만 사용해 신고자(speaker=1)의 음성을 잘라 이어 붙인 뒤
+564차원 특징을 만든다.
 
-* 52-d acoustic vector (MFCC/F0/energy statistics) of the whole caller audio;
-* 512-d x-vector from ``microsoft/wavlm-base-plus-sv``: the caller audio is cut
-  into non-overlapping 20 s windows (at most 4; a later window is kept only if
-  it is at least 3 s long), each window embedding is L2-normalised, averaged
-  weighted by window length, then L2-normalised again.
+* 52차원 음향 벡터(MFCC·F0·에너지 통계): 신고자 음성 전체에서 계산한다.
+* 512차원 x-vector(``microsoft/wavlm-base-plus-sv``): 신고자 음성을 겹치지 않는 20초 창으로 나눈다
+  (최대 4개, 뒤쪽 창은 3초 이상일 때만 사용). 창마다 임베딩을 L2 정규화하고, 창 길이로 가중 평균한 뒤
+  다시 L2 정규화한다.
 
-A frozen head (standardise, then a logistic-regression score; stored as plain
-tensors) maps the 564-d vector to F/M. No fitting happens at inference time.
+학습이 끝난 헤드(표준화 후 로지스틱 회귀 점수, 일반 텐서로 저장)가 564차원 벡터를 F/M으로 분류한다.
+추론 중에는 학습을 하지 않는다.
 
-Everything the model needs is in ONE ``.pt`` checkpoint (format ``dcc-m1-v1``, built by
-``train/build_model_pt.py``): the head and the WavLM weights together with the text of its
-config files. Nothing is downloaded, so the run needs no internet.
+모델에 필요한 모든 것이 ``.pt`` 체크포인트 하나(형식 ``dcc-m1-v1``, ``train/build_model_pt.py``로 생성)에
+들어 있다: 헤드와 WavLM 가중치, 그리고 WavLM 설정 파일 내용. 내려받는 것이 없어 인터넷 없이 실행된다.
 
-If one call fails, the row still gets the training majority class ``F`` so the
-row count equals the number of input pairs; the failure is printed on stderr.
+한 통화에서 오류가 나도 그 행에는 학습 데이터의 다수 클래스 ``F``를 채워 행 수가 입력 쌍의 수와 같게 하고,
+오류 내용은 stderr에 출력한다.
 """
 
 from __future__ import annotations
@@ -37,7 +35,7 @@ N_ACOUSTIC_FEATURES = 52
 N_XVECTOR = 512
 N_FEATURES = N_ACOUSTIC_FEATURES + N_XVECTOR
 LABEL_TO_GENDER = {0: "F", 1: "M"}
-FALLBACK_GENDER = "F"  # Training majority class
+FALLBACK_GENDER = "F"  # 학습 데이터의 다수 클래스
 
 FORMAT = "dcc-m1-v1"
 WAVLM_ID = "microsoft/wavlm-base-plus-sv"
@@ -50,7 +48,7 @@ MIN_SAMPLES = 8000
 
 
 def window_ranges(length: int, sample_rate: int = SAMPLE_RATE) -> list[tuple[int, int]]:
-    """First window always included; later tails need at least three seconds."""
+    """첫 번째 창은 항상 포함하고, 뒤쪽 창은 길이가 3초 이상일 때만 포함한다."""
     width = WINDOW_SECONDS * sample_rate
     result = [(0, min(length, width))]
     for start in range(width, min(length, MAX_WINDOWS * width), width):
@@ -61,7 +59,7 @@ def window_ranges(length: int, sample_rate: int = SAMPLE_RATE) -> list[tuple[int
 
 
 def average_windows(vectors: np.ndarray, lengths: np.ndarray) -> np.ndarray:
-    """Length-weighted mean of unit x-vectors, re-normalised (as in training)."""
+    """단위 길이 x-vector들을 창 길이로 가중 평균한 뒤 다시 정규화한다(학습 때와 같은 방식)."""
     weights = np.asarray(lengths, dtype=np.float64)
     if weights.sum() == 0:
         weights = np.ones_like(weights)
@@ -73,10 +71,10 @@ def average_windows(vectors: np.ndarray, lengths: np.ndarray) -> np.ndarray:
 
 
 def load_model(ckpt_path: Path):
-    """Read the single ``.pt`` checkpoint: ``(head, feature processor, WavLM x-vector model, torch)``.
+    """``.pt`` 체크포인트 하나를 읽어 ``(헤드, 특징 추출기, WavLM x-vector 모델, torch)``를 돌려준다.
 
-    The WavLM model is rebuilt from the config text stored in the file and its weights are loaded
-    strictly, so a file that does not match this code is refused instead of run.
+    WavLM 모델은 파일에 저장된 설정 텍스트로 다시 만들고 가중치는 엄격하게(strict) 불러온다.
+    그래서 이 코드와 맞지 않는 파일은 실행하지 않고 거부한다.
     """
     import torch
     from transformers import Wav2Vec2FeatureExtractor, WavLMConfig, WavLMForXVector
@@ -100,7 +98,7 @@ def load_model(ckpt_path: Path):
 
 
 def caller_waveform(wav_path: Path, json_path: Path) -> tuple[np.ndarray, int]:
-    """Concatenated caller waveform (T,) built from startAt/endAt/speaker only."""
+    """startAt/endAt/speaker만으로 만든, 이어 붙인 신고자 파형 (T,)."""
     with json_path.open("r", encoding="utf-8") as stream:
         document = json.load(stream)
     if not isinstance(document, dict):
@@ -118,7 +116,7 @@ def caller_waveform(wav_path: Path, json_path: Path) -> tuple[np.ndarray, int]:
 
 
 def extract_features(wav_path: Path, json_path: Path, processor, model, torch) -> np.ndarray:
-    """564-d row: 52-d acoustic + length-weighted mean of up to 4 x 20 s x-vectors."""
+    """564차원 한 행: 52차원 음향 벡터 + (20초 창 최대 4개의) 길이 가중 평균 x-vector."""
     wave, sr = caller_waveform(wav_path, json_path)
     acoustic = acoustic_feature_vector(wave, sr)
     if acoustic.shape[0] != N_ACOUSTIC_FEATURES:
@@ -145,14 +143,14 @@ def extract_features(wav_path: Path, json_path: Path, processor, model, torch) -
 
 
 def classify(head: dict, features: np.ndarray) -> int:
-    """Class 1 (M) if the logistic score of the standardised 564-d vector is positive, else 0 (F)."""
+    """표준화한 564차원 벡터의 로지스틱 점수가 양수이면 1(M), 아니면 0(F)을 돌려준다."""
     standardised = (features - head["scaler_mean"]) / head["scaler_scale"]
     score = float(standardised @ head["coef"][0] + head["intercept"][0])
     return int(score > 0)
 
 
 def predict(audio_dir: Path, label_dir: Path, ckpt_path: Path) -> pd.DataFrame:
-    """Official Mission 1 rows: ``audio file name``, ``gender`` (F/M)."""
+    """공식 Mission 1 출력 행: ``audio file name``, ``gender``(F/M)."""
     ckpt_path = Path(ckpt_path)
     if not ckpt_path.exists():
         raise FileNotFoundError(f"checkpoint not found: {ckpt_path}")

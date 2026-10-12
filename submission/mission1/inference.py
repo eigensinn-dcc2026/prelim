@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""DCC 2026 Mission 1 (team eigensinn): predict the caller's gender (F/M).
+"""DCC 2026 Mission 1 (팀 eigensinn): 신고자의 성별(F/M)을 예측한다.
 
     python inference.py --audio_dir {wav folder} --label_dir {json folder} \
         --ckpt_path {checkpoint file} --output ./outputs/mission1.csv
 
-Only ``startAt`` / ``endAt`` / ``speaker`` of the label JSON are used, to crop
-the caller's speech from the WAV. Output columns: ``audio file name,gender``.
+라벨 JSON에서는 ``startAt`` / ``endAt`` / ``speaker``만 읽어 WAV에서 신고자의 음성을 잘라 낸다.
+출력 열은 ``audio file name,gender``이다.
 """
 
 from __future__ import annotations
 
-# Thread settings must be set before numpy/torch are imported anywhere.
+# numpy/torch를 불러오기 전에 스레드 수를 먼저 정해야 한다.
 import os
 
 _N_THREADS = str(os.cpu_count() or 1)

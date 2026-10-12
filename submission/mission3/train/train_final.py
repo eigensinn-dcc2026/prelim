@@ -1,18 +1,18 @@
-"""Mission 3 final training: M3-ROBERTA-003 settings on 100% of Training, then export and score.
+"""Mission 3 최종 학습: M3-ROBERTA-003 설정을 Training 100%로 학습한 뒤 내보내고 채점한다.
 
-Same model, loss and optimizer as scripts/lab/m3-roberta-003.py (klue/roberta-large rev 28d9112,
-front 256 tokens, BCE with pos_weight clip(0.5*sqrt(neg/pos), 1, 6) + 1.0 * (1 - soft macro-F1),
-AdamW lr 1e-5, wd 0.01, linear warmup 10%, effective batch 16 = micro 8 x 2, fp16 autocast,
-3 epochs, final epoch kept). The only difference: every Training label JSON is used for training
-(no internal holdout), and pos_weight is computed on all of them. The official Validation is used
-only for the final score, never for training, weights or selection.
+모델, 손실, 옵티마이저는 scripts/lab/m3-roberta-003.py와 같다(klue/roberta-large rev 28d9112,
+앞 256토큰, pos_weight clip(0.5*sqrt(neg/pos), 1, 6)를 쓴 BCE + 1.0 * (1 - soft macro-F1),
+AdamW lr 1e-5, wd 0.01, 선형 워밍업 10%, 유효 배치 16 = 마이크로 8 x 2, fp16 autocast,
+3 epoch, 마지막 epoch 사용). 다른 점은 하나뿐이다: Training 라벨 JSON을 모두 학습에 쓰고
+(내부 홀드아웃 없음) pos_weight도 전체로 계산한다. 공식 Validation은 마지막 채점에만 쓰고,
+학습·가중치·선택에는 절대 쓰지 않는다.
 
     python train/train_final.py --train_dir <Training label folder> --out runs/m3_final \
         --seeds 42 43 44 [--val_dir <Validation label folder>]
-    python train/train_final.py ... --quick      # 512 rows, 1 epoch: speed/plumbing check
+    python train/train_final.py ... --quick      # 512행, 1 epoch: 속도·연결 점검용
 
-Outputs per seed: runs/.../seed_<s>/best.ckpt (lab format), m3_roberta003_full_seed<s>.pt (offline
-inference checkpoint for inference.py / submission), history.json, and val_score.json if --val_dir.
+seed마다 나오는 결과: runs/.../seed_<s>/best.ckpt(lab 형식), m3_roberta003_full_seed<s>.pt
+(inference.py / 제출용 오프라인 추론 체크포인트), history.json, 그리고 --val_dir를 주면 val_score.json.
 """
 from __future__ import annotations
 
@@ -27,9 +27,9 @@ import time
 import unicodedata
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent            # submission/mission3/train
-sys.path.insert(0, str(HERE))                       # mission3_bert.py (training helpers) lives here
-sys.path.insert(0, str(HERE.parent))                # mission3_model.py (the submitted inference code) lives one folder up
+HERE = Path(__file__).resolve().parent            # 제출 폴더의 submission/mission3/train
+sys.path.insert(0, str(HERE))                       # 학습 보조 함수가 있는 mission3_bert.py가 여기 있다
+sys.path.insert(0, str(HERE.parent))                # 제출 추론 코드인 mission3_model.py는 한 단계 위 폴더에 있다
 
 MODEL_ID = "klue/roberta-large"
 REVISION = "28d9112"
@@ -53,7 +53,7 @@ def sha256(path):
 def log(msg):
     line = time.strftime("[%H:%M:%S] ") + msg
     print(line, flush=True)
-    progress = os.environ.get("M3_PROGRESS_LOG")  # live log on Drive (notebook output is saved only at the end)
+    progress = os.environ.get("M3_PROGRESS_LOG")  # Drive에 실시간 로그를 남긴다(노트북 출력은 끝날 때만 저장되기 때문)
     if progress:
         try:
             with open(progress, "a", encoding="utf-8") as handle:
@@ -191,11 +191,11 @@ def train_seed(seed, out, model_path, tokens, targets, pos_weight, epochs):
     return ckpt, history
 
 
-ENSEMBLE_WEIGHTS = dict(bert=0.55, tfidf=0.45)  # chosen on the 80:20 holdout (ROBERTA-003 seed average + P0), never on the official Val
+ENSEMBLE_WEIGHTS = dict(bert=0.55, tfidf=0.45)  # 80:20 홀드아웃에서 정한 값이다(ROBERTA-003 seed 평균 + P0). 공식 Val로는 정하지 않았다
 
 
 def train_tfidf(rows, out):
-    """P0 TF-IDF + OvR logistic regression with the P0 script's parameters, on all Training rows."""
+    """P0 TF-IDF + OvR 로지스틱 회귀를 P0 스크립트의 파라미터 그대로, Training 전체 행으로 학습한다."""
     import joblib
     import numpy as np
     from sklearn.feature_extraction.text import TfidfVectorizer
@@ -242,7 +242,7 @@ def main():
     log(f"torch {torch.__version__}  cuda {torch.version.cuda}  available={torch.cuda.is_available()}")
     if torch.cuda.is_available():
         log(f"GPU {torch.cuda.get_device_name(0)}  capability {torch.cuda.get_device_capability(0)}")
-        torch.zeros(1, device="cuda").add_(1)  # fails here, not mid-training, if the build lacks this GPU's kernels
+        torch.zeros(1, device="cuda").add_(1)  # 설치된 빌드에 이 GPU용 커널이 없으면 학습 도중이 아니라 여기서 바로 실패한다
     else:
         log("WARNING: no CUDA GPU - training will be extremely slow")
     model_path = prepare_model(args.model_cache)
@@ -311,7 +311,7 @@ def main():
 
 
 def score_val(pt, val_dir, seed_dir, limit=None):
-    """Official Validation: evaluation only (same path as inference.py, >= 0.5, no post-processing)."""
+    """공식 Validation: 평가 전용(inference.py와 같은 경로, >= 0.5, 후처리 없음)."""
     import numpy as np
     from sklearn.metrics import f1_score
     import mission3_bert
@@ -324,7 +324,7 @@ def score_val(pt, val_dir, seed_dir, limit=None):
         s = {unicodedata.normalize("NFC", x.strip()) for x in ([s] if isinstance(s, str) else s) if isinstance(x, str)}
         gold.append([int(lab in s) for lab in LABELS])
     started = time.monotonic()
-    import mission3_model  # the submission code path: handles single and ensemble checkpoints
+    import mission3_model  # 제출 코드 경로: 단일 체크포인트와 앙상블 체크포인트를 모두 처리한다
     probs = mission3_model.predict_probabilities(pt, texts, 32)
     seconds = time.monotonic() - started
     gold, pred = np.array(gold), (probs >= 0.5).astype(int)

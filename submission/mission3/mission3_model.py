@@ -1,15 +1,14 @@
-"""Mission 3 model code: BERT-family multilabel classifiers loaded from one offline checkpoint.
+"""Mission 3 모델 코드: 오프라인 체크포인트 하나에서 BERT 계열 다중 라벨 분류기를 읽어 쓴다.
 
-Two checkpoint formats, both a single ``.pt`` read with ``torch.load(weights_only=True)``:
+체크포인트 형식은 두 가지이고, 둘 다 ``torch.load(weights_only=True)``로 읽는 ``.pt`` 하나이다.
 
-- ``dcc-m3-bert-v1``: one encoder (KcBERT / RoBERTa) + linear head, with the text of
-  config.json / tokenizer files, so nothing is downloaded at inference time.
-- ``dcc-m3-ens-v1``: a fixed-weight probability average of several such encoders and one
-  TF-IDF + logistic-regression model (vocabulary, idf and coefficients stored as plain arrays).
-  ``p = sum_k w_k * p_k`` with weights fixed at build time (chosen on the internal Training
-  holdout, never on the official Validation), then the same ``p >= 0.5`` decision.
+- ``dcc-m3-bert-v1``: 인코더 하나(KcBERT / RoBERTa)와 선형 헤드. config.json / 토크나이저 파일의
+  내용이 함께 들어 있어 추론할 때 내려받는 것이 없다.
+- ``dcc-m3-ens-v1``: 위와 같은 인코더 여러 개와 TF-IDF + 로지스틱 회귀 모델 하나의 확률을 고정 가중치로
+  평균한 것(어휘, idf, 계수는 일반 배열로 저장). ``p = sum_k w_k * p_k``이고 가중치는 만들 때 정해 둔다
+  (Training 내부 홀드아웃에서 정했고, 공식 Validation으로는 정하지 않았다). 판정은 똑같이 ``p >= 0.5``이다.
 
-Input is the call transcript only (``utterances[].text``).
+입력은 통화 전사문(``utterances[].text``)뿐이다.
 """
 
 from __future__ import annotations
@@ -24,14 +23,14 @@ import numpy as np
 
 FORMAT = "dcc-m3-bert-v1"
 ENSEMBLE_FORMAT = "dcc-m3-ens-v1"
-# The 9 evaluated symptoms, in the order the output cell is written.
+# 평가 대상 증상 9개. 출력 셀에는 이 순서대로 적는다.
 LABELS = ("고열", "구토", "두통", "복통", "어지러움", "열상", "오심", "전신쇠약", "호흡곤란")
 MAX_LENGTH = 256
-THRESHOLD = 0.5  # fixed by the organizers; no per-class tuning or post-processing
+THRESHOLD = 0.5  # 주최 측이 정한 값이다. 증상별 조정이나 후처리는 하지 않는다.
 
 
 def transcript(doc: Any) -> str:
-    """Join ``utterances[].text`` (whitespace collapsed) with one space."""
+    """``utterances[].text``를 공백 한 칸으로 이어 붙인다(연속 공백은 하나로 줄인다)."""
 
     if not isinstance(doc, dict) or not isinstance(doc.get("utterances"), list):
         return ""
@@ -50,7 +49,7 @@ def read_text(json_path: str | Path) -> str:
 
 
 def _build(files: dict[str, str], dropout: float, n_labels: int):
-    """BERT encoder + dropout + linear head on the first token."""
+    """BERT 인코더 + 드롭아웃 + 첫 토큰 위의 선형 헤드."""
 
     import torch
     from transformers import AutoConfig, AutoModel
@@ -74,7 +73,7 @@ def _build(files: dict[str, str], dropout: float, n_labels: int):
 
 
 def load_checkpoint(path: str | Path, device: str | None = None, payload: dict | None = None):
-    """``(model, tokenizer, labels, max_length)``, fully offline."""
+    """``(모델, 토크나이저, 라벨, max_length)``를 완전히 오프라인으로 만든다."""
 
     import torch
     from transformers import AutoTokenizer
@@ -100,12 +99,12 @@ def load_checkpoint(path: str | Path, device: str | None = None, payload: dict |
 
 def probabilities(model, tokenizer, texts: Sequence[str], max_length: int = MAX_LENGTH,
                   batch_size: int = 32) -> np.ndarray:
-    """Sigmoid probabilities ``(len(texts), 9)`` in input order."""
+    """입력 순서대로 시그모이드 확률 ``(len(texts), 9)``를 돌려준다."""
 
     import torch
 
     device = next(model.parameters()).device
-    # Sort by length so padded batches stay short; results are put back in input order.
+    # 길이순으로 정렬해 패딩된 배치를 짧게 유지하고, 결과는 입력 순서로 되돌려 놓는다.
     order = sorted(range(len(texts)), key=lambda index: len(texts[index]))
     out = np.zeros((len(texts), len(LABELS)), dtype=np.float32)
     with torch.inference_mode():
@@ -125,10 +124,10 @@ def symptom_cell(binary_row: Sequence[int]) -> str:
 
 
 def tfidf_probabilities(tfidf: dict, texts: Sequence[str]) -> np.ndarray:
-    """TF-IDF (sublinear tf, smooth idf, l2) + per-symptom logistic regression, from plain arrays.
+    """TF-IDF(sublinear tf, smooth idf, l2) + 증상별 로지스틱 회귀를 일반 배열만으로 계산한다.
 
-    Same features as sklearn ``TfidfVectorizer`` with the stored parameters and vocabulary, and the
-    same probabilities as ``OneVsRestClassifier(LogisticRegression).predict_proba`` (multilabel).
+        저장된 파라미터와 어휘로 sklearn ``TfidfVectorizer``와 같은 특징을 만들고, 확률은
+        ``OneVsRestClassifier(LogisticRegression).predict_proba``(다중 라벨)와 같다.
     """
 
     from scipy.sparse import csr_matrix
@@ -136,7 +135,7 @@ def tfidf_probabilities(tfidf: dict, texts: Sequence[str]) -> np.ndarray:
 
     params = dict(tfidf["params"])
     params["ngram_range"] = tuple(params["ngram_range"])
-    analyzer = TfidfVectorizer(**params).build_analyzer()  # tokenization only; nothing is fitted
+    analyzer = TfidfVectorizer(**params).build_analyzer()  # 토큰화만 한다. 학습(fit)은 하지 않는다.
     index = {term: i for i, term in enumerate(tfidf["vocabulary"])}
     rows, cols, vals = [], [], []
     for r, text in enumerate(texts):
@@ -160,7 +159,7 @@ def tfidf_probabilities(tfidf: dict, texts: Sequence[str]) -> np.ndarray:
 
 def predict_probabilities(path: str | Path, texts: Sequence[str], batch_size: int = 32,
                           device: str | None = None) -> np.ndarray:
-    """``(len(texts), 9)`` probabilities for either checkpoint format (members run one at a time)."""
+    """두 체크포인트 형식 모두에 대해 ``(len(texts), 9)`` 확률을 돌려준다(멤버는 한 번에 하나씩 실행)."""
 
     import gc
     import torch

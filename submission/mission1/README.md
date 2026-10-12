@@ -8,13 +8,13 @@
 |---|---|
 | `inference.py` | 공식 실행 명령 진입점 |
 | `mission1_model.py` | 모델 코드(WavLM x-vector, 특징 결합, 예측) |
-| `audio_features.py` | 신고자 구간 자르기, 52D 음향 특징, WAV·JSON 짝짓기. 팀 데이터 유틸에서 추론에 쓰는 18개 정의만 원문 그대로 옮겼다(40통화에서 파형과 52D 벡터가 원본과 비트 단위로 같음) |
+| `audio_features.py` | 신고자 구간 자르기, 52D 음향 특징, WAV·JSON 짝짓기. 팀 데이터 유틸에서 추론에 쓰는 18개 정의만 옮겼다(주석은 한글, 코드는 원본 그대로이며 40통화에서 파형과 52D 벡터가 원본과 비트 단위로 같음) |
 | `requirements.txt` | 추론용 패키지, 버전 고정 |
 | `m1_model.pt` | 가중치. 모델 전체를 `.pt` 한 파일에 담았다(형식 `dcc-m1-v1`): 표준화·로지스틱 회귀 헤드(564 입력, 텐서)와 고정 x-vector 인코더 `microsoft/wavlm-base-plus-sv`(revision `1bfd64eca136543feb28c5ffaf05381c6af33121`)의 가중치와 설정 텍스트. 약 386MB라 git에 없고 패키징 때 넣는다. SHA256 `b81a36d56fd55dd9d98fea08e8775082ee35d0c056b3952c6c53573c40de1905`. 인터넷 다운로드 없음 |
 | `mission1_train.ipynb` | 최종 학습 노트북(실행 로그 포함). Training 29,200통화 특징 캐시로 80:20 holdout(0.9774)을 재현하고, 전체 데이터로 재학습한 모델이 제출 체크포인트(`m1_model.pt` 안의 헤드)와 파라미터까지 완전히 같음을 확인한다. 제출 체크포인트와 제출 코드로 Training 50통화를 다시 추출해 캐시와 일치(52D 오차 6e-5, x-vector 오차 1e-6)함도 보인다. WavLM 특징 추출(GPU 약 5시간)은 별도 스크립트로 실행해 만든 캐시를 읽는다. 실행에는 Drive의 특징 캐시와 Training 데이터가 필요하다 |
 | `train/build_model_pt.py` | 학습한 헤드(sklearn 파이프라인)와 WavLM 스냅샷을 `m1_model.pt` 하나로 묶는 스크립트 |
 | `train/requirements-train.txt` | 학습 노트북과 위 스크립트용 패키지(추론용 `requirements.txt`와 별개) |
-| `train/extract_features_colab.py` | 위 노트북이 읽는 Training 특징 캐시(52D + 창별 x-vector)를 만든 추출 스크립트. 실제 실행에 쓴 파일 그대로이며(커밋 `bb9921b`), 팀 저장소의 `dcc_data`와 Colab 러너 환경(`LAB_OUT`, `DCC_RUN_ROOT`)을 전제로 하므로 이 폴더만으로는 다시 실행되지 않는다. 같은 추출을 제출 코드(`mission1_model.extract_features`)가 하며, 노트북 5단계가 둘의 일치를 확인한다 |
+| `train/extract_features_colab.py` | 위 노트북이 읽는 Training 특징 캐시(52D + 창별 x-vector)를 만든 추출 스크립트. 실제 실행에 쓴 파일이며(커밋 `bb9921b`, 주석만 한글로 옮기고 코드는 같다), 팀 저장소의 `dcc_data`와 Colab 러너 환경(`LAB_OUT`, `DCC_RUN_ROOT`)을 전제로 하므로 이 폴더만으로는 다시 실행되지 않는다. 같은 추출을 제출 코드(`mission1_model.extract_features`)가 하며, 노트북 5단계가 둘의 일치를 확인한다 |
 
 ## 실행
 
