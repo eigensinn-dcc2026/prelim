@@ -288,13 +288,13 @@ function table(slide, rows, x, y, colW, o = {}) {
       { text: "발견  ", options: { bold: true, breakLine: true } },
       { text: "Training 53.2:46.8, Validation 53.8:46.2 — 분할 간 차이 1%p 이내로 균형", options: { breakLine: true } },
       { text: "설계 반영  ", options: { bold: true, color: C.blue, breakLine: true } },
-      { text: "클래스 불균형 보정이 불필요 → 기본 LR·GBM 그대로 사용" },
+      { text: "클래스 불균형 보정이 불필요 → 기본 로지스틱 회귀·LightGBM 그대로 사용" },
     ]],
     ["figures/symptom_prevalence.png", "증상 9종 유병률 (Mission 3)", [
       { text: "발견  ", options: { bold: true, breakLine: true } },
       { text: "복통·어지러움 20%대 vs 두통·오심 10%대 — 최대 2배 이상 차이", options: { breakLine: true } },
       { text: "설계 반영  ", options: { bold: true, color: C.blue, breakLine: true } },
-      { text: "Macro F1은 희소 증상에 민감 → 증상별 성능을 따로 점검 (30p)" },
+      { text: "Macro F1은 희소 증상에 민감 → 증상별 성능을 따로 점검 (28p)" },
     ]],
   ];
   const cw = (CW - 2 * 0.3) / 3;
@@ -416,21 +416,21 @@ function missionSummary(page, no, title, core, probLine, pipe, headline, showTag
   txt(s, headline.sub, { x: M, y: 6.68, w: CW, h: 0.3, fontSize: 11, color: C.sub, align: "center" });
   return s;
 }
-// 미션 결론 틀: 데이터 자체의 한계(정보가 부족해 남도 못 맞추는 영역) vs 모델 성능의 한계
+// 미션 결론 틀: 데이터 자체의 어려움(정보가 부족해 남도 못 맞추는 영역) vs 모델 성능의 개선 여지
 // (더 잘 맞출 여지가 있는 영역)를 구분 + 사회안전 시사점 + 향후 계획(미착수 포함)
 function missionConclusion(page, no, title, core, dataLimit, modelLimit, safety, future, showTag = true) {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", `Mission ${no}  ${title} — 결론: 한계와 다음 계획`, page);
+  header(s, "03", "미션별 수행", `Mission ${no}  ${title} — 결론과 다음 계획`, page);
   coreMsg(s, core);
   if (showTag) tag(s, W - M - 1.7, 0.95);
   const hw = (CW - 0.3) / 2;
   card(s, M, 2.45, hw, 2.45);
-  txt(s, "■ 데이터 자체의 한계", { x: M + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 14, bold: true, color: C.blue });
+  txt(s, "■ 데이터 자체의 어려움", { x: M + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 14, bold: true, color: C.blue });
   txt(s, "정보가 부족해 남도 못 맞추는 영역", { x: M + 0.2, y: 2.9, w: hw - 0.4, h: 0.26, fontSize: 10, color: C.sub });
   txt(s, dataLimit, { x: M + 0.2, y: 3.2, w: hw - 0.4, h: 1.6, fontSize: 11, paraSpaceAfter: 6 });
   const rx = M + hw + 0.3;
   card(s, rx, 2.45, hw, 2.45);
-  txt(s, "■ 모델 성능의 한계", { x: rx + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 14, bold: true, color: C.blue });
+  txt(s, "■ 모델 성능의 개선 여지", { x: rx + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 14, bold: true, color: C.blue });
   txt(s, "더 잘 맞출 여지가 있는 영역", { x: rx + 0.2, y: 2.9, w: hw - 0.4, h: 0.26, fontSize: 10, color: C.sub });
   txt(s, modelLimit, { x: rx + 0.2, y: 3.2, w: hw - 0.4, h: 1.6, fontSize: 11, paraSpaceAfter: 6 });
   insight(s, M, 5.1, hw, 1.8, [{ text: "사회안전 시사점  ", options: { bold: true, color: C.blue, breakLine: true } }].concat(safety), C.mintLight);
@@ -461,50 +461,39 @@ function rightCol(s, rx, analysis, safety, repro) {
 // ① 요약: 미션 정의 + 모델 구성 + 핵심 결과를 한 장에
 missionSummary(9, 1, "신고자 성별 분류",
   "신고자 발화 음성 → 52차원 음향 특징 → 로지스틱 회귀 → 공식 Validation Accuracy 95.11%",
-  "입력 신고자 발화 음성(startAt·endAt·speaker만 사용)  ·  출력 남/여  ·  평가 Accuracy  ·  제약 그 외 라벨 사용 불가",
-  [["구간 추출", "신고자 발화만\n잘라내기"], ["음향 특징", "음높이·음색 등\n52차원 통계"], ["분류 모델", "로지스틱 회귀\n(LR)"], ["판정", "남/여\n(기준값 0.5)"]],
-  { value: "95.11%", label: "Accuracy (공식 Validation, 3,640건)", sub: "GBM 94.92% 대비 +0.19%p — 더 단순하고 해석 쉬운 LR 채택 (2026-10-05 고정)" },
+  "신고 통화에서 신고자의 발화만 듣고, 성별이 남성인지 여성인지 맞힌다.",
+  [["구간 추출", "신고자 발화만\n잘라내기"], ["음향 특징", "음높이·음색 등\n52차원 통계"], ["분류 모델", "로지스틱 회귀"], ["판정", "남/여\n(기준값 0.5)"]],
+  { value: "95.11%", label: "Accuracy (공식 Validation, 3,640건)", sub: "LightGBM 94.92% 대비 +0.19%p — 더 단순하고 해석 쉬운 로지스틱 회귀 채택 (2026-10-05 고정)" },
   false);
 
-// ② 연구 방법 1 — 데이터 전처리와 학습 설정
+// ② 연구 방법 1 — 음향 특징 구성
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 1 — 연구 방법 ① 데이터 전처리와 학습 설정", 10);
-  coreMsg(s, "52차원 음향 통계로 압축 — 통화 단위 분할과 seed 고정으로 재현 가능하게");
-  const hw = (CW - 0.3) / 2;
-  card(s, M, 2.45, hw, 4.35);
-  txt(s, "■ 52차원 음향 특징 구성", { x: M + 0.2, y: 2.58, w: hw - 0.4, h: 0.35, fontSize: 14, bold: true, color: C.blue });
+  header(s, "03", "미션별 수행", "Mission 1 — 연구 방법 ① 음향 특징 구성", 10);
+  coreMsg(s, "목소리를 52차원 숫자로 압축 — 어떤 정보를 담았는지");
+  card(s, M, 2.45, CW, 4.35);
+  txt(s, "■ 52차원 음향 특징 구성", { x: M + 0.3, y: 2.65, w: CW - 0.6, h: 0.35, fontSize: 14, bold: true, color: C.blue });
   table(s, [
     ["구성 요소", "차원", "의미"],
     ["MFCC 평균·표준편차", "40", "음색의 핵심 패턴"],
     ["RMS 평균·표준편차", "2", "음량"],
     ["ZCR 평균·표준편차", "2", "음높이 변화"],
     ["Spectral 4종×2", "8", "음색의 \"밝기\""],
-  ], M + 0.2, 3.0, [2.0, 0.8, 2.9], { rowH: 0.46, fontSize: 10.5, align: "center" });
+  ], M + 0.3, 3.05, [3.0, 1.3, 4.3], { rowH: 0.52, fontSize: 12.5, align: "center" });
   txt(s, [
     { text: "합계 52차원", options: { bold: true, breakLine: true } },
-    { text: "duration_sec(발화 길이)는 의도적으로 제외 — 길이로 성별을 \"눈치채는\" shortcut 학습 방지" },
-  ], { x: M + 0.2, y: 5.35, w: hw - 0.4, h: 1.3, fontSize: 11, paraSpaceAfter: 6 });
-  const rx = M + hw + 0.3;
-  card(s, rx, 2.45, hw, 4.35);
-  txt(s, "■ 학습 설정", { x: rx + 0.2, y: 2.58, w: hw - 0.4, h: 0.35, fontSize: 14, bold: true, color: C.blue });
-  [
-    "Seoul Training 29,200건으로만 학습 (서울 데이터만 사용 규칙)",
-    "seed=42 고정, 통화 단위 split",
-    "내부 holdout(8:2 stratified)으로 먼저 sanity check",
-    "공식 Validation(3,640건)은 모델 선택에만 사용 — 학습·scaler 적합에는 사용 금지",
-    "비교 모델 후보: GBM(LightGBM, 비선형 트리) vs LR(StandardScaler+로지스틱회귀, 선형) — 복잡도가 다른 두 모델을 일부러 비교",
-  ].forEach((t, i) => checkRow(s, rx + 0.2, 3.0 + i * 0.68, hw - 0.4, t));
-  caption(s, "근거: reports/mission1/m1_exp_log.json \"고정 변수\", 대학부 예선 출제문제 5쪽 조건");
+    { text: "duration(발화 길이)는 의도적으로 제외 — 길이로 성별을 \"눈치채는\" 손쉬운 지름길 학습 방지" },
+  ], { x: M + 0.3, y: 6.1, w: CW - 0.6, h: 0.7, fontSize: 12, paraSpaceAfter: 6 });
+  caption(s, "근거: reports/mission1/m1_exp_log.json \"고정 변수\"");
 }
 
 // ③ 연구 방법 2 (시행착오 A) — 모델 비교와 과적합 점검
 {
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "Mission 1 — 연구 방법 ② 시행착오: 어떤 모델을 왜 골랐나", 11);
-  coreMsg(s, "GBM과 LR 차이는 0.19%p — 더 복잡한 모델이 꼭 낫지는 않았다");
+  coreMsg(s, "LightGBM과 로지스틱 회귀 차이는 0.19%p — 더 복잡한 모델이 꼭 낫지는 않았다");
   card(s, M, 2.45, 7.3, 4.35);
-  txt(s, "LR 혼동행렬 (오분류 178건)", { x: M + 0.2, y: 2.6, w: 2.6, h: 0.26, fontSize: 10.5, color: C.sub });
+  txt(s, "로지스틱 회귀 혼동행렬 (오분류 178건)", { x: M + 0.2, y: 2.6, w: 2.6, h: 0.26, fontSize: 10.5, color: C.sub });
   table(s, [
     ["", "예측 F", "예측 M"],
     ["실제 F", { text: "1,878", options: { bold: true, color: C.blue } }, "81"],
@@ -513,7 +502,7 @@ missionSummary(9, 1, "신고자 성별 분류",
   txt(s, "95% 신뢰구간\n[94.40, 95.82]", { x: M + 0.2, y: 4.2, w: 2.6, h: 0.65, fontSize: 12, color: C.sub, align: "center" });
   txt(s, "과적합 점검: 내부 94.8~95.0% vs 공식 95.1% — 차이 작아 뚜렷한 leakage 징후 없음(증명은 아님)",
     { x: M + 0.2, y: 4.95, w: 2.6, h: 1.6, fontSize: 10.5 });
-  s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["GBM", "LR (채택)"], values: [94.92, 95.11] }], {
+  s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["LightGBM", "로지스틱 회귀\n(채택)"], values: [94.92, 95.11] }], {
     x: M + 2.9, y: 2.6, w: 4.2, h: 4.0, barDir: "col", chartColors: [C.sky, C.blue],
     showTitle: true, title: "모델별 Accuracy (%)", titleFontSize: 12, titleColor: C.text, titleFontFace: F,
     showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 12, dataLabelFontBold: true, dataLabelFormatCode: "0.00",
@@ -521,12 +510,12 @@ missionSummary(9, 1, "신고자 성별 분류",
     valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, showLegend: false, varyColors: true,
   });
   card(s, M + 7.6, 2.45, W - M - (M + 7.6), 4.35);
-  txt(s, "■ 왜 LR을 골랐나", { x: M + 7.8, y: 2.58, w: 3.7, h: 0.35, fontSize: 14, bold: true, color: C.blue });
+  txt(s, "■ 왜 로지스틱 회귀를 골랐나", { x: M + 7.8, y: 2.58, w: 3.7, h: 0.35, fontSize: 14, bold: true, color: C.blue });
   txt(s, [
     { text: "정확도 차이 0.19%p (오분류 7건 차이)로 작음", options: { breakLine: true } },
-    { text: "LR이 더 단순하고 해석하기 쉬움 — 계수로 어떤 특징이 영향 줬는지 바로 확인 가능", options: { breakLine: true } },
+    { text: "로지스틱 회귀가 더 단순하고 해석하기 쉬움 — 계수로 어떤 특징이 영향 줬는지 바로 확인 가능", options: { breakLine: true } },
     { text: "recall_F 95.87% / recall_M 94.23% 모두 93~96%대로 균형 — 다수 클래스(F)만 찍는 편향 없음", options: { breakLine: true } },
-    { text: "GBM은 폐기가 아니라 향후 feature 확장 실험용 비교 baseline으로 유지" },
+    { text: "LightGBM은 폐기가 아니라 향후 feature 확장 실험용 비교 baseline으로 유지" },
   ], { x: M + 7.8, y: 2.95, w: 3.7, h: 3.7, fontSize: 11, paraSpaceAfter: 8 });
   caption(s, "근거: reports/mission1/m1_val_eval.json, m1_val_bootstrap_ci.json, M1_error_analysis_report.md 1·2절");
 }
@@ -553,7 +542,7 @@ missionSummary(9, 1, "신고자 성별 분류",
   const rx2 = M + hw + 0.3;
   card(s, rx2, 2.45, hw, 4.35);
   txt(s, "■ 52차원 feature 탐색 (Cohen's d)", { x: rx2 + 0.2, y: 2.58, w: hw - 0.4, h: 0.35, fontSize: 14, bold: true, color: C.blue });
-  txt(s, "LR 계수 절댓값 상위 15개 안에 피치 직결 지표(zcr_mean·spectral_centroid_mean·mfcc_mean_0~3)는 없음", { x: rx2 + 0.2, y: 2.92, w: hw - 0.4, h: 0.45, fontSize: 10.5, color: C.sub });
+  txt(s, "로지스틱 회귀 계수 절댓값 상위 15개 안에 피치 직결 지표(zcr_mean·spectral_centroid_mean·mfcc_mean_0~3)는 없음", { x: rx2 + 0.2, y: 2.92, w: hw - 0.4, h: 0.45, fontSize: 10.5, color: C.sub });
   table(s, [
     ["오류 유형", "상위 축 (|d|>1)", "d"],
     ["F→M (n=81)", "mfcc_std_19 / 17 / 16", "−1.24 ~ −1.10"],
@@ -574,19 +563,19 @@ missionSummary(9, 1, "신고자 성별 분류",
 {
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "Mission 1 — 최종 연구 결과", 13);
-  coreMsg(s, "공식 Validation 3,640건 Accuracy 95.11%, 95% CI [94.40, 95.82] — LR을 제출 후보로 확정");
+  coreMsg(s, "공식 Validation 3,640건 Accuracy 95.11%, 95% CI [94.40, 95.82] — 로지스틱 회귀를 제출 후보로 확정");
   card(s, M, 2.45, CW, 4.35);
   stat(s, M + 0.3, 2.75, 2.6, "95.11%", "Accuracy (공식 Validation)", C.blue, 42);
   txt(s, "95% 신뢰구간 [94.40, 95.82]\nrecall F 95.87% · recall M 94.23%", { x: M + 0.3, y: 4.2, w: 2.6, h: 0.8, fontSize: 12, color: C.sub, align: "center" });
   txt(s, "파라미터 53개(가중치 52+절편) · CPU 추론 · Validation 3,640건 일괄 처리", { x: M + 0.3, y: 5.9, w: 2.6, h: 0.6, fontSize: 9.5, color: C.sub, align: "center" });
-  s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["GBM", "LR (채택)"], values: [94.92, 95.11] }], {
+  s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["LightGBM", "로지스틱 회귀\n(채택)"], values: [94.92, 95.11] }], {
     x: M + 3.2, y: 2.6, w: 4.0, h: 3.9, barDir: "col", chartColors: [C.sky, C.blue],
     showTitle: true, title: "모델별 Accuracy (%)", titleFontSize: 12, titleColor: C.text, titleFontFace: F,
     showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 12, dataLabelFontBold: true, dataLabelFormatCode: "0.00",
     valAxisMinVal: 90, valAxisMaxVal: 97, valAxisLabelColor: C.sub, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 12,
     valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, showLegend: false, varyColors: true,
   });
-  txt(s, "LR 혼동행렬 (오분류 178건)", { x: M + 7.7, y: 2.6, w: 2.9, h: 0.26, fontSize: 11, color: C.sub });
+  txt(s, "로지스틱 회귀 혼동행렬 (오분류 178건)", { x: M + 7.7, y: 2.6, w: 2.9, h: 0.26, fontSize: 11, color: C.sub });
   table(s, [
     ["", "예측 F", "예측 M"],
     ["실제 F", { text: "1,878", options: { bold: true, color: C.blue } }, "81"],
@@ -596,7 +585,7 @@ missionSummary(9, 1, "신고자 성별 분류",
   s.addNotes("제출 상태(2026-10-07 기준): scripts/mission1_inference.py 구현 완료, CSV 스모크 테스트(헤더·행 수·UTF-8)는 아직 미확인 — m1_submission_checklist.md 참고.");
 }
 
-// ⑥ 결론 — 데이터 한계 vs 모델 한계 + 사회안전 시사점 + 향후 계획
+// ⑥ 결론 — 데이터 쪽 어려움 vs 모델 쪽 개선 여지 + 사회안전 시사점 + 향후 계획
 missionConclusion(14, 1, "신고자 성별 분류",
   "관찰(사실)과 해석(판단)을 구분해서 기록 — 추가 검증 전까지는 확정 결론을 내리지 않음",
   [
@@ -607,12 +596,12 @@ missionConclusion(14, 1, "신고자 성별 분류",
   [
     { text: "52차원 통계에는 피치(F0, 기본주파수)가 직접 들어있지 않음", options: { breakLine: true } },
     { text: "Cohen's d 탐색에서 일부 고차 MFCC에 패턴이 보였으나 사후 탐색이라 확정 아님 — F0를 직접 추가하면 개선 여지(후속 가설)", options: { breakLine: true } },
-    { text: "GBM·LR을 짝지어 검정(McNemar)하지 않아 두 모델 차이의 통계적 유의성은 미확인" },
+    { text: "LightGBM·로지스틱 회귀를 짝지어 검정(McNemar)하지 않아 두 모델 차이의 통계적 유의성은 미확인" },
   ],
   [{ text: "성별 자동 인식으로 신고 접수 기록을 자동화 — 상담 인력 배치 참고 정보로 활용 가능" }],
   [
     { text: "F0(기본 주파수) 추가 — 상대적 우선순위만 상승, 확정 아님", options: { breakLine: true } },
-    { text: "GBM vs LR paired test (McNemar / paired bootstrap)", options: { breakLine: true } },
+    { text: "LightGBM·로지스틱 회귀 짝지어 검정 (McNemar / paired bootstrap)", options: { breakLine: true } },
     { text: "오분류 화자 단위 정성 분석 — 소수 화자가 오류를 몰아서 만드는지 확인" },
   ],
   false);
@@ -627,49 +616,17 @@ missionConclusion(14, 1, "신고자 성별 분류",
 // ① 한눈에 보기
 missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
   "발화 하나만 듣고 대원인지 신고자인지 — 목소리를 그림(스펙트로그램)으로 바꿔 CNN 3개로 판정",
-  "입력 한 사람의 한 발화(startAt~endAt만)  ·  출력 대원(0)/신고자(1)  ·  평가 Accuracy  ·  제약 text·순서·다른 발화 정보 사용 불가",
+  "신고 통화의 발화 하나만 듣고, 말한 사람이 대원인지 신고자인지 맞힌다.",
   [["발화 추출", "해당 구간만\n잘라내기"], ["스펙트로그램", "log-mel\n그림으로 변환"], ["CNN × 3", "seed 다르게\n학습 후 평균"], ["판정", "평균 확률\n(기준값 0.5)"]],
   { value: "91.49%", label: "Accuracy (공식 Validation, 발화 111,947개)", sub: "L1(LightGBM) 86.44% 대비 +5.05%p — CNN 3-seed 앙상블 채택" },
   false);
 
-// ② §1 미션 정의
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 미션 정의", 16);
-  coreMsg(s, "신고 통화의 발화 하나만 듣고, 말한 사람이 대원인지 신고자인지 맞힌다");
-  const lw = 5.0;
-  card(s, M, 2.45, lw, 4.35);
-  [["입력", "통화 음성에서 잘라낸 한 사람의 한 발화\n라벨 파일의 startAt·endAt만 사용"],
-   ["출력", "대원(0) 또는 신고자(1)"],
-   ["평가 지표", "Accuracy"],
-   ["대회 제약", "발화 내용(text)·발화 순서·같은 통화의\n다른 발화 정보는 쓸 수 없음 — 목소리 그 자체만"]]
-    .forEach(([k, v], i) => {
-      const y = 2.75 + i * 0.95;
-      s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: M + 0.2, y, w: 1.15, h: 0.38, fill: { color: C.blue }, rectRadius: 0.08, line: { color: C.blue } });
-      txt(s, k, { x: M + 0.2, y, w: 1.15, h: 0.38, fontSize: 11.5, bold: true, color: C.white, align: "center", valign: "middle" });
-      txt(s, v, { x: M + 1.45, y: y - 0.02, w: lw - 1.65, h: 0.85, fontSize: 11.5 });
-    });
-  const rx = M + lw + 0.3, rw = W - M - rx;
-  card(s, rx, 2.45, rw, 4.35);
-  txt(s, "■ 한 발화만 보고 판단한다는 것", { x: rx + 0.2, y: 2.6, w: rw - 0.4, h: 0.35, fontSize: 14, bold: true, color: C.blue });
-  // 간단한 통화 타임라인 다이어그램: 여러 발화 조각 중 하나만 강조
-  const tlY = 3.3, tlH = 0.55, segW = (rw - 0.4) / 6;
-  for (let i = 0; i < 6; i++) {
-    const hi = i === 2;
-    s.addShape(pres.shapes.RECTANGLE, { x: rx + 0.2 + i * segW, y: tlY, w: segW - 0.06, h: tlH, fill: { color: hi ? C.blue : C.bgGray }, line: { color: C.line, width: 1 } });
-  }
-  txt(s, "통화 하나 = 발화 여러 조각", { x: rx + 0.2, y: tlY + tlH + 0.08, w: rw - 0.4, h: 0.3, fontSize: 10, color: C.sub, align: "center" });
-  s.addShape(pres.shapes.LINE, { x: rx + 0.2 + 2 * segW + (segW - 0.06) / 2, y: tlY + tlH + 0.35, w: 0, h: 0.4, line: { color: C.blue, width: 2, endArrowType: "triangle" } });
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: rx + 0.2 + 2 * segW - 0.6, y: tlY + tlH + 0.8, w: segW + 1.2, h: 0.55, fill: { color: C.light }, rectRadius: 0.08, line: { color: C.blue, width: 1 } });
-  txt(s, "대원? 신고자?", { x: rx + 0.2 + 2 * segW - 0.6, y: tlY + tlH + 0.8, w: segW + 1.2, h: 0.55, fontSize: 13, bold: true, color: C.blue, align: "center", valign: "middle" });
-  txt(s, "다른 조각(text·순서 포함)은 전혀 보지 않고, 강조된 조각의 소리만으로 판단", { x: rx + 0.2, y: 5.9, w: rw - 0.4, h: 0.5, fontSize: 11, color: C.sub, align: "center" });
-  caption(s, "근거: 대학부 예선 출제문제 8쪽, 2026-10-05 주최측 공식 답변(같은 통화의 다른 발화 정보 사용 금지)");
-}
+// (§1 미션 정의 — 별도 슬라이드 제거. 한 줄 정의는 ①요약 슬라이드의 "■ 미션 정의"에 남김)
 
 // ③ §2 데이터
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 데이터", 17);
+  header(s, "03", "미션별 수행", "Mission 2 — 데이터", 16);
   coreMsg(s, "서울 지역 신고 통화 약 3만 건, 발화 100만 개 — 절반 이상이 1.5초 이하의 짧은 발화");
   card(s, M, 2.45, 6.4, 4.35);
   table(s, [
@@ -699,7 +656,7 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
 // ④ §3 첫 번째 접근 — 음향 통계 + LightGBM (L1)
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ① 첫 번째 접근: 음향 통계 + LightGBM", 18);
+  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ① 첫 번째 접근: 음향 통계 + LightGBM", 17);
   coreMsg(s, "발화마다 소리 특징을 숫자 53개로 요약해 분류 → 공식 Validation 86.44%");
   card(s, M, 2.45, CW, 4.35);
   txt(s, "■ 방법", { x: M + 0.3, y: 2.65, w: CW - 0.6, h: 0.32, fontSize: 14, bold: true, color: C.blue });
@@ -716,10 +673,10 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
   caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 3절, docs/experiment_log.md M2-EXP-001~009, M2-COMPARE-001, M2-VAL-001/002");
 }
 
-// ⑤ §4 한계 발견 → 방향 전환
+// ⑤ §4 보완점 발견 → 방향 전환
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ② 한계 발견과 방향 전환", 19);
+  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ② 보완점 발견과 방향 전환", 18);
   coreMsg(s, "숫자 몇 개로 요약하는 순간, 목소리의 세부 정보가 사라진다");
   const hw = (CW - 0.3) / 2;
   card(s, M, 2.45, hw, 4.35);
@@ -751,7 +708,7 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
 // ⑥ §5 최종 모델 구조
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ③ 최종 모델 구조", 20);
+  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ③ 최종 모델 구조", 19);
   coreMsg(s, "발화를 소리 그림으로 바꿔 CNN으로 분류하고, 3개 모델의 판단을 평균한다");
   const steps = [
     ["① 발화 추출", "해당 구간만\n잘라냄 (다른\n발화는 안 봄)"],
@@ -779,7 +736,7 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
 // ⑦ §6 핵심 아이디어 ① 발화 단독 무음 채우기
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ④ 핵심 아이디어 ① 발화 단독 무음 채우기", 21);
+  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ④ 핵심 아이디어 ① 발화 단독 무음 채우기", 20);
   coreMsg(s, "짧은 발화를 무음으로 6초까지 채우기만 해도 +1.16%p");
   card(s, M, 2.45, 7.3, 4.35);
   txt(s, [
@@ -800,7 +757,7 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
 // ⑧ §7 핵심 아이디어 ② seed 앙상블
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ⑤ 핵심 아이디어 ② seed 앙상블", 22);
+  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ⑤ 핵심 아이디어 ② seed 앙상블", 21);
   coreMsg(s, "같은 CNN을 시작 조건만 바꿔 3번 학습하고 평균하면, 단일 모델보다 0.5%p 높음");
   card(s, M, 2.45, 6.6, 4.35);
   s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["모델 1개\n(평균)", "모델 2개\n평균", "모델 3개\n평균"], values: [90.97, 91.41, 91.55] }], {
@@ -827,7 +784,7 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
 // ⑨ §8 검증했지만 채택하지 않은 시도
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ⑥ 검증했지만 채택하지 않은 시도", 23);
+  header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ⑥ 검증했지만 채택하지 않은 시도", 22);
   coreMsg(s, "아이디어마다 seed 3개로 반복 실험해 우연이 아닌지 확인했고, 기준에 못 미치면 버렸다");
   card(s, M, 2.45, CW, 3.7);
   table(s, [
@@ -849,8 +806,8 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
 // ⑩ §9 최종 결과
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 최종 연구 결과", 24);
-  coreMsg(s, "공식 Validation 정확도 91.49% (L1 GBM 대비 +5.05%p)");
+  header(s, "03", "미션별 수행", "Mission 2 — 최종 연구 결과", 23);
+  coreMsg(s, "공식 Validation 정확도 91.49% (L1 LightGBM 대비 +5.05%p)");
   card(s, M, 2.45, 4.2, 4.35);
   stat(s, M + 0.2, 2.7, 3.8, "91.49%", "Accuracy (공식 Validation)", C.blue, 38);
   txt(s, "111,947건 중 102,419건 정답\n대원 recall 87.15% · 신고자 recall 95.51%", { x: M + 0.2, y: 4.0, w: 3.8, h: 0.7, fontSize: 11, color: C.sub, align: "center" });
@@ -863,7 +820,7 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
   const mx = M + 4.5, mw = 4.3;
   card(s, mx, 2.45, mw, 4.35);
   txt(s, "발전 과정 (공식 Validation)", { x: mx + 0.2, y: 2.6, w: mw - 0.4, h: 0.3, fontSize: 11.5, color: C.sub });
-  s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["GBM\n(L1)", "CNN 1개", "CNN 3개\n앙상블"], values: [86.44, 90.97, 91.49] }], {
+  s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["LightGBM\n(L1)", "CNN 1개", "CNN 3개\n앙상블"], values: [86.44, 90.97, 91.49] }], {
     x: mx + 0.1, y: 2.95, w: mw - 0.2, h: 3.7, barDir: "col", chartColors: [C.line, C.sky, C.blue], varyColors: true,
     showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 11, dataLabelFontBold: true, dataLabelFormatCode: "0.00",
     valAxisMinVal: 84, valAxisMaxVal: 93, valAxisLabelColor: C.sub, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 11,
@@ -883,10 +840,10 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
   caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 9절, docs/experiment_log.md M2-RERUN-001");
 }
 
-// ⑪ §10 오류 분석과 한계
+// ⑪ §10 오류 분석과 보완점
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 오류 분석과 한계", 25);
+  header(s, "03", "미션별 수행", "Mission 2 — 오류 분석과 보완점", 24);
   coreMsg(s, "남은 오류는 짧은 맞장구와 \"대원을 신고자로 착각\"하는 경우에 몰려 있음");
   const hw = (CW - 0.3) / 2;
   card(s, M, 2.45, hw, 4.35);
@@ -898,46 +855,28 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
   s.addShape(pres.shapes.LINE, { x: M + 0.2, y: 4.5, w: hw - 0.4, h: 0, line: { color: C.line, width: 1 } });
   txt(s, [
     { text: "라벨 잡음  ", options: { bold: true, color: C.blue } },
-    { text: "화자 라벨이 뒤바뀐 것으로 의심되는 통화가 있었음. 대회 규정(전사 텍스트로 라벨 수정 금지)에 따라 고치지 않고 제공된 라벨 그대로 학습 — 의심 사례는 한계로 따로 기록", options: { breakLine: true } },
+    { text: "화자 라벨이 뒤바뀐 것으로 의심되는 통화가 있었음. 대회 규정(전사 텍스트로 라벨 수정 금지)에 따라 고치지 않고 제공된 라벨 그대로 학습 — 의심 사례는 별도로 기록해 둠", options: { breakLine: true } },
   ], { x: M + 0.2, y: 4.65, w: hw - 0.4, h: 1.6, fontSize: 11.5 });
   const rx = M + hw + 0.3;
   card(s, rx, 2.45, hw, 4.35);
-  txt(s, "■ 데이터 자체의 한계 vs 모델 성능의 한계", { x: rx + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 13.5, bold: true, color: C.blue });
+  txt(s, "■ 데이터 자체의 어려움 vs 모델 성능의 개선 여지", { x: rx + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 13.5, bold: true, color: C.blue });
   txt(s, [
-    { text: "데이터 한계  ", options: { bold: true } },
-    { text: "다른 방법(§8)으로도 비슷한 지점(짧은 발화)에서 성능이 멈춤 — 오류 상당 부분은 \"한 발화만 보고 판단\"이라는 조건 자체의 한계로 봄", options: { breakLine: true } },
-    { text: "모델 한계  ", options: { bold: true } },
+    { text: "데이터 쪽  ", options: { bold: true } },
+    { text: "다른 방법(§8)으로도 비슷한 지점(짧은 발화)에서 성능이 멈춤 — 오류 상당 부분은 \"한 발화만 보고 판단\"이라는 조건 자체에서 비롯된 것으로 봄", options: { breakLine: true } },
+    { text: "모델 쪽  ", options: { bold: true } },
     { text: "대원→신고자 쏠림(73%)은 비대칭 — 구조·입력을 여러 방향(§8)으로 바꿔도 못 줄였다는 점에서, 지금 접근으로는 쉽게 안 줄어드는 영역으로 판단" },
   ], { x: rx + 0.2, y: 2.95, w: hw - 0.4, h: 3.2, fontSize: 11.5, paraSpaceAfter: 8 });
   caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 10절, docs/experiment_log.md M2-COMPARE-002, M2-LABEL-001~003");
 }
 
 // ⑫ §11 결과의 신뢰성: 규정 준수와 재현성
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 결과의 신뢰성: 규정 준수와 재현성", 26);
-  coreMsg(s, "공식 Validation은 마지막 확인에만 썼고, 원본 데이터부터 전 과정을 다시 실행해 기록을 남김");
-  card(s, M, 2.45, CW, 4.35);
-  const items = [
-    ["모델 고르기", "학습 데이터의 20%(5,840통화)를 떼어 둔 내부 검증으로만 함. 공식 Validation은 학습·선택에 쓰지 않음"],
-    ["라벨", "제공된 라벨 그대로 사용. 학습 코드가 라벨 출처를 검사해 수정된 라벨이면 학습을 거부함"],
-    ["판정 기준", "0.5로 고정 (대회 공지 준수)"],
-    ["재현성", "노트북 하나로 원본 zip부터 음성 추출→스펙트로그램→학습→평가까지 다시 실행. 에폭별 학습 로그를 전부 보존"],
-    ["실행 기록", "런타임이 끊기면 마지막 저장 지점부터 이어서 학습 — 저장 직전 끊긴 에폭 2개는 다시 학습되어 로그에 두 번 나타남"],
-  ];
-  items.forEach(([k, v], i) => {
-    const y = 2.7 + i * 0.75;
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: M + 0.2, y, w: 1.5, h: 0.5, fill: { color: C.blue }, rectRadius: 0.08, line: { color: C.blue } });
-    txt(s, k, { x: M + 0.2, y, w: 1.5, h: 0.5, fontSize: 12, bold: true, color: C.white, align: "center", valign: "middle" });
-    txt(s, v, { x: M + 1.85, y: y - 0.02, w: CW - 2.05, h: 0.65, fontSize: 11.5, valign: "middle" });
-  });
-  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 11절, docs/decisions.md 2026-10-05 규정 준수 종합 검토");
-}
+// (§11 결과의 신뢰성: 규정 준수와 재현성 — 슬라이드 제거. 대회 규칙 준수 내용은
+// 본문에서 생략하고, 재현성 관련 핵심 수치는 §12 계산 효율성에서 함께 다룸)
 
 // ⑬ §12 계산 효율성
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 계산 효율성 (대회 권장 항목)", 27);
+  header(s, "03", "미션별 수행", "Mission 2 — 계산 효율성 (대회 권장 항목)", 25);
   coreMsg(s, "학습 속도를 개선해 에폭당 약 25분 → 약 7분(약 3.5배)으로 줄임");
   card(s, M, 2.45, CW, 4.35);
   table(s, [
@@ -956,7 +895,7 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
 // ⑭ §13 사회안전 시사점
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 사회안전 시사점", 28);
+  header(s, "03", "미션별 수행", "Mission 2 — 사회안전 시사점", 26);
   coreMsg(s, "목소리만으로 \"누가 말했는지\"를 자동으로 나누면, 신고 접수 기록과 분석을 빠르게 만들 수 있음");
   const hw = (CW - 0.3) / 2;
   insight(s, M, 2.45, hw, 2.0, [
@@ -982,7 +921,7 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
 }
 
 // ---------- Mission 3 ----------
-missionA(29, 3, "환자 증상 인식",
+missionA(27, 3, "환자 증상 인식",
   "증상 단어가 대화에 직접 등장하는 경우가 많음 — 단어 기반 모델로 출발해 문맥 모델로 확장",
   [["입력", "신고자·대원 대화 전사 텍스트\n(그 외 라벨 사용 불가)"], ["출력", "증상 9종 중 0~9개\n(다중 레이블)"], ["평가", "Macro F1\n(증상별 F1의 평균)"], ["대상", "고열·구토·두통·복통·어지러움·열상·오심·전신쇠약·호흡곤란"]],
   [["전처리", "발화 시간순 정렬\n9종 외 증상 제거"], ["텍스트 표현", "TF-IDF\n(단어·2단어 묶음)"], ["분류 모델", "증상별 로지스틱\n회귀 (9개)"], ["판정", "증상별 판정\n(기준값 0.5)"]],
@@ -990,7 +929,7 @@ missionA(29, 3, "환자 증상 인식",
    "희귀 증상이 많아 Macro F1에 불리 → 증상별 성능을 따로 점검",
    [ph("KcBERT 등 문맥 모델 결과 반영 시 갱신")]]);
 {
-  const s = missionB(30, 3, "환자 증상 인식", [ph("최종 모델과 Macro F1 한 문장", { color: C.sub })]);
+  const s = missionB(28, 3, "환자 증상 인식", [ph("최종 모델과 Macro F1 한 문장", { color: C.sub })]);
   card(s, M, 2.45, 7.3, 4.35);
   txt(s, [ph("0.000")], { x: M + 0.2, y: 2.65, w: 2.6, h: 0.75, fontSize: 40, bold: true, align: "center", valign: "middle" });
   txt(s, "Macro F1 (공식 Validation)", { x: M + 0.2, y: 3.43, w: 2.6, h: 0.5, fontSize: 12, color: C.sub, align: "center" });
@@ -1009,7 +948,7 @@ missionA(29, 3, "환자 증상 인식",
 // ---------- Mission 3 추가: 확장 계획과 검증 일정 ----------
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 확장 계획과 검증 일정", 31);
+  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 확장 계획과 검증 일정", 29);
   coreMsg(s, "분할 감사부터 끝낸 뒤 TF-IDF 모델을 확정하고, 남은 기간 동안 문맥 모델로 확장");
   const steps = [
     ["분할 감사", "recordId 중복·\noverlap 검사", C.sky],
@@ -1030,24 +969,24 @@ missionA(29, 3, "환자 증상 인식",
   ]);
   insight(s, M, 6.1, CW, 1.0, [
     { text: "본선 전 열어둔 방향  ", options: { bold: true, color: C.blue } },
-    { text: "문맥 모델이 TF-IDF보다 뚜렷이 낫지 않으면, 단순하고 설명 가능한 TF-IDF+LR을 최종안으로 유지" },
+    { text: "문맥 모델이 TF-IDF보다 뚜렷이 낫지 않으면, 단순하고 설명 가능한 TF-IDF+로지스틱 회귀를 최종안으로 유지" },
   ], C.mintLight);
   caption(s, "근거: docs/decisions.md 2026-09-20 분할 감사 항목, docs/experiment_log.md");
-  s.addNotes("본선 전까지 KcBERT 등 결과가 나오면 M3-B(30p)의 수치를 갱신하고, 이 장은 '실제로 더 해본 것'으로 내용 교체.");
+  s.addNotes("본선 전까지 KcBERT 등 결과가 나오면 M3-B(28p)의 수치를 갱신하고, 이 장은 '실제로 더 해본 것'으로 내용 교체.");
 }
 
 // =====================================================================
-// 32. 04-(1) 성능 요약과 교훈
+// 30. 04-(1) 성능 요약과 교훈
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "04", "종합 및 시사점", "(1) 성능 요약과 교훈", 32);
+  header(s, "04", "종합 및 시사점", "(1) 성능 요약과 교훈", 30);
   coreMsg(s, "세 미션 모두 공식 Validation 기준으로 평가하고, 점수보다 검증의 정직함을 우선함");
   tag(s, W - M - 1.7, 0.95);
   table(s, [
     ["미션", "과제", "최종 모델", "지표", "공식 Validation", "상태"],
-    ["Mission 1", "신고자 성별 분류", "음향 특징 + LR", "Accuracy", { text: "95.11%", options: { bold: true, color: C.blue } }, "1차 확정"],
-    ["Mission 2", "신고자/119대원 분류", "Mel-spectrogram + CNN", "Accuracy", { text: "90.89%", options: { bold: true, color: C.blue } }, "개선 중"],
+    ["Mission 1", "신고자 성별 분류", "음향 특징 + 로지스틱 회귀", "Accuracy", { text: "95.11%", options: { bold: true, color: C.blue } }, "1차 확정"],
+    ["Mission 2", "신고자/119대원 분류", "Mel-spectrogram + CNN 앙상블", "Accuracy", { text: "91.49%", options: { bold: true, color: C.blue } }, "1차 확정 (김광희)"],
     ["Mission 3", "환자 증상 인식", { text: "〔최종 모델〕", options: { color: C.ph, italic: true } }, "Macro F1", { text: "〔0.000〕", options: { color: C.ph, italic: true } }, "개선 중"],
   ], M, 2.45, [1.4, 2.6, 3.0, 1.5, 2.2, 1.63], { rowH: 0.5, align: "center" });
   const lessons = [
@@ -1067,11 +1006,11 @@ missionA(29, 3, "환자 증상 인식",
 }
 
 // =====================================================================
-// 33. 04-(2) 사회안전 시사점과 향후 계획
+// 31. 04-(2) 사회안전 시사점과 향후 계획
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "04", "종합 및 시사점", "(2) 사회안전 시사점과 향후 계획", 33);
+  header(s, "04", "종합 및 시사점", "(2) 사회안전 시사점과 향후 계획", 31);
   coreMsg(s, "세 미션을 이으면 — 119 신고 접수 순간부터 출동 판단까지를 돕는 하나의 흐름");
   const flow = [
     ["신고 접수", "119 통화 음성", C.sky],
@@ -1108,7 +1047,7 @@ missionA(29, 3, "환자 증상 인식",
 }
 
 // =====================================================================
-// 34. 마무리 — 공식 템플릿 그대로 사용 + 팀 정보만 빈 여백(2.1~2.9in)에 추가
+// 32. 마무리 — 공식 템플릿 그대로 사용 + 팀 정보만 빈 여백(2.1~2.9in)에 추가
 // =====================================================================
 {
   const s = pres.addSlide();
