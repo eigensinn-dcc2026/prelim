@@ -1,20 +1,17 @@
-"""Mission 2 baseline (L1) model: GBM over acoustic statistics.
+"""Mission 2 기준선(L1) 모델: 음향 통계 위의 GBM.
 
-Two splits are always computed and logged, never just one:
+분할은 항상 두 가지를 계산해 기록하며, 하나만 쓰지 않는다.
 
-- A call_id-grouped split (``GroupShuffleSplit``), which is the split that
-  actually matters: utterances from the same call never appear on both sides,
-  so the model cannot "memorize this call's voice = this speaker".
-- A plain random split, logged purely as a diagnostic. The gap between the
-  two accuracies is itself evidence of how much speaker-memorization leakage
-  would occur if a naive split were used -- this number is meant to go
-  straight into the team's slide deck, not to pick a model.
+- call_id 단위 분할(``GroupShuffleSplit``): 실제로 의미가 있는 분할이다. 같은 통화의 발화가 양쪽에
+  나타나지 않으므로 모델이 "이 통화의 목소리 = 이 화자"를 외울 수 없다.
+- 단순 무작위 분할: 순전히 진단용으로 기록한다. 두 정확도의 차이는 단순한 분할을 썼다면 화자를 외우는
+  누수가 얼마나 생기는지를 보여 주는 증거이며, 이 숫자는 모델을 고르는 용도가 아니라 팀 발표 자료에
+  바로 쓰려는 것이다.
 
-Model persistence is deliberately isolated behind ``save_model``/``load_model``
-so the on-disk format (currently pickle) can be swapped later without
-touching the training or inference code -- the contest's submission format
-requires ``.pt``/``.pth``/``.ckpt``, which a pickled GBM is not, and that
-mismatch is a packaging decision for later, not something to solve here.
+모델 저장은 일부러 ``save_model``/``load_model`` 뒤에 격리해 두어, 디스크에 쓰는 형식(지금은 pickle)을
+나중에 학습·추론 코드를 건드리지 않고 바꿀 수 있게 했다. 대회 제출 형식은 ``.pt``/``.pth``/``.ckpt``를
+요구하는데 pickle로 저장한 GBM은 이에 해당하지 않으며, 그 불일치는 여기서 풀 문제가 아니라 나중의
+패키징 결정 사항이다.
 """
 
 from __future__ import annotations
@@ -61,22 +58,19 @@ class BaselineResult:
 def make_group_split(
     df: pd.DataFrame, *, seed: int, test_size: float
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return (train_idx, val_idx) for call_id-grouped 80/20 split.
+    """call_id 단위 80/20 분할의 (train_idx, val_idx)를 돌려준다.
 
-    Deterministic given the same ``df`` row order, ``seed`` and
-    ``test_size`` -- callers outside training (e.g. an error-analysis
-    script re-loading the same features parquet) can call this directly
-    to reproduce exactly which rows were held out, instead of duplicating
-    the GroupShuffleSplit call and risking it drifting out of sync with
-    ``fit_baseline``.
+        ``df``의 행 순서, ``seed``, ``test_size``가 같으면 항상 같은 결과이다. 학습 밖의 호출자(예: 같은
+        특징 parquet을 다시 읽는 오류 분석 스크립트)가 이 함수를 직접 불러 어떤 행이 제외되었는지를 정확히
+        재현할 수 있다. GroupShuffleSplit 호출을 복사해 ``fit_baseline``과 어긋날 위험을 피할 수 있다.
     """
 
     if df["call_id"].nunique() < 2:
         raise ValueError("need at least 2 distinct call_id values for GroupShuffleSplit")
     groups = df["call_id"].to_numpy()
     splitter = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
-    # GroupShuffleSplit only uses len(X) and groups, never X's/y's values, so a
-    # cheap placeholder array is exactly equivalent to passing the real X, y.
+    # GroupShuffleSplit은 len(X)와 groups만 쓰고 X/y의 값은 쓰지 않으므로,
+    # 값싼 자리표시 배열을 넘겨도 실제 X, y를 넘기는 것과 똑같다.
     placeholder = np.zeros(len(df))
     train_idx, val_idx = next(splitter.split(placeholder, placeholder, groups))
     return train_idx, val_idx
@@ -100,10 +94,10 @@ def fit_baseline(df: pd.DataFrame, *, seed: int = 42, test_size: float = 0.2) ->
     val_ids = set(groups[val_idx])
     overlap = train_ids & val_ids
     if overlap:
-        # This must never happen -- GroupShuffleSplit guarantees disjoint
-        # groups. Asserted here (not just in tests) because a leak at this
-        # exact point is the single most misleading failure mode: validation
-        # accuracy would look great while being worthless.
+        # 이런 일은 절대 있어서는 안 된다. GroupShuffleSplit은 서로 겹치지 않는
+        # 그룹을 보장한다. 테스트에서만이 아니라 여기서도 단언하는 이유는, 바로 이 지점의 누수가
+        # 가장 오해를 부르는 실패 유형이기 때문이다: 검증 정확도는
+        # 훌륭해 보이지만 쓸모가 없게 된다.
         raise AssertionError(f"GroupShuffleSplit leaked {len(overlap)} call_id(s) across train/val")
 
     group_model = _build_model(seed)
@@ -112,8 +106,8 @@ def fit_baseline(df: pd.DataFrame, *, seed: int = 42, test_size: float = 0.2) ->
     group_split_accuracy = float(accuracy_score(y[val_idx], group_predictions))
     cm = confusion_matrix(y[val_idx], group_predictions, labels=[0, 1]).tolist()
 
-    # Diagnostic only: an ordinary (non-grouped) split, to measure the
-    # leakage gap. This model and split are never used for anything else.
+    # 진단용일 뿐이다: 누수 격차를 재기 위한 일반(그룹 없는) 분할.
+    # 이 모델과 분할은 다른 어떤 용도로도 쓰지 않는다.
     rx_train, rx_val, ry_train, ry_val = train_test_split(X, y, test_size=test_size, random_state=seed)
     random_model = _build_model(seed)
     random_model.fit(rx_train, ry_train)
@@ -156,7 +150,7 @@ def load_model(path: str | Path) -> tuple[Any, dict]:
 
 
 def build_experiment_log(result: BaselineResult, *, seed: int, n_sampled_calls: int) -> dict:
-    """Matches the M2-EXP-001 template. ``verdict`` is left for the real run."""
+    """M2-EXP-001 양식에 맞춘다. ``verdict``는 실제 실행 때 채우도록 비워 둔다."""
 
     return {
         "실험 ID": "M2-EXP-001",

@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""Bundle several Mission 2 L2 (CNN) checkpoints into one ensemble checkpoint.
+"""Mission 2 L2(CNN) 체크포인트 여러 개를 앙상블 체크포인트 하나로 묶는다.
 
-The members must be the same architecture/mel settings/label source, varied only by
---torch-seed (that is the whole point of a seed ensemble -- see M2-ENS-002/003:
-the same 3-model soft vote that gave +0.48pp on a 3,000-call pilot gave +0.50pp
-on the full 29,200-call raw-label models). scripts/mission2_inference.py takes
-exactly one --ckpt_path, so this packs every member's weights into a single
-file under "ensemble_model_state_dicts" instead of one "best_model_state_dict"
--- the contest's CLI contract never needs to change.
+멤버는 구조, 멜 설정, 라벨 출처가 같아야 하고 --torch-seed만 달라야 한다(시드 앙상블의 핵심이다.
+M2-ENS-002/003 참고: 3,000통화 파일럿에서 +0.48%p를 준 같은 3개 모델 소프트 보팅이 전체 29,200통화
+원본 라벨 모델에서는 +0.50%p를 주었다). scripts/mission2_inference.py는 --ckpt_path를 정확히 하나만
+받으므로, 모든 멤버의 가중치를 "best_model_state_dict" 하나 대신 "ensemble_model_state_dicts"
+아래 한 파일에 담는다. 그래서 대회의 실행 명령 형식은 바꿀 필요가 없다.
 
-Usage:
+사용법:
     python scripts/pack_mission2_l2_ensemble.py \\
         --ckpt-path checkpoints/mission2/m2_cnn_large_raw_ts1.pt \\
         --ckpt-path checkpoints/mission2/m2_cnn_large_raw_ts2.pt \\
@@ -65,7 +63,7 @@ def main() -> int:
         state_dicts.append(checkpoint["best_model_state_dict"])
         best_val_accs.append(checkpoint.get("best_val_acc"))
 
-    merged_metadata = build_ensemble_metadata(member_metadata)  # also refuses a repeated torch_seed
+    merged_metadata = build_ensemble_metadata(member_metadata)  # 같은 torch_seed가 반복되면 거부한다
     for i in range(len(state_dicts)):
         for j in range(i + 1, len(state_dicts)):
             if all(torch.equal(state_dicts[i][name], state_dicts[j][name]) for name in state_dicts[i]):

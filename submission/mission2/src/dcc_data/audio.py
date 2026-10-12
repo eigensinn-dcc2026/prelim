@@ -1,4 +1,4 @@
-"""Dependency-light PCM WAV loading with frame-based boundaries."""
+"""프레임 단위 경계로 PCM WAV를 읽는, 의존성이 적은 로더."""
 
 from __future__ import annotations
 
@@ -41,10 +41,10 @@ def read_wav_info(path: str | Path) -> WaveInfo:
 def read_wav_frames(
     path: str | Path, start_frame: int = 0, end_frame: int | None = None
 ) -> AudioSegment:
-    """Read a half-open frame interval ``[start_frame, end_frame)``.
+    """반열린 프레임 구간 ``[start_frame, end_frame)``을 읽는다.
 
-    This function intentionally accepts frame indices only. It does not assume
-    whether dataset ``startAt``/``endAt`` values are seconds or milliseconds.
+        이 함수는 일부러 프레임 번호만 받는다. 데이터의 ``startAt``/``endAt``이
+        초 단위인지 밀리초 단위인지는 가정하지 않는다.
     """
 
     if not isinstance(start_frame, int):
