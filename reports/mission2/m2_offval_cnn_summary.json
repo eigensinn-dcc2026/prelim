@@ -31,5 +31,5 @@
     "대학부 데이터-20260823T080055Z-1-002": 921,
     "대학부 데이터-20260823T080055Z-1-001": 979
   },
-  "parquet": "C:\\Users\\sooyah\\Desktop\\아주대\\dcc\\01_prelim\\wt-m2-offval-cnn\\outputs\\m2_offval\\cnn_offval_probs.parquet"
+  "parquet": "outputs/m2_offval/cnn_offval_probs.parquet (로컬 산출물, git 제외)"
 }
