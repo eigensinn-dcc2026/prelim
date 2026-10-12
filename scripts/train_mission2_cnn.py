@@ -49,12 +49,20 @@ Usage:
         --packed-spectrograms data/m2_spectrograms_packed.npy --model large --device cuda \\
         --amp --pad-to-multiple 8 --cudnn-benchmark --num-workers 2 \\
         --epochs 1 --early-stop-patience 5 --resume
+
+    # explicit call split (both files required; skips make_group_split):
+    python scripts/train_mission2_cnn.py --index data/m2_spectrogram_index_packed.parquet \\
+        --packed-spectrograms data/m2_spectrograms_packed.npy --model large --device cuda \\
+        --train-call-ids outputs/mission2_call_ensemble/gate/arm_a_train.txt \\
+        --val-call-ids outputs/mission2_call_ensemble/gate/arm_a_val.txt \\
+        --torch-seed 1 --model-output checkpoints/mission2/call_ensemble/arm_a_torch1.pt
 """
 
 from __future__ import annotations
 
 import argparse
 import functools
+import hashlib
 import random
 import sys
 import time
@@ -82,6 +90,7 @@ from dcc_data.mission2_cnn import (  # noqa: E402
     move_optimizer_state_to_device,
     train_with_best_checkpoint,
 )
+from dcc_data.mission2_call_ensemble import load_call_id_list, resolve_call_id_split  # noqa: E402
 from dcc_data.mission2_checkpoint import build_checkpoint_metadata, require_resumable_checkpoint  # noqa: E402
 from dcc_data.mission2_spectrogram import assert_training_spectrogram_index  # noqa: E402
 from dcc_data.mission2_train import make_group_split  # noqa: E402
@@ -107,6 +116,14 @@ def parse_args() -> argparse.Namespace:
         "shuffle order changes what a short utterance is batched with, not just its weight-init luck.",
     )
     parser.add_argument("--test-size", type=float, default=0.2)
+    parser.add_argument(
+        "--train-call-ids", type=Path, default=None,
+        help="text file of train call ids; with --val-call-ids, skips make_group_split",
+    )
+    parser.add_argument(
+        "--val-call-ids", type=Path, default=None,
+        help="text file of early-stopping call ids; required together with --train-call-ids",
+    )
     parser.add_argument("--epochs", type=int, default=20, help="how many MORE epochs to run this invocation")
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -149,7 +166,17 @@ def parse_args() -> argparse.Namespace:
         parser.error("--amp needs --device cuda")
     if args.pad_to_multiple < 1:
         parser.error("--pad-to-multiple must be >= 1")
+    if (args.train_call_ids is None) != (args.val_call_ids is None):
+        parser.error("pass both --train-call-ids and --val-call-ids, or neither")
     return args
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _capture_rng_state(train_shuffle_generator: torch.Generator) -> dict:
@@ -189,9 +216,23 @@ def main() -> int:
     # never reach the loss/backprop, even by pointing --index at the wrong cache.
     index_provenance = assert_training_spectrogram_index(df)
     print(f"index provenance: {index_provenance}")
-    train_idx, val_idx = make_group_split(df, seed=args.seed, test_size=args.test_size)
-    train_df = df.iloc[train_idx]
-    val_df = df.iloc[val_idx]
+    call_id_split = None
+    if args.train_call_ids is not None:
+        # Both files are present. One file, an overlap, an unknown id, or an empty list is an error.
+        train_ids = load_call_id_list(args.train_call_ids)
+        val_ids = load_call_id_list(args.val_call_ids)
+        train_df, val_df = resolve_call_id_split(df, train_ids, val_ids)
+        call_id_split = {
+            "train_call_ids_sha256": _sha256_file(args.train_call_ids),
+            "val_call_ids_sha256": _sha256_file(args.val_call_ids),
+            "n_train_calls": len(train_ids),
+            "n_val_calls": len(val_ids),
+        }
+        print(f"explicit call-id split: train_calls={len(train_ids)} val_calls={len(val_ids)} (make_group_split skipped)")
+    else:
+        train_idx, val_idx = make_group_split(df, seed=args.seed, test_size=args.test_size)
+        train_df = df.iloc[train_idx]
+        val_df = df.iloc[val_idx]
     print(f"train={len(train_df)} val={len(val_df)} train_calls={train_df['call_id'].nunique()} val_calls={val_df['call_id'].nunique()}")
 
     if args.packed_spectrograms is not None:
@@ -229,6 +270,8 @@ def main() -> int:
         test_size=args.test_size,
         torch_seed=torch_seed,
     )
+    if call_id_split is not None:
+        checkpoint_metadata = {**checkpoint_metadata, "call_id_split": call_id_split}
 
     prev_best_val_acc = -1.0
     prev_best_model_state = None
@@ -240,6 +283,12 @@ def main() -> int:
             raise SystemExit(f"--resume given but {args.model_output} does not exist")
         checkpoint = torch.load(args.model_output, map_location="cpu")
         require_resumable_checkpoint(checkpoint, checkpoint_metadata, args.model_output)
+        recorded_split = (checkpoint.get("metadata") or {}).get("call_id_split")
+        if recorded_split != call_id_split:
+            raise SystemExit(
+                f"cannot resume {args.model_output}: its call-id files do not match "
+                "--train-call-ids/--val-call-ids for this run"
+            )
         model.load_state_dict(checkpoint["last_model_state_dict"])
         model.to(args.device)
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
