@@ -68,3 +68,7 @@ python inference.py --audio_dir {wav folder} --label_dir {json folder} \
 | `SOURCE_COMMIT.txt` | 이 코드를 가져온 팀 저장소 커밋 |
 | `checkpoints/m2_cnn_large_rerun_ensemble.pt` | 학습된 앙상블 가중치 (sha256 `19ea482a80a2ceb2ea5b87981be0a381a11e01fd576b3ba6860ee5d7144e3246`) |
 | `train_mission2_l2_from_raw.ipynb` | 학습 노트북 (에폭별 로그와 결과 포함) |
+
+## 주석 한글화에 대한 안내
+
+팀 방침(주석은 한글)에 맞춰 이 폴더의 `.py` 주석과 설명문(docstring)을 한글로 옮겼다. **코드는 바뀌지 않았다**: 파일마다 설명문을 뺀 구문 트리(AST)가 변경 전과 같음을 자동으로 확인했다. 다만 학습 노트북 로그에 기록된 코드 지문(`.py` 전체 sha256)은 학습 당시 파일의 해시이므로, 주석이 바뀐 지금의 파일 해시와는 다르다. 학습과 추론의 동작·결과에는 영향이 없다.

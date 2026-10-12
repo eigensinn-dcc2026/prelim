@@ -199,6 +199,120 @@ def _load_l1_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
     return predict, fallback_speaker
 
 
+def _load_prob_ensemble_predictor(checkpoint: dict) -> tuple[PredictFn, int]:
+    """한 파일에 든 CNN + WavLM 멤버. 발화마다 그 발화 파형만 본다.
+
+    반환 함수는 여전히 화자 정수다. ``--save_probs``용으로 ``member_probs``와 ``mean_prob``를 남긴다.
+    판정 임계값은 0.5로 고정되어 있고 인자로 받지 않는다.
+    """
+
+    import torch
+
+    from dcc_data.mission2_cnn import SpeakerCNNLarge
+    from dcc_data.mission2_spectrogram import ALLOWED_LABEL_SOURCES, mel_spectrogram
+    from dcc_data.mission2_wavlm import (
+        COMBINE_PROB_MEAN,
+        COMBINE_WEIGHTED,
+        FIXED_THRESHOLD,
+        PROB_ENSEMBLE_FORMAT,
+        combine_probabilities,
+        decision_from_probability,
+        load_wavlm_classifier,
+        read_utterance_signal,
+        reporter_probability,
+    )
+
+    if checkpoint.get("format") != PROB_ENSEMBLE_FORMAT:
+        raise CheckpointConfigError(f"not a prob-ensemble checkpoint: {checkpoint.get('format')!r}")
+    metadata = checkpoint.get("metadata") or {}
+    if metadata.get("format") != PROB_ENSEMBLE_FORMAT:
+        raise CheckpointConfigError("prob-ensemble checkpoint is missing metadata")
+    combine = metadata.get("combine")
+    if combine not in (COMBINE_PROB_MEAN, COMBINE_WEIGHTED):
+        raise CheckpointConfigError(f"combine must be prob_mean or weighted_prob_mean, got {combine!r}")
+    if float(metadata.get("threshold", -1)) != FIXED_THRESHOLD:
+        raise CheckpointConfigError("the decision threshold is fixed at 0.5")
+    label_source = metadata.get("label_source")
+    if label_source not in ALLOWED_LABEL_SOURCES:
+        raise CheckpointConfigError(
+            f"label_source is {label_source!r}; members must use the provided speaker labels"
+        )
+    members = list(checkpoint.get("members") or [])
+    recorded_members = list(metadata.get("members") or [])
+    if not members or len(members) != len(recorded_members):
+        raise CheckpointConfigError("prob-ensemble members do not match the recorded member list")
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    loaded = []
+    names: list[str] = []
+    weights: list[float] = []
+    for member, recorded in zip(members, recorded_members):
+        if member.get("name") != recorded.get("name") or member.get("kind") != recorded.get("kind"):
+            raise CheckpointConfigError("prob-ensemble member metadata does not match the stored weights")
+        if member.get("sha256") != recorded.get("sha256"):
+            raise CheckpointConfigError(f"member {member.get('name')!r} sha256 does not match metadata")
+        if member.get("label_source") != label_source:
+            raise CheckpointConfigError(f"member {member.get('name')!r} label_source disagrees with the checkpoint")
+        names.append(str(member["name"]))
+        weights.append(float(member.get("weight", 1.0)))
+        kind = member["kind"]
+        if kind == "cnn_l2":
+            models = []
+            for state_dict in member["state_dicts"]:
+                model = SpeakerCNNLarge()
+                model.load_state_dict(state_dict)
+                model.to(device)
+                model.eval()
+                models.append(model)
+            if not models:
+                raise CheckpointConfigError(f"CNN member {member['name']!r} has no weights")
+            loaded.append(("cnn_l2", models, int(member["sample_rate"])))
+        elif kind == "wavlm":
+            model = load_wavlm_classifier(member["config"], member["state_dict"], device)
+            loaded.append(("wavlm", model, int(member.get("sr", 16000))))
+        else:
+            raise CheckpointConfigError(f"unknown ensemble member kind {kind!r}")
+    if not any(kind == "wavlm" for kind, _model, _sr in loaded):
+        raise CheckpointConfigError("a prob-ensemble checkpoint needs at least one WavLM member")
+
+    @torch.inference_mode()
+    def predict(
+        segment: np.ndarray,
+        sample_rate: int,
+        duration_sec: float,
+        wav_path: Path | None = None,
+        start_at=None,
+        end_at=None,
+    ) -> int:
+        del duration_sec  # CNN 구간과 WavLM 구간 모두 그 발화 자체에서만 만든다
+        probabilities: list[float] = []
+        for kind, model, member_sr in loaded:
+            if kind == "cnn_l2":
+                if sample_rate != member_sr:
+                    raise CheckpointConfigError(
+                        f"audio is {sample_rate} Hz but this CNN member was trained on {member_sr} Hz audio"
+                    )
+                spectrogram = pad_spectrogram_to_min_frames(mel_spectrogram(segment, sample_rate))
+                batch = torch.from_numpy(spectrogram).unsqueeze(0).unsqueeze(0).to(device)
+                member_probs = [torch.nn.functional.softmax(item(batch), dim=1)[0, 1] for item in model]
+                probabilities.append(float((sum(member_probs) / len(member_probs)).item()))
+            else:
+                if wav_path is None or start_at is None or end_at is None:
+                    raise CheckpointConfigError("WavLM members need the target utterance's own startAt/endAt")
+                signal = read_utterance_signal(wav_path, start_at, end_at, target_sr=member_sr)
+                probabilities.append(reporter_probability(model, signal, device))
+        mean_probability = combine_probabilities(probabilities, weights, combine)
+        predict.member_probs = probabilities
+        predict.mean_prob = mean_probability
+        return decision_from_probability(mean_probability)
+
+    predict.needs_bounds = True
+    predict.member_names = names
+    predict.member_probs = None
+    predict.mean_prob = None
+    return predict, 1
+
+
 def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
     import torch
     import torch.nn.functional as torch_functional
@@ -207,8 +321,12 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
     from dcc_data.mission2_spectrogram import mel_spectrogram
 
     checkpoint = torch.load(ckpt_path, map_location="cpu")
-    # SpeakerCNNLarge와 모양이 같은 state_dict는 무엇으로 학습했든 오류 없이 로드된다. 그러므로
-    # 믿기 전에 체크포인트가 무엇으로 학습했다고 기록했는지 확인한다 (dcc_data.mission2_checkpoint 참고).
+    # CNN+WavLM을 한 파일로 묶은 체크포인트도 --ckpt_path 하나다. L2 CNN 전용 경로는 아니다.
+    # 아래 CNN 단독 경로는 그대로다.
+    if checkpoint.get("format") == "mission2_prob_ensemble_v1":
+        return _load_prob_ensemble_predictor(checkpoint)
+    # SpeakerCNNLarge 모양의 state_dict는 무엇으로 학습했든 오류 없이 불러와지므로, 믿기 전에
+    # 체크포인트가 무엇으로 학습했다고 기록했는지 확인한다(dcc_data.mission2_checkpoint 참고).
     metadata, _source = resolve_l2_checkpoint_metadata(checkpoint, ckpt_path)
     require_l2_inference_config(metadata)
     expected_sample_rate = int(metadata["sample_rate"])
@@ -260,17 +378,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--label_dir", type=Path, required=True)
     parser.add_argument("--ckpt_path", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--save_probs",
+        type=Path,
+        default=None,
+        help="묶인 CNN+WavLM 체크포인트의 멤버별 P(신고자)를 따로 저장한다. 채점 CSV 형식은 바꾸지 않는다.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     predict, fallback_speaker = load_predictor(args.ckpt_path)
+    if args.save_probs is not None and not getattr(predict, "needs_bounds", False):
+        raise SystemExit("--save_probs requires a packed CNN+WavLM checkpoint from scripts/pack_mission2_ensemble.py")
 
     pairs = pair_by_stem_strict(args.audio_dir, args.label_dir)
     expected_rows = count_label_utterances(json_path for _, _, json_path in pairs)
 
     rows: list[dict] = []
+    prob_rows: list[dict] | None = [] if args.save_probs is not None else None
     failure_count = 0
     calls_seen = 0
 
@@ -291,13 +418,26 @@ def main() -> int:
             start_at = utterance.get("startAt")
             end_at = utterance.get("endAt")
             speaker = fallback_speaker
+            if getattr(predict, "needs_bounds", False):
+                predict.member_probs = None
+                predict.mean_prob = None
 
             if waveform is not None:
                 try:
                     start_frame, end_frame = utterance_frame_range(start_at, end_at, sample_rate, waveform.shape[0])
                     segment = slice_and_pad(waveform, start_frame, end_frame, N_FFT)
                     duration_sec = (float(end_at) - float(start_at)) / 1000.0
-                    speaker = predict(segment, sample_rate, duration_sec)
+                    if getattr(predict, "needs_bounds", False):
+                        speaker = predict(
+                            segment,
+                            sample_rate,
+                            duration_sec,
+                            wav_path=wav_path,
+                            start_at=start_at,
+                            end_at=end_at,
+                        )
+                    else:
+                        speaker = predict(segment, sample_rate, duration_sec)
                 except CheckpointConfigError:
                     raise  # 체크포인트/입력 불일치는 설정 오류다. 발화 하나의 문제로 덮고 넘어갈 일이 아니다
                 except Exception as exc:  # noqa: BLE001 - 다수 클래스로 대체하고, 기록하고, 행은 유지한다
@@ -318,6 +458,18 @@ def main() -> int:
                     "speaker": speaker,
                 }
             )
+            if prob_rows is not None:
+                item = {"audio_file_name": wav_path.name, "startAt": start_at, "endAt": end_at}
+                values = predict.member_probs
+                if values is None:
+                    for name in predict.member_names:
+                        item[name] = ""
+                    item["p_mean"] = ""
+                else:
+                    for name, value in zip(predict.member_names, values):
+                        item[name] = value
+                    item["p_mean"] = predict.mean_prob
+                prob_rows.append(item)
 
     verify_output_complete(expected_calls=len(pairs), calls_seen=calls_seen, expected_rows=expected_rows, rows=rows)
 
@@ -332,6 +484,21 @@ def main() -> int:
     except Exception:
         Path(tmp_name).unlink(missing_ok=True)
         raise
+
+    if prob_rows is not None:
+        args.save_probs.parent.mkdir(parents=True, exist_ok=True)
+        fieldnames = ["audio_file_name", "startAt", "endAt", *predict.member_names, "p_mean"]
+        fd, tmp_name = tempfile.mkstemp(prefix=f".{args.save_probs.name}.", suffix=".tmp", dir=args.save_probs.parent)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
+                writer = csv.DictWriter(stream, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(prob_rows)
+            os.replace(tmp_name, args.save_probs)
+        except Exception:
+            Path(tmp_name).unlink(missing_ok=True)
+            raise
+        print(f"Wrote {len(prob_rows)} probability rows to {args.save_probs}")
 
     print(f"Wrote {len(rows)} rows to {args.output} ({failure_count} fell back to majority class)")
     return 0
