@@ -15,6 +15,87 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-12 — [M1] x-vector LR + ECAPA LR 확률 평균(M1-FUSE-001) 채택
+
+- **결정**: 채택. (c) x-vector 결합 LR과 (h) ECAPA 결합 LR의 확률을 0.5/0.5로 평균하는 점수 수준 결합 (k)를 M1 제출 후보로 올린다. 코드 PR #173은 `lab-adopted`로 표시한다.
+- **이유**: Training 5-fold OOF에서 (k) 98.38%로 (c) 97.97% 대비 +0.41%p(기준 ≥ +0.3%p), 5개 fold 모두 앞섰고 McNemar p=1.7e-15였다. 재현 검사 통과, 공식 Val 미사용. 다만 추론 비용이 통화당 약 0.45초(x-vector 0.394초 + ECAPA 0.058초)다.
+- **후속**: 공식 Val 평가는 별도 OFFVAL 실험으로 진행(예산 6 중 2회 사용). 근거: `docs/experiment_log.md` M1-FUSE-001 행
+
+
+## 2026-10-12 — [M2] SpeakerCNNLarge Mixup(M2-MIX-001) 기각
+
+- **결정**: 기각. 학습 손실에 Mixup(Beta(0.2,0.2))을 더하는 방식은 채택하지 않고, 코드 PR #168은 병합 없이 닫는다.
+- **이유**: 같은 분할·설정에서 seed 평균 (B)−(A) = −0.42%p로 기준(≥ +0.3%p)에 못 미쳤고, 두 seed 모두·5개 묶음 모두 (A)가 앞섰다. ECE·Brier도 나빠졌다(ECE 0.004~0.021 → 0.029~0.037). 학습 붕괴·공식 Val 사용은 없다.
+- **후속**: M2 단일 모델 개선은 입력 해상도·구조·SpecAugment/SWA·Mixup 모두 기준 미달이므로, 개선은 seed 앙상블(M2-ENS-003)에 의존한다. Mixup 재제안 금지. 근거: `docs/experiment_log.md` M2-MIX-001 행
+
+## 2026-10-11 — [M3] 5-fold OOF seed 44(M3-ROB5F-003) 채택
+
+- **결정**: 채택. ROBERTA-003 설정 5-fold(seed 44)의 fold 모델 5개와 OOF 확률을 앙상블·분석용 재료로 확보한다. ROB5F-001~003으로 seed 3개 × fold 5개가 갖춰졌다.
+- **이유**: OOF Macro F1 0.6414로 성공 기준(≥ 0.635)을 충족했고 ROB5F-001(0.6412)·002(0.6420)·ROBERTA-003(0.6427)과 seed 편차 이내다. 학습 붕괴 없음, 공식 Val 미사용.
+- **후속**: fold·seed 확률을 재학습 없이 재사용해 앙상블·분석. 근거: `docs/experiment_log.md` M3-ROB5F-003 행
+
+## 2026-10-11 — [M3] 5-fold OOF seed 43(M3-ROB5F-002) 채택
+
+- **결정**: 채택. ROBERTA-003 설정 5-fold(seed 43)의 fold 모델 5개와 OOF 확률을 앙상블·분석용 재료로 확보한다.
+- **이유**: OOF Macro F1 0.6420으로 성공 기준(≥ 0.635)을 충족했고 ROB5F-001(0.6412)·ROBERTA-003(0.6427)과 seed 편차 이내다. 학습 붕괴 없음, 공식 Val 미사용.
+- **후속**: seed 44(ROB5F-003) 완료 후 fold·seed 확률을 재학습 없이 재사용. 근거: `docs/experiment_log.md` M3-ROB5F-002 행
+
+## 2026-10-11 — [M2] WavLM-base-plus 미세조정(M2-SSL-002) 기각
+
+- **결정**: 기각. WavLM-base-plus 미세조정 발화 분류는 SpeakerCNNLarge 대신 쓰지 않는다. M2 SSL 계열(고정 임베딩·미세조정) 후속 탐색은 중단한다.
+- **이유**: 같은 6,000통화 학습·1,500통화 holdout에서 CNN 90.03% vs WavLM 85.65%(−4.38%p), 5개 묶음 모두 열세, McNemar p≈7e-167. 대원 recall 73.4%로 쏠리고 1초 미만 발화가 특히 약했다(74.2% vs 86.2%). 추론도 공식 Val CPU 약 415분으로 L2 앙상블(85.3분)의 약 5배다.
+- **후속**: 코드 PR #159는 닫는다. 근거: `docs/experiment_log.md` M2-SSL-002 행
+
+## 2026-10-11 — [M3] DeBERTa-v3 xlarge 인코더 교체(M3-DEBERTA-001) 기각
+
+- **결정**: 기각. ROBERTA-003 설정에서 인코더를 team-lucid/deberta-v3-xlarge-korean으로 바꾼 구성은 채택하지 않는다.
+- **이유**: seed 42 Macro F1 0.0490으로 ROBERTA-003(0.6441)에 크게 못 미치고 3 epoch 모두 학습 붕괴(빈 예측 5,065/5,792)했다. 학습 손실이 거의 줄지 않았다. 원인은 확인하지 못했다(bf16·lr 1e-5 불안정 또는 폴백 토크나이저 불일치 가능). 같은 설정 재실행은 가치가 낮다.
+- **후속**: 코드 PR #161은 닫는다. 근거: `docs/experiment_log.md` M3-DEBERTA-001 (2차) 행
+
+## 2026-10-11 — [M3] KcBERT 9개 외 증상 보조 출력(M3-KCBERT-017) 기각
+
+- **결정**: 기각. KCBERT-012 설정에 보조 출력을 더해도 채택하지 않는다.
+- **이유**: 3-seed 평균 Macro F1 0.6310으로 KCBERT-012(0.6265) 대비 +0.0045이며 성공 기준 +0.01에 못 미친다. 3 seed 모두 기준 초과지만 개선폭이 seed 편차 수준이다. 보조 헤드는 학습됐으나(holdout macro F1 0.303) 오심·두통·전신쇠약 등 약한 증상은 그대로다. ECE·Brier도 012와 비슷하다.
+- **후속**: 코드 PR #160은 닫는다. 근거: `docs/experiment_log.md` M3-KCBERT-017 행
+
+## 2026-10-11 — [M3] 최종 학습(M3-FINAL-002) 채택
+
+- **결정**: 채택. ROBERTA-003 설정 3 seed(Training 100%) + TF-IDF 앙상블(0.55/0.45)을 M3 제출 모델로 확정한다. 공식 Val 채점 Macro F1 0.6534로 80% 모델 앙상블(0.6529)과 동일 수준이다.
+- **이유**: 앙상블 가중치는 80:20 홀드아웃에서 사전 고정했고 공식 Val은 채점에만 썼다. 성공 기준(3 seed 완료, 산출물 확보, 붕괴 없음)을 충족했다. FINAL-001은 FINAL-002(재개 가능판)와 중복이라 취소했다.
+- **후속**: 코드 PR #140 병합과 제출 추론 경로는 freeze(2026-10-14 09:00 KST) 전에 팀이 확인. 근거: `docs/experiment_log.md` M3-FINAL-002 행
+
+## 2026-10-11 — [M1] ECAPA 다중 창 평균 교체(M1-ECAPA-002) 기각
+
+- **결정**: 기각. 52D + 다중 창 평균 ECAPA 결합 LR은 5-fold OOF 정확도 98.25%로 x-vector 결합 LR(97.97%)보다 +0.28%p 높았지만, 사전 고정 기준 +0.3%p에 0.02%p 못 미쳤다(fold 5/5 우세, McNemar p=5.8e-5는 충족). M1 제출 후보는 M1-XVEC-002 (c)를 유지한다.
+- **이유**: 채택은 3개 조건을 모두 충족해야 한다. 기준을 사후에 낮추지 않는다. 참고로 ECAPA는 통화당 0.058초로 x-vector(0.394초)의 약 15%라 추론 비용 절감 이점은 있다.
+- **후속**: 비용 절감 목적의 교체는 공식 Val 예산(미션당 6회)을 쓰는 별도 판단 사항. 근거: `docs/experiment_log.md` M1-ECAPA-002 행
+
+
+## 2026-10-11 — [M3] 8B LLM 교사(M3-TEACHER-001) 기각
+
+- **결정**: 기각. kanana-1.5-8b-base LoRA 교사 fold 0이 epoch 1 Macro F1 0.6212로 게이트 0.635에 못 미쳤다. fold 1~4 확장과 RoBERTa 증류는 진행하지 않는다.
+- **이유**: 같은 fold의 RoBERTa(ROB5F-001 fold 0 0.6403)보다 -0.019 낮고, 오심 0.275·빈 예측 6.47%로 근거 없는 라벨 추론도 나아지지 않았다. Qwen2.5-1.5B(M3-QWEN-001)에 이어 LLM 인코더가 RoBERTa-large를 넘지 못했다. A100 62.6분.
+- **후속**: 최종 학습은 ROBERTA-003 설정을 유지한다. LLM 교사·증류 계열은 재제안하지 않는다. 근거: `docs/experiment_log.md` M3-TEACHER-001 행
+
+
+## 2026-10-11 — [M3] ROBERTA-003 설정 5-fold OOF(M3-ROB5F-001) 채택
+
+- **결정**: 채택. fold 앙상블 멤버 5개와 OOF 확률을 앞으로의 재료로 쓴다.
+- **이유**: 5개 fold 모두 3 epoch 완료, OOF Macro F1 0.6412(fold 0.6382~0.6446)로 성공 기준 0.635를 넘고 ROBERTA-003(0.6427)과 같은 수준이다. 학습 붕괴 없음, 빈 예측 2.63%, 공식 Val 미사용.
+- **후속**: 앙상블 가중치·교사 비교는 저장된 `fold{k}_probs.npy`·`oof_probs.npy`를 재학습 없이 재사용한다. 근거: `docs/experiment_log.md` M3-ROB5F-001 행
+
+## 2026-10-11 — [M3] klue/roberta-large 입력 512토큰(M3-ROBERTA-007) 기각
+
+- **결정**: 기각. seed 42 holdout Macro F1 0.6515로 ROBERTA-003(0.6441) 대비 +0.0074라 성공 기준(0.6541)에 못 미친다. 코드 PR #151은 닫는다.
+- **이유**: 256토큰을 넘는 통화(홀드아웃 40.7%)를 더 읽어도 약한 증상(오심 0.386, 두통 0.533)이 크게 오르지 않았고, 512 초과는 2.9%뿐이다. ECE 0.0475, Brier 0.0816으로 보정은 변화 없다. 단일 seed에 L4 77.5분(003의 약 4배 비용)이라 추가 seed의 기대 이득이 작다.
+- **후속**: 최종 학습은 ROBERTA-003 설정(앞 256토큰)을 유지한다. 입력 길이 계열은 재제안하지 않는다. 근거: `docs/experiment_log.md` M3-ROBERTA-007 행
+
+## 2026-10-11 — [M3] multilingual-e5-large 인코더 교체(M3-E5-001) 기각
+
+- **결정**: 기각. seed 42 holdout Macro F1 0.6384로 ROBERTA-003(0.6441) 대비 -0.0057이라 성공 기준(0.6541)에 못 미친다. 코드 PR #143은 닫는다.
+- **이유**: 대조 학습으로 다듬은 다국어 문장 인코더도 약한 증상(오심 0.375, 두통 0.509)을 개선하지 못했고 ECE 0.0503, Brier 0.0845로 보정도 ROBERTA 계열보다 나쁘다. 단일 seed지만 기준선 미만이라 추가 seed의 기대 이득이 없다.
+- **후속**: 인코더 교체 계열은 재제안하지 않는다. 근거: `docs/experiment_log.md` M3-E5-001 행
+
 ## 2026-10-10 — [M3] 9개 외 증상 중간 출력 계층형 헤드(M3-ROBERTA-006) 기각
 
 - **결정**: 기각. seed 42 holdout Macro F1 0.6446으로 ROBERTA-003(0.6441) 대비 +0.0005라 성공 기준(0.6541)에 못 미친다. 코드 PR #142는 닫는다.
@@ -274,14 +355,13 @@
 
 ---
 
-## 2026-10-07 — [M3] 역할 토큰 비교 후 선택 모델을 Training 100%로 재학습
+## 2026-10-07 — [M3] 역할 토큰 비교 실행은 규정 부적합·재현 불가로 기각
 
-- **결정**: 기존 입력과 화자 역할 토큰 입력을 Training 90:10 multilabel stratified split에서 비교하고, 내부 검증 결과로 선택한 모델을 Training 전체로 재학습함.
-- **이유**: 이전 모델에서 오심 누락이 증가했고, 상담원 질문과 신고자 증상 진술을 구분하지 못하는 문제가 있었음.
-- **변경**: 오심 hard-negative를 제외하고 전신쇠약·호흡곤란만 1.5배 노출함. 모델과 임계값은 내부 검증으로만 선택하고 공식 Validation은 최종 평가에만 사용함.
-- **결과**: 공식 Validation 3,640건에서 Macro F1 0.6263, Micro F1 0.6086을 기록함. 오심 recall은 0.8182로 높아졌지만 precision은 0.1965, FP는 1,435건으로 과다 예측이 남음.
-- **상태/후속**: recall은 회복됐지만 증상별 precision 편차가 커, 이 결과를 피처 엔지니어링 직전 기준으로 사용함.
-- **관련**: [`m3_role_official_validation_metrics.json`](../reports/mission3/m3_role_official_validation_metrics.json), [`MISSION3_EXPERIMENT_STRATIFIED_ROLE_FINAL.ipynb`](../notebooks/mission3/MISSION3_EXPERIMENT_STRATIFIED_ROLE_FINAL.ipynb), [`run_stratified_role_experiment.py`](../scripts/mission3/run_stratified_role_experiment.py).
+- **결정**: 화자 역할 토큰을 비교한 과거 실행은 모델 선택이나 최종 성능의 근거로 사용하지 않는다.
+- **이유**: Mission 3은 전사 텍스트 외 annotation 사용을 금지하므로 `speaker`를 이용한 발화 묶기와 역할 토큰은 허용되지 않는다. 또한 원본 `experiment_summary.json`, `FINAL_VERIFICATION.json`, `official_validation_metrics.json`이 없어 선택 입력과 실행 조건을 독립 확인할 수 없고, 당시 코드에는 증상별 임계값 튜닝 경로가 있어 공식 기준인 모든 증상 `prediction >= 0.5` 적용 여부도 확인할 수 없다.
+- **참고 결과**: 화면에서 전사한 공식 Validation 3,640건의 Macro F1은 0.6263, Micro F1은 0.6086이다. 오심 recall 0.8182, precision 0.1965, FP 1,435건이지만 규정 적합 결과로 해석하지 않는다.
+- **상태/후속**: **기각**. 문제의 노트북과 실행 스크립트는 재현 가능한 규정 적합 코드로 오인되지 않도록 저장소에서 제외하고, 집계 JSON만 과거 참고 기록으로 보존한다. 후속 실험은 `text`와 원래 배열 순서만 사용하고 모든 증상에 0.5를 고정한다.
+- **관련**: [`m3_role_official_validation_metrics.json`](../reports/mission3/m3_role_official_validation_metrics.json).
 
 ---
 

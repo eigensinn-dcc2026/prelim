@@ -71,6 +71,7 @@
 제출 추론 경로에 넣으려면 여러 모델과 가중치를 담는 체크포인트 형식이 필요합니다(아직 구현 전). 최종 학습 때 TF-IDF도 Training 전체로 다시 학습하고, `w = 0.55`는 그대로 씁니다.
 
 ## 파일
+- `stability/README.md`: 고정 r3/k12/p0 앙상블의 10,000회 paired bootstrap, 증상별 FP/FN·오류 겹침 분석. 재현 스크립트는 `scripts/analyze_mission3_ensemble_stability.py`이며 저장된 확률만 사용합니다. 공식 Val의 r3 대비 차이는 +0.0077, 95% CI [+0.0027, +0.0124]입니다.
 - `m3_dump_probs.py`: `dcc_inference.mission3`와 같은 경로로 확률을 뽑아 `probs/*.npz`(names, probs, gold)를 만듭니다.
 - `m3_ensemble.py`: 가중치 곡선, 선택, 부트스트랩을 계산해 `ensemble_result.json`을 씁니다.
 - `m3_ensemble_multi.py`: 모델 N개의 모든 조합과 가중치를 비교합니다(홀드아웃에서 선택, 공식 Val 1회).

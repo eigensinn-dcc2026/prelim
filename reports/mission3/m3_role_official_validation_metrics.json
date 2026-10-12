@@ -2,6 +2,8 @@
   "experiment_id": "M3-ROLE-001",
   "date": "2026-10-07",
   "run_name": "stratified_role_compare_seed42_v2",
+  "status": "rejected_non_compliant_unverified",
+  "eligible_for_model_selection": false,
   "source": "Transcribed from the official Validation output provided during experiment review; the source image is not stored in this repository.",
   "evaluation": {
     "dataset": "official Validation",
@@ -33,7 +35,10 @@
     {"symptom": "호흡곤란", "accuracy": 0.9016, "balanced_accuracy": 0.8154, "precision": 0.6214, "recall": 0.6972, "f1": 0.6571, "specificity": 0.9336, "actual_positive": 492, "predicted_positive": 552, "tp": 343, "fp": 209, "fn": 149, "tn": 2939}
   ],
   "caveats": [
+    "The role-token path used the speaker annotation, which is not an allowed Mission 3 input.",
+    "The available output does not prove that every symptom used the required prediction >= 0.5 decision rule; the historical code exposed per-symptom threshold tuning.",
     "The available Validation output does not identify whether current_input or speaker_role_tokens was selected.",
-    "The original experiment_summary.json, FINAL_VERIFICATION.json and official_validation_metrics.json should replace this transcription when available."
+    "The original experiment_summary.json, FINAL_VERIFICATION.json and official_validation_metrics.json are unavailable.",
+    "These metrics are retained only as a historical transcription and must not be used as a compliant model-selection or final-performance result."
   ]
 }
