@@ -496,7 +496,7 @@ function flow(slide, x, y, w, h, f) {
   // 합성 도식(실제 통화 아님): ppt/tools/make_m2_synthetic.py
   const fw = 6.6, fh = fw * 482 / 1658;
   s.addShape(pres.shapes.RECTANGLE, { x: M, y: 4.9, w: fw + 0.16, h: fh + 0.16, fill: { color: C.white }, line: { color: C.line, width: 1 } });
-  s.addImage({ path: "figures/m2_synthetic_waveform.png", x: M + 0.08, y: 4.98, w: fw, h: fh });
+  s.addImage({ path: "figures/anim/m2_waveform_to_mel.gif", x: M + 0.08, y: 4.98, w: fw, h: fh });
   const wx = M + fw + 0.4, ww = W - M - wx, wh = (fh + 0.16 - 2 * 0.12) / 3;
   M2.why.forEach(([k, v], i) => {
     const y = 4.9 + i * (wh + 0.12);
@@ -522,8 +522,8 @@ function flow(slide, x, y, w, h, f) {
   const rx = M + lw + 0.3, rw = W - M - rx;
   card(s, rx, 2.45, rw, 2.15);
   title(s, M2.gainTitle, rx + 0.2, 2.56, rw - 0.4);
-  const iw = 2.6, ih = iw * 744 / 1806;
-  s.addImage({ path: "figures/canva/speakers_overlap_crop.png", x: rx + 0.2, y: 3.0, w: iw, h: ih });
+  const iw = 2.6, ih = iw * 370 / 900;
+  s.addImage({ path: "figures/anim/speakers_separation.gif", x: rx + 0.2, y: 3.0, w: iw, h: ih });
   M2.gains.forEach(([n, l], i) => {
     const y = 3.0 + i * 0.58;
     txt(s, n, { x: rx + 3.0, y, w: 1.5, h: 0.5, fontSize: 24, bold: true, color: i === 0 ? C.blue : C.sky, valign: "middle" });
@@ -753,16 +753,8 @@ function flow(slide, x, y, w, h, f) {
   const s = pres.addSlide();
   header(s, "04", "종합 및 시사점", "(2) 사회안전 시사점과 향후 계획", 19);
   coreMsg(s, "세 미션을 이으면, 신고 전화가 들어오는 순간부터 출동 판단까지를 돕는 하나의 흐름이 된다.");
-  // 신고 전화 → M2 → M1 → M3 → 상황실 (아이콘 흐름)
-  const fl = [["flow_call", "신고 전화", "음성 입력"], ["flow_m2", "Mission 2", "신고자 발화 분리"], ["flow_m1", "Mission 1", "신고자 성별"], ["flow_m3", "Mission 3", "증상 태깅"], ["flow_screen", "상황실 화면", "자동 기록"]];
-  const fgap = CW / fl.length;
-  fl.forEach(([ic, t, sub], i) => {
-    const cx = M + fgap * i + fgap / 2;
-    s.addImage({ path: IC + ic + ".png", x: cx - 0.4, y: 2.4, w: 0.8, h: 0.8 });
-    txt(s, t, { x: cx - fgap / 2 + 0.1, y: 3.25, w: fgap - 0.2, h: 0.3, fontSize: 14, bold: true, color: i === 4 ? "5E8E2A" : C.blue, align: "center" });
-    txt(s, sub, { x: cx - fgap / 2 + 0.1, y: 3.55, w: fgap - 0.2, h: 0.28, fontSize: 11.5, color: C.sub, align: "center" });
-    if (i < fl.length - 1) arrow(s, cx + fgap / 2 - 0.14, 2.62, 0.28, 0.36);
-  });
+  // 신고 전화 → M2 → M1 → M3 → 상황실: 순서대로 켜지는 GIF (ppt/tools/make_gif_flow.py), 첫 프레임은 전부 켜진 상태
+  { const gw = 12.0, gh = gw * 232 / 1920; s.addImage({ path: "figures/anim/flow_pipeline.gif", x: (W - gw) / 2, y: 2.4, w: gw, h: gh }); }
   const lw = 5.0, rw = CW - lw - 0.4; // 향후 계획 문장이 길어 오른쪽을 넓게
   card(s, M, 3.95, lw, 2.3);
   title(s, "■ 기대효과", M + 0.25, 4.07, lw - 0.5, 18);
