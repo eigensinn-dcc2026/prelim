@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
-"""Extract only the wav/json files a Mission 2 baseline actually needs,
-directly out of the team's zip-chunked AI-Hub download -- for a machine
-whose local disk doesn't have room for the full extracted dataset (tens of
-GB) but only needs, say, a 3,000-call Training sample plus a handful of
-Validation calls.
+"""Mission 2 기준선에 실제로 필요한 wav/json 파일만, 팀이 zip 조각으로 내려받은 AI-Hub 데이터에서
+곧바로 푼다. 전체를 푼 데이터셋(수십 GB)을 둘 로컬 디스크가 없고, 예를 들어 Training 3,000통화 표본과
+Validation 몇 통화만 필요한 컴퓨터를 위한 것이다.
 
-Scans every zip's file list first (no extraction, just reads each archive's
-central directory) to pair wav<->json by filename stem across chunks, then
-extracts only the selected calls.
+먼저 모든 zip의 파일 목록을 훑어(풀지 않고 각 압축 파일의 중앙 디렉터리만 읽는다) 조각들에 걸쳐 파일 이름(stem)으로
+wav<->json을 짝짓고, 그다음 선택한 통화만 푼다.
 
-Usage:
-    python scripts/extract_dcc_sample_from_zips.py \\
-        --zip-dir "C:\\...\\대학부 데이터 모음" \\
-        --output-dir "C:\\dcc_data_sample" \\
+사용법:
+    python scripts/extract_dcc_sample_from_zips.py \
+        --zip-dir "C:\...\대학부 데이터 모음" \
+        --output-dir "C:\dcc_data_sample" \
         --n-train-calls 3000 --n-val-calls 50 --seed 42
 
-Afterward, run scripts/build_manifest.py with --data-root pointed at
---output-dir as usual -- the extracted tree has the same Training/Validation
-structure the rest of the pipeline expects, just far fewer files in it.
+그 뒤에는 평소처럼 --output-dir을 --data-root로 지정해 scripts/build_manifest.py를 실행한다. 푼 트리는
+나머지 파이프라인이 기대하는 것과 같은 Training/Validation 구조이고, 그 안의 파일 수만 훨씬 적다.
 """
 
 from __future__ import annotations
@@ -57,34 +53,34 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    # rglob (not glob): a Drive "download folder as zip" split often nests each
-    # real chunk one level deeper (e.g. "<part>/대학부 데이터/<chunk>.zip") instead
-    # of dropping all 12 zips flat under --zip-dir.
+    # glob이 아니라 rglob를 쓴다: Drive의 "폴더를 zip으로 내려받기"는 조각을 나눌 때 실제 조각을
+    # 한 단계 더 깊이 넣는 일이 많다(예: "<part>/대학부 데이터/<chunk>.zip"). 12개 zip이
+    # --zip-dir 바로 아래에 평평하게 놓이는 것이 아니다.
     zip_paths = sorted(args.zip_dir.rglob("*.zip"))
     if not zip_paths:
         raise SystemExit(f"no .zip files found under {args.zip_dir}")
 
     if args.n_train_calls <= 0:
-        # "Take everything" -- extract every matching entry independent of
-        # whether its wav<->json partner is visible from the zip set alone.
-        # index_zip_entries()+select_calls() require BOTH halves inside the
-        # scanned zips to recognize a call at all; that silently drops any
-        # call whose other half was already extracted separately outside a
-        # zip (real case: a Drive "download as zip" split put a call's wav in
-        # one numbered chunk and its json in a different one that a teammate
-        # had already unzipped by hand -- the wav was never extracted because
-        # index_zip_entries never saw both halves together). Pairing is left
-        # entirely to build_manifest.py, which sees the *combined* output_dir
-        # (these zips plus anything already there) and is the only place that
-        # can actually tell a call is complete.
+        # "전부 가져온다": 맞는 항목은 모두 푼다.
+        # 그 wav<->json 짝이 zip 묶음만 봐서 보이는지는 상관없다.
+        # index_zip_entries()+select_calls()는 통화를 알아보려면 훑은 zip 안에
+        # 두 부분이 *모두* 있어야 하므로, 다른 한쪽이 이미 zip 바깥에 따로 풀려 있는
+        # 통화는 조용히 빠진다(실제 사례: Drive의 "zip으로 내려받기"가 한 통화의 wav를
+        # 번호가 있는 조각 하나에, json을 팀원이 이미 손으로 푼 다른 조각에
+        # 나눠 넣었는데, index_zip_entries가 두 부분을 한꺼번에 본 적이 없어서
+        # wav가 끝내 풀리지 않았다). 짝짓기는 전적으로
+        # build_manifest.py에 맡긴다. 이 스크립트는 *합쳐진* output_dir(이 zip들과
+        # 이미 있던 것을 합친 것)을 보며, 통화가 완전한지 실제로
+        # 알 수 있는 유일한 곳이다.
+        # (위 줄에 이어짐)
         print(f"{len(zip_paths)}개 zip에서 Seoul Training 전체 추출 중 (페어링 여부 무관, 이미 있는 파일은 건너뜀)...")
         newly_extracted = extract_all_entries(zip_paths, args.output_dir, split=TRAINING, seoul_only=True)
         print(f"Training 신규 추출 파일: {newly_extracted}개")
-        # Same cross-chunk pairing bug applies to Validation (a call's label
-        # can sit in an already-extracted loose chunk while its audio is in
-        # one of these zips, or vice versa), and Validation total volume is
-        # small (~2,120 calls team-wide) -- so take all of it too rather than
-        # sampling --n-val-calls from a possibly-incomplete zip-only pairing.
+        # 조각 사이의 같은 짝짓기 문제가 Validation에도 있다(통화의 라벨이
+        # 이미 풀어 둔 낱개 조각에 있고 오디오는 이 zip들 중 하나에 있을 수 있고,
+        # 그 반대일 수도 있다). 또 Validation 전체 양은
+        # 적다(팀 전체 약 2,120통화). 그래서 zip만으로 한 불완전할 수 있는 짝짓기에서
+        # --n-val-calls만큼만 뽑지 않고 전부 가져온다.
         newly_extracted_val = extract_all_entries(zip_paths, args.output_dir, split=VALIDATION, seoul_only=False)
         print(f"Validation 신규 추출 파일: {newly_extracted_val}개 (전체, --n-val-calls 무시됨)")
     else:

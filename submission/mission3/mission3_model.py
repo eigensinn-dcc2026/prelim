@@ -118,7 +118,7 @@ def probabilities(model, tokenizer, texts: Sequence[str], max_length: int = MAX_
 
 
 def symptom_cell(binary_row: Sequence[int]) -> str:
-    """``str(list)`` of the positive labels in LABELS order, e.g. ``['두통', '복통']``."""
+    """양성 라벨을 LABELS 순서로 ``str(list)``한 문자열. 예: ``['두통', '복통']``."""
 
     return str([label for label, flag in zip(LABELS, binary_row) if int(flag) == 1])
 

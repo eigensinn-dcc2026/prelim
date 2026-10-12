@@ -1,4 +1,4 @@
-"""Mission 2 utterance-level Dataset with a strict feature whitelist."""
+"""발화 단위 Mission 2 Dataset. 쓸 수 있는 특징을 엄격한 허용 목록으로 제한한다."""
 
 from __future__ import annotations
 
@@ -18,10 +18,10 @@ VALID_SPEAKERS = frozenset({SPEAKER_OPERATOR, SPEAKER_CALLER})
 
 
 def milliseconds_to_frame(time_ms: Real, sample_rate: int) -> int:
-    """Convert milliseconds to a frame index with Python ties-to-even rounding.
+    """밀리초를 프레임 번호로 바꾼다(파이썬의 짝수 쪽 반올림 규칙 사용).
 
-    ``round`` is used deliberately: exact half-frame values round to the nearest
-    even integer, which makes crop boundaries deterministic across all calls.
+        ``round``를 일부러 쓴다: 정확히 반 프레임인 값은 가장 가까운 짝수로 반올림되어,
+        모든 통화에서 자르는 경계가 항상 같게 정해진다.
     """
 
     if not isinstance(time_ms, Real) or isinstance(time_ms, bool):
@@ -42,10 +42,10 @@ class _UtteranceSample:
 
 
 class Mission2Dataset:
-    """Return waveform features and speaker targets at utterance granularity.
+    """발화 단위로 파형 특징과 화자 정답을 돌려준다.
 
-    JSON ``startAt``/``endAt`` values are milliseconds. They define crop
-    boundaries and are returned only as metadata, never as model features.
+        JSON의 ``startAt``/``endAt``은 밀리초 단위이다. 이 값은 자르는 경계를 정하는 데만 쓰고
+        메타데이터로만 돌려줄 뿐, 모델 특징으로는 절대 쓰지 않는다.
     """
 
     def __init__(

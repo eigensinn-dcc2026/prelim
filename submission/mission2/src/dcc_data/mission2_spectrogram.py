@@ -1,19 +1,14 @@
-"""Mission 2 L2 input representation: log-mel spectrograms for a CNN.
+"""Mission 2 L2 입력 표현: CNN을 위한 로그 멜 스펙트로그램.
 
-L1 (dcc_data.mission2_features) collapses each utterance to 53-64 hand-
-picked summary statistics. Three rounds of adding more such statistics
-(pitch/energy, call-relative z-scores, an autocorrelation-based harmonicity/
-overlap signal) each showed a real effect in isolation but failed to move
-the two error modes that matter most -- the duration-bucket 대원/신고자 bias
-and the overlap-driven accuracy gap (see reports/mission2/). This module
-keeps the raw time-frequency structure instead, on the theory that exactly
-the information those two error modes depend on (fine-grained pitch/energy
-*contours*, or the interference pattern of two overlapping voices) is what
-collapsing to a mean/std/percentile throws away.
+L1(dcc_data.mission2_features)은 발화마다 53~64개의 직접 고른 요약 통계로 줄인다. 그런 통계를 더하는
+시도를 세 번(피치/에너지, 통화 상대 z-점수, 자기상관 기반의 조화성/겹침 신호) 했는데, 각각 따로 보면
+분명한 효과가 있었지만 가장 중요한 두 오류 유형, 즉 길이 구간별 대원/신고자 편향과 겹침 때문에 생기는
+정확도 격차(reports/mission2/ 참고)는 움직이지 못했다. 이 모듈은 시간-주파수 구조를 그대로 보존한다.
+그 두 오류 유형이 기대는 정보(세밀한 피치/에너지의 *윤곽*, 또는 겹친 두 목소리의 간섭 무늬)가 바로
+평균/표준편차/백분위수로 줄이면서 버려지는 정보라는 가설에 따른 것이다.
 
-Reuses dcc_data.mission2_features' framing constants (N_FFT, HOP_LENGTH) and
-its manifest/audio-slicing pipeline (read_call_waveform, slice_and_pad,
-build_utterance_records) rather than re-deriving any of it.
+dcc_data.mission2_features의 프레임 상수(N_FFT, HOP_LENGTH)와 목록/오디오 자르기 파이프라인
+(read_call_waveform, slice_and_pad, build_utterance_records)을 다시 만들지 않고 그대로 재사용한다.
 """
 
 from __future__ import annotations
@@ -42,39 +37,39 @@ if TYPE_CHECKING:
     import pandas as pd
 
 N_MELS = 40
-# librosa.power_to_db's own default clip range (top_db=80, relative to the
-# spectrogram's own max) -- pad frames get set to exactly this floor so a
-# padded "silent" frame reads as silence to the CNN, not as loud signal
-# (naively padding with 0.0 would do the opposite: 0 dB is this utterance's
-# *loudest* frame under the ref=np.max normalization below).
+# librosa.power_to_db의 기본 잘라냄 범위(top_db=80, 스펙트로그램 자신의
+# 최댓값 기준)이다. 채움 프레임을 정확히 이 하한으로 두어서
+# 채운 "무음" 프레임이 CNN에게 큰 신호가 아니라 무음으로 읽히게 한다
+# (그냥 0.0으로 채우면 정반대가 된다: 아래의 ref=np.max 정규화에서 0 dB는 이 발화에서
+# *가장 큰* 프레임이다).
 SPEC_FLOOR_DB = -80.0
 
-# How an index's ``speaker`` column relates to the provided label files. The organizers ruled (2026-10-01)
-# that Mission 2 training must use the provided speaker labels as they are: no correction, and no data
-# selection, on the basis of ``text``. So an index has to say its labels are the provided ones.
-LABEL_SOURCE_PROVIDED = "provided_json"  # written by the builder straight from the provided label JSON
-LABEL_SOURCE_VERIFIED = "verified_against_provided_json"  # re-checked row by row by scripts/verify_mission2_raw_labels.py
+# 인덱스의 ``speaker`` 열이 제공된 라벨 파일과 어떤 관계인지. 주최 측은 2026-10-01에
+# Mission 2 학습에는 제공된 화자 라벨을 그대로 써야 한다고 판정했다: ``text``를 근거로 한 수정도,
+# 데이터 선별도 안 된다. 그래서 인덱스는 자신의 라벨이 제공된 라벨이라고 밝혀야 한다.
+LABEL_SOURCE_PROVIDED = "provided_json"  # 만든 쪽이 제공된 라벨 JSON에서 곧바로 써 넣은 것
+LABEL_SOURCE_VERIFIED = "verified_against_provided_json"  # scripts/verify_mission2_raw_labels.py가 행마다 다시 확인한 것
 ALLOWED_LABEL_SOURCES = (LABEL_SOURCE_PROVIDED, LABEL_SOURCE_VERIFIED)
 
-# Every index row records where its spectrogram came from (the manifest split of its call), the settings it
-# was built with and where its labels came from, so a training run can prove its input is Training-only with
-# the provided labels and the checkpoint can record what it was trained on. See
-# assert_training_spectrogram_index().
+# 인덱스의 모든 행은 그 스펙트로그램이 어디서 왔는지(그 통화의 목록 split), 어떤 설정으로 만들었는지,
+# 라벨이 어디서 왔는지를 기록한다. 그래서 학습 실행은 입력이 제공된 라벨의 Training뿐임을 증명할 수 있고
+# 체크포인트는 무엇으로 학습했는지를 기록할 수 있다.
+# assert_training_spectrogram_index() 참고.
 INDEX_PROVENANCE_COLUMNS = ("split", "n_mels", "hop_length", "n_fft", "sample_rate", "label_source")
 
 
 class LabelProvenanceError(ValueError):
-    """A spectrogram index does not say its speaker labels are the provided ones."""
+    """스펙트로그램 인덱스가 화자 라벨이 제공된 그대로의 것이라고 밝히지 않는다."""
 
 
 def assert_training_spectrogram_index(index_df: "pd.DataFrame") -> dict:
-    """Fail unless every row of a spectrogram index is stamped as built from Training, with provided labels.
+    """스펙트로그램 인덱스의 모든 행이 제공된 라벨로 Training에서 만들었다는 도장이 찍혀 있지 않으면 실패한다.
 
-    Returns the single ``{split, n_mels, hop_length, n_fft, sample_rate, label_source}`` the index was built
-    with. An index without the stamp (built before the stamp existed) cannot be shown to be Training-only or
-    to carry the provided speaker labels, so it is refused rather than trusted -- the official Validation
-    folder must never reach a training loop, a Validation index built into the same paths as the Training
-    one would look identical otherwise, and a cache whose labels were edited would train on them silently.
+        인덱스를 만든 ``{split, n_mels, hop_length, n_fft, sample_rate, label_source}`` 하나를 돌려준다.
+        도장이 없는 인덱스(도장이 생기기 전에 만든 것)는 Training만 썼는지, 제공된 화자 라벨을 담고 있는지
+        보일 수 없으므로 믿지 않고 거부한다. 공식 Validation 폴더가 학습 루프에 닿으면 절대 안 되고,
+        Training과 같은 경로에 만든 Validation 인덱스는 도장이 없으면 겉보기가 똑같으며, 라벨을 고친 캐시는
+        조용히 그 라벨로 학습하게 되기 때문이다.
     """
 
     missing = [column for column in INDEX_PROVENANCE_COLUMNS if column not in index_df.columns]
@@ -116,18 +111,15 @@ def assert_training_spectrogram_index(index_df: "pd.DataFrame") -> dict:
 def mel_spectrogram(
     segment: np.ndarray, sample_rate: int, *, n_mels: int = N_MELS, hop_length: int = HOP_LENGTH
 ) -> np.ndarray:
-    """Log-mel spectrogram, shape (n_mels, n_frames), normalized to this
-    segment's own peak (0 dB ceiling, SPEC_FLOOR_DB floor) -- per-utterance
-    relative loudness, the same reason CALL_RELATIVE_FEATURE_COLUMNS z-score
-    against each call's own mean/std rather than an absolute scale: absolute
-    recording gain varies per call and isn't a speaker-identity signal.
+    """로그 멜 스펙트로그램, 모양 (n_mels, n_frames). 이 조각 자신의 최댓값을 기준으로 정규화한다
+        (상한 0 dB, 하한 SPEC_FLOOR_DB). 발화 단위의 상대적인 크기로, CALL_RELATIVE_FEATURE_COLUMNS가 절대 척도가
+        아니라 각 통화 자신의 평균/표준편차로 z-점수를 내는 것과 같은 이유이다: 절대적인 녹음 이득은 통화마다
+        다르고 화자를 구별하는 신호가 아니다.
 
-    ``hop_length`` defaults to the same HOP_LENGTH L1's hand-crafted features
-    use, so every existing caller is unaffected. A smaller value gives more
-    frames for the same audio -- SpeakerCNN's 3 rounds of MaxPool(stride 2)
-    can otherwise leave a short (backchannel-length) utterance with only 1-2
-    surviving timesteps before AdaptiveAvgPool2d; see
-    scripts/build_mission2_spectrograms.py's --hop-length.
+        ``hop_length``의 기본값은 L1의 수작업 특징이 쓰는 HOP_LENGTH와 같아서 기존의 모든 호출부는 영향을
+        받지 않는다. 더 작은 값을 주면 같은 오디오에서 프레임이 더 많아진다. SpeakerCNN은 MaxPool(stride 2)을
+        3번 거치므로 그렇지 않으면 짧은(맞장구 길이의) 발화는 AdaptiveAvgPool2d 앞에 시간 단계가 1~2개만
+        남을 수 있다. scripts/build_mission2_spectrograms.py의 --hop-length를 보라.
     """
 
     if len(segment) < N_FFT:
@@ -142,11 +134,11 @@ def mel_spectrogram(
 
 
 # ---------------------------------------------------------------------------
-# Orchestration: sample calls, slice each utterance, save one .npy per
-# utterance + an index of what was saved (mirrors
-# mission2_features.build_seoul_training_dataset, output format only differs
-# because a spectrogram doesn't fit in a flat tabular row like the 61-dim
-# vector does).
+# 전체 진행: 통화를 뽑고, 발화마다 잘라 내고, 발화마다 .npy 하나와
+# 무엇을 저장했는지 적은 인덱스를 저장한다(
+# mission2_features.build_seoul_training_dataset과 같고, 출력 형식만
+# 다르다. 스펙트로그램은 61차원 벡터처럼
+# 평평한 표의 한 행에 들어가지 않기 때문이다).
 # ---------------------------------------------------------------------------
 
 OnCallDone = Callable[[int, int], None]
@@ -159,11 +151,10 @@ def _spectrogram_path(output_dir: Path, call_id: str, utt_idx: int) -> Path:
 def _process_one_call_spectrograms(
     row: ManifestRow, data_root: Path, output_dir: Path, hop_length: int = HOP_LENGTH, n_mels: int = N_MELS
 ) -> tuple[list[dict], list[dict]]:
-    """Process exactly one call: slice every utterance, save its spectrogram.
+    """통화 하나를 처리한다: 모든 발화를 잘라 스펙트로그램을 저장한다.
 
-    Same "log, never silently drop" failure policy as
-    mission2_features._process_one_call, and the same reason it must stay a
-    top-level function: picklable for a process-pool worker on Windows.
+        mission2_features._process_one_call과 같은 "기록은 하되 조용히 버리지는 않는다" 실패 정책이며,
+        최상위 함수여야 하는 이유도 같다: 윈도우의 프로세스 풀 워커로 보내려면 피클로 직렬화할 수 있어야 한다.
     """
 
     index_rows: list[dict] = []
@@ -172,7 +163,7 @@ def _process_one_call_spectrograms(
     wav_path = data_root / row.wav_path
     try:
         records = build_utterance_records(row, data_root)
-    except Exception as exc:  # noqa: BLE001 - logged, not swallowed
+    except Exception as exc:  # noqa: BLE001 - 기록하며, 삼키지 않는다
         failures.append(
             {"stage": "index", "call_id": row.stem, "utt_idx": None, "error_type": type(exc).__name__, "error_message": str(exc)}
         )
@@ -237,9 +228,8 @@ def _build_seoul_spectrograms(
     hop_length: int = HOP_LENGTH,
     n_mels: int = N_MELS,
 ) -> tuple[list[dict], list[dict]]:
-    """Shared implementation behind build_seoul_training_spectrograms and
-    build_seoul_validation_spectrograms -- only which rows are eligible
-    (``select_rows``) differs, mirroring mission2_features._build_seoul_dataset.
+    """build_seoul_training_spectrograms와 build_seoul_validation_spectrograms가 함께 쓰는 구현.
+        대상이 되는 행(``select_rows``)만 다르며, mission2_features._build_seoul_dataset과 같은 구조이다.
     """
 
     index_sink = index_sink if index_sink is not None else []
@@ -289,17 +279,15 @@ def build_seoul_training_spectrograms(
     hop_length: int = HOP_LENGTH,
     n_mels: int = N_MELS,
 ) -> tuple[list[dict], list[dict]]:
-    """Sample Seoul/Training calls and save one spectrogram .npy per utterance.
+    """서울/Training 통화를 뽑아 발화마다 스펙트로그램 .npy 하나를 저장한다.
 
-    Mirrors mission2_features.build_seoul_training_dataset's sampling/
-    parallelism/failure-logging exactly; only the per-utterance output
-    differs (a saved .npy + an index row, instead of a 61-dim feature dict).
+        mission2_features.build_seoul_training_dataset의 뽑기/병렬 처리/실패 기록과 똑같다. 발화별 출력만 다르다
+        (61차원 특징 사전 대신, 저장한 .npy와 인덱스 행).
 
-    ``hop_length`` defaults to HOP_LENGTH (unchanged behavior); pass a
-    smaller value to build a separate, higher time-resolution spectrogram
-    set into a different ``output_dir`` -- see mel_spectrogram()'s docstring.
-    ``n_mels`` defaults to N_MELS (unchanged behavior); pass a larger value
-    for a higher frequency-resolution set, same ``output_dir`` caveat.
+        ``hop_length``의 기본값은 HOP_LENGTH(동작은 그대로)이다. 더 작은 값을 주면 시간 해상도가 더 높은
+        별도의 스펙트로그램 묶음을 다른 ``output_dir``에 만든다. mel_spectrogram()의 설명을 보라.
+        ``n_mels``의 기본값은 N_MELS(동작은 그대로)이다. 더 큰 값을 주면 주파수 해상도가 더 높은 묶음이 되며,
+        ``output_dir``에 대한 주의는 같다.
     """
 
     return _build_seoul_spectrograms(
@@ -332,9 +320,9 @@ def build_seoul_validation_spectrograms(
     hop_length: int = HOP_LENGTH,
     n_mels: int = N_MELS,
 ) -> tuple[list[dict], list[dict]]:
-    """Same as build_seoul_training_spectrograms, but over the official
-    Validation split (dcc_data.mission2_features.select_seoul_validation_rows)
-    -- eval-only, never pass this to a training loop's ``.fit()``/backprop.
+    """build_seoul_training_spectrograms와 같되, 공식 Validation split
+        (dcc_data.mission2_features.select_seoul_validation_rows)를 대상으로 한다.
+        평가 전용이며, 학습 루프의 ``.fit()``/역전파에는 절대 넘기지 않는다.
     """
 
     return _build_seoul_spectrograms(

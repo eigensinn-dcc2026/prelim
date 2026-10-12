@@ -1,4 +1,4 @@
-"""Build and load a location-only manifest across all download shards."""
+"""내려받은 모든 조각(shard)에 걸쳐 위치 정보만 담은 목록(manifest)을 만들고 읽는다."""
 
 from __future__ import annotations
 
@@ -35,10 +35,10 @@ class ManifestRow:
 
 
 def build_manifest(data_root: str | Path) -> list[ManifestRow]:
-    """Pair all WAV/JSON files globally by ``(split, stem)``.
+    """모든 WAV/JSON 파일을 ``(split, stem)`` 기준으로 전체에서 짝지운다.
 
-    Paths in returned rows are POSIX-style paths relative to ``data_root``.
-    Download shard boundaries are deliberately ignored during pairing.
+        돌려주는 행의 경로는 ``data_root`` 기준 POSIX 형식 상대 경로이다.
+        내려받은 조각의 경계는 짝짓기에서 일부러 무시한다.
     """
 
     root = Path(data_root).resolve()
@@ -92,7 +92,7 @@ def build_manifest(data_root: str | Path) -> list[ManifestRow]:
 def write_manifest(
     rows: list[ManifestRow], output_path: str | Path, *, overwrite: bool = False
 ) -> Path:
-    """Write a deterministic CSV without labels or transcript content."""
+    """라벨이나 전사 내용이 없는, 항상 같은 결과가 나오는 CSV를 쓴다."""
 
     output = Path(output_path)
     if output.exists() and not overwrite:
@@ -137,7 +137,7 @@ def load_manifest(
     data_root: str | Path | None = None,
     validate_paths: bool = True,
 ) -> list[ManifestRow]:
-    """Load a manifest and re-run integrity guards."""
+    """목록을 읽고 무결성 검사를 다시 실행한다."""
 
     path = Path(manifest_path)
     rows: list[ManifestRow] = []

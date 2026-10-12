@@ -1,69 +1,49 @@
 #!/usr/bin/env python3
-"""Mission 2 inference entry point (contest-mandated CLI contract).
+"""Mission 2 추론 진입점(대회가 정한 실행 명령 형식).
 
     python scripts/mission2_inference.py \\
         --audio_dir {wav folder} --label_dir {json folder} \\
         --ckpt_path {checkpoint file} --output ./outputs/mission2.csv
 
-audio_dir/label_dir are paired by filename stem with no Training/Validation
-subfolder assumption, since the grader hands us a flat folder (this is why
-dcc_data.manifest.build_manifest -- which requires exactly one Training or
-Validation path component -- is not used here; see pair_by_stem_strict below,
-which is dcc_data.mission2_features.pair_by_stem plus the checks a submission
-needs).
+audio_dir/label_dir는 파일 이름(stem)으로 짝짓고 Training/Validation 하위 폴더가 있다고 가정하지 않는다.
+채점 쪽이 평평한 폴더를 주기 때문이다(그래서 Training 또는 Validation 경로 구성 요소가 정확히 하나
+있어야 하는 dcc_data.manifest.build_manifest는 여기서 쓰지 않는다. 아래의 pair_by_stem_strict를 보라. 이는
+dcc_data.mission2_features.pair_by_stem에 제출에 필요한 검사를 더한 것이다).
 
-The run fails, without writing a CSV, if a WAV has no label JSON (or the
-reverse), if a stem appears twice, or if the finished output does not have one
-row per labelled utterance -- a partial CSV must never look like a successful
-run.
+WAV에 라벨 JSON이 없거나(또는 그 반대), stem이 두 번 나오거나, 완성된 출력이 라벨이 있는 발화마다 한 행이
+아니면 CSV를 쓰지 않고 실패한다. 일부만 쓰인 CSV가 성공한 실행처럼 보이면 안 되기 때문이다.
 
-Row order follows each label file's own utterance order, and startAt/endAt
-are copied through unmodified, per the contest's output format
-([audio file name], [startAt], [endAt], [speaker]).
+행 순서는 각 라벨 파일 안의 발화 순서를 따르고, startAt/endAt은 대회의 출력 형식
+([audio file name], [startAt], [endAt], [speaker])에 따라 수정하지 않고 그대로 옮긴다.
 
-If feature extraction or prediction fails for a given utterance, the row is
-still emitted (falling back to the majority class) so the output row count
-always equals the input utterance count -- the failure is logged to stderr
-with the stem/utt_idx instead of silently dropping a row.
+특정 발화의 특징 추출이나 예측이 실패해도 그 행은 그대로 내보내서(다수 클래스로 대체), 출력 행 수가 항상
+입력 발화 수와 같게 한다. 행을 조용히 빼지 않고, 실패는 stem/utt_idx와 함께 stderr에 기록한다.
 
-Supports both models this repo has produced, selected by ``--ckpt_path``'s
-file extension -- no separate flag needed, so the CLI contract above is
-unchanged either way:
-- L1 (GBM over acoustic-statistic features): any non-torch extension, e.g.
-  ``.pkl`` (``dcc_data.mission2_train.save_model``'s pickle format).
-- L2 (CNN over a log-mel spectrogram, ``dcc_data.mission2_cnn.SpeakerCNNLarge``):
-  ``.pt``/``.pth``/``.ckpt``, matching ``scripts/train_mission2_cnn.py``'s
-  ``--model large`` checkpoint format. The spectrogram
-  is built here with ``dcc_data.mission2_spectrogram``'s current module-level
-  defaults (``N_MELS``, and ``mission2_features.HOP_LENGTH``) -- these must
-  match whatever the checkpoint was actually trained with, since a mismatch
-  would not raise (``SpeakerCNNLarge`` accepts any spectrogram size via
-  ``AdaptiveAvgPool2d``), it would just quietly degrade predictions. So the
-  checkpoint's recorded training config (``checkpoint["metadata"]``, written by
-  the trainer; ``dcc_data.mission2_checkpoint``) is checked against them first,
-  and the run fails if the model kind, mel settings or training split differ,
-  if the audio's sample rate isn't the one it was trained on, or if the
-  checkpoint was not trained on the provided speaker labels as they are (the
-  organizers' 2026-10-01 ruling: no label correction on the basis of ``text``).
-  A checkpoint with no recorded config is refused too. The earlier
-  ``m2_cnn_large.pt`` (M2-VAL-003) was trained on corrected labels, so it is
-  deliberately not accepted any more.
+이 저장소가 만든 두 모델을 모두 지원하며, ``--ckpt_path``의 파일 확장자로 고른다. 별도 옵션이 필요 없어서
+위의 실행 명령 형식은 어느 쪽이든 그대로이다.
+- L1(음향 통계 특징 위의 GBM): torch가 아닌 확장자, 예: ``.pkl``(``dcc_data.mission2_train.save_model``의
+  pickle 형식).
+- L2(로그 멜 스펙트로그램 위의 CNN, ``dcc_data.mission2_cnn.SpeakerCNNLarge``): ``.pt``/``.pth``/``.ckpt``이며
+  ``scripts/train_mission2_cnn.py``의 ``--model large`` 체크포인트 형식과 같다. 스펙트로그램은 여기서
+  ``dcc_data.mission2_spectrogram``의 현재 모듈 기본값(``N_MELS``, ``mission2_features.HOP_LENGTH``)으로
+  만든다. 이 값은 체크포인트를 실제로 학습한 값과 같아야 한다. 어긋나도 오류가 나지 않고(``SpeakerCNNLarge``는
+  ``AdaptiveAvgPool2d`` 덕분에 어떤 크기의 스펙트로그램이든 받는다) 예측만 조용히 나빠지기 때문이다. 그래서
+  체크포인트에 기록된 학습 설정(학습기가 쓴 ``checkpoint["metadata"]``, ``dcc_data.mission2_checkpoint``)을
+  먼저 이 값들과 대조하고, 모델 종류·멜 설정·학습 split이 다르거나, 오디오의 샘플레이트가 학습한 것과
+  다르거나, 체크포인트가 제공된 화자 라벨을 그대로 쓰고 학습한 것이 아니면(주최 측의 2026-10-01 판정:
+  ``text``를 근거로 한 라벨 수정 금지) 실행에 실패한다. 설정이 기록되어 있지 않은 체크포인트도 거부한다.
+  예전의 ``m2_cnn_large.pt``(M2-VAL-003)는 수정한 라벨로 학습했으므로 더는 받아들이지 않는다.
 
-An L2 ``--ckpt_path`` may also be an *ensemble* checkpoint built by
-``scripts/pack_mission2_l2_ensemble.py`` (several same-architecture, same-mel-
-settings models that only differ by ``--torch-seed``, soft-voted together --
-see M2-ENS-003: +0.50pp over the best single seed on the full official
-Validation set). Still exactly one ``--ckpt_path`` file, so the CLI contract
-is unchanged; the ensemble's member weights are bundled inside that one file
-under ``checkpoint["ensemble_model_state_dicts"]`` instead of a single
-``"best_model_state_dict"``, and ``dcc_data.mission2_checkpoint.
-ENSEMBLE_STATE_DICTS_KEY`` is the key the loader checks for.
+L2 ``--ckpt_path``는 ``scripts/pack_mission2_l2_ensemble.py``가 만든 *앙상블* 체크포인트일 수도 있다
+(``--torch-seed``만 다른, 구조와 멜 설정이 같은 모델 여러 개를 소프트 보팅. M2-ENS-003 참고: 공식
+Validation 전체에서 가장 좋은 단일 시드보다 +0.50%p). 그래도 ``--ckpt_path`` 파일은 정확히 하나이므로
+실행 명령 형식은 그대로이다. 앙상블 멤버의 가중치는 그 파일 하나 안에 ``"best_model_state_dict"`` 하나
+대신 ``checkpoint["ensemble_model_state_dicts"]`` 아래에 묶여 있고, 읽는 쪽이 확인하는 키는
+``dcc_data.mission2_checkpoint.ENSEMBLE_STATE_DICTS_KEY``이다.
 
-Development note: this currently lives under scripts/ rather than as a
-top-level inference.py because this repository holds all three missions and
-the final submission packaging (one inference.py per mission, at whatever
-path each submission needs) has not been decided yet -- see the checkpoint
-format note in dcc_data.mission2_train.
+개발 메모: 이것이 최상위 inference.py가 아니라 scripts/ 아래에 있는 이유는, 이 저장소가 세 미션을 모두
+담고 있고 최종 제출 패키징(미션마다 inference.py 하나, 각 제출이 요구하는 경로에)이 아직 정해지지
+않았기 때문이다. dcc_data.mission2_train의 체크포인트 형식 메모를 보라.
 """
 
 from __future__ import annotations
@@ -100,19 +80,19 @@ from dcc_data.mission2_checkpoint import (  # noqa: E402
 )
 from dcc_data.mission2_train import load_model  # noqa: E402
 
-# torch.save's default format (a zip archive) -- these three are what this
-# repo's own CNN scripts (train_mission2_cnn.py, evaluate_mission2_l2_on_
-# official_validation.py) already use for L2 checkpoints; anything else is
-# treated as L1's pickle format via dcc_data.mission2_train.load_model.
+# torch.save의 기본 형식(zip 압축 파일)이다. 이 세 가지는 이 저장소의 CNN 스크립트
+# (train_mission2_cnn.py, evaluate_mission2_l2_on_
+# official_validation.py)가 L2 체크포인트에 이미 쓰는 확장자이고, 그 외는 모두
+# dcc_data.mission2_train.load_model로 읽는 L1의 pickle 형식으로 취급한다.
 CNN_CHECKPOINT_SUFFIXES = frozenset({".pt", ".pth", ".ckpt"})
 
 PredictFn = Callable[[np.ndarray, int, float], int]
 
-# The CNN was trained on batches padded (with SPEC_FLOOR_DB, see mission2_cnn.collate_batch) to each
-# batch's longest utterance, so it almost never saw an unpadded short utterance; feeding one at
-# inference costs ~1.1pp (M2-VAL-004). Padding every utterance up to a fixed length -- using only its own
-# spectrogram, never another utterance -- recovers that on the Training-internal held-out calls
-# (89.58% -> 90.84% at 300; 200-500 is a plateau). 300 frames = 6 s at this repo's 8 kHz / hop 160.
+# CNN은 각 배치에서 가장 긴 발화에 맞춰 채운(SPEC_FLOOR_DB로, mission2_cnn.collate_batch 참고) 배치로
+# 학습했으므로 채우지 않은 짧은 발화는 거의 본 적이 없다. 추론 때 그런 발화를 넣으면
+# 약 1.1%p가 떨어진다(M2-VAL-004). 모든 발화를 고정 길이까지 채우면 -- 그 발화 자신의
+# 스펙트로그램만 쓰고 다른 발화는 쓰지 않는다 -- Training 내부에서 떼어 둔 통화에서 그 손실이 회복된다
+# (300프레임에서 89.58% -> 90.84%, 200~500은 평평한 구간). 300프레임은 이 저장소의 8 kHz / hop 160에서 6초이다.
 L2_MIN_FRAMES = 300
 
 
@@ -127,10 +107,10 @@ def pad_spectrogram_to_min_frames(spectrogram: np.ndarray, min_frames: int = L2_
 
 
 def _speaker_from_logits(logits) -> int:
-    """The contest's decision rule for one utterance's two logits: class 1 iff P(speaker=1) >= 0.5.
+    """발화 하나의 로짓 두 개에 대한 대회의 판정 규칙: P(speaker=1) >= 0.5일 때만 클래스 1.
 
-    For two logits that is ``logit1 >= logit0``. ``argmax`` differs only at an exact tie, where it returns
-    class 0 -- so use this instead of ``logits.argmax``.
+        로짓이 둘이면 ``logit1 >= logit0``과 같다. ``argmax``는 값이 정확히 같은 경우에만 다르고 그때 클래스 0을
+        돌려준다. 그래서 ``logits.argmax`` 대신 이것을 쓴다.
     """
 
     return int((logits[0, 1] >= logits[0, 0]).item())
@@ -150,11 +130,11 @@ def _preview(items, limit: int = 5) -> str:
 
 
 def pair_by_stem_strict(audio_dir: Path, label_dir: Path) -> list[tuple[str, Path, Path]]:
-    """What dcc_data.mission2_features.pair_by_stem returns, or a ValueError naming every problem.
+    """dcc_data.mission2_features.pair_by_stem이 돌려주는 것, 또는 모든 문제를 이름으로 밝힌 ValueError.
 
-    pair_by_stem keeps only the stems present in *both* folders and lets a repeated stem silently
-    overwrite another, which is fine for building training data but not for a submission: a WAV without
-    its label JSON (or the reverse) would just vanish from the CSV and the run would still exit 0.
+        pair_by_stem은 두 폴더 *모두에* 있는 stem만 남기고 반복된 stem이 다른 것을 조용히 덮어쓰게 둔다.
+        학습 데이터를 만들 때는 괜찮지만 제출에는 안 된다: 라벨 JSON이 없는 WAV(또는 그 반대)가 CSV에서 그냥
+        사라지고 실행은 여전히 0으로 끝나기 때문이다.
     """
 
     wavs = _index_by_stem(audio_dir, "*.wav")
@@ -224,25 +204,25 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
     from dcc_data.mission2_spectrogram import mel_spectrogram
 
     checkpoint = torch.load(ckpt_path, map_location="cpu")
-    # A SpeakerCNNLarge-shaped state_dict loads without error whatever it was trained as, so check what
-    # the checkpoint says it was trained with before trusting it (see dcc_data.mission2_checkpoint).
+    # SpeakerCNNLarge 모양의 state_dict는 무엇으로 학습했든 오류 없이 불러와지므로, 믿기 전에
+    # 체크포인트가 무엇으로 학습했다고 기록했는지 확인한다(dcc_data.mission2_checkpoint 참고).
     metadata, _source = resolve_l2_checkpoint_metadata(checkpoint, ckpt_path)
     require_l2_inference_config(metadata)
     expected_sample_rate = int(metadata["sample_rate"])
 
-    # An ensemble checkpoint (scripts/pack_mission2_l2_ensemble.py) bundles several members' weights under
-    # one key instead of a single "best_model_state_dict" -- everything else about it (one --ckpt_path
-    # file, same mel settings) is unchanged, so this is the only branch point.
+    # 앙상블 체크포인트(scripts/pack_mission2_l2_ensemble.py)는 여러 멤버의 가중치를
+    # "best_model_state_dict" 하나 대신 한 키 아래에 묶는다. 그 외의 모든 것(--ckpt_path 파일 하나,
+    # 같은 멜 설정)은 그대로이므로 여기가 유일한 갈림길이다.
     models = []
     for state_dict in l2_member_state_dicts(checkpoint, metadata):
         model = SpeakerCNNLarge()
         model.load_state_dict(state_dict)
         model.eval()
         models.append(model)
-    # No stored majority_class for L2 checkpoints (train_mission2_cnn.py
-    # doesn't compute one) -- 1 matches load_model's own fallback-of-a-
-    # fallback default above, so both backends agree when nothing better is
-    # known. This only fires if the call's audio couldn't even be read.
+    # L2 체크포인트에는 저장된 majority_class가 없다(train_mission2_cnn.py는
+    # 그것을 계산하지 않는다). 1은 위에 있는 load_model 자신의 "대체의 대체"
+    # 기본값과 같으므로, 더 나은 값을 모를 때 두 백엔드가
+    # 일치한다. 통화의 오디오조차 읽지 못했을 때만 쓰인다.
     fallback_speaker = 1
 
     @torch.no_grad()
@@ -252,11 +232,11 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
                 f"audio is {sample_rate} Hz but this checkpoint was trained on {expected_sample_rate} Hz audio"
             )
         spectrogram = pad_spectrogram_to_min_frames(mel_spectrogram(segment, sample_rate))
-        batch = torch.from_numpy(spectrogram).unsqueeze(0).unsqueeze(0)  # (1, 1, n_mels, n_frames)
+        batch = torch.from_numpy(spectrogram).unsqueeze(0).unsqueeze(0)  # (배치, 채널, n_mels, n_frames)
         if len(models) == 1:
-            # Bit-for-bit the single-model path this always was -- comparing softmax outputs instead of
-            # raw logits would be mathematically equivalent (softmax is order-preserving) but there is no
-            # reason to touch the already-tested tie-breaking behavior when there is nothing to average.
+            # 항상 이랬던 단일 모델 경로와 비트 단위로 같다. 로짓 대신 softmax 출력을 비교해도
+            # 수학적으로는 같지만(softmax는 순서를 보존한다), 평균낼 것이 없을 때
+            # 이미 시험한 동점 처리 동작을 건드릴 이유가 없다.
             return _speaker_from_logits(models[0](batch))
         average_probs = sum(torch_functional.softmax(model(batch), dim=1) for model in models) / len(models)
         return int((average_probs[0, 1] >= average_probs[0, 0]).item())
@@ -265,7 +245,7 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
 
 
 def load_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
-    """Return (predict_fn, fallback_speaker) for whichever model ``ckpt_path`` is."""
+    """``ckpt_path``가 어떤 모델이든 그에 맞는 (predict_fn, fallback_speaker)를 돌려준다."""
 
     if ckpt_path.suffix.lower() in CNN_CHECKPOINT_SUFFIXES:
         return _load_l2_predictor(ckpt_path)
@@ -302,7 +282,7 @@ def main() -> int:
         sample_rate = None
         try:
             waveform, sample_rate = read_call_waveform(wav_path)
-        except Exception as exc:  # noqa: BLE001 - one bad call must not stop the whole run
+        except Exception as exc:  # noqa: BLE001 - 통화 하나의 오류가 전체 실행을 멈추게 해서는 안 된다
             print(f"[warn] failed to read {wav_path}: {type(exc).__name__}: {exc}", file=sys.stderr)
 
         for utt_idx, utterance in enumerate(utterances):
@@ -317,8 +297,8 @@ def main() -> int:
                     duration_sec = (float(end_at) - float(start_at)) / 1000.0
                     speaker = predict(segment, sample_rate, duration_sec)
                 except CheckpointConfigError:
-                    raise  # a checkpoint/input mismatch is a setup error, never one bad utterance to paper over
-                except Exception as exc:  # noqa: BLE001 - fall back to majority class, log, keep the row
+                    raise  # 체크포인트와 입력이 맞지 않는 것은 설정 오류이지, 덮어 가릴 발화 하나의 문제가 아니다
+                except Exception as exc:  # noqa: BLE001 - 다수 클래스로 대체하고, 기록하고, 행은 유지한다
                     failure_count += 1
                     print(
                         f"[warn] feature/predict failed for stem={stem} utt_idx={utt_idx}: "

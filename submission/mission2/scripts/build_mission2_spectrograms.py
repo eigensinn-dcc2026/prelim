@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""Build the Mission 2 L2 input cache: one log-mel spectrogram .npy per
-utterance, plus an index parquet (call_id, utt_idx, speaker, npy_path, and the
-split / n_mels / hop_length / n_fft / sample_rate it was built with -- the provenance
-train_mission2_cnn.py checks before it will train on an index).
+"""Mission 2 L2 입력 캐시를 만든다: 발화마다 로그 멜 스펙트로그램 .npy 하나와, 인덱스 parquet
+(call_id, utt_idx, speaker, npy_path, 그리고 만들 때의 split / n_mels / hop_length / n_fft / sample_rate.
+이것은 train_mission2_cnn.py가 인덱스로 학습하기 전에 확인하는 출처 정보이다).
 
-Mirrors scripts/build_mission2_dataset.py's sampling/manifest handling;
-only the output format differs (a spectrogram doesn't fit a flat tabular
-row). See dcc_data.mission2_spectrogram's module docstring for why this
-exists on top of the L1 feature cache.
+scripts/build_mission2_dataset.py의 뽑기/목록 처리와 같고, 출력 형식만 다르다(스펙트로그램은 평평한 표의
+한 행에 들어가지 않는다). L1 특징 캐시에 더해 왜 이것이 필요한지는 dcc_data.mission2_spectrogram의 모듈
+설명을 보라.
 
-Usage:
+사용법:
     python scripts/build_mission2_spectrograms.py \\
         --manifest data/manifests/dcc_manifest_v1.csv \\
         --data-root data/raw \\
@@ -40,10 +38,10 @@ from dcc_data.mission2_spectrogram import (  # noqa: E402
 
 BUILDERS = {"training": build_seoul_training_spectrograms, "validation": build_seoul_validation_spectrograms}
 
-# Where each split's cache goes when --output-dir/--index-output/--failures-log are not given. The two
-# splits must never share a default: a Validation cache written over the Training paths would look like
-# a Training index to anything that reads the default path (see also train_mission2_cnn.py, which
-# refuses an index that isn't stamped as Training).
+# --output-dir/--index-output/--failures-log를 주지 않았을 때 각 split의 캐시가 가는 곳. 두
+# split이 기본값을 공유하면 절대 안 된다: Training 경로에 덮어쓴 Validation 캐시는
+# 기본 경로를 읽는 모든 것에게 Training 인덱스처럼 보이게 된다(Training 도장이 찍히지 않은 인덱스를
+# 거부하는 train_mission2_cnn.py도 참고).
 DEFAULT_CACHE_PATHS = {
     "training": {
         "output_dir": Path("data/m2_spectrograms"),
