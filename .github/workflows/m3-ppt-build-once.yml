@@ -63,6 +63,13 @@ jobs:
           assert '키워드' in aft[17] and '검증' in aft[17], "Missing decision story on page 18"
           print('PASS: 23 slides, all 23 pages with only M3 pages 18-20 changed; decisions and metrics verified')
           PY
+      - name: Upload canonical PPTX for visual inspection
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: m3-canonical-pptx-review
+          path: ppt/DCC2026_예선_결과정리.pptx
+          if-no-files-found: error
+          retention-days: 1
       - name: Commit generated PPTX into this branch
         run: |
           git config user.name 'github-actions[bot]'
