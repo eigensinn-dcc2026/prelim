@@ -21,7 +21,18 @@
 | `m3_ensemble_full.pt` | 가중치. 앙상블 전체(RoBERTa-large 3개 + TF-IDF)를 한 파일에 담았다. 약 4.05GB라 git에 없고 패키징 때 넣는다. SHA256 `73c10afcee23f2cf1aba3ece5f758056f9ec0099fc3022aac469b5d5f10818d8` |
 | `m3_final_train.executed.ipynb` | 학습 로그가 포함된 실행된 노트북(Colab A100, M3-FINAL-002). 학습 29,200통화, seed별·앙상블 공식 Val 점수 출력이 들어 있다 |
 
-학습 노트북의 원본과 실행 방법은 `scripts/m3_final/`(최종 학습 키트)에 있습니다.
+### 학습 코드 (`train/`)
+
+노트북은 학습을 `train/train_final.py`로 실행하므로, 학습 코드가 제출 폴더 안에 함께 있습니다.
+
+| 파일 | 설명 |
+|---|---|
+| `train/train_final.py` | 학습·내보내기·채점(RoBERTa-large 3 seed, TF-IDF, 앙상블 `.pt`까지 `--ensemble`로 한 번에) |
+| `train/build_ensemble.py` | seed별 `.pt`와 TF-IDF를 앙상블 `.pt` 하나로 묶기 |
+| `train/mission3_bert.py` | 학습 보조 함수(체크포인트 내보내기, 텍스트 읽기) |
+| `train/requirements-train.txt` | 학습용 패키지(추론용 `requirements.txt`와 별개) |
+
+`train/`의 코드는 실행 당시 저장소의 `scripts/m3_final/`·`src/dcc_inference/mission3_bert.py`와 같고, 제출 폴더에서 읽히도록 경로를 고친 5줄만 다릅니다. 실행된 노트북의 `scripts/m3_final/` 경로는 `train/`으로 읽으면 됩니다.
 
 가중치에는 tokenizer·config 텍스트가 함께 들어 있어 **인터넷 없이** 실행됩니다. `--ckpt_path`는 앙상블 `.pt`(`dcc-m3-ens-v1`)와 단일 모델 `.pt`(`dcc-m3-bert-v1`)를 모두 받습니다.
 

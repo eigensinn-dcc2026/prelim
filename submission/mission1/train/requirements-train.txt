@@ -1,0 +1,7 @@
+# Packages for the training notebook (mission1_train.ipynb) and train/build_model_pt.py.
+# Inference needs only ../requirements.txt.
+scikit-learn==1.8.0
+joblib==1.5.3
+nbformat==5.10.4
+nbconvert==7.17.1
+ipykernel==7.3.0

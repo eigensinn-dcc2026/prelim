@@ -9,12 +9,12 @@ Per call, the caller (speaker=1) speech is cropped using only ``startAt`` /
   it is at least 3 s long), each window embedding is L2-normalised, averaged
   weighted by window length, then L2-normalised again.
 
-A frozen sklearn Pipeline (StandardScaler + LogisticRegression) maps the 564-d
-vector to F/M. No fitting happens at inference time.
+A frozen head (standardise, then a logistic-regression score; stored as plain
+tensors) maps the 564-d vector to F/M. No fitting happens at inference time.
 
-The WavLM weights are read locally (``$DCC_WAVLM_DIR`` or
-``<checkpoint folder>/wavlm-base-plus-sv``) so the run needs no internet. Only
-if neither exists is the pinned revision downloaded from the Hugging Face Hub.
+Everything the model needs is in ONE ``.pt`` checkpoint (format ``dcc-m1-v1``, built by
+``train/build_model_pt.py``): the head and the WavLM weights together with the text of its
+config files. Nothing is downloaded, so the run needs no internet.
 
 If one call fails, the row still gets the training majority class ``F`` so the
 row count equals the number of input pairs; the failure is printed on stderr.
@@ -23,15 +23,13 @@ row count equals the number of input pairs; the failure is printed on stderr.
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from dcc_data.mission1 import _crop_caller_segments, _parse_caller_intervals
-from dcc_data.mission2_features import acoustic_feature_vector, pair_by_stem
+from audio_features import _crop_caller_segments, _parse_caller_intervals, acoustic_feature_vector, pair_by_stem
 
 COLUMNS = ("audio file name", "gender")
 
@@ -41,9 +39,9 @@ N_FEATURES = N_ACOUSTIC_FEATURES + N_XVECTOR
 LABEL_TO_GENDER = {0: "F", 1: "M"}
 FALLBACK_GENDER = "F"  # Training majority class
 
+FORMAT = "dcc-m1-v1"
 WAVLM_ID = "microsoft/wavlm-base-plus-sv"
 WAVLM_REVISION = "1bfd64eca136543feb28c5ffaf05381c6af33121"
-WAVLM_DIRNAME = "wavlm-base-plus-sv"
 SAMPLE_RATE = 16000
 WINDOW_SECONDS = 20
 MAX_WINDOWS = 4
@@ -74,27 +72,31 @@ def average_windows(vectors: np.ndarray, lengths: np.ndarray) -> np.ndarray:
     return (mean / norm).astype(np.float32)
 
 
-def resolve_wavlm_dir(ckpt_path: Path) -> Path | None:
-    env = os.environ.get("DCC_WAVLM_DIR")
-    for candidate in ([Path(env)] if env else []) + [Path(ckpt_path).resolve().parent / WAVLM_DIRNAME]:
-        if (candidate / "config.json").exists():
-            return candidate
-    return None
+def load_model(ckpt_path: Path):
+    """Read the single ``.pt`` checkpoint: ``(head, feature processor, WavLM x-vector model, torch)``.
 
-
-def load_xvector_model(ckpt_path: Path):
-    """Load WavLM x-vector model offline; download the pinned revision only if absent."""
+    The WavLM model is rebuilt from the config text stored in the file and its weights are loaded
+    strictly, so a file that does not match this code is refused instead of run.
+    """
     import torch
-    from transformers import Wav2Vec2FeatureExtractor, WavLMForXVector
+    from transformers import Wav2Vec2FeatureExtractor, WavLMConfig, WavLMForXVector
 
-    root = resolve_wavlm_dir(ckpt_path)
-    source = str(root) if root is not None else WAVLM_ID
-    kwargs = {"local_files_only": True} if root is not None else {"revision": WAVLM_REVISION}
-    processor = Wav2Vec2FeatureExtractor.from_pretrained(source, **kwargs)
-    model = WavLMForXVector.from_pretrained(source, **kwargs).eval()
+    payload = torch.load(Path(ckpt_path), map_location="cpu", weights_only=True)
+    if not isinstance(payload, dict) or payload.get("format") != FORMAT:
+        raise ValueError(f"{ckpt_path} is not a {FORMAT} checkpoint")
+    wavlm = payload["wavlm"]
+    if (wavlm["repo_id"], wavlm["revision"]) != (WAVLM_ID, WAVLM_REVISION):
+        raise ValueError(f"unexpected x-vector encoder: {wavlm['repo_id']}@{wavlm['revision']}")
+    head = {name: tensor.numpy() for name, tensor in payload["head"].items()}
+    if head["scaler_mean"].shape != (N_FEATURES,) or head["coef"].shape != (1, N_FEATURES):
+        raise ValueError(f"head is not the {N_FEATURES}-feature binary F/M model")
+    processor = Wav2Vec2FeatureExtractor.from_dict(json.loads(wavlm["preprocessor_config"]))
+    model = WavLMForXVector(WavLMConfig.from_dict(json.loads(wavlm["config"])))
+    model.load_state_dict(wavlm["state_dict"], strict=True)
+    model.eval()
     if model.config.xvector_output_dim != N_XVECTOR:
         raise ValueError("expected a 512-dimensional x-vector")
-    return processor, model, torch
+    return head, processor, model, torch
 
 
 def caller_waveform(wav_path: Path, json_path: Path) -> tuple[np.ndarray, int]:
@@ -142,14 +144,11 @@ def extract_features(wav_path: Path, json_path: Path, processor, model, torch) -
     return np.concatenate([acoustic.astype(np.float64), mean.astype(np.float64)])
 
 
-def load_pipeline(ckpt_path: Path):
-    import joblib
-    from sklearn.pipeline import Pipeline
-
-    pipeline = joblib.load(ckpt_path)
-    if not isinstance(pipeline, Pipeline) or getattr(pipeline, "n_features_in_", None) != N_FEATURES:
-        raise ValueError(f"{ckpt_path} is not the {N_FEATURES}-feature Mission 1 Pipeline")
-    return pipeline
+def classify(head: dict, features: np.ndarray) -> int:
+    """Class 1 (M) if the logistic score of the standardised 564-d vector is positive, else 0 (F)."""
+    standardised = (features - head["scaler_mean"]) / head["scaler_scale"]
+    score = float(standardised @ head["coef"][0] + head["intercept"][0])
+    return int(score > 0)
 
 
 def predict(audio_dir: Path, label_dir: Path, ckpt_path: Path) -> pd.DataFrame:
@@ -157,20 +156,16 @@ def predict(audio_dir: Path, label_dir: Path, ckpt_path: Path) -> pd.DataFrame:
     ckpt_path = Path(ckpt_path)
     if not ckpt_path.exists():
         raise FileNotFoundError(f"checkpoint not found: {ckpt_path}")
-    pipeline = load_pipeline(ckpt_path)
     pairs = pair_by_stem(Path(audio_dir), Path(label_dir))
     if not pairs:
         raise FileNotFoundError(f"no WAV/JSON stem pairs under {audio_dir} and {label_dir}")
-    processor, model, torch = load_xvector_model(ckpt_path)
+    head, processor, model, torch = load_model(ckpt_path)
 
     rows, n_fallback = [], 0
     for stem, wav_path, json_path in pairs:
         try:
             x = extract_features(wav_path, json_path, processor, model, torch)
-            pred = int(pipeline.predict(x.reshape(1, -1))[0])
-            if pred not in LABEL_TO_GENDER:
-                raise ValueError(f"unexpected class label {pred}")
-            gender = LABEL_TO_GENDER[pred]
+            gender = LABEL_TO_GENDER[classify(head, x)]
         except Exception as exc:  # noqa: BLE001 - keep row count stable
             gender = FALLBACK_GENDER
             n_fallback += 1
