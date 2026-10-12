@@ -327,6 +327,10 @@ def test_skip_status_cannot_be_added_without_a_matching_scope_amendment(tmp_path
     ids = experiment_ids()
     statuses = {name: "PENDING" for name in ids}
     statuses["ft_transformer_F01"] = "SKIPPED_BY_USER_SCOPE"
+    (tmp_path / "contract.json").write_text(json.dumps({
+        "schema_version": "mission2_acoustic_feature_grid_v1",
+        "experiments": list(ids),
+    }), encoding="utf-8")
     (tmp_path / "run_ledger.json").write_text(json.dumps({
         "run_id": "fixture", "status": "READY", "experiments": statuses,
     }), encoding="utf-8")
