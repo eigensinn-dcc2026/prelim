@@ -613,15 +613,31 @@ missionConclusion(14, 1, "신고자 성별 분류",
 // 내용 출처: ppt 만들기/미션2_PPT_제작의뢰_초안.md (2026-10-08)
 // ======================================================================
 
-// ① 한눈에 보기
-missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
-  "발화 하나만 듣고 대원인지 신고자인지 — 목소리를 그림(스펙트로그램)으로 바꿔 CNN 3개로 판정",
-  "신고 통화의 발화 하나만 듣고, 말한 사람이 대원인지 신고자인지 맞힌다.",
-  [["발화 추출", "해당 구간만\n잘라내기"], ["스펙트로그램", "log-mel\n그림으로 변환"], ["CNN × 3", "seed 다르게\n학습 후 평균"], ["판정", "평균 확률\n(기준값 0.5)"]],
-  { value: "91.49%", label: "Accuracy (공식 Validation, 발화 111,947개)", sub: "L1(LightGBM) 86.44% 대비 +5.05%p — CNN 3-seed 앙상블 채택" },
-  false);
-
-// (§1 미션 정의 — 별도 슬라이드 제거. 한 줄 정의는 ①요약 슬라이드의 "■ 미션 정의"에 남김)
+// ① 한눈에 보기 — 두괄식: 문제 정의 없이 최종 모델·정확도부터 제시
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 (김광희) — 한눈에 보기", 15);
+  coreMsg(s, "발화 하나만 듣고 대원인지 신고자인지 — 목소리를 그림(스펙트로그램)으로 바꿔 CNN 3개로 판정");
+  txt(s, "■ 최종 모델과 정확도", { x: M, y: 2.45, w: CW, h: 0.3, fontSize: 16, bold: true, color: C.blue });
+  txt(s, "91.49%", { x: M, y: 2.75, w: 5.2, h: 1.0, fontSize: 56, bold: true, color: C.blue, align: "center" });
+  txt(s, "Accuracy (공식 Validation, 발화 111,947개)", { x: M, y: 3.75, w: 5.2, h: 0.32, fontSize: 12.5, color: C.sub, align: "center" });
+  s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["L1\nLightGBM", "L2 CNN\n3-seed 앙상블"], values: [86.44, 91.49] }], {
+    x: M + 5.5, y: 2.5, w: CW - 5.5, h: 1.7, barDir: "bar", chartColors: [C.line, C.blue], varyColors: true,
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 12, dataLabelFontBold: true, dataLabelFormatCode: "0.00",
+    valAxisMinVal: 80, valAxisMaxVal: 95, valAxisHidden: true, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 11.5,
+    valGridLine: { style: "none" }, catGridLine: { style: "none" }, showLegend: false,
+  });
+  txt(s, "L1 대비 +5.05%p — CNN 3-seed 앙상블 채택", { x: M + 5.5, y: 4.25, w: CW - 5.5, h: 0.3, fontSize: 11, color: C.sub });
+  s.addShape(pres.shapes.LINE, { x: M, y: 4.7, w: CW, h: 0, line: { color: C.line, width: 1 } });
+  txt(s, "■ 모델 구성", { x: M, y: 4.82, w: CW, h: 0.3, fontSize: 16, bold: true, color: C.blue });
+  const pipe15 = [["발화 추출", "해당 구간만\n잘라내기"], ["스펙트로그램", "log-mel\n그림으로 변환"], ["CNN × 3", "seed 다르게\n학습 후 평균"], ["판정", "평균 확률\n(기준값 0.5)"]];
+  const n15 = pipe15.length, bw15 = 2.0, gap15 = (CW - n15 * bw15) / (n15 - 1);
+  pipe15.forEach(([t, b], i) => {
+    const x = M + i * (bw15 + gap15);
+    stepBox(s, x, 5.15, bw15, 1.75, t, b, i === n15 - 1 ? C.sky : C.blue);
+    if (i < n15 - 1) arrow(s, x + bw15 + (gap15 - 0.24) / 2, 5.85, 0.24, 0.38);
+  });
+}
 
 // ③ §2 데이터
 {
@@ -666,11 +682,14 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
   ], { x: M + 0.3, y: 3.0, w: CW - 0.6, h: 0.9, fontSize: 13, paraSpaceAfter: 5 });
   s.addShape(pres.shapes.LINE, { x: M + 0.3, y: 4.05, w: CW - 0.6, h: 0, line: { color: C.line, width: 1 } });
   stat(s, M + 0.5, 4.3, 3.3, "86.44%", "공식 Validation Accuracy", C.blue, 42);
-  txt(s, "■ 추가로 해 본 것 — 모두 큰 개선 없음", { x: M + 4.3, y: 4.3, w: CW - 4.6, h: 0.32, fontSize: 14, bold: true, color: C.blue });
-  const addedTries = ["특징 추가 3회", "하이퍼파라미터 튜닝", "클래스 가중치 조정", "목소리 겹침 구간 처리"];
-  const tryW = (CW - 4.6 - 0.3) / 2;
-  addedTries.forEach((t, i) => checkRow(s, M + 4.3 + (i % 2) * (tryW + 0.3), 4.72 + Math.floor(i / 2) * 0.48, tryW, t));
-  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 3절, docs/experiment_log.md M2-EXP-001~009, M2-COMPARE-001, M2-VAL-001/002");
+  txt(s, "■ 추가로 해 본 것 — 전부 0%p 근처, 큰 개선 없음", { x: M + 4.3, y: 4.3, w: CW - 4.6, h: 0.3, fontSize: 13, bold: true, color: C.blue });
+  s.addChart(pres.charts.BAR, [{ name: "정확도 변화(%p)", labels: ["판정 기준 보정", "클래스 가중치 조정", "겹침 구간 제외", "겹침 구간 가중치↓"], values: [0.00, 0.02, -0.25, 0.14] }], {
+    x: M + 4.3, y: 4.65, w: CW - 4.6, h: 2.0, barDir: "bar", chartColors: [C.sky],
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 10.5, dataLabelFontBold: true, dataLabelFormatCode: "+0.00;-0.00",
+    valAxisMinVal: -0.5, valAxisMaxVal: 0.5, valAxisHidden: true, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 10.5,
+    valGridLine: { style: "none" }, catGridLine: { style: "none" }, showLegend: false,
+  });
+  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 3절, docs/experiment_log.md M2-EXP-002~005");
 }
 
 // ⑤ §4 보완점 발견 → 방향 전환
@@ -741,13 +760,21 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
   card(s, M, 2.45, 7.3, 4.35);
   txt(s, [
     { text: "문제  ", options: { bold: true, color: C.blue } },
-    { text: "학습 때는 여러 발화를 묶어 가장 긴 발화에 맞춰 무음을 채움 → 모델이 그 분포에 익숙해짐. 채점 때는 발화를 하나씩 넣다 보니, 짧은 발화가 무음 없이 들어가 성능이 떨어짐", options: { breakLine: true } },
+    { text: "학습은 여러 발화를 묶어 가장 긴 발화에 맞춰 무음을 채움 → 채점은 발화를 하나씩 넣어 짧은 발화가 무음 없이 들어감", options: { breakLine: true } },
     { text: "해결  ", options: { bold: true, color: C.blue } },
-    { text: "추론 때 각 발화를 그 발화 자신만으로 무음을 채워 300프레임(6초)으로 맞춤 — 다른 발화 정보를 쓰지 않으니 규정에도 맞음" },
-  ], { x: M + 0.2, y: 2.6, w: 7.0, h: 2.1, fontSize: 12.5, paraSpaceAfter: 8 });
-  stat(s, M + 0.3, 4.9, 2.1, "+1.16%p", "89.73% → 90.89%", C.red, 30);
-  stat(s, M + 2.7, 4.9, 2.1, "+4.1%p", "0.5초 미만: 86.2→90.3%", C.blue, 30);
-  txt(s, "채우는 길이(300프레임)는 공식 Validation이 아니라 학습 데이터 안의 검증 통화로 정했음", { x: M + 0.3, y: 6.1, w: 6.8, h: 0.5, fontSize: 10.5, color: C.sub });
+    { text: "추론 때 각 발화를 자기 자신만으로 무음을 채워 300프레임(6초)으로 맞춤 — 다른 발화 정보를 안 쓰니 규정에도 맞음" },
+  ], { x: M + 0.2, y: 2.6, w: 7.0, h: 1.35, fontSize: 12, paraSpaceAfter: 6 });
+  txt(s, "발화 길이 구간별 정확도 (채우기 전 → 후)", { x: M + 0.2, y: 3.95, w: 7.0, h: 0.3, fontSize: 11.5, color: C.sub });
+  s.addChart(pres.charts.BAR, [
+    { name: "채우기 전", labels: ["0.5초 미만", "0.5~1초", "1~2초"], values: [86.2, 85.0, 88.2] },
+    { name: "채우기 후", labels: ["0.5초 미만", "0.5~1초", "1~2초"], values: [90.3, 86.8, 89.1] },
+  ], {
+    x: M, y: 4.25, w: 7.3, h: 2.15, barDir: "col", barGrouping: "clustered", chartColors: [C.line, C.blue],
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 10, dataLabelFontBold: true, dataLabelFormatCode: "0.0",
+    valAxisMinVal: 80, valAxisMaxVal: 94, valAxisHidden: true, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 11,
+    valGridLine: { style: "none" }, catGridLine: { style: "none" }, showLegend: true, legendPos: "b", legendFontSize: 10,
+  });
+  txt(s, "전체 공식 Validation: 89.73% → 90.89% (+1.16%p)  ·  2초 이상은 거의 변화 없음", { x: M + 0.2, y: 6.6, w: 7.0, h: 0.3, fontSize: 10, color: C.sub });
   card(s, M + 7.6, 2.45, W - M - (M + 7.6), 4.35, C.bgGray);
   txt(s, "왜 중요한가", { x: M + 7.8, y: 2.6, w: 3.7, h: 0.3, fontSize: 13, bold: true, color: C.blue });
   txt(s, "재학습 없이 추론 방식만 고쳐서 얻은 이득 — 모델이 아니라 \"학습과 추론의 입력이 서로 달랐다\"는 걸 찾아낸 것", { x: M + 7.8, y: 2.95, w: 3.7, h: 1.8, fontSize: 11 });
@@ -786,21 +813,26 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "Mission 2 — 연구 방법 ⑥ 검증했지만 채택하지 않은 시도", 22);
   coreMsg(s, "아이디어마다 seed 3개로 반복 실험해 우연이 아닌지 확인했고, 기준에 못 미치면 버렸다");
-  card(s, M, 2.45, CW, 3.7);
-  table(s, [
-    ["시도", "결과", "판정"],
-    ["시간 해상도 2배 (hop80)", "처음엔 좋아 보였지만 충분히 학습하면 역전", { text: "기각", options: { bold: true, color: C.red } }],
-    ["주파수 칸 수 2배 (40→80)", "3번 모두 하락 (평균 −0.68%p)", { text: "기각", options: { bold: true, color: C.red } }],
-    ["주파수 눈금 변경 (mel→linear)", "3번 모두 하락 (평균 −0.39%p)", { text: "기각", options: { bold: true, color: C.red } }],
-    ["데이터 보강 (SpecAugment)", "평균 −0.12%p (우연 수준)", { text: "기각", options: { bold: true, color: C.red } }],
-    ["더 큰 모델 (ResNet, 파라미터 3배)", "이득 없음", { text: "기각", options: { bold: true, color: C.red } }],
-    ["화자인식 전용 구조 (ECAPA-TDNN)", "+0.27%p, 사전에 정한 기준(+0.5%p) 미달", { text: "기각", options: { bold: true, color: C.red } }],
-  ], M + 0.2, 2.68, [3.2, 5.2, 1.9], { rowH: 0.47, fontSize: 11 });
-  insight(s, M, 6.3, CW, 0.65, [
+  card(s, M, 2.45, CW, 4.1);
+  txt(s, "정확도 변화 (%p) — 채택 기준은 +0.5%p 이상 (파랑=양수, 빨강=음수)", { x: M + 0.2, y: 2.6, w: CW - 0.4, h: 0.3, fontSize: 11.5, color: C.sub });
+  const tornadoLabels = ["화자인식 전용 구조\n(ECAPA-TDNN)", "더 큰 모델\n(ResNet)", "데이터 보강\n(SpecAugment)", "주파수 눈금 변경\n(mel→linear)", "시간 해상도 2배\n(hop80)*", "주파수 칸 수 2배\n(40→80)"];
+  const tornadoVals = [0.27, 0.06, -0.12, -0.39, -0.14, -0.68];
+  // 콤보(막대+점선 기준선) 차트는 다른 차트가 많은 덱 안에서 PowerPoint가 파일을 못 여는
+  // 문제가 있어(pptxgenjs 콤보차트 축 id 버그, 2026-10-12 확인) 막대 단독으로 대체 —
+  // 기준선 설명은 아래 "메시지" 박스 텍스트로 대신함
+  s.addChart(pres.charts.BAR, [{ name: "정확도 변화", labels: tornadoLabels, values: tornadoVals }], {
+    chartColors: tornadoVals.map(v => v >= 0 ? C.sky : C.red),
+    x: M + 0.2, y: 2.95, w: CW - 0.4, h: 3.4, barDir: "bar", barGrouping: "standard",
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 10.5, dataLabelFontBold: true, dataLabelFormatCode: "+0.00;-0.00",
+    valAxisMinVal: -0.8, valAxisMaxVal: 0.8, valAxisHidden: true, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 10.5,
+    valGridLine: { style: "none" }, catGridLine: { style: "none" }, showLegend: false,
+  });
+  insight(s, M, 6.65, CW, 0.5, [
     { text: "메시지  ", options: { bold: true, color: C.blue } },
-    { text: "판정 기준은 실험 전에 정했고, 결과를 보고 바꾸지 않았음" },
+    { text: "판정 기준은 실험 전에 정했고, 결과를 보고 바꾸지 않았음 — 6개 모두 기준선을 못 넘어 기각" },
   ]);
-  caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 8절, docs/experiment_log.md M2-CNN-005~009, M2-ECAPA-001, M2-FREQ-001, M2-AUG-001");
+  txt(s, "* hop80은 1차(+0.27%p)·2차(−0.14%p) 확인 결과가 뒤집혀 재현 안 됨 · 근거: 미션2_PPT_제작의뢰_초안.md 8절, experiment_log.md M2-CNN-005~009",
+    { x: M, y: 7.18, w: CW, h: 0.25, fontSize: 8.5, color: C.sub });
 }
 
 // ⑩ §9 최종 결과
@@ -811,12 +843,16 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
   card(s, M, 2.45, 4.2, 4.35);
   stat(s, M + 0.2, 2.7, 3.8, "91.49%", "Accuracy (공식 Validation)", C.blue, 38);
   txt(s, "111,947건 중 102,419건 정답\n대원 recall 87.15% · 신고자 recall 95.51%", { x: M + 0.2, y: 4.0, w: 3.8, h: 0.7, fontSize: 11, color: C.sub, align: "center" });
-  txt(s, "혼동행렬", { x: M + 0.2, y: 4.85, w: 3.8, h: 0.26, fontSize: 10.5, color: C.sub });
+  txt(s, "혼동행렬 (히트맵, 행 기준 %)", { x: M + 0.2, y: 4.85, w: 3.8, h: 0.26, fontSize: 10.5, color: C.sub });
   table(s, [
     ["실제 ↓ · 예측 →", "대원", "신고자"],
-    ["대원 (53,845)", { text: "46,926", options: { bold: true, color: C.blue } }, "6,919"],
-    ["신고자 (58,102)", "2,609", { text: "55,493", options: { bold: true, color: C.blue } }],
-  ], M + 0.2, 5.13, [1.3, 1.25, 1.25], { rowH: 0.42, fontSize: 10.5, align: "center" });
+    ["대원 (53,845)",
+      { text: "46,926\n(87.15%)", options: { bold: true, color: C.white, fill: { color: C.blue } } },
+      { text: "6,919\n(12.85%)", options: { color: C.red, fill: { color: C.pink } } }],
+    ["신고자 (58,102)",
+      { text: "2,609\n(4.49%)", options: { color: C.sub, fill: { color: "FFF4F4" } } },
+      { text: "55,493\n(95.51%)", options: { bold: true, color: C.white, fill: { color: C.blue } } }],
+  ], M + 0.2, 5.13, [1.3, 1.25, 1.25], { rowH: 0.56, fontSize: 10, align: "center" });
   const mx = M + 4.5, mw = 4.3;
   card(s, mx, 2.45, mw, 4.35);
   txt(s, "발전 과정 (공식 Validation)", { x: mx + 0.2, y: 2.6, w: mw - 0.4, h: 0.3, fontSize: 11.5, color: C.sub });
@@ -829,14 +865,13 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
   const rx = mx + mw + 0.3, rw = W - M - rx;
   card(s, rx, 2.45, rw, 4.35);
   txt(s, "발화 길이별 정확도", { x: rx + 0.2, y: 2.6, w: rw - 0.4, h: 0.3, fontSize: 11.5, color: C.sub });
-  table(s, [
-    ["길이", "발화 수", "정확도"],
-    ["0.5초 미만", "8,954", "90.95%"],
-    ["0.5~1초", "27,392", { text: "87.60%", options: { color: C.red } }],
-    ["1~2초", "36,858", "89.71%"],
-    ["2초 이상", "38,743", { text: "96.05%", options: { bold: true, color: C.blue } }],
-  ], rx + 0.2, 2.95, [1.3, 1.1, 1.1], { rowH: 0.44, fontSize: 10.5, align: "center" });
-  txt(s, "[확인 필요] 연우님 모델과 공식 Validation 비교 결과 반영 여부", { x: rx + 0.2, y: 6.1, w: rw - 0.4, h: 0.5, fontSize: 9.5, color: C.ph, italic: true });
+  s.addChart(pres.charts.BAR, [{ name: "정확도", labels: ["0.5초\n미만", "0.5~1초", "1~2초", "2초\n이상"], values: [90.95, 87.60, 89.71, 96.05] }], {
+    x: rx + 0.1, y: 2.95, w: rw - 0.2, h: 3.0, barDir: "col", chartColors: [C.sky, C.red, C.sky, C.blue], varyColors: true,
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 10, dataLabelFontBold: true, dataLabelFormatCode: "0.00",
+    valAxisMinVal: 84, valAxisMaxVal: 98, valAxisHidden: true, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 10,
+    valGridLine: { style: "none" }, catGridLine: { style: "none" }, showLegend: false,
+  });
+  txt(s, "0.5~1초 구간(빨강)이 가장 약함 · [확인 필요] 연우님 모델과 비교 반영 여부", { x: rx + 0.2, y: 6.05, w: rw - 0.4, h: 0.55, fontSize: 9.5, color: C.ph, italic: true });
   caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 9절, docs/experiment_log.md M2-RERUN-001");
 }
 
@@ -847,16 +882,23 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
   coreMsg(s, "남은 오류는 짧은 맞장구와 \"대원을 신고자로 착각\"하는 경우에 몰려 있음");
   const hw = (CW - 0.3) / 2;
   card(s, M, 2.45, hw, 4.35);
-  txt(s, "■ 가장 약한 구간: 0.5~1초 (87.60%)", { x: M + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 13.5, bold: true, color: C.blue });
-  txt(s, [
-    { text: "\"네\", \"예\" 같은 짧은 대답은 대원·신고자가 똑같이 씀 — 목소리만으로는 구분 정보가 거의 없음", options: { breakLine: true } },
-    { text: "오류의 73%가 \"대원을 신고자로\" 판단한 경우 (6,919건 vs 반대 방향 2,609건)" },
-  ], { x: M + 0.2, y: 2.95, w: hw - 0.4, h: 1.5, fontSize: 11.5, paraSpaceAfter: 8 });
-  s.addShape(pres.shapes.LINE, { x: M + 0.2, y: 4.5, w: hw - 0.4, h: 0, line: { color: C.line, width: 1 } });
-  txt(s, [
-    { text: "라벨 잡음  ", options: { bold: true, color: C.blue } },
-    { text: "화자 라벨이 뒤바뀐 것으로 의심되는 통화가 있었음. 대회 규정(전사 텍스트로 라벨 수정 금지)에 따라 고치지 않고 제공된 라벨 그대로 학습 — 의심 사례는 별도로 기록해 둠", options: { breakLine: true } },
-  ], { x: M + 0.2, y: 4.65, w: hw - 0.4, h: 1.6, fontSize: 11.5 });
+  txt(s, "■ 가장 약한 구간: 0.5~1초 (87.60%)", { x: M + 0.2, y: 2.58, w: hw - 0.4, h: 0.3, fontSize: 13.5, bold: true, color: C.blue });
+  txt(s, "구간별 오류율 (%) — \"네\",\"예\" 같은 짧은 대답은 대원·신고자가 똑같이 씀", { x: M + 0.2, y: 2.88, w: hw - 0.4, h: 0.3, fontSize: 10, color: C.sub });
+  s.addChart(pres.charts.BAR, [{ name: "오류율", labels: ["0.5초\n미만", "0.5~1초", "1~2초", "2초\n이상"], values: [9.05, 12.40, 10.29, 3.95] }], {
+    x: M + 0.2, y: 3.2, w: hw - 0.4, h: 1.75, barDir: "col", chartColors: [C.sky, C.red, C.sky, C.blue], varyColors: true,
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 10, dataLabelFontBold: true, dataLabelFormatCode: "0.00",
+    valAxisHidden: true, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 10,
+    valGridLine: { style: "none" }, catGridLine: { style: "none" }, showLegend: false,
+  });
+  txt(s, "오분류 방향 (건수) — 대원→신고자 쏠림 73%", { x: M + 0.2, y: 5.15, w: hw - 0.4, h: 0.3, fontSize: 10, color: C.sub });
+  s.addChart(pres.charts.BAR, [{ name: "오분류 건수", labels: ["대원 → 신고자", "신고자 → 대원"], values: [6919, 2609] }], {
+    x: M + 0.2, y: 5.45, w: hw - 0.4, h: 1.15, barDir: "bar", chartColors: [C.red, C.sky], varyColors: true,
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 10, dataLabelFontBold: true, dataLabelFormatCode: "#,##0",
+    valAxisHidden: true, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 10.5,
+    valGridLine: { style: "none" }, catGridLine: { style: "none" }, showLegend: false,
+  });
+  txt(s, "라벨 잡음: 라벨이 뒤바뀐 것으로 의심되는 통화는 규정상 고치지 않고 제공된 라벨 그대로 학습, 의심 사례만 별도 기록",
+    { x: M + 0.2, y: 6.65, w: hw - 0.4, h: 0.5, fontSize: 9, color: C.sub });
   const rx = M + hw + 0.3;
   card(s, rx, 2.45, hw, 4.35);
   txt(s, "■ 데이터 자체의 어려움 vs 모델 성능의 개선 여지", { x: rx + 0.2, y: 2.58, w: hw - 0.4, h: 0.32, fontSize: 13.5, bold: true, color: C.blue });
@@ -878,7 +920,7 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "Mission 2 — 계산 효율성 (대회 권장 항목)", 25);
   coreMsg(s, "학습 속도를 개선해 에폭당 약 25분 → 약 7분(약 3.5배)으로 줄임");
-  card(s, M, 2.45, CW, 4.35);
+  card(s, M, 2.45, 7.7, 4.35);
   table(s, [
     ["항목", "값"],
     ["파라미터 수", "모델 1개 421,954 × 3 = Total 1,265,862 / Active 1,265,862"],
@@ -886,9 +928,19 @@ missionSummary(15, 2, "신고자/119대원 분류 (김광희)",
     ["추론 환경", "CPU (Intel Xeon 2.0GHz 2코어), GPU 미사용"],
     ["Validation 추론 batch size", "1 (발화 하나씩)"],
     ["Validation 추론 시간", "전체 85.3분, 발화당 평균 45.7ms"],
-  ], M + 0.3, 2.8, [3.0, 7.0], { rowH: 0.56, fontSize: 12 });
+  ], M + 0.2, 2.65, [2.6, 4.7], { rowH: 0.63, fontSize: 11 });
   txt(s, "데이터 저장 방식 개선(스펙트로그램을 float16 하나로 묶어 메모리 매핑) + 혼합 정밀도(AMP) 적용 덕분",
-    { x: M + 0.3, y: 6.3, w: CW - 0.6, h: 0.4, fontSize: 11, color: C.sub });
+    { x: M + 0.2, y: 6.55, w: 7.3, h: 0.3, fontSize: 9.5, color: C.sub });
+  const ex = M + 8.0, ew = W - M - ex;
+  card(s, ex, 2.45, ew, 4.35);
+  txt(s, "에폭당 학습 시간", { x: ex + 0.2, y: 2.6, w: ew - 0.4, h: 0.3, fontSize: 11.5, color: C.sub });
+  s.addChart(pres.charts.BAR, [{ name: "분", labels: ["개선 전", "개선 후"], values: [25, 7] }], {
+    x: ex + 0.1, y: 2.95, w: ew - 0.2, h: 3.4, barDir: "col", chartColors: [C.line, C.blue], varyColors: true,
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 13, dataLabelFontBold: true, dataLabelFormatCode: "0\"분\"",
+    valAxisHidden: true, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 12,
+    valGridLine: { style: "none" }, catGridLine: { style: "none" }, showLegend: false,
+  });
+  txt(s, "약 3.5배", { x: ex + 0.1, y: 6.3, w: ew - 0.2, h: 0.3, fontSize: 11, bold: true, color: C.red, align: "center" });
   caption(s, "근거: 미션2_PPT_제작의뢰_초안.md 12절, docs/decisions.md 2026-10-05 (학습 속도 개선 항목)");
 }
 
