@@ -44,9 +44,8 @@ EXPECTED_SHA256 = "19ea482a80a2ceb2ea5b87981be0a381a11e01fd576b3ba6860ee5d7144e3
 EXPECTED_CALLS = 3640
 EXPECTED_UTTERANCES = 111947
 EXPECTED_CORRECT = 102419
-DEFAULT_CKPT = Path(
-    r"C:\Users\sooyah\Desktop\아주대\dcc\01_prelim\package_rehearsal3\mission2\checkpoints\m2_cnn_large_rerun_ensemble.pt"
-)
+# 제출 폴더에 넣을 체크포인트 위치(git 제외 파일). 다른 곳에 있으면 --ckpt로 지정한다.
+DEFAULT_CKPT = REPOSITORY_ROOT / "submission" / "mission2" / "checkpoints" / "m2_cnn_large_rerun_ensemble.pt"
 
 _MODELS = None
 _EXPECTED_SR = None
