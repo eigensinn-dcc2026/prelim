@@ -1,0 +1,893 @@
+{
+  "실험 ID": "M2-FEAT-001",
+  "가설": "L1 피처 세트를 합집합·시간구조 확장까지 넓히면 같은 LightGBM에서 53차원 기준선을 넘는다",
+  "baseline": "V1_53D (M2-VAL-002 기준 내부 86.93%)",
+  "변경 변수": "피처 컬럼 부분집합만",
+  "고정 변수": "통화 3000건, call_id GroupShuffleSplit seed=42 test_size=0.2, LightGBM(num_leaves=255, learning_rate=0.02, n_estimators=1150), 같은 실행 내 동시 학습",
+  "평가 지표": "Accuracy (화자별 recall 동시 보고)",
+  "validation": "학습 데이터 내부 call_id 분할 — 공식 Validation 미사용",
+  "채택 기준": "기준선 대비 GroupSplit accuracy +0.50% 이상",
+  "기각 기준": "+0.50% 미만",
+  "verdict": null,
+  "split_audit": {
+    "seed": 42,
+    "test_size": 0.2,
+    "n_train_utterances": 73374,
+    "n_val_utterances": 18134,
+    "n_train_calls": 2400,
+    "n_val_calls": 600,
+    "majority_class_accuracy_val": 0.5167089445240983,
+    "model_params": {
+      "num_leaves": 255,
+      "learning_rate": 0.02,
+      "n_estimators": 1150,
+      "random_state": 42,
+      "verbosity": -1
+    },
+    "adoption_threshold": 0.005,
+    "baseline_arm": "V1_53D",
+    "paired_reference_arm": "MODEL_LGBM_TUNED",
+    "model_overrides": {},
+    "model_swap_arms": [
+      "MODEL_EXTRATREES_M02",
+      "MODEL_LGBM_TUNED",
+      "MODEL_LOGREG_M00",
+      "MODEL_MLP_M04",
+      "MODEL_MLP_M04_ITER100",
+      "MODEL_XGBOOST"
+    ],
+    "removal_tolerance": -0.003
+  },
+  "cache": "data\\local_cache\\m2_features_v2r_3000.parquet",
+  "results": [
+    {
+      "arm_name": "V1_53D",
+      "n_features": 53,
+      "group_split_accuracy": 0.8464762324914525,
+      "recall_speaker_0": 0.8144682793245094,
+      "recall_speaker_1": 0.8764140875133405,
+      "speaker_recall_gap": 0.06194580818883111,
+      "confusion_matrix": [
+        [
+          7138,
+          1626
+        ],
+        [
+          1158,
+          8212
+        ]
+      ],
+      "fit_seconds": 17.268057999999655,
+      "model_label": "LGBMClassifier",
+      "model_overrides": {},
+      "paired_against": "MODEL_LGBM_TUNED",
+      "paired_fixes": 503,
+      "paired_breaks": 846,
+      "paired_p_value": 7.825102245143894e-21,
+      "top_features": [
+        [
+          "mfcc_mean_2",
+          8685.0
+        ],
+        [
+          "mfcc_mean_5",
+          8366.0
+        ],
+        [
+          "rms_std",
+          8327.0
+        ],
+        [
+          "mfcc_std_0",
+          8179.0
+        ],
+        [
+          "duration_sec",
+          7600.0
+        ],
+        [
+          "mfcc_mean_4",
+          7349.0
+        ],
+        [
+          "mfcc_std_2",
+          7299.0
+        ],
+        [
+          "mfcc_mean_6",
+          7011.0
+        ],
+        [
+          "mfcc_mean_16",
+          6681.0
+        ],
+        [
+          "mfcc_std_4",
+          6397.0
+        ],
+        [
+          "mfcc_std_1",
+          6365.0
+        ],
+        [
+          "spectral_bandwidth_std",
+          6180.0
+        ],
+        [
+          "rms_mean",
+          6095.0
+        ],
+        [
+          "mfcc_mean_0",
+          6070.0
+        ],
+        [
+          "mfcc_mean_7",
+          6044.0
+        ],
+        [
+          "mfcc_mean_9",
+          6022.0
+        ],
+        [
+          "mfcc_std_3",
+          6014.0
+        ],
+        [
+          "mfcc_std_6",
+          5864.0
+        ],
+        [
+          "spectral_centroid_mean",
+          5826.0
+        ],
+        [
+          "mfcc_mean_18",
+          5747.0
+        ],
+        [
+          "mfcc_mean_10",
+          5691.0
+        ],
+        [
+          "mfcc_mean_3",
+          5627.0
+        ],
+        [
+          "zcr_mean",
+          5607.0
+        ],
+        [
+          "mfcc_mean_12",
+          5560.0
+        ],
+        [
+          "mfcc_mean_11",
+          5513.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "CANDIDATE_169D",
+      "n_features": 169,
+      "group_split_accuracy": 0.8653909782728576,
+      "recall_speaker_0": 0.8299863076220904,
+      "recall_speaker_1": 0.8985058697972251,
+      "speaker_recall_gap": 0.06851956217513477,
+      "confusion_matrix": [
+        [
+          7274,
+          1490
+        ],
+        [
+          951,
+          8419
+        ]
+      ],
+      "fit_seconds": 50.51179400000001,
+      "model_label": "LGBMClassifier",
+      "model_overrides": {},
+      "paired_against": "MODEL_LGBM_TUNED",
+      "paired_fixes": 0,
+      "paired_breaks": 0,
+      "paired_p_value": 1.0,
+      "top_features": [
+        [
+          "cpp_median_db",
+          6302.0
+        ],
+        [
+          "mfcc_mean_5",
+          5097.0
+        ],
+        [
+          "spectral_entropy_iqr",
+          4836.0
+        ],
+        [
+          "cpp_iqr_db",
+          4759.0
+        ],
+        [
+          "rms_third1",
+          4067.0
+        ],
+        [
+          "f0_semitone_slope",
+          3848.0
+        ],
+        [
+          "mfcc_mean_16",
+          3739.0
+        ],
+        [
+          "mfcc_mean_4",
+          3708.0
+        ],
+        [
+          "mfcc1_third2",
+          3690.0
+        ],
+        [
+          "rms_modulation_index",
+          3485.0
+        ],
+        [
+          "mfcc_mean_7",
+          3181.0
+        ],
+        [
+          "rms_peak_rate_per_sec",
+          3141.0
+        ],
+        [
+          "mfcc2_third2",
+          3138.0
+        ],
+        [
+          "mfcc_d2_std_2",
+          3130.0
+        ],
+        [
+          "rms_std",
+          3093.0
+        ],
+        [
+          "spectral_bandwidth_mean",
+          3054.0
+        ],
+        [
+          "mfcc_mean_6",
+          2913.0
+        ],
+        [
+          "mfcc_std_1",
+          2848.0
+        ],
+        [
+          "mfcc_mean_2",
+          2846.0
+        ],
+        [
+          "mfcc_std_4",
+          2800.0
+        ],
+        [
+          "mfcc_std_2",
+          2793.0
+        ],
+        [
+          "mfcc_d1_mean_0",
+          2707.0
+        ],
+        [
+          "spectral_centroid_third2",
+          2620.0
+        ],
+        [
+          "mfcc_mean_12",
+          2615.0
+        ],
+        [
+          "mfcc_mean_9",
+          2566.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "ALL_V2",
+      "n_features": 295,
+      "group_split_accuracy": 0.865997573618617,
+      "recall_speaker_0": 0.8330670926517572,
+      "recall_speaker_1": 0.8967982924226254,
+      "speaker_recall_gap": 0.06373119977086827,
+      "confusion_matrix": [
+        [
+          7301,
+          1463
+        ],
+        [
+          967,
+          8403
+        ]
+      ],
+      "fit_seconds": 93.21335980000003,
+      "model_label": "LGBMClassifier",
+      "model_overrides": {},
+      "paired_against": "MODEL_LGBM_TUNED",
+      "paired_fixes": 458,
+      "paired_breaks": 447,
+      "paired_p_value": 0.7395993396044883,
+      "top_features": [
+        [
+          "cpp_median_db",
+          5111.0
+        ],
+        [
+          "mfcc_mean_5",
+          3879.0
+        ],
+        [
+          "spectral_contrast_mean_1",
+          3324.0
+        ],
+        [
+          "cpp_iqr_db",
+          3299.0
+        ],
+        [
+          "spectral_entropy_iqr",
+          3190.0
+        ],
+        [
+          "f0_semitone_slope",
+          3180.0
+        ],
+        [
+          "rms_slope_per_sec",
+          2868.0
+        ],
+        [
+          "spectral_flatness_p50",
+          2779.0
+        ],
+        [
+          "mfcc_mean_16",
+          2749.0
+        ],
+        [
+          "spectral_contrast_std_1",
+          2705.0
+        ],
+        [
+          "spectral_contrast_std_2",
+          2694.0
+        ],
+        [
+          "spectral_contrast_std_4",
+          2663.0
+        ],
+        [
+          "mfcc_d2_std_2",
+          2527.0
+        ],
+        [
+          "mfcc1_third2",
+          2506.0
+        ],
+        [
+          "spectral_contrast_mean_2",
+          2497.0
+        ],
+        [
+          "mfcc_mean_7",
+          2461.0
+        ],
+        [
+          "mfcc_mean_4",
+          2457.0
+        ],
+        [
+          "spectral_contrast_mean_0",
+          2442.0
+        ],
+        [
+          "spectral_contrast_mean_4",
+          2360.0
+        ],
+        [
+          "spectral_contrast_mean_3",
+          2351.0
+        ],
+        [
+          "rms_peak_rate_per_sec",
+          2281.0
+        ],
+        [
+          "mfcc2_third2",
+          2276.0
+        ],
+        [
+          "mfcc_d1_mean_0",
+          2192.0
+        ],
+        [
+          "spectral_flatness_p10",
+          2179.0
+        ],
+        [
+          "mfcc_std_4",
+          2172.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "MODEL_LGBM_TUNED",
+      "n_features": 169,
+      "group_split_accuracy": 0.8653909782728576,
+      "recall_speaker_0": 0.8299863076220904,
+      "recall_speaker_1": 0.8985058697972251,
+      "speaker_recall_gap": 0.06851956217513477,
+      "confusion_matrix": [
+        [
+          7274,
+          1490
+        ],
+        [
+          951,
+          8419
+        ]
+      ],
+      "fit_seconds": 53.419997999999396,
+      "model_label": "LGBMClassifier",
+      "model_overrides": {},
+      "paired_against": null,
+      "paired_fixes": null,
+      "paired_breaks": null,
+      "paired_p_value": null,
+      "top_features": [
+        [
+          "cpp_median_db",
+          6302.0
+        ],
+        [
+          "mfcc_mean_5",
+          5097.0
+        ],
+        [
+          "spectral_entropy_iqr",
+          4836.0
+        ],
+        [
+          "cpp_iqr_db",
+          4759.0
+        ],
+        [
+          "rms_third1",
+          4067.0
+        ],
+        [
+          "f0_semitone_slope",
+          3848.0
+        ],
+        [
+          "mfcc_mean_16",
+          3739.0
+        ],
+        [
+          "mfcc_mean_4",
+          3708.0
+        ],
+        [
+          "mfcc1_third2",
+          3690.0
+        ],
+        [
+          "rms_modulation_index",
+          3485.0
+        ],
+        [
+          "mfcc_mean_7",
+          3181.0
+        ],
+        [
+          "rms_peak_rate_per_sec",
+          3141.0
+        ],
+        [
+          "mfcc2_third2",
+          3138.0
+        ],
+        [
+          "mfcc_d2_std_2",
+          3130.0
+        ],
+        [
+          "rms_std",
+          3093.0
+        ],
+        [
+          "spectral_bandwidth_mean",
+          3054.0
+        ],
+        [
+          "mfcc_mean_6",
+          2913.0
+        ],
+        [
+          "mfcc_std_1",
+          2848.0
+        ],
+        [
+          "mfcc_mean_2",
+          2846.0
+        ],
+        [
+          "mfcc_std_4",
+          2800.0
+        ],
+        [
+          "mfcc_std_2",
+          2793.0
+        ],
+        [
+          "mfcc_d1_mean_0",
+          2707.0
+        ],
+        [
+          "spectral_centroid_third2",
+          2620.0
+        ],
+        [
+          "mfcc_mean_12",
+          2615.0
+        ],
+        [
+          "mfcc_mean_9",
+          2566.0
+        ]
+      ]
+    },
+    {
+      "arm_name": "MODEL_MLP_M04",
+      "n_features": 169,
+      "group_split_accuracy": 0.867155619278703,
+      "recall_speaker_0": 0.8329529895025103,
+      "recall_speaker_1": 0.8991462113127001,
+      "speaker_recall_gap": 0.06619322181018983,
+      "confusion_matrix": [
+        [
+          7300,
+          1464
+        ],
+        [
+          945,
+          8425
+        ]
+      ],
+      "fit_seconds": 6.353090200000224,
+      "model_label": "MLPClassifier",
+      "model_overrides": {},
+      "paired_against": "MODEL_LGBM_TUNED",
+      "paired_fixes": 786,
+      "paired_breaks": 754,
+      "paired_p_value": 0.4295645410030193,
+      "top_features": []
+    },
+    {
+      "arm_name": "MODEL_MLP_M04_ITER100",
+      "n_features": 169,
+      "group_split_accuracy": 0.8638469173927429,
+      "recall_speaker_0": 0.8210862619808307,
+      "recall_speaker_1": 0.9038420490928495,
+      "speaker_recall_gap": 0.08275578711201881,
+      "confusion_matrix": [
+        [
+          7196,
+          1568
+        ],
+        [
+          901,
+          8469
+        ]
+      ],
+      "fit_seconds": 49.381649500001004,
+      "model_label": "MLPClassifier",
+      "model_overrides": {},
+      "paired_against": "MODEL_LGBM_TUNED",
+      "paired_fixes": 890,
+      "paired_breaks": 918,
+      "paired_p_value": 0.5254485708330782,
+      "top_features": []
+    },
+    {
+      "arm_name": "MODEL_XGBOOST",
+      "n_features": 169,
+      "group_split_accuracy": 0.8653909782728576,
+      "recall_speaker_0": 0.8285029666818804,
+      "recall_speaker_1": 0.8998932764140876,
+      "speaker_recall_gap": 0.07139030973220717,
+      "confusion_matrix": [
+        [
+          7261,
+          1503
+        ],
+        [
+          938,
+          8432
+        ]
+      ],
+      "fit_seconds": 493.0330292999988,
+      "model_label": "XGBClassifier",
+      "model_overrides": {},
+      "paired_against": "MODEL_LGBM_TUNED",
+      "paired_fixes": 283,
+      "paired_breaks": 283,
+      "paired_p_value": 1.0,
+      "top_features": [
+        [
+          "spectral_entropy_mean",
+          0.1750674545764923
+        ],
+        [
+          "mfcc_mean_2",
+          0.03506562486290932
+        ],
+        [
+          "spectral_centroid_mean",
+          0.03344675898551941
+        ],
+        [
+          "cpp_median_db",
+          0.031313616782426834
+        ],
+        [
+          "spectral_rolloff_std",
+          0.02120860293507576
+        ],
+        [
+          "spectral_rolloff_mean",
+          0.01784958690404892
+        ],
+        [
+          "spectral_bandwidth_mean",
+          0.01742253080010414
+        ],
+        [
+          "spectral_entropy_std",
+          0.013620374724268913
+        ],
+        [
+          "mfcc_std_1",
+          0.013603119179606438
+        ],
+        [
+          "mfcc_mean_7",
+          0.012980525381863117
+        ],
+        [
+          "mfcc_mean_5",
+          0.012398645281791687
+        ],
+        [
+          "spectral_centroid_third2",
+          0.012180727906525135
+        ],
+        [
+          "voiced_fraction",
+          0.011484011076390743
+        ],
+        [
+          "mfcc_d2_std_2",
+          0.009550107643008232
+        ],
+        [
+          "mfcc_std_2",
+          0.009158553555607796
+        ],
+        [
+          "mfcc_mean_4",
+          0.008089707233011723
+        ],
+        [
+          "mfcc_std_4",
+          0.007869292050600052
+        ],
+        [
+          "rms_third1",
+          0.007506809197366238
+        ],
+        [
+          "rms_std",
+          0.007211166433990002
+        ],
+        [
+          "mfcc_mean_16",
+          0.007175960578024387
+        ],
+        [
+          "spectral_entropy_iqr",
+          0.007174273021519184
+        ],
+        [
+          "spectral_flatness_mean",
+          0.006880868226289749
+        ],
+        [
+          "f0_semitone_slope",
+          0.00671770004555583
+        ],
+        [
+          "mfcc_mean_1",
+          0.006689639762043953
+        ],
+        [
+          "mfcc_std_6",
+          0.006620578467845917
+        ]
+      ]
+    },
+    {
+      "arm_name": "MODEL_EXTRATREES_M02",
+      "n_features": 169,
+      "group_split_accuracy": 0.8232050292268667,
+      "recall_speaker_0": 0.7763578274760383,
+      "recall_speaker_1": 0.8670224119530416,
+      "speaker_recall_gap": 0.09066458447700332,
+      "confusion_matrix": [
+        [
+          6804,
+          1960
+        ],
+        [
+          1246,
+          8124
+        ]
+      ],
+      "fit_seconds": 4.240054800000507,
+      "model_label": "ExtraTreesClassifier",
+      "model_overrides": {},
+      "paired_against": "MODEL_LGBM_TUNED",
+      "paired_fixes": 540,
+      "paired_breaks": 1305,
+      "paired_p_value": 6.928334494041228e-73,
+      "top_features": [
+        [
+          "spectral_entropy_mean",
+          0.06177733257841938
+        ],
+        [
+          "spectral_centroid_mean",
+          0.05077675373255735
+        ],
+        [
+          "cpp_median_db",
+          0.0441645862126513
+        ],
+        [
+          "spectral_centroid_third2",
+          0.03745703394534962
+        ],
+        [
+          "spectral_rolloff_mean",
+          0.036477985996302156
+        ],
+        [
+          "mfcc_mean_2",
+          0.036412179532935775
+        ],
+        [
+          "mfcc_mean_1",
+          0.034451270588230616
+        ],
+        [
+          "mfcc1_third2",
+          0.031515147428915986
+        ],
+        [
+          "spectral_entropy_std",
+          0.027522491683112486
+        ],
+        [
+          "mfcc2_third2",
+          0.027132077452918558
+        ],
+        [
+          "zcr_mean",
+          0.026898436761251972
+        ],
+        [
+          "cpp_iqr_db",
+          0.024838154206286787
+        ],
+        [
+          "spectral_entropy_iqr",
+          0.024506439506815796
+        ],
+        [
+          "spectral_bandwidth_mean",
+          0.023520871515989854
+        ],
+        [
+          "spectral_rolloff_std",
+          0.022703622370867472
+        ],
+        [
+          "mfcc2_third3",
+          0.022528566094992417
+        ],
+        [
+          "mfcc2_third1",
+          0.019821380463376663
+        ],
+        [
+          "mfcc_mean_7",
+          0.01832364376920743
+        ],
+        [
+          "mfcc1_third1",
+          0.018272210825234312
+        ],
+        [
+          "spectral_centroid_third1",
+          0.01746956789591353
+        ],
+        [
+          "spectral_flatness_mean",
+          0.01653621381850339
+        ],
+        [
+          "mfcc_std_1",
+          0.014857694282001883
+        ],
+        [
+          "mfcc1_third3",
+          0.014698719644218953
+        ],
+        [
+          "spectral_centroid_third3",
+          0.014294563407142882
+        ],
+        [
+          "mfcc_mean_5",
+          0.010055000359261221
+        ]
+      ]
+    },
+    {
+      "arm_name": "MODEL_LOGREG_M00",
+      "n_features": 169,
+      "group_split_accuracy": 0.8450976067056358,
+      "recall_speaker_0": 0.8097900502053856,
+      "recall_speaker_1": 0.8781216648879402,
+      "speaker_recall_gap": 0.06833161468255455,
+      "confusion_matrix": [
+        [
+          7097,
+          1667
+        ],
+        [
+          1142,
+          8228
+        ]
+      ],
+      "fit_seconds": 3.7073667000004207,
+      "model_label": "LogisticRegression",
+      "model_overrides": {},
+      "paired_against": "MODEL_LGBM_TUNED",
+      "paired_fixes": 692,
+      "paired_breaks": 1060,
+      "paired_p_value": 1.3666438718986574e-18,
+      "top_features": []
+    }
+  ],
+  "verdict_lines": [
+    "baseline V1_53D: 84.6476% (speaker recall 81.4468% / 87.6414%)",
+    "best arm MODEL_MLP_M04: 86.7156% (+2.0679% vs baseline)",
+    "adoption rule: delta >= +0.50% on the grouped split",
+    "paired vs MODEL_LGBM_TUNED: 786 fixed / 754 broken, McNemar exact p = 0.43",
+    "note: the best arm's edge over MODEL_LGBM_TUNED is not significant (p >= 0.05); it clears the adoption threshold only against the baseline. Prefer MODEL_LGBM_TUNED unless the extra columns are free.",
+    "verdict: candidate(s) clearing the threshold: MODEL_MLP_M04 (+2.0679%), ALL_V2 (+1.9521%), MODEL_XGBOOST (+1.8915%), CANDIDATE_169D (+1.8915%), MODEL_LGBM_TUNED (+1.8915%), MODEL_MLP_M04_ITER100 (+1.7371%) -- candidate only; per-speaker recall and a larger-scale rerun decide adoption."
+  ],
+  "removal_verdict_lines": []
+}

@@ -1,0 +1,156 @@
+{
+  "purpose": "does selecting the best epoch with batch-padded validation agree with the submission script's padding?",
+  "data_used": "Training only: the trainer's internal held-out split, rebuilt from the audio. Official Validation not used.",
+  "reports_only": "no checkpoint was changed",
+  "index": "m2_spectrogram_index_full_provided_labels.parquet",
+  "split_seed": 42,
+  "test_size": 0.2,
+  "n_held_out_calls_total": 5840,
+  "n_calls_measured": 1000,
+  "n_utterances_measured": 30732,
+  "sample_seed": 0,
+  "batch_size_for_batch_padding": 64,
+  "inference_min_frames": 300,
+  "rebuilt_inputs_match_index": true,
+  "batched_vs_one_at_a_time": {
+    "n_checked": 300,
+    "n_prediction_differences": 0,
+    "checkpoint": "m2_cnn_large_raw_ts1.pt",
+    "state": "best"
+  },
+  "checkpoints": [
+    {
+      "torch_seed": 1,
+      "label_source": "verified_against_provided_json",
+      "best_epoch": 23,
+      "total_epochs_trained": 30,
+      "reported_best_val_acc_full_held_out_set": 0.9133401914655603,
+      "states": {
+        "best": {
+          "batch_padding": {
+            "correct": 28117,
+            "n": 30732,
+            "accuracy": 0.9149095405440583
+          },
+          "inference_padding": {
+            "correct": 28142,
+            "n": 30732,
+            "accuracy": 0.9157230248600807
+          }
+        },
+        "last": {
+          "batch_padding": {
+            "correct": 28102,
+            "n": 30732,
+            "accuracy": 0.9144214499544449
+          },
+          "inference_padding": {
+            "correct": 28105,
+            "n": 30732,
+            "accuracy": 0.9145190680723676
+          }
+        }
+      },
+      "paired_best_vs_last": {
+        "batch_padding": {
+          "best_right_last_wrong": 297,
+          "best_wrong_last_right": 282
+        },
+        "inference_padding": {
+          "best_right_last_wrong": 318,
+          "best_wrong_last_right": 281
+        }
+      },
+      "checkpoint": "m2_cnn_large_raw_ts1.pt"
+    },
+    {
+      "torch_seed": 2,
+      "label_source": "verified_against_provided_json",
+      "best_epoch": 19,
+      "total_epochs_trained": 30,
+      "reported_best_val_acc_full_held_out_set": 0.9134076485038591,
+      "states": {
+        "best": {
+          "batch_padding": {
+            "correct": 28091,
+            "n": 30732,
+            "accuracy": 0.914063516855395
+          },
+          "inference_padding": {
+            "correct": 28094,
+            "n": 30732,
+            "accuracy": 0.9141611349733177
+          }
+        },
+        "last": {
+          "batch_padding": {
+            "correct": 28016,
+            "n": 30732,
+            "accuracy": 0.9116230639073278
+          },
+          "inference_padding": {
+            "correct": 28008,
+            "n": 30732,
+            "accuracy": 0.9113627489262007
+          }
+        }
+      },
+      "paired_best_vs_last": {
+        "batch_padding": {
+          "best_right_last_wrong": 357,
+          "best_wrong_last_right": 282
+        },
+        "inference_padding": {
+          "best_right_last_wrong": 345,
+          "best_wrong_last_right": 259
+        }
+      },
+      "checkpoint": "m2_cnn_large_raw_ts2.pt"
+    },
+    {
+      "torch_seed": 3,
+      "label_source": "verified_against_provided_json",
+      "best_epoch": 16,
+      "total_epochs_trained": 30,
+      "reported_best_val_acc_full_held_out_set": 0.9130703633123655,
+      "states": {
+        "best": {
+          "batch_padding": {
+            "correct": 28127,
+            "n": 30732,
+            "accuracy": 0.9152349342704673
+          },
+          "inference_padding": {
+            "correct": 28108,
+            "n": 30732,
+            "accuracy": 0.9146166861902902
+          }
+        },
+        "last": {
+          "batch_padding": {
+            "correct": 28080,
+            "n": 30732,
+            "accuracy": 0.9137055837563451
+          },
+          "inference_padding": {
+            "correct": 28088,
+            "n": 30732,
+            "accuracy": 0.9139658987374724
+          }
+        }
+      },
+      "paired_best_vs_last": {
+        "batch_padding": {
+          "best_right_last_wrong": 434,
+          "best_wrong_last_right": 387
+        },
+        "inference_padding": {
+          "best_right_last_wrong": 415,
+          "best_wrong_last_right": 395
+        }
+      },
+      "checkpoint": "m2_cnn_large_raw_ts3.pt"
+    }
+  ],
+  "seconds": 1623
+}

@@ -430,7 +430,13 @@ def main() -> None:
 
     print("[5/5] Markdown report")
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(build_markdown_report(result), encoding="utf-8")
+    deep_path = output_path.with_name("eda_deep_summary.json")
+    deep_summary = (
+        json.loads(deep_path.read_text(encoding="utf-8")) if deep_path.is_file() else None
+    )
+    report_path.write_text(
+        build_markdown_report(result, deep=deep_summary), encoding="utf-8"
+    )
 
     print(f"[summary] {output_path}")
     print(f"[report]  {report_path}")

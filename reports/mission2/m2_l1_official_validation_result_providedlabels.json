@@ -1,0 +1,20 @@
+{
+  "n_utterances": 111947,
+  "n_calls": 3640,
+  "accuracy": 0.8644179835100538,
+  "recall_daewon_0": 0.820020429009193,
+  "recall_singoja_1": 0.9055626312347251,
+  "recall_gap_singoja_minus_daewon": 0.0855422022255321,
+  "confusion_matrix": [
+    [
+      44154,
+      9691
+    ],
+    [
+      5487,
+      52615
+    ]
+  ],
+  "model_checkpoint": "checkpoints\\mission2\\m2_baseline_lgbm_tuned_providedlabels.pkl",
+  "model_seed": 42
+}

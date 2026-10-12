@@ -255,8 +255,14 @@ def _quality_findings(summary: dict[str, Any]) -> list[str]:
     return findings or ["현재 자동 점검 기준에서 치명적인 무결성 오류가 발견되지 않았습니다."]
 
 
-def build_markdown_report(summary: dict[str, Any]) -> str:
-    """Build a compact, source-backed Korean EDA report."""
+def build_markdown_report(
+    summary: dict[str, Any], deep: dict[str, Any] | None = None
+) -> str:
+    """Build a compact, source-backed Korean EDA report.
+
+    ``deep`` is the optional :mod:`dcc_data.eda_deep` summary; when given, a
+    deep-dive section is inserted before the recommendations.
+    """
 
     train = summary["training"]
     val = summary["validation"]
@@ -417,21 +423,33 @@ def build_markdown_report(summary: dict[str, Any]) -> str:
             "- 각 화자의 발화를 통화 단위로 연결하고 최대 15초를 사용해 MFCC(음색을 요약하는 음향 특성)/RMS(평균 음량 크기)/ZCR(신호 부호 변화율)/spectral(주파수 관련) 53차원 스키마를 EDA(탐색적 데이터 분석)용 NumPy(수치 계산 라이브러리) 구현으로 계산했습니다. 주파수 단위 Hz는 헤르츠(초당 진동 횟수)입니다. "
             "모델 파이프라인의 librosa(음성 분석 라이브러리) 특징과 수치 동일성을 보장하지 않으며, 표본 결과는 인과적 증거(원인이라고 확정할 근거)가 아닙니다."
         )
+    recommendations = [
+        "1. M1은 성별별 발화량과 음향 특징을 함께 통제해 길이 기반 shortcut(본질적인 신호 대신 우연한 쉬운 단서를 학습하는 현상) 여부를 점검합니다.",
+        "2. M2는 0.5–1초 발화, 겹침 구간, 단일 화자 비중이 큰 통화를 고정 오류 슬라이스(특정 조건으로 나눈 오류 분석 구간)로 둡니다.",
+        "3. M3는 희소 레이블과 공출현 조합을 보존하는 multilabel stratification(여러 레이블 조합의 비율을 유지하는 분할 방식)을 유지합니다.",
+        "4. 현재 Train/Validation 식별자 중복은 0건이지만 전사 해시 중복 1건은 원문을 노출하지 않는 별도 수동 감사 대상으로 둡니다.",
+        "5. 본 보고서는 기술통계이며 상관관계를 원인으로 해석하지 않습니다.",
+    ]
+    recommendation_number = 7
+    if deep is not None:
+        from .eda_deep_report import build_deep_recommendations, build_deep_section
+
+        lines.append("")
+        lines.extend(build_deep_section(deep, 7))
+        recommendation_number = 8
+        recommendations = build_deep_recommendations(deep)
     lines.extend(
         [
             "",
-            "## 7. 권고사항",
+            f"## {recommendation_number}. 권고사항",
             "",
-            "1. M1은 성별별 발화량과 음향 특징을 함께 통제해 길이 기반 shortcut(본질적인 신호 대신 우연한 쉬운 단서를 학습하는 현상) 여부를 점검합니다.",
-            "2. M2는 0.5–1초 발화, 겹침 구간, 단일 화자 비중이 큰 통화를 고정 오류 슬라이스(특정 조건으로 나눈 오류 분석 구간)로 둡니다.",
-            "3. M3는 희소 레이블과 공출현 조합을 보존하는 multilabel stratification(여러 레이블 조합의 비율을 유지하는 분할 방식)을 유지합니다.",
-            "4. 현재 Train/Validation 식별자 중복은 0건이지만 전사 해시 중복 1건은 원문을 노출하지 않는 별도 수동 감사 대상으로 둡니다.",
-            "5. 본 보고서는 기술통계이며 상관관계를 원인으로 해석하지 않습니다.",
+            *recommendations,
             "",
             "## 재현 방법",
             "",
             "```bash",
             "python scripts/eda_dcc_dataset.py",
+            *(["python scripts/eda_deep_dive.py  # 심화 분석 절(7장) 생성"] if deep is not None else []),
             "```",
             "",
             "개발용 smoke run은 `--json-max-train`, `--json-max-val`, "
