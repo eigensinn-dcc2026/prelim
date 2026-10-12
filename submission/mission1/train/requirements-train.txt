@@ -1,0 +1,7 @@
+# 학습 노트북(mission1_train.ipynb)과 train/build_model_pt.py용 패키지.
+# 추론에는 ../requirements.txt만 있으면 된다.
+scikit-learn==1.8.0
+joblib==1.5.3
+nbformat==5.10.4
+nbconvert==7.17.1
+ipykernel==7.3.0

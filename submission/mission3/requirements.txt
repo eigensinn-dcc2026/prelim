@@ -1,5 +1,7 @@
-# Mission 3 inference only (versions verified with the submitted checkpoint, CPU).
+# Mission 3 추론 전용 (제출 체크포인트로 CPU에서 검증한 버전).
 torch==2.12.1
 transformers==4.57.6
 numpy==2.4.4
 pandas==3.0.2
+scikit-learn==1.8.0
+scipy==1.17.1
