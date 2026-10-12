@@ -1,0 +1,156 @@
+{
+  "rows": 5792,
+  "split": "internal 80:20 holdout (Training only)",
+  "long_calls_over_256_tokens": 0.407,
+  "by_symptom": {
+    "고열": {
+      "neg_only": 220,
+      "neg_only_gold_negative": 0.895,
+      "mentioned_gold_negative": 0.592,
+      "all_gold_negative": 0.821,
+      "neg_only_beyond_256": 29
+    },
+    "구토": {
+      "neg_only": 12,
+      "neg_only_gold_negative": 0.833,
+      "mentioned_gold_negative": 0.315,
+      "all_gold_negative": 0.846,
+      "neg_only_beyond_256": 0
+    },
+    "두통": {
+      "neg_only": 2,
+      "neg_only_gold_negative": 1.0,
+      "mentioned_gold_negative": 0.321,
+      "all_gold_negative": 0.9,
+      "neg_only_beyond_256": 0
+    },
+    "복통": {
+      "neg_only": 11,
+      "neg_only_gold_negative": 0.909,
+      "mentioned_gold_negative": 0.12,
+      "all_gold_negative": 0.766,
+      "neg_only_beyond_256": 1
+    },
+    "어지러움": {
+      "neg_only": 7,
+      "neg_only_gold_negative": 0.857,
+      "mentioned_gold_negative": 0.231,
+      "all_gold_negative": 0.781,
+      "neg_only_beyond_256": 0
+    },
+    "열상": {
+      "neg_only": 21,
+      "neg_only_gold_negative": 0.857,
+      "mentioned_gold_negative": 0.308,
+      "all_gold_negative": 0.88,
+      "neg_only_beyond_256": 2
+    },
+    "오심": {
+      "neg_only": 1,
+      "neg_only_gold_negative": 1.0,
+      "mentioned_gold_negative": 0.556,
+      "all_gold_negative": 0.885,
+      "neg_only_beyond_256": 0
+    },
+    "전신쇠약": {
+      "neg_only": 42,
+      "neg_only_gold_negative": 0.357,
+      "mentioned_gold_negative": 0.428,
+      "all_gold_negative": 0.817,
+      "neg_only_beyond_256": 4
+    },
+    "호흡곤란": {
+      "neg_only": 42,
+      "neg_only_gold_negative": 0.905,
+      "mentioned_gold_negative": 0.604,
+      "all_gold_negative": 0.864,
+      "neg_only_beyond_256": 4
+    }
+  },
+  "models": {
+    "r3": {
+      "macro_f1": 0.6441,
+      "fp": 2467,
+      "fp_neg_only": 33,
+      "tp_neg_only": 37,
+      "fp_neg_only_beyond_256": 0,
+      "delta_hard_rule": -0.0015,
+      "delta_oracle": 0.0014,
+      "delta_oracle_within_256": 0.0014,
+      "per_symptom_fp_neg_only": {
+        "고열": 11,
+        "구토": 3,
+        "두통": 1,
+        "복통": 1,
+        "어지러움": 0,
+        "열상": 5,
+        "오심": 0,
+        "전신쇠약": 10,
+        "호흡곤란": 2
+      }
+    },
+    "k12": {
+      "macro_f1": 0.6336,
+      "fp": 2543,
+      "fp_neg_only": 44,
+      "tp_neg_only": 40,
+      "fp_neg_only_beyond_256": 3,
+      "delta_hard_rule": -0.0015,
+      "delta_oracle": 0.0017,
+      "delta_oracle_within_256": 0.0015,
+      "per_symptom_fp_neg_only": {
+        "고열": 18,
+        "구토": 5,
+        "두통": 0,
+        "복통": 5,
+        "어지러움": 1,
+        "열상": 4,
+        "오심": 1,
+        "전신쇠약": 9,
+        "호흡곤란": 1
+      }
+    },
+    "p0": {
+      "macro_f1": 0.5676,
+      "fp": 4517,
+      "fp_neg_only": 71,
+      "tp_neg_only": 41,
+      "fp_neg_only_beyond_256": 9,
+      "delta_hard_rule": -0.0004,
+      "delta_oracle": 0.0024,
+      "delta_oracle_within_256": 0.0021,
+      "per_symptom_fp_neg_only": {
+        "고열": 26,
+        "구토": 4,
+        "두통": 1,
+        "복통": 8,
+        "어지러움": 2,
+        "열상": 8,
+        "오심": 1,
+        "전신쇠약": 12,
+        "호흡곤란": 9
+      }
+    },
+    "ens3": {
+      "macro_f1": 0.6539,
+      "fp": 2339,
+      "fp_neg_only": 35,
+      "tp_neg_only": 39,
+      "fp_neg_only_beyond_256": 2,
+      "delta_hard_rule": -0.0016,
+      "delta_oracle": 0.0015,
+      "delta_oracle_within_256": 0.0014,
+      "per_symptom_fp_neg_only": {
+        "고열": 12,
+        "구토": 3,
+        "두통": 1,
+        "복통": 3,
+        "어지러움": 0,
+        "열상": 5,
+        "오심": 0,
+        "전신쇠약": 10,
+        "호흡곤란": 1
+      }
+    }
+  }
+}

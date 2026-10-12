@@ -1,8 +1,8 @@
-"""M1-XVEC-002: fixed 52D/first-window/mean-window combined LR, Training-only 80:20.
+"""M1-XVEC-002: 고정된 52D / 첫 창 / 평균 창 결합 로지스틱 회귀, Training만 사용한 80:20 분할.
 
-No fine-tuning. sklearn LBFGS has no resumable epoch/optimizer API: each
-head is an atomic stage; interruption during fit restarts only that head.
-Feature chunks and completed heads survive runtime loss in LAB_OUT.
+미세조정은 하지 않는다. sklearn LBFGS에는 중간부터 이어 학습하는 기능(에폭·옵티마이저 상태)이 없으므로
+각 헤드는 더 쪼갤 수 없는 한 단계이다. 학습 도중 끊기면 그 헤드만 처음부터 다시 학습한다.
+특징 청크와 학습이 끝난 헤드는 런타임이 끊겨도 LAB_OUT에 남는다.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ import zipfile
 
 EXP_ID = "M1-XVEC-002"
 MODEL_ID = "microsoft/wavlm-base-plus-sv"
-# Public immutable HF revision: https://huggingface.co/microsoft/wavlm-base-plus-sv/tree/1bfd64eca136543feb28c5ffaf05381c6af33121
+# 공개된 고정(변경 불가) Hugging Face 리비전: https://huggingface.co/microsoft/wavlm-base-plus-sv/tree/1bfd64eca136543feb28c5ffaf05381c6af33121
 REVISION = "1bfd64eca136543feb28c5ffaf05381c6af33121"
 SEED = 42
 CONFIG = dict(exp_id=EXP_ID, model=MODEL_ID, revision=REVISION, seed=SEED,
@@ -70,7 +70,7 @@ def prepare_model():
 
 
 def unpack(source, work):
-    """Copy one specified archive; enumerate members only on local disk."""
+    """지정한 압축 파일 하나만 복사하고, 내용 목록은 로컬 디스크에서만 확인한다."""
     local = work / source.name
     if not local.exists():
         atomic(local, lambda p: shutil.copyfile(source, p))
@@ -136,7 +136,7 @@ def save_arrays(path, **arrays):
 
 
 def window_ranges(length, sample_rate=16000):
-    """First window always included; later tails need at least three seconds."""
+    """첫 번째 창은 항상 포함하고, 뒤쪽 창은 길이가 3초 이상일 때만 포함한다."""
     width = 20 * sample_rate
     result = [(0, min(length, width))]
     for start in range(width, min(length, 4 * width), width):
@@ -148,7 +148,7 @@ def window_ranges(length, sample_rate=16000):
 
 def average_windows(vectors, lengths, np):
     weights = np.asarray(lengths, dtype=np.float64)
-    # A zero-length crop retains its single zero-padded first embedding.
+    # 길이가 0인 구간은 0으로 채운 첫 번째 임베딩 하나만 그대로 쓴다.
     if weights.sum() == 0:
         weights = np.ones_like(weights)
     mean = np.average(vectors, axis=0, weights=weights)
@@ -201,7 +201,7 @@ def extract(out, work, rows, processor, model, torch, np):
             if waveform.ndim != 2 or waveform.shape[0] != 1:
                 raise ValueError(f"Expected mono audio: {row.stem}")
             sr = segments[0].sample_rate
-            # Recompute 52D from the identical full caller waveform; no cache assumptions.
+            # 신고자 전체 파형에서 52D를 다시 계산한다. 캐시를 믿고 가져다 쓰지 않는다.
             acoustic.append(acoustic_feature_vector(waveform[0], sr))
             durations.append(waveform.shape[1] / sr)
             if device == "cuda":
@@ -251,7 +251,7 @@ def main():
     if args.smoke:
         smoke()
         return
-    # Fail before data copying/extraction on missing or incompatible local weights.
+    # 로컬 가중치가 없거나 맞지 않으면 데이터를 복사하거나 추출하기 전에 바로 실패시킨다.
     processor, model = prepare_model()
     import numpy as np
     import torch
@@ -308,7 +308,7 @@ def main():
             pipeline.fit(matrix[train], y[train])
             atomic(path, lambda p: joblib.dump(pipeline, p))
         predictions[name] = pipeline.predict(matrix[holdout])
-        # Binary probabilities are P(M), columns are (a), (b), (c).
+        # 이진 확률은 P(M)이고, 열은 (a), (b), (c) 순서이다.
         male = encode_gender(["M"])[0]
         column = list(pipeline.classes_).index(male)
         probabilities.append(pipeline.predict_proba(matrix[holdout])[:, column])
@@ -364,7 +364,7 @@ def save_npy(path, value, np):
 
 
 def smoke():
-    """Dependency-free, no model download, no training, no official data access."""
+    """외부 의존 없이 점검한다: 모델을 내려받지 않고, 학습하지 않고, 공식 데이터에도 접근하지 않는다."""
     assert window_ranges(0) == [(0, 0)]
     assert window_ranges(7999) == [(0, 7999)]
     assert len(window_ranges(23 * 16000 - 1)) == 1

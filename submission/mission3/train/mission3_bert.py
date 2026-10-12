@@ -1,15 +1,14 @@
-"""Mission 3 BERT-family classifier: self-contained checkpoint, export and probabilities.
+"""Mission 3 BERT 계열 분류기: 자급자족 체크포인트, 내보내기, 확률 계산.
 
-The lab experiments (``scripts/lab/m3-kcbert-005.py`` and relatives) save
-``best.ckpt`` = ``{"config", "seed", "epoch", "model": state_dict, ...}`` where the
-state dict belongs to ``Classifier`` below (``bert`` encoder + dropout + Linear on
-the first token). Those files need the Hugging Face model folder next to them.
-:func:`export_checkpoint` folds the folder's config and tokenizer files into one
-``.pt`` so inference runs offline from that single file; :func:`load_checkpoint`
-and :func:`probabilities` use it.
+lab 실험(``scripts/lab/m3-kcbert-005.py`` 등)은 ``best.ckpt`` =
+``{"config", "seed", "epoch", "model": state_dict, ...}``를 저장하고, 이 state dict는 아래
+``Classifier``(``bert`` 인코더 + 드롭아웃 + 첫 토큰 위의 Linear)의 것이다. 그 파일들은 옆에
+Hugging Face 모델 폴더가 있어야 한다. :func:`export_checkpoint`는 그 폴더의 설정·토크나이저 파일 내용을
+``.pt`` 하나에 합쳐, 그 파일 하나로 오프라인 추론이 되게 한다. :func:`load_checkpoint`와
+:func:`probabilities`가 이를 사용한다.
 
-Input text is :func:`transcript`, the same rule the lab scripts train on:
-``utterances[].text`` only, whitespace collapsed, joined with one space.
+입력 텍스트는 :func:`transcript`이며, lab 스크립트가 학습할 때 쓴 규칙과 같다:
+``utterances[].text``만 쓰고, 연속 공백은 하나로 줄이고, 공백 한 칸으로 이어 붙인다.
 """
 
 from __future__ import annotations
@@ -26,13 +25,13 @@ import numpy as np
 FORMAT = "dcc-m3-bert-v1"
 LABELS = ("고열", "구토", "두통", "복통", "어지러움", "열상", "오심", "전신쇠약", "호흡곤란")
 MAX_LENGTH = 256
-# Weights are stored in the state dict; these files are not copied into the export.
+# 가중치는 state dict에 들어 있으므로, 이 파일들은 내보내기에 복사하지 않는다.
 _WEIGHT_SUFFIXES = (".safetensors", ".bin", ".pt", ".pth", ".ckpt", ".h5", ".msgpack")
 _SKIP_FILES = {"dcc_revision.json"}
 
 
 def transcript(doc: Any) -> str:
-    """Training text rule of the lab scripts; other JSON fields are never read."""
+    """lab 스크립트의 학습용 텍스트 규칙. JSON의 다른 필드는 절대 읽지 않는다."""
 
     if not isinstance(doc, dict):
         return ""
@@ -88,7 +87,7 @@ def _text_files(model_dir: Path) -> dict[str, str]:
 
 
 def export_checkpoint(lab_ckpt: str | Path, model_dir: str | Path, output: str | Path) -> dict:
-    """Write a self-contained inference checkpoint; returns its metadata (no tensors)."""
+    """자급자족 추론 체크포인트를 쓰고 그 메타데이터(텐서 제외)를 돌려준다."""
 
     import torch
 
@@ -115,7 +114,7 @@ def export_checkpoint(lab_ckpt: str | Path, model_dir: str | Path, output: str |
                     epoch=source.get("epoch"), lab_ckpt_sha256=digest.hexdigest()),
     )
     state = {key: value.contiguous() for key, value in source["model"].items()}
-    # Fail now, not at submission time, if the state dict does not fit the classifier.
+    # state dict가 분류기와 맞지 않으면 제출 시점이 아니라 지금 바로 실패시킨다.
     _build(files, meta).load_state_dict(state, strict=True)
     output.parent.mkdir(parents=True, exist_ok=True)
     torch.save(dict(meta, files=files, model=state), output)
@@ -136,7 +135,7 @@ def is_bert_checkpoint(path: str | Path) -> bool:
 
 
 def load_checkpoint(path: str | Path, device: str | None = None):
-    """``(model, tokenizer, labels, max_length)`` from an exported checkpoint, offline."""
+    """내보낸 체크포인트에서 오프라인으로 ``(모델, 토크나이저, 라벨, max_length)``를 만든다."""
 
     import torch
     from transformers import AutoTokenizer
@@ -164,12 +163,12 @@ def load_checkpoint(path: str | Path, device: str | None = None):
 
 def probabilities(model, tokenizer, texts: Sequence[str], max_length: int = MAX_LENGTH,
                   batch_size: int = 32) -> np.ndarray:
-    """Sigmoid probabilities ``(len(texts), n_labels)`` in input order (fp32)."""
+    """입력 순서대로 시그모이드 확률 ``(len(texts), n_labels)``(fp32)를 돌려준다."""
 
     import torch
 
     device = next(model.parameters()).device
-    # Sort by length so each padded batch is short; results go back to input order.
+    # 길이순으로 정렬해 패딩된 배치마다 길이를 짧게 하고, 결과는 입력 순서로 되돌린다.
     order = sorted(range(len(texts)), key=lambda index: len(texts[index]))
     out = np.zeros((len(texts), model.classifier.out_features), dtype=np.float32)
     with torch.inference_mode():

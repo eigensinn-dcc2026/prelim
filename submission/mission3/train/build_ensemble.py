@@ -1,13 +1,13 @@
-"""Pack several Mission 3 BERT checkpoints and one TF-IDF model into one ensemble .pt (dcc-m3-ens-v1).
+"""Mission 3 BERT 체크포인트 여러 개와 TF-IDF 모델 하나를 앙상블 ``.pt`` 하나(dcc-m3-ens-v1)로 묶는다.
 
     python train/build_ensemble.py --bert seed42.pt seed43.pt seed44.pt --bert_weight 0.55 \
         --tfidf tfidf.joblib --tfidf_weight 0.45 --out m3_ensemble.pt
 
-The BERT weight is split equally over the given checkpoints (their probabilities are averaged), so
-p = 0.55 * mean(seeds) + 0.45 * tfidf. Weights must be fixed in advance (chosen on the internal
-Training holdout, never on the official Validation). The TF-IDF joblib is the P0 checkpoint dict
-({vectorizer, classifier, target_symptoms}); it is stored as plain arrays so the result loads with
-torch.load(weights_only=True) and inference does not unpickle sklearn objects.
+BERT 가중치는 주어진 체크포인트에 똑같이 나눈다(확률을 평균한다). 그래서
+p = 0.55 * mean(seeds) + 0.45 * tfidf 이다. 가중치는 미리 정해 두어야 한다(Training 내부 홀드아웃에서
+정하고, 공식 Validation으로는 정하지 않는다). TF-IDF joblib은 P0 체크포인트 사전
+({vectorizer, classifier, target_symptoms})이며, 결과가 torch.load(weights_only=True)로 읽히고
+추론할 때 sklearn 객체를 언피클하지 않도록 일반 배열로 저장한다.
 """
 from __future__ import annotations
 
@@ -83,7 +83,7 @@ def main(argv=None):
                    members=members)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     torch.save(payload, args.out)
-    torch.load(args.out, map_location="cpu", weights_only=True)  # must load in the safe mode used at inference
+    torch.load(args.out, map_location="cpu", weights_only=True)  # 추론 때 쓰는 안전 모드(weights_only)로 읽혀야 한다
     record = dict(output=args.out.name, output_bytes=args.out.stat().st_size, output_sha256=sha256(args.out),
                   members=[dict(kind=m["kind"], weight=m["weight"], **m["source"]) for m in members])
     args.out.with_suffix(args.out.suffix + ".json").write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
