@@ -31,16 +31,15 @@ const TEAM = "eigensinn";
 const M2 = {
   // 11장 문제·제약·최종 모델
   core12: "발화 조각 하나만 보고 신고자인지 대원인지 가린다. log-mel 스펙트로그램과 CNN 3개의 평균으로 공식 Validation 91.49%.",
-  pipe: [
-    ["① 발화 구간", "그 발화의\n구간만 사용"],
-    ["② log-mel", "스펙트로그램\n으로 변환"],
-    ["③ 길이 맞춤", "그 발화 자신\n만으로 맞춤"],
-    ["④ CNN × 3", "seed가 다른\nCNN 3개"],
-    ["⑤ 확률 평균", "신고자 / 대원\n판정"],
-  ],
+  // 구조도 (flow 함수 입력): 앞 단계 → 앙상블 멤버 → 판정
+  flow: {
+    pre: [["발화 구간", "startAt~endAt만"], ["log-mel", "40 mel · 8 kHz"], ["길이 맞춤", "300프레임\n그 발화만 사용"]], preW: 1.95,
+    branches: [["SpeakerCNNLarge · seed 1"], ["SpeakerCNNLarge · seed 2"], ["SpeakerCNNLarge · seed 3"]], brW: 2.35, brGap: 0.1,
+    post: [["확률 평균", "≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 2.0,
+  },
   why: [
     "대원은 헤드셋·정해진 말투, 신고자는 휴대전화·잡음 → 음향 차이가 있다.",
-    "통계 특징(L1)으로 한계를 확인한 뒤 CNN(L2)으로 넘어갔다.",
+    "통계 특징(L1)으로 성능을 먼저 확인한 뒤 CNN(L2)으로 넘어갔다.",
     "사전학습 모델과 외부 데이터 없이 처음부터 학습했다.",
   ],
   // 12장 성능 개선 과정 (막대 차트: 공식 Validation Accuracy)
@@ -166,6 +165,46 @@ function barChart(slide, labels, values, o) {
     valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, showLegend: false,
     showTitle: true, titleFontSize: 12, titleColor: C.text, titleFontFace: F,
   }, o));
+}
+// 구조도 노드: 연한 파랑 상자(마지막 판정 상자만 진한 파랑), 제목 + 작은 설명
+function node(slide, x, y, w, h, t, b, dark = false) {
+  slide.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h, fill: { color: dark ? C.blue : C.light }, rectRadius: 0.08, line: { color: dark ? C.blue : C.sky, width: 1 } });
+  const runs = [{ text: t, options: { bold: true, fontSize: 12.5, color: dark ? C.white : C.blue, breakLine: !!b } }];
+  if (b) runs.push({ text: b, options: { fontSize: 10.5, color: dark ? C.white : C.text } });
+  txt(slide, runs, { x: x + 0.06, y, w: w - 0.12, h, align: "center", valign: "middle" });
+}
+// 화살표 연결선 (왼쪽 → 오른쪽)
+function link(slide, x1, y1, x2, y2) {
+  slide.addShape(pres.shapes.LINE, { x: x1, y: Math.min(y1, y2), w: x2 - x1, h: Math.abs(y2 - y1), flipV: y2 < y1, line: { color: C.sky, width: 1.5, endArrowType: "triangle" } });
+}
+// 구조도: 앞 단계(pre, 일렬) → 갈래(branches, 세로로 쌓음) → 뒤 단계(post, 일렬). 갈래의 세 번째 값은 연결선 라벨(가중치 등).
+function flow(slide, x, y, w, h, f) {
+  const pre = f.pre || [], post = f.post || [], br = f.branches;
+  const total = pre.length * f.preW + f.brW + post.length * f.postW;
+  const gap = (w - total) / (pre.length + post.length);
+  const mid = y + h / 2;
+  let cx = x;
+  pre.forEach(([t, b], i) => {
+    node(slide, cx, y, f.preW, h, t, b);
+    if (i > 0) link(slide, cx - gap, mid, cx, mid);
+    cx += f.preW + gap;
+  });
+  const bh = (h - (br.length - 1) * f.brGap) / br.length, bx = cx;
+  const px = cx + f.brW + gap;
+  br.forEach(([t, b, label], i) => {
+    const by = y + i * (bh + f.brGap), bm = by + bh / 2;
+    node(slide, bx, by, f.brW, bh, t, b);
+    if (pre.length) link(slide, bx - gap, mid, bx, bm);
+    link(slide, bx + f.brW, bm, px, mid);
+    // 라벨은 선이 시작하는 높이(bm)의 바깥쪽(위 갈래는 위, 아래 갈래는 아래)에 둬서 선과 겹치지 않게
+    if (label) txt(slide, label, { x: bx + f.brW + 0.04, y: bm < mid ? bm - 0.34 : bm + 0.08, w: gap - 0.08, h: 0.26, fontSize: 11, bold: true, color: C.blue, align: "left" });
+  });
+  cx = px;
+  post.forEach(([t, b], i) => {
+    node(slide, cx, y, f.postW, h, t, b, i === post.length - 1);
+    if (i > 0) link(slide, cx - gap, mid, cx, mid);
+    cx += f.postW + gap;
+  });
 }
 
 // =====================================================================
@@ -332,18 +371,10 @@ function barChart(slide, labels, values, o) {
   coreMsg(s, "신고자 음성에서 음향 특징과 화자 임베딩을 함께 뽑아 로지스틱 회귀로 분류한다. 공식 Validation Accuracy 98.10%.");
   const lw = 9.05;
   txt(s, [strong("■ 문제   "), { text: "신고자 발화 음성 → 성별(F/M)   ·   지표 Accuracy" }], { x: M, y: 2.45, w: lw, h: 0.4, fontSize: 15 });
-  const pipe = [
-    ["신고자 구간", "신고자 발화만\n잘라내기"],
-    ["음향 특징", "52개"],
-    ["x-vector", "WavLM\n여러 구간 평균"],
-    ["결합·표준화", "두 특징\n결합·표준화"],
-    ["로지스틱 회귀", "F / M 분류"],
-  ];
-  const bw = 1.55, gap = (lw - 5 * bw) / 4;
-  pipe.forEach(([t, b], i) => {
-    const x = M + i * (bw + gap);
-    stepBox(s, x, 3.0, bw, 1.6, t, b, i === 4 ? C.sky : C.blue);
-    if (i < 4) arrow(s, x + bw + (gap - 0.2) / 2, 3.6, 0.2, 0.34);
+  flow(s, M, 2.95, lw, 1.7, {
+    pre: [["신고자 구간", "신고자 발화만\n잘라내기"]], preW: 1.5,
+    branches: [["음향 특징 52D", "통계 특징"], ["WavLM x-vector 512D", "20초 창 최대 4개 평균"]], brW: 2.55, brGap: 0.14,
+    post: [["결합·표준화", "52D + 512D\n= 564D"], ["로지스틱 회귀", "F / M"]], postW: 1.65,
   });
   title(s, "■ 왜 이 구조인가", M, 4.85, lw, 16);
   bullets(s, [
@@ -446,7 +477,7 @@ function barChart(slide, labels, values, o) {
   card(s, rx, 2.45, rw, 0.95, C.light);
   txt(s, [{ text: M2.acc, options: { fontSize: 28, bold: true, color: C.blue } }, { text: "   공식 Validation", options: { fontSize: 12, color: C.sub } }],
     { x: rx, y: 2.45, w: rw, h: 0.95, align: "center", valign: "middle" });
-  steps(s, M2.pipe, 3.6, 1.55, { bw: 2.1, bodySize: 12.5 });
+  flow(s, M, 3.6, CW, 1.55, M2.flow);
   title(s, "■ 왜 이 구조인가", M, 5.35, CW, 16);
   bullets(s, M2.why, M, 5.78, CW, 1.1, 13);
   caption(s, "근거: " + M2.evidence);
@@ -541,12 +572,10 @@ function barChart(slide, labels, values, o) {
   });
   const rx = M + lw + 0.4, rw = W - M - rx;
   txt(s, "■ 모델 구성", { x: rx, y: 2.45, w: rw, h: 0.4, fontSize: 18, bold: true });
-  const pipe = [["입력 정제", "발화 text만\n원본 순서 유지"], ["초기 기준선", "TF-IDF +\n로지스틱 회귀"], ["문맥 모델", "RoBERTa-large\n3개 seed"], ["최종 예측", "확률 0.55:0.45\n증상별 0.5 판정"]];
-  const bw = 1.72, gap = (rw - pipe.length * bw) / (pipe.length - 1);
-  pipe.forEach(([t, b], i) => {
-    const x = rx + i * (bw + gap);
-    stepBox(s, x, 2.95, bw, 1.75, t, b, i === pipe.length - 1 ? C.sky : C.blue);
-    if (i < pipe.length - 1) arrow(s, x + bw + (gap - 0.22) / 2, 3.6, 0.22, 0.35);
+  flow(s, rx, 2.95, rw, 1.75, {
+    pre: [["입력 정제", "발화 text만\n원본 순서 유지"]], preW: 1.55,
+    branches: [["RoBERTa-large", "seed 42·43·44 평균", "× 0.55"], ["TF-IDF + 로지스틱 회귀", "초기 기준선", "× 0.45"]], brW: 2.5, brGap: 0.15,
+    post: [["가중 평균", "증상별 ≥ 0.5\n판정"]], postW: 1.75,
   });
   txt(s, "■ 왜 이 방법인가", { x: rx, y: 4.95, w: rw, h: 0.4, fontSize: 18, bold: true });
   bullets(s, [
@@ -597,13 +626,14 @@ function barChart(slide, labels, values, o) {
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 모델 선정과 오류 분석", 17);
   coreMsg(s, "이전 앙상블 기각과 최종 앙상블 채택은 서로 다른 실험 — 검증 조건을 구분");
-  steps(s, [
-    ["초기 기준선", "TF-IDF + LR\n0.5689", C.sky],
-    ["문맥 모델", "KcBERT-005\n0.6246", C.blue],
-    ["단일 모델", "RoBERTa-003\n0.6433", C.blue],
-    ["과거 결합", "3종 앙상블\n0.6510 (기각)", C.blue],
-    ["최종 채택", "3-seed + TF-IDF\n0.6534", C.mint],
-  ], 2.45, 1.5, { bw: 2.1, bodySize: 12.5 });
+  // 모델별 공식 Val Macro F1 (가로 막대, 위에서 아래로 진행 순서). 회색 = 기각한 과거 결합
+  barChart(s, ["TF-IDF + LR (기준선)", "KcBERT-005", "RoBERTa-003", "과거 3종 앙상블 (기각)", "최종 RoBERTa×3 + TF-IDF"],
+    [0.5689, 0.6246, 0.6433, 0.6510, 0.6534], {
+      name: "Macro F1", barDir: "bar", catAxisOrientation: "maxMin", x: M, y: 2.3, w: CW, h: 1.75,
+      chartColors: [C.sky, C.blue, C.blue, "BDBDBD", C.mint], showTitle: false,
+      valAxisMinVal: 0.5, valAxisMaxVal: 0.68, valAxisHidden: true, valGridLine: { style: "none" },
+      dataLabelFormatCode: "0.0000", dataLabelFontSize: 11, catAxisLabelFontSize: 11,
+    });
   const lw = 5.0;
   insight(s, M, 4.15, lw, 1.3, [
     { text: "선정 근거  ", options: { bold: true, color: C.blue, breakLine: true } },
