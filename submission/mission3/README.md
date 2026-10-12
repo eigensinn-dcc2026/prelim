@@ -54,8 +54,9 @@ python inference.py --audio_dir {wav folder} --label_dir {json folder} --ckpt_pa
 | 항목 | 값 |
 |---|---|
 | 파라미터 수 | Total 1,010,496,836개 (Dense 모델이라 Active도 동일, 세 모델과 TF-IDF가 모두 실행됨). RoBERTa-large 336,665,609개 × 3 + TF-IDF 500,009개 |
-| 컴퓨팅 환경 | 학습: Colab NVIDIA A100-SXM4-40GB 1개(노트북 출력 기준 seed 42·43·44가 각각 48.5·29.6·29.6분). 추론 측정(GPU): 같은 A100 |
+| 컴퓨팅 환경 | 학습: Colab NVIDIA A100-SXM4-40GB 1개(노트북 출력 기준 seed 42·43·44가 각각 48.5·29.6·29.6분). 추론 측정: GPU는 같은 A100, CPU는 Intel Core i5-13420H(12스레드), RAM 15.6GB, GPU 없음 |
 | Validation 추론 batch size | 32 |
-| Validation 추론 시간 | GPU(A100)에서 3,640건 앙상블 109초(`m3_final_train.executed.ipynb`). **CPU 추론 시간은 이 앙상블로 아직 측정하지 않았다** (측정 후 기재) |
+| Validation 추론 시간 | GPU(A100): 3,640건 전체 109초(`m3_final_train.executed.ipynb`). CPU: 공식 Validation 203건(3,640건 중 18건마다 1건)을 이 폴더의 `inference.py`로 실행해 **462초**(모델 로딩 포함), 건당 약 2.3초. 3,640건 전체로 환산하면 약 2.3시간이다(로딩 시간까지 건수에 비례한다고 본 상한이며, 전체를 직접 돌린 값은 아님) |
+| 최대 메모리 (CPU 추론) | 6.51GB (위 203건 실행, 앙상블 `.pt` 약 4GB를 먼저 읽음) |
 
-이전 후보였던 KcBERT 단일 모델(파라미터 108.9M, CPU 샘플당 약 0.17초)은 최종 제출 모델이 아니므로 위 표에 쓰지 않습니다. 최종 앙상블은 RoBERTa-large 3개를 모두 실행해 파라미터가 약 9.3배이고, CPU 추론은 그만큼 느립니다.
+이전 후보였던 KcBERT 단일 모델(파라미터 108.9M, CPU 샘플당 약 0.17초)은 최종 제출 모델이 아니므로 위 표에 쓰지 않습니다. 최종 앙상블은 RoBERTa-large 3개를 모두 실행해 파라미터가 약 9.3배이고, CPU 추론은 건당 약 13배 느립니다(0.17초 → 2.3초).
