@@ -32,7 +32,7 @@
 | `train/mission3_bert.py` | 학습 보조 함수(체크포인트 내보내기, 텍스트 읽기) |
 | `train/requirements-train.txt` | 학습용 패키지(추론용 `requirements.txt`와 별개) |
 
-`train/`의 코드는 실행 당시 저장소의 `scripts/m3_final/`·`src/dcc_inference/mission3_bert.py`와 같고, 제출 폴더에서 읽히도록 경로를 고친 5줄만 다릅니다. 실행된 노트북의 `scripts/m3_final/` 경로는 `train/`으로 읽으면 됩니다.
+`train/`의 코드는 실행 당시 저장소의 `scripts/m3_final/`·`src/dcc_inference/mission3_bert.py`와 같고, 제출 폴더에서 읽히도록 경로를 고친 5줄과 한글로 옮긴 주석만 다릅니다. 실행된 노트북의 `scripts/m3_final/` 경로는 `train/`으로 읽으면 됩니다.
 
 가중치에는 tokenizer·config 텍스트가 함께 들어 있어 **인터넷 없이** 실행됩니다. `--ckpt_path`는 앙상블 `.pt`(`dcc-m3-ens-v1`)와 단일 모델 `.pt`(`dcc-m3-bert-v1`)를 모두 받습니다.
 

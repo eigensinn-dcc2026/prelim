@@ -1,11 +1,11 @@
-"""Pack the Mission 1 model into ONE offline ``.pt`` file (format ``dcc-m1-v1``).
+"""Mission 1 모델을 인터넷 없이 쓸 수 있는 ``.pt`` 파일 하나(형식 ``dcc-m1-v1``)로 묶는다.
 
-The submission rules ask for weights as ``.pt`` / ``.pth`` / ``.ckpt``. The model has two parts:
+제출 규정은 가중치를 ``.pt`` / ``.pth`` / ``.ckpt``로 내라고 한다. 이 모델은 두 부분으로 되어 있다.
 
-* the frozen head (``StandardScaler`` + ``LogisticRegression`` over 564 features), stored here as
-  plain tensors so no sklearn pickle is needed at inference time;
-* the pinned x-vector encoder ``microsoft/wavlm-base-plus-sv``: its weights plus the text of
-  ``config.json`` / ``preprocessor_config.json``, so nothing is downloaded.
+* 학습이 끝난 헤드(564개 특징에 대한 ``StandardScaler`` + ``LogisticRegression``): 일반 텐서로 저장하므로
+  추론할 때 sklearn 피클이 필요 없다.
+* 버전을 고정한 x-vector 인코더 ``microsoft/wavlm-base-plus-sv``: 가중치와 ``config.json`` /
+  ``preprocessor_config.json`` 내용을 함께 담아 따로 내려받지 않는다.
 
     python train/build_model_pt.py --head m1_xvec002_refit_full.ckpt \
         --wavlm_dir wavlm-base-plus-sv --out m1_model.pt
@@ -21,7 +21,7 @@ from pathlib import Path
 FORMAT = "dcc-m1-v1"
 WAVLM_ID = "microsoft/wavlm-base-plus-sv"
 WAVLM_REVISION = "1bfd64eca136543feb28c5ffaf05381c6af33121"
-N_FEATURES = 564  # 52 acoustic + 512 x-vector
+N_FEATURES = 564  # 음향 52 + x-vector 512
 
 
 def sha256(path: Path) -> str:
@@ -55,7 +55,7 @@ def main() -> None:
 
     payload = {
         "format": FORMAT,
-        "labels": ["F", "M"],  # class 0 -> F, class 1 -> M
+        "labels": ["F", "M"],  # 클래스 0은 F, 클래스 1은 M
         "head": {
             "scaler_mean": torch.from_numpy(scaler.mean_.copy()),
             "scaler_scale": torch.from_numpy(scaler.scale_.copy()),

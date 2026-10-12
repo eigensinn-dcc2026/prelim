@@ -1,7 +1,7 @@
-"""Audio helpers for Mission 1 inference: caller cropping, 52-d acoustic vector, WAV/JSON pairing.
+"""Mission 1 추론용 오디오 도구: 신고자 구간 자르기, 52차원 음향 벡터, WAV·JSON 짝짓기.
 
-Everything here is copied unchanged from the team's data utilities (WAV reading, the caller
-interval rules, the acoustic feature extractor); only the parts the inference path calls are kept.
+이 파일의 코드는 팀의 데이터 유틸리티(WAV 읽기, 신고자 구간 규칙, 음향 특징 추출)에서 그대로 옮겼고,
+추론이 실제로 부르는 부분만 남겼다.
 """
 
 from __future__ import annotations
@@ -47,10 +47,10 @@ def read_wav_info(path: str | Path) -> WaveInfo:
 def read_wav_frames(
     path: str | Path, start_frame: int = 0, end_frame: int | None = None
 ) -> AudioSegment:
-    """Read a half-open frame interval ``[start_frame, end_frame)``.
+    """반열린 프레임 구간 ``[start_frame, end_frame)``을 읽는다.
 
-    This function intentionally accepts frame indices only. It does not assume
-    whether dataset ``startAt``/``endAt`` values are seconds or milliseconds.
+    이 함수는 일부러 프레임 번호만 받는다. 데이터의 ``startAt``/``endAt``이
+    초 단위인지 밀리초 단위인지는 가정하지 않는다.
     """
 
     if not isinstance(start_frame, int):
@@ -104,10 +104,10 @@ VALID_SPEAKERS = frozenset({SPEAKER_OPERATOR, SPEAKER_CALLER})
 
 
 def milliseconds_to_frame(time_ms: Real, sample_rate: int) -> int:
-    """Convert milliseconds to a frame index with Python ties-to-even rounding.
+    """밀리초를 프레임 번호로 바꾼다(파이썬의 짝수 쪽 반올림 규칙 사용).
 
-    ``round`` is used deliberately: exact half-frame values round to the nearest
-    even integer, which makes crop boundaries deterministic across all calls.
+    ``round``를 일부러 쓴다: 정확히 반 프레임인 값은 가장 가까운 짝수로 반올림되어,
+    모든 통화에서 자르는 경계가 항상 같게 정해진다.
     """
 
     if not isinstance(time_ms, Real) or isinstance(time_ms, bool):
@@ -128,11 +128,11 @@ HOP_LENGTH = 160
 N_MFCC = 20
 
 
-N_ACOUSTIC_FEATURES = 52  # MFCC/RMS/ZCR/spectral only -- acoustic_feature_vector()'s own contract
+N_ACOUSTIC_FEATURES = 52  # MFCC·RMS·ZCR·스펙트럼 통계만 센다 (acoustic_feature_vector()가 돌려주는 차원 수)
 
 
 def acoustic_feature_vector(segment: np.ndarray, sample_rate: int) -> np.ndarray:
-    """52-dim MFCC/RMS/ZCR/spectral statistics. Caller prepends duration_sec."""
+    """52차원 MFCC·RMS·ZCR·스펙트럼 통계. 호출하는 쪽에서 앞에 duration_sec를 붙인다."""
 
     if len(segment) < N_FFT:
         segment = np.pad(segment, (0, N_FFT - len(segment)))
