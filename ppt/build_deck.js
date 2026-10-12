@@ -660,8 +660,8 @@ missionA(15, 2, "신고자/119대원 분류",
 // ---------- Mission 3 — 2026-10-11 final submission (M3-FINAL-002) ----------
 missionA(18, 3, "환자 증상 인식",
   "TF-IDF 기준선부터 RoBERTa 문맥 모델을 검증하고, 최종 3-seed + TF-IDF 앙상블 채택",
-  [["입력", "119 통화 전사문\\n(utterances[].text만)"], ["출력", "증상 9종 중 0~9개\\n(다중 레이블)"], ["평가", "Macro F1\\n(증상별 F1 평균)"], ["대상", "고열·구토·두통·복통·어지러움·열상·오심·전신쇠약·호흡곤란"]],
-  [["전처리", "발화 원본 순서 유지\\n시간·speaker 미사용"], ["문맥 모델", "RoBERTa-large\\nseed 42·43·44"], ["기준선", "TF-IDF +\\n로지스틱 회귀"], ["최종 판정", "확률 55:45 평균\\n증상별 ≥0.5"]],
+  [["입력", "119 통화 전사문\n(utterances[].text만)"], ["출력", "증상 9종 중 0~9개\n(다중 레이블)"], ["평가", "Macro F1\n(증상별 F1 평균)"], ["대상", "고열·구토·두통·복통·어지러움·열상·오심·전신쇠약·호흡곤란"]],
+  [["전처리", "발화 원본 순서 유지\n시간·speaker 미사용"], ["문맥 모델", "RoBERTa-large\nseed 42·43·44"], ["기준선", "TF-IDF +\n로지스틱 회귀"], ["최종 판정", "확률 55:45 평균\n증상별 ≥0.5"]],
   ["최종 모델은 Training 29,200건 전체로 학습하고, 가중치는 Training 내부 홀드아웃에서 미리 결정",
    "공식 Validation은 최종 평가에만 사용; 평가 데이터로 모델·임계값을 선택하지 않음",
    "증상 9종만 평가하고 그 밖의 annotation, startAt, id 기반 정렬·사용은 배제"]);
@@ -674,7 +674,7 @@ missionA(18, 3, "환자 증상 인식",
   insight(s, M + 0.2, 4.28, 2.6, 2.3, [
     { text: "Micro F1  0.6690", options: { bold: true, color: C.blue, breakLine: true } },
     { text: "빈 예측 149건", options: { breakLine: true } },
-    { text: "앙상블 가중치\\nRoBERTa 평균 0.55\\n+ TF-IDF 0.45", options: { fontSize: 10.5 } },
+    { text: "앙상블 가중치\nRoBERTa 평균 0.55\n+ TF-IDF 0.45", options: { fontSize: 10.5 } },
   ]);
   s.addChart(pres.charts.BAR, [{
     name: "Macro F1 (%)",
@@ -702,11 +702,11 @@ missionA(18, 3, "환자 증상 인식",
   header(s, "03", "미션별 수행", "Mission 3  최종 모델 선정 — 검증에서 제출까지", 20);
   coreMsg(s, "이전 앙상블 기각과 최종 앙상블 채택은 서로 다른 실험 — 검증 조건을 구분");
   const steps = [
-    ["초기 기준선", "TF-IDF + LR\\n0.5689", C.sky],
-    ["문맥 모델", "KcBERT-005\\n0.6246", C.blue],
-    ["단일 모델", "RoBERTa-003\\n0.6433", C.blue],
-    ["과거 결합", "3종 앙상블\\n0.6510 (기각)", C.blue],
-    ["최종 채택", "3-seed + TF-IDF\\n0.6534", C.mint],
+    ["초기 기준선", "TF-IDF + LR\n0.5689", C.sky],
+    ["문맥 모델", "KcBERT-005\n0.6246", C.blue],
+    ["단일 모델", "RoBERTa-003\n0.6433", C.blue],
+    ["과거 결합", "3종 앙상블\n0.6510 (기각)", C.blue],
+    ["최종 채택", "3-seed + TF-IDF\n0.6534", C.mint],
   ];
   const bw = 2.1, gap = (CW - 5 * bw) / 4;
   steps.forEach(([t, b, col], i) => {
