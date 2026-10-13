@@ -15,6 +15,13 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-13 — [M2] 통화 구성 앙상블(M2-CALLENS-001) 기각 — seed 앙상블 대비 이득 없음
+
+- **결정**: 서로 다른 1,200통화를 뺀 4,800통화 SpeakerCNNLarge 2모델 앙상블(B)을 같은 6,000통화 2-seed 앙상블(A)보다 낫다고 보지 않고, 통화 구성을 바꾼 3-fold 확장은 하지 않는다.
+- **이유**: 내부 holdout 45,823발화에서 A 90.29% vs B 90.29%(+0.002%p, 기준 ≥ +0.3%p). McNemar 정확검정 p=1.0(801 vs 802). 오류 방향(recall)만 이동했다.
+- **후속**: 91.49% 제출 모델 유지. M2는 WavLM 계열(M2-SSL-004 등)과 M2-OFFVAL-ENS에서 앙상블 구성을 정한다. 근거: `docs/experiment_log.md` M2-CALLENS-001 행, `dcc-lab` `results/M2-CALLENS-001/metrics.json`
+
+
 ## 2026-10-12 — [M2] WavLM-large 미세조정(M2-SSL-004) 채택 — 최종 앙상블 후보 멤버
 
 - **결정**: M2-SSL-003 레시피에서 백본만 WavLM-large로 바꾼 M2-SSL-004를 채택하고 최종 앙상블 후보 멤버로 둔다.
