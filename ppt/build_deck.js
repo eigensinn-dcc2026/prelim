@@ -1236,7 +1236,7 @@ function flow(slide, x, y, w, h, f) {
     showValue: false, lineSize: 2.2, lineDataSymbol: "circle", lineDataSymbolSize: 5,
     catAxisLabelFontFace: F, catAxisLabelFontSize: 10.5, catAxisLabelColor: C.text,
     valAxisLabelFontFace: F, valAxisLabelFontSize: 9.5, valAxisLabelColor: C.sub,
-    valAxisMinVal: 0.63, valAxisMaxVal: 0.66, valAxisMajorUnit: 0.005, valLabelFormatCode: "0.0%",
+    valAxisMinVal: 0.63, valAxisMaxVal: 0.66, valAxisMajorUnit: 0.005, valAxisLabelFormatCode: "0.0%",
     valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" },
     chartArea: { border: { color: C.white, pt: 0 }, fill: { color: C.white, transparency: 100 } },
     plotArea: { border: { color: C.white, pt: 0 }, fill: { color: C.white, transparency: 100 } },
@@ -1285,7 +1285,7 @@ function flow(slide, x, y, w, h, f) {
     chartColors: [C.blue, "EF9A9A"], showTitle: true, title: "직접 표현 유무별 recall · Training 내부 홀드아웃",
     titleFontFace: F, titleFontSize: 11.5, titleColor: C.text, showLegend: true, legendPos: "b", legendFontFace: F, legendFontSize: 9.5,
     showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "0.0%", dataLabelFontFace: F, dataLabelFontSize: 10,
-    valAxisMinVal: 0, valAxisMaxVal: 1, valAxisMajorUnit: 0.2, valLabelFormatCode: "0%",
+    valAxisMinVal: 0, valAxisMaxVal: 1, valAxisMajorUnit: 0.2, valAxisLabelFormatCode: "0%",
     valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, catAxisLabelFontFace: F, catAxisLabelFontSize: 11,
     valAxisLabelFontFace: F, valAxisLabelFontSize: 9, showCatName: false,
   });
