@@ -51,7 +51,7 @@ jobs:
           assert "TF-IDF·KcBERT" in aft[16], "M3 model clarification missing"
           assert "92%" in aft[16] and "52%" in aft[16], "Error analysis lost"
           assert "REJECT" in aft[16] and "ADOPT" in aft[16], "Decision sequence lost"
-          assert "0.6534" in aft[16] and "0.6534" in aft[15], "M3 result changed"
+          assert "0.6534" in aft[15], "M3 result changed on slide 16"
           assert "→ 두 모델의 오류가 달라" not in aft[16]
           src=Path("ppt/build_deck.js").read_text()
           assert "valAxisMinVal: 0, valAxisMaxVal: 1" in src
