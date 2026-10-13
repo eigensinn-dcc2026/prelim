@@ -1088,7 +1088,7 @@ function flow(slide, x, y, w, h, f) {
   const tiles = [
     ["M1 신고자 성별", "음향 특징 + x-vector + LR", "98.10%", "+2.99%p"],
     [M2.summary.task, M2.summary.model, M2.summary.val, M2.summary.gain],
-    ["M3 증상 9종", "RoBERTa-large × 3 + TF-IDF", "0.6534", "+0.0845"],
+    ["M3 증상 9종", "RoBERTa-large × 3 + TF-IDF", "65.34%", "+8.45%p"],
   ];
   const tw = (CW - 2 * 0.3) / 3;
   tiles.forEach(([t, m, val, gain], i) => {
@@ -1101,7 +1101,16 @@ function flow(slide, x, y, w, h, f) {
     txt(s, m, { x: x + 0.25, y: 3.95, w: tw - 0.5, h: 0.3, fontSize: 11.5, color: C.sub });
     txt(s, i === 2 ? "Macro F1 · 공식 Val" : "Accuracy · 공식 Val", { x: x + 0.25, y: 4.25, w: tw - 0.5, h: 0.3, fontSize: 10.5, color: C.sub });
   });
-  txt(s, "baseline: M1 95.11%, M2 86.44%, M3 0.5689", { x: M, y: 4.7, w: CW, h: 0.25, fontSize: 11, color: C.sub, align: "right" });
+  // 미션 3 고유 영역의 작은 시각화: 119 통화 → 전사 텍스트 속 증상.
+  // 공유 요약 슬라이드의 M1/M2에는 손대지 않고 저장소의 기존 아이콘을 재사용한다.
+  // GIF는 작은 카드에서 재생/정지화면 차이가 커져 전달이 불명확하므로 정적 아이콘 선택.
+  {
+    const m3x = M + 2 * (tw + 0.3);
+    s.addImage({ path: IC + "flow_call.png", x: m3x + tw - 1.13, y: 2.54, w: 0.34, h: 0.34 });
+    txt(s, "→", { x: m3x + tw - 0.75, y: 2.58, w: 0.25, h: 0.20, fontSize: 13, color: C.sky, bold: true, align: "center" });
+    s.addImage({ path: IC + "flow_m3.png", x: m3x + tw - 0.46, y: 2.54, w: 0.34, h: 0.34 });
+  }
+  txt(s, "baseline: M1 95.11%, M2 86.44%, M3 56.89%", { x: M, y: 4.7, w: CW, h: 0.25, fontSize: 11, color: C.sub, align: "right" });
   const lessons = [
     ["기준은 결과를 보기 전에\n고정한다","결과를 본 뒤 기준을 낮추면 Validation에 과적합된다"],
     ["기각도 기록한다", "효과 없던 실험과 그 이유를 decisions.md에 남겨 같은 시도를 반복하지 않음"],
@@ -1116,7 +1125,7 @@ function flow(slide, x, y, w, h, f) {
     txt(s, t, { x: x + 0.9, y: 5.07, w: cw - 1.05, h: 0.6, fontSize: 15, bold: true, color: C.blue, valign: "middle" });
     txt(s, d, { x: x + 0.25, y: 5.8, w: cw - 0.5, h: 0.95, fontSize: 12 });
   });
-  s.addNotes("근거: submission/mission1/README.md(98.10%), " + M2.evidence + ", submission/mission3/README.md(0.6534). baseline: M1 95.11%(52D LR, docs/decisions.md 2026-10-05), M2 86.44%(L1 LightGBM, M2-RETRAIN-001), M3 0.5689(TF-IDF, M3-OFFVAL-001).");
+  s.addNotes("근거: submission/mission1/README.md(98.10%), " + M2.evidence + ", submission/mission3/README.md(0.6534). baseline: M1 95.11%(52D LR, docs/decisions.md 2026-10-05), M2 86.44%(L1 LightGBM, M2-RETRAIN-001), M3 0.5689=56.89%(TF-IDF, M3-OFFVAL-001). M3 최종 Macro F1 0.6534=65.34%, 차이는 0.0845=8.45%p(공식 Val 결과 간 비교, 통제된 인과 효과를 뜻하지 않음).");
 }
 
 // =====================================================================
