@@ -1,0 +1,75 @@
+# One-off verification. Remove this file after source generation and visual review.
+name: Temporary M3 summary visual verification
+on:
+  push:
+    branches:
+      - subin/ppt-m3-summary-percent-icons-20261013
+    paths:
+      - .github/workflows/m3-summary-once.yml
+      - ppt/build_deck.js
+
+permissions:
+  contents: read
+
+jobs:
+  verify-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout branch and main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Use Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ppt/package-lock.json
+      - name: Generate original and amended decks entirely from code
+        working-directory: ppt
+        run: |
+          npm ci --no-audit --no-fund
+          git show 7f1304ad90f1c6c0be02a265e558789ed2896d72:ppt/build_deck.js > build_deck.original_qa.js
+          node build_deck.original_qa.js /tmp/m3_summary_before.pptx
+          rm build_deck.original_qa.js
+          node build_deck.js DCC2026_예선_결과정리.pptx
+      - name: Validate unchanged slides and correct M3 summary notation
+        run: |
+          python - <<'PY'
+          import re, zipfile, xml.etree.ElementTree as ET
+          from pathlib import Path
+          ns='{http://schemas.openxmlformats.org/drawingml/2006/main}t'
+          def extract(path):
+            with zipfile.ZipFile(path) as z:
+              assert z.testzip() is None,'Corrupt PPTX'
+              names=sorted([f for f in z.namelist() if re.fullmatch(r'ppt/slides/slide\d+\.xml',f)],key=lambda n:int(re.search(r'slide(\d+)',n).group(1)))
+              return [''.join(t.text or '' for t in ET.fromstring(z.read(f)).iter(ns)) for f in names]
+          before=extract('/tmp/m3_summary_before.pptx')
+          after=extract('ppt/DCC2026_예선_결과정리.pptx')
+          assert len(before)==len(after)==37,(len(before),len(after))
+          for i in range(1,38):
+            if i!=32:
+              assert before[i-1]==after[i-1], f'Non-target slide {i} text changed'
+          new=after[31]
+          for term in ['65.34%','+8.45%p','56.89%','M3 증상 9종','M2 신고자/대원','Macro F1']:
+            assert term in new, f'Missing metric/label: {term}'
+          for term in ['▲ +0.0845','M3 0.5689']:
+            assert term not in new, f'Outdated notation: {term}'
+          assert before[31] != after[31],'Summary change not rendered'
+          src=Path('ppt/build_deck.js').read_text()
+          assert 'IC + "flow_call.png"' in src and 'IC + "flow_m3.png"' in src
+          with zipfile.ZipFile('ppt/DCC2026_예선_결과정리.pptx') as z:
+            rel=z.read('ppt/slides/_rels/slide32.xml.rels').decode()
+            slide=z.read('ppt/slides/slide32.xml').decode()
+            # At least two inserted image objects in M3 tile
+            assert slide.count('<p:pic>')>=2
+          print('PASS: 37 slides, only summary 32 M3 notation changed; call+speech icons present')
+          PY
+      - name: Upload finished 37-slide deck for visual review
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: m3-summary-percent-icons
+          path: ppt/DCC2026_예선_결과정리.pptx
+          if-no-files-found: error
+          retention-days: 2
