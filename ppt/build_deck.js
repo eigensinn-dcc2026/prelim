@@ -30,45 +30,45 @@ const IC = "figures/icons/"; // ppt/tools/make_icons.py 로 생성
 
 // ---------- Mission 2 교체 지점 (원고의 ⟪M2 교체⟫) ----------
 // M2 제출 모델을 바꾸면 이 블록만 고친다. 11·12·13·14·18·19장이 모두 여기서 읽는다.
-// 현재 값: CNN 3-seed 앙상블 (submission/mission2/README.md, experiment_log.md M2-RERUN-001)
+// 현재 값: CNN 3-seed 앙상블 + WavLM-large 2개 확률 가중 평균 (submission/mission2/README.md, experiment_log.md M2-BLEND-001)
 const M2 = {
   // 11장 문제·제약·최종 모델
-  core12: "발화 하나만 보고 신고자/대원을 가린다. log-mel + CNN 3개 평균, 공식 Validation 91.49%.",
+  core12: "발화 하나만 보고 신고자/대원을 가린다. CNN 3개 + WavLM-large 2개 확률 가중 평균, 공식 Validation 92.90%.",
   // 구조도 (flow 함수 입력): 앞 단계 → 앙상블 멤버 → 판정
   flow: {
-    pre: [["발화 구간", "startAt~endAt만"], ["log-mel", "40 mel · 8 kHz"], ["길이 맞춤", "300프레임\n그 발화만 사용"]], preW: 1.95,
-    branches: [["SpeakerCNNLarge · seed 1"], ["SpeakerCNNLarge · seed 2"], ["SpeakerCNNLarge · seed 3"]], brW: 2.35, brGap: 0.1,
-    post: [["확률 평균", "≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 2.0,
+    pre: [["발화 구간", "startAt~endAt만"], ["그 발화만 사용", "text·순서·다른 발화 X"]], preW: 1.95,
+    branches: [["CNN 3개 평균", "log-mel · 300프레임", "× 0.4"], ["WavLM-large 2개", "16 kHz · 3초 창", "× 0.3 + 0.3"]], brW: 2.6, brGap: 0.1,
+    post: [["가중 평균", "≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 2.0,
   },
   why: [
     ["음향 차이", "대원 헤드셋·정해진 말투\n신고자 휴대전화·잡음"],
-    ["단계적 검증", "통계 특징(L1) → CNN(L2)"],
-    ["처음부터 학습", "사전학습·외부 데이터 없음"],
+    ["단계적 검증", "통계 특징(L1) → CNN(L2)\n→ WavLM 결합"],
+    ["두 종류 결합", "CNN 처음부터 학습 +\n공개 사전학습 WavLM 미세조정"],
   ],
   // 12장 성능 개선 과정 (막대 차트: 공식 Validation Accuracy)
-  core13: "86.44% → 90.98% → 91.49%. CNN의 이득은 목소리가 겹친 구간에 몰려 있었다.",
-  chart: { labels: ["L1 LightGBM", "L2 CNN 단일", "L2 CNN\n3-seed 앙상블"], values: [86.44, 90.98, 91.49] },
+  core13: "86.44% → 91.49% → 92.90%. CNN의 이득은 겹친 구간에 몰렸고, 사전학습 WavLM을 더해 +1.41%p를 더 얻었다.",
+  chart: { labels: ["L1 LightGBM", "L2 CNN\n3-seed 앙상블", "CNN 3개\n+ WavLM 2개"], values: [86.44, 91.49, 92.90] },
   gainTitle: "■ CNN의 이득이 몰린 곳",
   gains: [["약 +7%p", "겹친 구간"], ["약 +2%p", "겹치지 않은 구간"]],
   gainNote: "통계 특징(L1) 대비 CNN 단일 모델의 개선 폭 (공식 Validation)",
   finding: "제출 방식(한 발화씩 추론)으로 바꾸자 정확도가 떨어졌다. 원인은 학습 때의 배치 패딩과 추론 방식 차이였고, 모든 발화를 자기 자신만으로 같은 길이까지 채우도록 맞춰 회복했다.",
-  // 13장 다른 접근 — 마지막 행이 보류 중인 WavLM 미세조정
+  // 13장 다른 접근 — 마지막 행이 최종 채택한 WavLM-large 미세조정 + CNN 결합
   core14: "CNN 하나로 끝내지 않고 여러 방향을 검증했다. 효과가 없거나 규칙에 어긋난 것은 이유와 함께 기록했다.",
-  lastRow: ["WavLM 미세조정 (3초 창·겹침 증강)", "보류", "공식 평가 진행 중"],
+  lastRow: ["WavLM-large 미세조정 2개 + CNN 결합", "채택", "내부 +1.27%p (공식 Val 92.90%)"],
   // 14장 최종 결과와 보완할 점
-  core15: "공식 Validation 91.49%. 원본 데이터부터 다시 학습해도 같은 수준이 재현됐다.",
-  acc: "91.49%",
-  recalls: [["87.15%", "대원 recall"], ["95.51%", "신고자 recall"]],
-  repro: "원본부터 다시 학습해도 같은 수준(91.49%)",
+  core15: "공식 Validation 92.90%. 제출 폴더 그대로 GPU에서 검증했고, 코드 정리·속도 개선 전후 판정이 모두 같았다.",
+  acc: "92.90%",
+  recalls: [["88.36%", "대원 recall"], ["97.10%", "신고자 recall"]],
+  repro: "제출 폴더 그대로 다시 실행해도 같은 결과\n(92.90%, 111,947발화 판정 차이 0건)",
   improve: "대원 recall이 더 낮다.\n\"네\", \"여보세요\" 같은 짧은 응답은 두 화자가 비슷하게 들리고, 규칙상 통화 맥락을 쓸 수 없다.",
   // 18장 성능 요약 표, 19장 향후 계획
-  summary: { task: "M2 신고자/대원", model: "log-mel + CNN × 3", val: "91.49%", gain: "+5.05%p" },
-  future: "사전학습 음성 모델(WavLM) 앙상블의 공식 검증, 짧은 응답 발화 보강",
-  evidence: "submission/mission2/README.md, docs/experiment_log.md M2-RERUN-001·M2-ENS-003·M2-RETRAIN-001",
+  summary: { task: "M2 신고자/대원", model: "CNN × 3 + WavLM-large × 2", val: "92.90%", gain: "+6.46%p" },
+  future: "짧은 응답(\"네\"·\"예\") 보강 — 오답의 약 78%가 모든 모델 공통",
+  evidence: "submission/mission2/README.md, docs/experiment_log.md M2-BLEND-001·M2-WLML-001·002·M2-RERUN-001·M2-RETRAIN-001",
   // 슬라이드 노트·캡션의 근거 (12·14장)
-  evidence13: "근거: docs/experiment_log.md M2-RETRAIN-001, M2-ENS-003, M2-RERUN-001, M2-COMPARE-002, M2-PAD-001·002",
-  notes13: "근거: L1 86.44%(M2-RETRAIN-001, 제공 라벨 재학습 L1) / CNN 단일 90.98%(M2-ENS-003 ts1) / 3-seed 앙상블 91.49%(M2-RERUN-001, submission/mission2/README.md). 겹침 구간: M2-COMPARE-002 — 겹침 L1 81.83%→L2 88.88%(+7.05%p), 안 겹침 90.01%→92.44%(+2.43%p), L2 단일 모델 기준. 패딩: M2-PAD-001(발화별 300프레임 채우기), M2-VAL-005, M2-PAD-002.",
-  notes15: "근거: submission/mission2/README.md '결과와 계산 효율성' 표(91.49%, 대원 recall 87.15%, 신고자 recall 95.51%). 재현성: M2-RERUN-001(원본부터 재학습 91.49%) vs M2-ENS-003(이전 앙상블 91.55%).",
+  evidence13: "근거: docs/experiment_log.md M2-RETRAIN-001, M2-RERUN-001, M2-BLEND-001, M2-COMPARE-002, M2-PAD-001·002",
+  notes13: "근거: L1 86.44%(M2-RETRAIN-001, 제공 라벨 재학습 L1) / CNN 단일 90.98%(M2-ENS-003 ts1) / 3-seed 앙상블 91.49%(M2-RERUN-001) / CNN 3개 + WavLM-large 2개 92.90%(M2-BLEND-001, submission/mission2/README.md). 겹침 구간: M2-COMPARE-002 — 겹침 L1 81.83%→L2 88.88%(+7.05%p), 안 겹침 90.01%→92.44%(+2.43%p), L2 단일 모델 기준. 패딩: M2-PAD-001(발화별 300프레임 채우기), M2-VAL-005, M2-PAD-002.",
+  notes15: "근거: submission/mission2/README.md '결과와 계산 효율성' 표(92.90% = 103,994/111,947, 대원 recall 88.36%, 신고자 recall 97.10%). 검증: submission/mission2/verify_mission2_final_on_gpu.ipynb(제출 폴더 그대로 Colab A100, requirements만·인터넷 차단, 코드 정리·속도 개선 전후 판정 동일), PR #216·#222. 비율(CNN 0.4 / WavLM 0.3·0.3)은 Training 내부 20,000발화로 고름(공식 Val로 고르지 않음).",
 };
 
 const shadow = () => ({ type: "outer", blur: 5, offset: 1, angle: 90, color: "000000", opacity: 0.1 });
@@ -529,7 +529,7 @@ function flow(slide, x, y, w, h, f) {
   card(s, M, 2.45, lw, 4.35);
   barChart(s, M2.chart.labels, M2.chart.values, {
     x: M + 0.15, y: 2.55, w: lw - 0.3, h: 4.15, chartColors: [C.line, C.sky, C.blue],
-    title: "공식 Validation Accuracy (%)", valAxisMinVal: 84, valAxisMaxVal: 93,
+    title: "공식 Validation Accuracy (%)", valAxisMinVal: 84, valAxisMaxVal: 94,
   });
   const rx = M + lw + 0.3, rw = W - M - rx;
   card(s, rx, 2.45, rw, 2.15);
@@ -567,7 +567,7 @@ function flow(slide, x, y, w, h, f) {
     [strong(lastTry, C.text), strong(lastVerdict, C.sub), lastWhy],
   ], M, 2.45, [5.2, 2.4, 4.73], { rowH: 0.6, fontSize: 13 });
   caption(s, "비교는 Training 내부 통화 단위 홀드아웃 기준 (공식 Val 아님).", 6.75);
-  s.addNotes("근거: 통화 단위 특징 M2-EXP-008 / 제공 라벨 재학습 M2-RETRAIN-001 / 확률 평균 M2-ENS-001 / 더 큰 CNN M2-CNN-008, 패딩 제외 풀링 M2-CNN-009, 길이 입력 M2-CNN-004·006, Mixup M2-MIX-001 / WavLM 고정 임베딩 M2-SSL-001, 기본 미세조정 M2-SSL-002 / WavLM 미세조정(3초 창·겹침 증강) M2-SSL-003. 모두 docs/experiment_log.md·docs/decisions.md.");
+  s.addNotes("근거: 통화 단위 특징 M2-EXP-008 / 제공 라벨 재학습 M2-RETRAIN-001 / 확률 평균 M2-ENS-001 / 더 큰 CNN M2-CNN-008, 패딩 제외 풀링 M2-CNN-009, 길이 입력 M2-CNN-004·006, Mixup M2-MIX-001 / WavLM 고정 임베딩 M2-SSL-001, 기본 미세조정 M2-SSL-002 / WavLM-large 미세조정 2개 + CNN 결합 M2-WLML-001·002, M2-BLEND-001(내부 20,000발화 CNN 단독 91.94% → 93.21%). 모두 docs/experiment_log.md·docs/decisions.md.");
 }
 
 // 14. 최종 결과와 보완할 점
