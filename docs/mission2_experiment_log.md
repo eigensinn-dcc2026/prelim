@@ -946,3 +946,57 @@ E_TRG와 각 멤버의 paired 결과는 TabM 대비 교정 1,974/회귀 1,609(�
 - 저장 보고서: `STAGE14_REPORT_KO.md` (Drive); Stage14 run 경로는 위와 같다.
 - 코드 push: remote branch `codex/mission2-stage14-ensemble`, commit `41c221f16` (Stage14 구현).
 - 사용자 선택 기록: E_TRG 3-member equal-weight를 Stage14 채택 후보로 선택. Official Validation 또는 Stage15 튜닝은 실행하지 않았다. 현재 채택은 내부 검증 재사용에 따른 불확실성을 가진다.
+
+### Stage 15 — Final Full-Training Refit + Official Validation (2026-10-12 구현, 2026-10-13 실행 완료)
+
+**결정과 고정 계약:** 추가 튜닝 없이 Stage 14의 TabM + Tabular ResNet + GANDALF를 유지하고, Clean 59D + F01 80D + F02 10D의 149D 입력, seed 42, E_TRG 확률 단순 평균 1:1:1, threshold 0.5를 고정한다. Training 전체 889,358행/29,200통화에서 scaler를 fit하고, Stage 14 저장 근거에서 정한 고정 학습 길이(TabM 68 epoch, ResNet 16 epoch, GANDALF 17 epoch)를 사용하도록 구현했다. Official Validation은 학습·scaler·checkpoint 선택에 사용하지 않는 최종 평가 split이다.
+
+**구현 및 사전 검증:** 새 실행 모듈 `src/dcc_data/mission2_final_fulltrain_refit.py`, 계약 테스트 `tests/test_mission2_final_fulltrain_refit.py`, Colab Notebook `notebooks/mission2_final_fulltrain_official_validation.ipynb`, source-only bundle 생성 스크립트 `scripts/package_mission2_final_refit_code_bundle.py`를 추가했다. bundle SHA-256은 `e6e25dba621d43f76e5ac6e91c27f62338a7256342cddde34ac279bd53af7e53`이며 원본 데이터는 포함하지 않는다. 계약 테스트 9개와 Notebook JSON/Python 구문 검사는 통과했다. 로컬 Validation 원천으로 만든 text-free 추적 manifest는 111,947행/3,640통화이며 기존 manifest와 row identity, label, timestamp, crop 경계가 모두 일치했다. 이 로컬 manifest 정합성은 Colab 최종 모델 평가 결과가 아니다.
+
+**실행 및 복구 경과:** 첫 Colab Drive mount 시도는 `credential propagation was unsuccessful`로 preflight 전에 중단됐다. 이후 본 실행에서 Official Validation 3,640통화의 E05·AF·F01/F02 추출이 각각 `3,640/3,640`까지 완료됐다. 첫 refit run은 TabM 68 epoch와 ResNet 16 epoch를 완료했으나 GANDALF가 17 대신 18 epoch로 기록되어 고정 epoch 계약에 따라 `FAILED_STOP`됐다. 복구 run `mission2_final_fulltrain_official_validation_20261012T151108Z_a1606771`은 기존 Validation feature cache(SHA-256 `6aaefb7c8bc5548fac07e8ae95a3ecfe5698158166dcebb34368cd374b412666`)를 재사용하고, TabM/ResNet checkpoint를 복사 후 재검증했으며 GANDALF만 17 epoch 다시 학습했다. 복구 preflight 계약 테스트는 `10 passed in 1.23s`였다. 따라서 복구 때 feature 추출과 앞의 두 모델 학습은 반복되지 않았다. TabM·ResNet·GANDALF fit 시간은 각각 `2,119.841s`, `389.427s`, `357.305s`다.
+
+**Official Validation 결과:** 최종 run의 manifest는 `source_split=Validation`, 111,947행/3,640통화이며 Training과 `call_id` 및 record key 교집합은 모두 0이다. 149D feature schema fingerprint는 `0e9834296216cf39b5715e9e80df20b56fba2ee70d2ffa84dfed90179ace1626`이다. Official Validation은 scaler fit, gradient, loss, early stopping, checkpoint 선택에 사용되지 않았고, 고정 threshold `0.5`에서 저장된 예측을 평가했다. 혼동행렬 순서는 `TN/FP/FN/TP`다.
+
+| 모델 | Accuracy | Balanced Accuracy | Recall 0 | Recall 1 | HCE | TN/FP/FN/TP |
+|---|---:|---:|---:|---:|---:|---:|
+| TabM | `0.880560` | `0.878692` | `0.829585` | `0.927799` | 1,189 | 44,669 / 9,176 / 4,195 / 53,907 |
+| Tabular ResNet | `0.880854` | `0.879486` | `0.843514` | `0.915459` | 1,780 | 45,419 / 8,426 / 4,912 / 53,190 |
+| GANDALF | `0.881864` | `0.880256` | `0.837979` | `0.922533` | 1,938 | 45,121 / 8,724 / 4,501 / 53,601 |
+| **E_TRG (각 1/3 확률 평균)** | **`0.884919`** | **`0.883339`** | **`0.841787`** | **`0.924891`** | **1,301** | **45,326 / 8,519 / 4,364 / 53,738** |
+
+HCE는 각 모델의 confidence가 `0.90` 이상인 오분류 건수다.
+
+E_TRG는 세 단독 멤버 중 가장 높은 Accuracy인 GANDALF보다 0.003055(0.3055 percentage point) 높았다. 단, Official 결과는 이 고정 후보의 최종 평가이며 가중치·threshold를 탐색하지 않았다. E_TRG와 각 멤버의 paired 비교에서 (앙상블만 맞음/멤버만 맞음/공통 오답/순 교정/예측 변경 행)은 TabM `1,785/1,297/11,586/+488/3,082`, ResNet `1,483/1,028/11,855/+455/2,511`, GANDALF `1,532/1,190/11,693/+342/2,722`였다.
+
+| Official Validation slice | 행 수 | TabM | ResNet | GANDALF | E_TRG |
+|---|---:|---:|---:|---:|---:|
+| 전체 | 111,947 | `0.880560` | `0.880854` | `0.881864` | **`0.884919`** |
+| overlap | 48,863 | `0.841762` | `0.842805` | `0.844136` | **`0.847390`** |
+| no-overlap | 63,084 | `0.910611` | `0.910326` | `0.911087` | **`0.913988`** |
+| 발화 길이 0.5–1초 | 27,392 | `0.837288` | `0.837215` | `0.838347` | **`0.843056`** |
+
+**최종 artifact audit 및 경계:** run audit 상태는 `FINAL_VERIFIED`; 세 checkpoint reload은 `EXACT_PASS`, 저장 prediction alignment와 재계산 metric은 `PASS`, 혼동행렬 count 합도 111,947행과 일치한다. run artifact manifest/SHA 점검은 `FINAL_RUN_ARTIFACTS_AND_SHA256: PASS`였다. 결과와 증거 파일은 [Drive run 폴더](https://drive.google.com/drive/folders/1ITmKuvHSx6LcIdm31HJ2T3GoYAJkOHqf)의 `final_audit.json`, `official_validation_comparison.csv`, `official_validation_paired_errors.csv`, `official_validation_duration_overlap_slices.csv`, `ensemble_predictions.parquet`, `artifact_manifest.json`에 있다. 독립적인 Drive 재다운로드 후 SHA 검증은 아직 남아 있다.
+
+복구 run provenance의 실행 bundle SHA-256은 `e8496dec85e2528d6e63f011740f9a3417f5fbea7c936e6d185303fb0e7dd5b0`, 실행 module SHA-256은 `c76cb7524e39ef939238fde87f2528b4ea0c72d724550269d34b7f1859404fd7`이다. 현재 열린 Colab Notebook에는 원격/다른 탭 업데이트로 자동 저장할 수 없다는 경고가 표시된다. 화면의 셀에 입력된 bundle SHA(`02dc4983998ea91f46395874f68d0093feb8caa74652a623e569160b02d3b61e`)는 실행 provenance의 bundle SHA와 다르므로, 현재 Notebook 저장 상태가 이 실행본과 동일한지는 확인되지 않았다. 본 결과의 기준은 run별 Drive audit와 manifest다.
+
+공용 `src/dcc_inference/mission2.py`와 `scripts/mission2_inference.py`는 수정하지 않았다. 최종 audit도 `SUBMISSION INFERENCE NOT READY`로 판정했다. 149D Stage 15 모델을 공용 42D inference 경로에 통합하고 공식 sample-output parity를 확인하는 일, 그리고 artifact 재다운로드 SHA 확인은 미완료다.
+
+#### Stage 15 후속 — 저장 예측 기반 E_TRG 오분류 분석
+
+분석 대상은 복구 run `mission2_final_fulltrain_official_validation_20261012T151108Z_a1606771`의 `FINAL_VERIFIED` Official Validation 예측과 text-free manifest다. 111,947행의 저장된 예측을 고정 threshold `0.5`로 재확인했으며, 재학습·재추출·threshold/모델 튜닝·음성 청취·transcript 사용은 하지 않았다. 이 내용은 기존 Official Validation 성능 결과와 별개의 기술적 오류 분석이다.
+
+E_TRG는 12,883건(11.508%)을 오분류했다: FP 8,519, FN 4,364, HCE(confidence ≥ `0.90`) 1,301건. 혼동행렬은 `[[45,326, 8,519], [4,364, 53,738]]`(행=true 0/1, 열=prediction 0/1)이며, speaker 0/1 Recall은 각각 `0.841787`/`0.924891`이다.
+
+| 구간 | 행 수 | 오류 | 오류율 |
+|---|---:|---:|---:|
+| overlap | 48,863 | 7,457 | 15.2610% |
+| no-overlap | 63,084 | 5,426 | 8.6012% |
+| 발화 길이 `<0.5초` | 8,954 | 986 | 11.0118% |
+| 발화 길이 `0.5–1초` | 27,392 | 4,299 | 15.6944% |
+| 발화 길이 `1–2초` | 36,858 | 5,101 | 13.8396% |
+| 발화 길이 `2–5초` | 31,637 | 2,279 | 7.2036% |
+| 발화 길이 `≥5초` | 7,106 | 218 | 3.0678% |
+
+confidence `[0.50,0.60)` 구간은 12,253행 중 5,507건(44.9441%)이 오답이었고, confidence `≥0.90` 구간은 75,016행 중 1,301건(1.7343%)이 오답이었다. 세 멤버 투표는 FP 중 7,040/8,519건에서 모두 speaker 1, FN 중 2,871/4,364건에서 모두 speaker 0이었다. 오류행에서 멤버 예측 불일치율은 FP `17.3612%`, FN `34.2117%`였다. 모두 고정 예측을 설명하는 기술 통계이며 원인이나 개선 효과를 입증하지 않는다.
+
+집계 CSV/JSON과 오류행 CSV/Parquet는 [Drive misclassification_analysis 폴더](https://drive.google.com/drive/folders/1Gz53pNofawO_1ImcFiwPe9_OhbqBWFmV)에 보존했다. 원본 학습 Colab Notebook(Drive ID `1IZTQcwMnaCCsSm-mzSWoRuglvC15F7AN`)과 저장 output이 없는 로컬 단일 notebook `notebooks/mission2_final_fulltrain_official_validation.ipynb`에는 분석 코드를 source-only로 추가했다. 이 notebook 셀은 새로 실행하지 않았으며, Git에 오류 개별 행이나 실행 output은 넣지 않는다.

@@ -688,12 +688,12 @@ missionA(15, 2, "신고자/119대원 분류",
   table(s, [
     ["추가한 정보", "왜 확인했나", "공식 검증 정확도와 판단"],
     ["발화 길이", "짧고 긴 발화의 차이를 보완", "80.91% → 80.91%, 사실상 변화 없음 · 제외"],
-    ["고주파 경계(rolloff)", "에너지가 어느 주파수까지 퍼지는지 확인", "81.15% · 후보로 유지"],
-    ["영교차율(ZCR)", "마찰음·무성음 단서를 보완", "81.01% · 단독 변화는 작음"],
-    ["스펙트럼 중심(centroid)", "소리의 무게중심 주파수 확인", "81.05% · 추가 검토"],
-    [{ text: "rolloff + ZCR", options: { bold: true, color: C.blue } }, "두 정보가 서로 보완되는지 확인", { text: "81.31% · 다음 모델 비교 입력으로 채택", options: { bold: true, color: C.blue } }],
-  ], M + 0.08, 2.45, [2.65, 4.1, 5.15], { rowH: 0.56, fontSize: 11.5 });
-  txt(s, "초기 특징 비교는 Official Validation으로 진행했습니다. 일부 개별 결과는 저장된 Notebook 출력 없이 당시 Markdown 기록만 남아 있어 근거 수준을 구분해 보존합니다.", { x: M + 0.1, y: 6.1, w: CW - 0.2, h: 0.55, fontSize: 11.5, color: C.sub, align: "center" });
+    ["고주파 경계(rolloff)", "에너지가 어느 주파수까지 퍼지는지 확인", "81.15% (+0.24%p vs E00) · 단일 추가 중 최대 개선"],
+    ["영교차율(ZCR)", "마찰음·무성음 단서를 보완", "81.01% (+0.10%p) · 단독 이득은 작아 조합 확인"],
+    ["스펙트럼 중심(centroid)", "소리의 무게중심 주파수 확인", "81.05% (+0.14%p); 두 Recall은 상승했지만 HCE 2,086→2,102 · 미승격"],
+    [{ text: "rolloff + ZCR", options: { bold: true, color: C.blue } }, "두 정보가 서로 보완되는지 확인", { text: "81.31% (+0.40%p vs E00) · 둘 다 든 E05 42D를 다음 모델 비교에 사용", options: { bold: true, color: C.blue } }],
+  ], M + 0.08, 2.42, [2.65, 4.1, 5.15], { rowH: 0.58, fontSize: 10.7 });
+  txt(s, "E05는 두 특징이 함께 든 후속 모델 비교용 표현입니다. 최종 모델 채택을 뜻하지 않습니다. E02–E04는 저장 Notebook 출력 없이 Markdown 기록만 남아 있습니다.", { x: M + 0.1, y: 6.0, w: CW - 0.2, h: 0.55, fontSize: 10.8, color: C.sub, align: "center" });
   caption(s, "근거: docs/mission2_experiment_log.md §2, §9.3", 7.02);
   s.addNotes("평균적인 음색 정보 외에 발화 길이, 고주파 경계, 영교차율, 스펙트럼 중심을 시험했습니다. 발화 길이는 거의 도움이 되지 않았고, rolloff와 ZCR를 함께 넣었을 때 초기 기준선보다 높은 81.31%가 나와 다음 분류기 비교에 사용했습니다. 이 초기 표는 공식 검증 결과입니다. 일부 개별 수치는 Markdown에만 남아 있다는 기록 한계도 같이 밝혀 둡니다.");
 }
@@ -705,10 +705,10 @@ missionA(15, 2, "신고자/119대원 분류",
     ["분류 방법", "내부 검증 정확도", "관찰"],
     ["로지스틱 회귀", "81.73%", "비교 기준"],
     ["HistGradientBoosting", "84.19%", "나무 기반 후보 중 가장 높음"],
-    ["ExtraTrees", "82.00%", "기준보다 낮아 제외"],
+    ["ExtraTrees", "82.00%", "로지스틱보다 +0.27%p, HistGradientBoosting보다 −2.19%p"],
     ["QDA", "79.73%", "정확도와 화자 균형이 낮아 제외"],
-    [{ text: "MLP 신경망", options: { bold: true, color: C.blue } }, { text: "85.95%", options: { bold: true, color: C.blue } }, { text: "가장 높았지만 학습 수렴 경고가 남음", options: { bold: true, color: C.blue } }],
-  ], M + 1.05, 2.5, [3.7, 2.4, 5.8], { rowH: 0.57, fontSize: 12.5 });
+    [{ text: "MLP 신경망", options: { bold: true, color: C.blue } }, { text: "85.95%", options: { bold: true, color: C.blue } }, { text: "가장 높은 후보로 유지; 수렴 경고는 남음", options: { bold: true, color: C.blue } }],
+  ], M + 0.2, 2.5, [3.7, 2.4, 5.8], { rowH: 0.57, fontSize: 11.5 });
   txt(s, "이 단계부터 Training 내부의 통화 단위 고정 분할로 평가했습니다.", { x: M + 0.25, y: 6.12, w: CW - 0.5, h: 0.4, fontSize: 12, color: C.sub, align: "center" });
   caption(s, "근거: docs/mission2_experiment_log.md §3 (42D 입력, 내부 검증)", 7.02);
   s.addNotes("입력 특징을 42개로 고정한 채 로지스틱 회귀, 나무 모델, QDA, MLP를 비교했습니다. 같은 내부 검증 조건에서 MLP가 약 85.95%로 가장 높았습니다. 다만 MLP는 정해 둔 반복 횟수 안에 완전히 수렴하지 않았다는 경고가 있었으므로, 이 점수만 보고 모델이 충분히 학습됐다고 단정하지 않습니다.");
@@ -719,11 +719,11 @@ missionA(15, 2, "신고자/119대원 분류",
   coreMsg(s, "목소리 높낮이·유성성 요약은 도움을 줬지만, 모든 음향 특징이 성능을 높이지는 않았습니다");
   table(s, [
     ["살펴본 소리 단서", "왜 더했나", "내부 검증 결과"],
-    ["에너지 변화", "발화 안에서 소리 크기 변화 확인", "85.71% · 기준보다 낮아 제외"],
-    [{ text: "Pitch / Voicing (음높이·유성성)", options: { bold: true, color: C.blue } }, "높낮이와 주기적 발성 단서 반영", { text: "86.63% · +0.67%p, Recall도 확인해 다음 기준으로 채택", options: { bold: true, color: C.blue } }],
-    ["Spectral Flux (프레임 간 변화)", "연속 프레임 사이의 소리 변화 확인", "85.38% · 기준보다 낮아 제외"],
-    ["CPP (조화성 단서)", "목소리 주기성이 뚜렷한 정도 확인", "49개 입력에서 86.86% 기록; 최초 단독 비교 근거 일부 누락"],
-    ["Delta-MFCC (시간 변화)", "프레임 순서에 따른 음색 변화 확인", "초기 독립 점수 미보존; 뒤에 취약 구간 기준 재검토"],
+    ["에너지 변화", "발화 안에서 소리 크기 변화 확인", "85.71% (42D 기준 −0.24%p) · 제외"],
+    [{ text: "Pitch / Voicing (음높이·유성성)", options: { bold: true, color: C.blue } }, "높낮이와 주기적 발성 단서 반영", { text: "86.63% (+0.67%p); Recall 0 +0.71%p, Recall 1 +0.64%p · 47D 기준에 포함", options: { bold: true, color: C.blue } }],
+    ["Spectral Flux (프레임 간 변화)", "연속 프레임 사이의 소리 변화 확인", "85.38% (42D 기준 −0.57%p) · 제외"],
+    ["CPP (조화성 단서)", "목소리 주기성이 뚜렷한 정도 확인", "AF02+CPP 누적 49D에서 86.86%; 47D 직접 비교 output이 없어 CPP 단독 증분은 미확인"],
+    ["Delta-MFCC (시간 변화)", "프레임 순서에 따른 음색 변화 확인", "최초 단독 점수·혼동행렬 미보존; 뒤의 old-cache 재검토는 17-F에 표시"],
     ["Formants (성도 공명)", "성도 공명 위치 단서 검토", "실험 전에 위험·중복 우려로 보류, 성능 결과 없음"],
   ], M + 0.06, 2.35, [2.7, 4.5, 4.85], { rowH: 0.55, fontSize: 10.9 });
   caption(s, "근거: docs/mission2_experiment_log.md §4.1–4.3", 7.02);
@@ -765,8 +765,8 @@ missionA(15, 2, "신고자/119대원 분류",
     ["스펙트럼 엔트로피 변화", "소리의 퍼짐·변동성", "+216 정답; 화자별 균형 차이로 보류"],
     ["시간대별 MFCC 대비", "발화 앞·중간·뒤의 차이", "+103 정답; 보류"],
     ["특징 조합", "단일 특징의 상보성 확인", "과거 캐시에서 3개 조합은 87.21–87.60%; 가장 높은 조합도 화자·취약 구간 저하로 자동 채택 안 함"],
-    ["Delta-MFCC 재검토", "짧은 겹침 발화의 오류 보완", "과거 59D 대비 전체 순증 +32; 일부 취약 구간은 개선했지만 화자 Recall 교환으로 기준에 미채택"],
-  ], M + 0.04, 2.38, [2.45, 4.1, 5.05], { rowH: 0.59, fontSize: 10.4 });
+    ["Delta-MFCC 재검토", "짧은 겹침 발화의 오류 보완", "old-cache 59→61D +0.018%p (+32건); Recall 0 +1.47%p / 1 −1.32%p. 취약 구간 개선에도 순이득이 작고 균형 교환이 있어 HOLD"],
+  ], M + 0.04, 2.38, [2.45, 4.1, 5.05], { rowH: 0.59, fontSize: 9.8 });
   txt(s, "과거 캐시의 59D 점수(87.46%)와 clean chain의 59D(87.38%)는 같은 결과가 아닙니다.", { x: M + 0.2, y: 6.28, w: CW - 0.4, h: 0.28, fontSize: 11.5, bold: true, color: C.sub, align: "center" });
   caption(s, "근거: docs/mission2_experiment_log.md §4.5–4.7", 7.02);
   s.addNotes("에너지 경계, 스펙트럼 엔트로피, 발화 위치별 MFCC 차이를 추가로 확인했습니다. 단일 특징과 여러 조합 모두 일부 정확도 향상이 있었지만, 가장 높은 조합에서도 특정 화자나 취약 구간이 나빠졌습니다. AF05도 취약 구간에서는 나아졌지만 전체 정답 순증이 32건에 그치고 화자별 Recall이 반대 방향으로 움직여 채택하지 않았습니다. 이 수치는 과거 캐시 기준이며 이후 clean 기준과 섞지 않습니다.");
@@ -901,6 +901,79 @@ missionA(15, 2, "신고자/119대원 분류",
   txt(s, "같은 내부 검증에서 네 앙상블 후보를 비교해 점수가 낙관적일 수 있습니다. 짧은 119대원 발화 정확도는 76.71%, 같은 길이의 겹침 발화는 67.90%였습니다. Stage 14에서 Official Validation은 사용하지 않았고, Stage 15 튜닝도 하지 않았습니다.", { x: M + 0.12, y: 6.34, w: CW - 0.24, h: 0.55, fontSize: 10.2, color: C.sub, align: "center" });
   caption(s, "근거: docs/mission2_experiment_log.md §4.14 (후보 비교·취약 구간·선택 경계)", 7.02);
   s.addNotes("세 모델은 신고자일 확률을 각각 내고, 이를 같은 비중으로 평균했습니다. 세 모델 평균이 내부 정확도 88.85%로 가장 높았습니다. 가장 높은 2모델 조합과의 차이는 0.04%포인트보다도 작은 약 0.0315%포인트로, 177,891개 중 약 56개 차이입니다. 신고자 Recall은 높지만 119대원 Recall과 높은 확신 오답도 함께 살펴야 합니다. 같은 내부 검증 자료를 여러 단계와 여러 후보 선택에 재사용했으므로 점수가 낙관적일 수 있습니다. 이 결과는 내부에서 채택한 후보이며 공식 검증된 최종 성능은 아닙니다.");
+}
+
+// ---------- Mission 2 추가: Official Validation 최종 평가 ----------
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 고정 후보의 Official Validation 결과", "17-M");
+  coreMsg(s, "Stage 14에서 정한 E_TRG를 추가 튜닝 없이 전체 Training으로 다시 학습해 88.49%를 기록했습니다");
+  card(s, M, 2.45, CW, 4.35);
+
+  stat(s, M + 0.15, 2.78, 2.55, "88.49%", "Accuracy · Official Validation", C.blue, 36);
+  txt(s, "111,947개 발화 · 3,640통화\n오분류 12,883개 (11.51%)\n\n119대원 Recall 84.18%\n신고자 Recall 92.49%\n화자 Recall 차이 8.31%p", {
+    x: M + 0.2, y: 4.04, w: 2.45, h: 2.1, fontSize: 12, color: C.text, align: "center", valign: "middle",
+  });
+
+  s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["TabM", "ResNet", "GANDALF", "E_TRG"], values: [88.0560, 88.0854, 88.1864, 88.4919] }], {
+    x: M + 2.85, y: 2.62, w: 4.55, h: 3.35, barDir: "col", chartColors: [C.sky, C.sky, C.sky, C.blue],
+    showTitle: true, title: "모델별 Official Validation Accuracy (%)", titleFontSize: 11, titleColor: C.text, titleFontFace: F,
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 10, dataLabelFontBold: true, dataLabelFormatCode: "0.00",
+    valAxisMinVal: 86, valAxisMaxVal: 90, valAxisLabelColor: C.sub, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 10,
+    valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, showLegend: false, varyColors: true,
+  });
+
+  txt(s, "E_TRG 혼동행렬 (행=실제, 열=예측)", { x: M + 7.55, y: 2.66, w: 4.1, h: 0.3, fontSize: 12, color: C.sub, align: "center" });
+  table(s, [
+    ["", "예측 0\n119대원", "예측 1\n신고자"],
+    ["실제 0\n119대원", { text: "45,326", options: { bold: true, color: C.blue } }, "8,519"],
+    ["실제 1\n신고자", "4,364", { text: "53,738", options: { bold: true, color: C.blue } }],
+  ], M + 7.48, 3.08, [1.35, 1.65, 1.65], { w: 4.65, h: 1.86, rowH: 0.62, fontSize: 11, align: "center" });
+  txt(s, "고정: 149D · 세 모델 확률 1/3씩 평균 · threshold 0.5 · 학습/Scaler/체크포인트 선택에 Validation 미사용", {
+    x: M + 7.55, y: 5.45, w: 4.05, h: 0.65, fontSize: 10.5, color: C.sub, align: "center", valign: "middle",
+  });
+  txt(s, "해석 경계: Stage 15 자체는 고정 후보 평가지만, 과거 E-series 특징 선택에도 Official Validation을 사용해 독립 1회 holdout은 아닙니다.\n복구: GANDALF 18≠17 epoch 기록으로 첫 실행 중단; cache와 TabM/ResNet checkpoint를 재사용하고 GANDALF만 재학습했습니다.", {
+    x: M + 0.16, y: 6.23, w: CW - 0.32, h: 0.5, fontSize: 9.2, color: C.sub, align: "center",
+  });
+  caption(s, "근거: docs/mission2_experiment_log.md Stage 15 · run audit FINAL_VERIFIED · 고정 threshold 0.5", 7.02);
+  s.addNotes("Stage 15는 Stage 14에서 고른 세 모델을 추가 튜닝 없이 전체 Training으로 다시 학습한 뒤, 고정 threshold 0.5에서 저장된 Official Validation 예측을 평가했습니다. Accuracy는 88.4919%이며 혼동행렬 순서는 TN/FP/FN/TP입니다. E_TRG는 세 단독 모델 중 가장 높은 GANDALF보다 0.3055%p 높습니다. Official Validation은 이 refit의 scaler, loss, gradient, early stopping, checkpoint 선택에 사용하지 않았습니다. 다만 과거 E-series 특징 비교에도 같은 Official Validation이 사용됐으므로 독립된 1회 holdout이라고 표현하지 않습니다. 1차 실행의 고정 epoch 불일치는 audit에서 중단했고, 복구 때 feature cache와 두 checkpoint를 재사용해 GANDALF만 재학습했습니다.");
+}
+
+// ---------- Mission 2 추가: Official Validation 잔여 오류 ----------
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2 — 남아 있는 오분류와 취약 구간", "17-N");
+  coreMsg(s, "119대원·짧은 발화·겹침 구간의 오류가 더 많고, 낮은 확신 구간은 오분류율이 44.94%입니다");
+
+  const gap = 0.3, cardW = (CW - gap) / 2;
+  const leftX = M, rightX = M + cardW + gap;
+  card(s, leftX, 2.45, cardW, 4.35);
+  txt(s, "■ 저장된 예측에서 확인된 취약 구간", { x: leftX + 0.2, y: 2.58, w: cardW - 0.4, h: 0.35, fontSize: 13.5, bold: true, color: C.blue });
+  table(s, [
+    ["구간", "표본 수", "오류", "오류율"],
+    ["전체", "111,947", "12,883", "11.51%"],
+    ["발화 0.5–1초", "27,392", "4,299", "15.69%"],
+    ["Overlap 포함", "48,863", "7,457", "15.26%"],
+    ["확신도 0.50–0.60", "12,253", "5,507", "44.94%"],
+    ["확신도 ≥0.90 (HCE)", "75,016", "1,301", "1.73%"],
+    ["실제 119대원 × 0.5–1초 × overlap", "5,003", "1,550", "31.0%"],
+  ], leftX + 0.15, 3.03, [2.55, 1.25, 1.0, 1.0], { w: 5.8, h: 3.01, rowH: 0.43, fontSize: 9.4, align: "center" });
+  txt(s, "마지막 행은 3조건 중 실제 화자 0까지 지정한 교차 결과(정확도 69.02%)입니다. 0.5–1초×overlap×낮은 확신의 동시 교차 성능은 저장 집계가 없어 미확정입니다.", {
+    x: leftX + 0.2, y: 6.15, w: cardW - 0.4, h: 0.5, fontSize: 9.8, color: C.sub, align: "center", valign: "middle",
+  });
+
+  card(s, rightX, 2.45, cardW, 4.35);
+  txt(s, "■ 오류에서 확인한 점과 남은 한계", { x: rightX + 0.2, y: 2.58, w: cardW - 0.4, h: 0.35, fontSize: 13.5, bold: true, color: C.blue });
+  txt(s, [
+    { text: "119대원 분류가 상대적으로 약함  ", options: { bold: true, color: C.red, breakLine: true } },
+    { text: "Recall 84.18%로 신고자 92.49%보다 8.31%p 낮습니다. 119대원을 신고자로 잘못 분류한 FP는 8,519건입니다.", options: { breakLine: true } },
+    { text: "짧고 겹치는 발화에서 오류가 큼  ", options: { bold: true, color: C.red, breakLine: true } },
+    { text: "0.5–1초와 overlap의 각 집계에서 오류율은 각각 15.69%, 15.26%입니다. 동시 조건의 저확신 성능은 추정하지 않습니다.", options: { breakLine: true } },
+    { text: "낮은 확신에서 판정이 불안정함  ", options: { bold: true, color: C.red, breakLine: true } },
+    { text: "확신도 0.50–0.60의 정확도는 55.06%입니다. 오류 원인 자체는 집계 결과만으로 확정할 수 없습니다." },
+  ], { x: rightX + 0.25, y: 3.02, w: cardW - 0.5, h: 3.5, fontSize: 11, paraSpaceAfter: 6, valign: "middle" });
+  caption(s, "근거: docs/mission2_experiment_log.md Stage 15 후속 오류 분석 · 음성 청취/원인 판정 없이 저장 예측만 분석", 7.02);
+  s.addNotes("이 장의 수치는 복구 run의 FINAL_VERIFIED Official Validation 저장 예측에서 계산된 기술통계입니다. 0.5–1초, overlap, 낮은 확신 수치는 각각의 marginal slice라서 이 세 조건이 동시에 있는 표본의 성능으로 읽으면 안 됩니다. 실제 speaker 0과 0.5–1초, overlap을 함께 본 별도 slice는 n=5,003, accuracy 69.0186%입니다. 낮은 확신까지 겹친 4중 조건 수치는 저장 집계에서 확인되지 않아 미확정으로 남깁니다. 정확도 저하의 원인을 음성으로 확인하거나 청취한 결과가 아니므로 원인을 단정하지 않습니다.");
 }
 
 // ---------- Mission 3 ----------
