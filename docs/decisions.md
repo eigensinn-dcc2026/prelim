@@ -15,6 +15,18 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-13 — [M2] 최종 제출 = CNN 3개 앙상블 + WavLM-large 2개 (공식 Validation 92.90%)
+
+- **결정**: 미션 2 제출물을 `p = 0.4 × P_CNN + 0.3 × P_WavLM(seed 1) + 0.3 × P_WavLM(seed 2)`, `p ≥ 0.5`이면 신고자로 정함
+  (M2-WLML-001/002, M2-BLEND-001). 제출 폴더 `submission/mission2`를 이 구성으로 바꾸고(PR #216), 같은 폴더에 들어 있던
+  M2-SSL-003/004 기반 앙상블 경로(commit d103622)는 대체함.
+- **이유**: 제출 폴더 코드 그대로 공식 Validation 전체를 실행해 92.8957%(CNN 단독 91.49% 대비 +1.41%p)를 확인했고,
+  압축 파일 그대로·`requirements.txt`만·인터넷 차단 조건의 GPU 실행 검증을 두 번(코드 정리 전후) 통과함. 비율은 Training 내부
+  데이터로만 골랐음. M2-SSL 계열은 내부 holdout이 달라 내부 점수로는 비교할 수 없고, 비교 기준인 공식 Validation 점수가 아직 없었음.
+- **상태/후속**: 가중치(`m2_final_ensemble.pt`, 1.27GB, sha256 `35e5e586…`)는 git에서 빠지므로 제출 zip에만 넣음. 채점은 GPU 환경
+  (공식 Validation 20.2분/A100, CPU는 발화당 1.3~6.6초라 며칠). HuBERT-large(M2-HUBERT-001)는 섞는 이득이 없어 기각.
+- **관련**: [`submission/mission2/README.md`](../submission/mission2/README.md), PR #216.
+
 ## 2026-10-13 — [M2] 앙상블 후보 분석(M2-ENS-CAND-001) — base·large·CNN 3모델 유지, 추가 이득 없음
 
 - **결정**: 현재 후보인 WavLM-base + WavLM-large + CNN(3 seed) 확률 평균을 유지한다. SSL-005(w2v2) 반영 전의 중간 결론이다.
