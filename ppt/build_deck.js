@@ -904,52 +904,51 @@ function flow(slide, x, y, w, h, f) {
     });
   });
 
-  // 실제 발화 카드: 전화 통화 GIF(가벼운 흔들림/파형) + PPT 편집 가능한 말풍선/라벨.
-  // 미션 2와 동일한 GIF 삽입 방식. 첫 프레임만 보여도 전체 메시지를 이해할 수 있다.
-  // 실제 모델 예측 장면이 아닌, 기존 보고서의 정규식 기반 전사-라벨 탐색 사례이다.
+  // 실제 발화 카드 X-ray 스캔 연출: 모델 추론이 아닌 키워드 기준 탐색의 개념도.
+  // 왼쪽 GIF(팀 기본 통화 아이콘 + 파형 + 이동 스캔 라인)는 PDF에서도 첫 프레임 보임.
+  // 오른쪽 발화, 라벨 대비, 해석은 개별 PowerPoint 도형/텍스트로 편집 가능.
   card(s, rightX, topY, rightW, topH, C.light);
   title(s, "■ 오류 분석에서 읽은 실제 발화", rightX + 0.20, topY + 0.12, rightW - 0.40, 14);
   s.addImage({
-    path: "figures/anim/m3_call_wave.gif",
-    x: rightX + 0.24, y: topY + 0.60, w: 1.38, h: 0.55,
+    path: "figures/anim/m3_xray_scan.gif",
+    x: rightX + 0.20, y: topY + 0.54, w: 1.79, h: 0.68,
   });
-  txt(s, "119 신고 · 음성 전달", {
-    x: rightX + 0.20, y: topY + 1.21, w: 1.46, h: 0.22,
-    fontSize: 9.0, color: C.sub, align: "center",
+  txt(s, "119 신고 → 전사 표현 탐색", {
+    x: rightX + 0.18, y: topY + 1.25, w: 1.84, h: 0.17,
+    fontSize: 8.8, color: C.sub, align: "center", valign: "middle",
   });
-
-  // 말풍선 안의 전사 원문·라벨 대비 문구는 편집 가능한 개별 PPT 도형/텍스트.
   s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
-    x: rightX + 1.75, y: topY + 0.47, w: rightW - 1.96, h: 0.69,
-    fill: { color: C.white }, line: { color: C.sky, width: 1.7 }, rectRadius: 0.13,
+    x: rightX + 2.07, y: topY + 0.46, w: rightW - 2.28, h: 0.66,
+    fill: { color: C.white }, line: { color: C.sky, width: 1.7 }, rectRadius: 0.11,
   });
   txt(s, "“어지러워서 정신을\n못 차리겠다”", {
-    x: rightX + 1.89, y: topY + 0.52, w: rightW - 2.25, h: 0.58,
-    fontSize: 15.0, bold: true, color: C.blue, align: "center", valign: "middle",
+    x: rightX + 2.19, y: topY + 0.50, w: rightW - 2.52, h: 0.57,
+    fontSize: 16.0, bold: true, color: C.blue, align: "center", valign: "middle",
   });
+  // 정답 라벨과 실제 발화의 직접 표현 탐색 결과는 서로 다른 종류의 정보다.
   s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
-    x: rightX + 1.76, y: topY + 1.24, w: 1.41, h: 0.29,
+    x: rightX + 2.08, y: topY + 1.18, w: 1.32, h: 0.29,
     fill: { color: C.blue }, line: { color: C.blue }, rectRadius: 0.10,
   });
   txt(s, "오심 양성 라벨", {
-    x: rightX + 1.78, y: topY + 1.27, w: 1.37, h: 0.22,
-    fontSize: 10.1, bold: true, color: C.white, align: "center", valign: "middle",
+    x: rightX + 2.10, y: topY + 1.22, w: 1.28, h: 0.20,
+    fontSize: 10.0, bold: true, color: C.white, align: "center", valign: "middle",
   });
   txt(s, "vs", {
-    x: rightX + 3.19, y: topY + 1.29, w: 0.21, h: 0.18,
-    fontSize: 11.0, bold: true, color: C.sub, align: "center",
+    x: rightX + 3.44, y: topY + 1.24, w: 0.24, h: 0.17,
+    fontSize: 10.5, bold: true, color: C.sub, align: "center",
   });
   s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
-    x: rightX + 3.43, y: topY + 1.24, w: rightW - 3.65, h: 0.29,
+    x: rightX + 3.73, y: topY + 1.18, w: rightW - 3.94, h: 0.29,
     fill: { color: C.white }, line: { color: C.red, width: 1.4 }, rectRadius: 0.10,
   });
   txt(s, "오심 직접 표현 미검출", {
-    x: rightX + 3.45, y: topY + 1.27, w: rightW - 3.69, h: 0.22,
-    fontSize: 9.5, bold: true, color: C.red, align: "center", valign: "middle",
+    x: rightX + 3.75, y: topY + 1.22, w: rightW - 3.98, h: 0.20,
+    fontSize: 9.2, bold: true, color: C.red, align: "center", valign: "middle",
   });
-  txt(s, "발화와 증상 라벨 사이의 정보 차이 · 키워드 기준 · 최종 RoBERTa 예측 사례 아님", {
-    x: rightX + 0.17, y: topY + 1.57, w: rightW - 0.34, h: 0.18,
-    fontSize: 8.8, color: C.sub, align: "center", valign: "middle",
+  txt(s, "보고서 인용 · 정규식 기반 탐색 연출 · 최종 RoBERTa 예측 사례 아님", {
+    x: rightX + 0.19, y: topY + 1.57, w: rightW - 0.38, h: 0.16,
+    fontSize: 8.9, color: C.sub, align: "center", valign: "middle",
   });
   const lw = 5.0;
   insight(s, M, 4.15, lw, 1.3, [
