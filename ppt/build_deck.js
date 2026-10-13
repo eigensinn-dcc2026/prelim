@@ -1000,17 +1000,56 @@ function flow(slide, x, y, w, h, f) {
 {
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 모델 선정과 오류 분석", 31);
-  coreMsg(s, "앙상블이라고 모두 채택하지 않았다 — 내부 개선폭과 사전 기준으로 선택을 구분");
-  // 서로 다른 내부/공식 점수를 섞지 않고, F1 전체 범위(0~1)를 써 막대 길이로 차이를 과장하지 않음.
-  // 공식 Val로 확인된 제출 후보 4개만 표시.
-  // M3-ENS-001 기각 근거는 아래 REJECT 카드에 내부 홀드아웃 기준으로 별도 표시.
-  barChart(s, ["TF-IDF + LR (기준선)", "KcBERT-005", "RoBERTa-003", "최종 RoBERTa×3 + TF-IDF"],
-    [0.5689, 0.6246, 0.6433, 0.6534], {
-      name: "Macro F1 · 공식 Val", barDir: "bar", catAxisOrientation: "maxMin", x: M, y: 2.3, w: CW, h: 1.75,
-      chartColors: [C.sky, C.blue, C.blue, C.mint], showTitle: false,
-      valAxisMinVal: 0, valAxisMaxVal: 1, valAxisHidden: true, valGridLine: { style: "none" },
-      dataLabelFormatCode: "0.0000", dataLabelFontSize: 11, catAxisLabelFontSize: 11,
+  coreMsg(s, "낮은 F1을 단순 성능 문제로 보지 않고, 전사와 증상 라벨의 정보 차이를 점검했다.");
+  // 상단: 미션 3 데이터 진단의 핵심 발견을 3개 증상 가로 막대그래프로 요약.
+  // F1 차트는 30장에 이미 있어 중복 제거. 여기의 미검출률은 최종 모델 예측값이 아니라
+  // Training 내부 홀드아웃 5,792건의 라벨-전사 키워드 정규식 탐색 결과(M3-ERR-001).
+  const leftX = M, leftW = 6.65, topY = 2.35, topH = 1.73;
+  const rightX = M + leftW + 0.30, rightW = CW - leftW - 0.30;
+  card(s, leftX, topY, leftW, topH, C.bgGray);
+  title(s, "■ 저성능 3개 증상의 직접 표현 미검출률", leftX + 0.19, topY + 0.12, leftW - 0.38, 14);
+  txt(s, "Training 내부 홀드아웃 5,792건 · 증상별 정규식 탐색", {
+    x: leftX + 0.19, y: topY + 0.43, w: leftW - 0.38, h: 0.18,
+    fontSize: 9.1, color: C.sub,
+  });
+  const noDirectExpression = [
+    ["오심", 88.6, C.red],
+    ["전신쇠약", 75.7, "E78A47"],
+    ["두통", 63.7, C.sky],
+  ];
+  noDirectExpression.forEach(([symptom, percent, col], i) => {
+    const yy = topY + 0.70 + i * 0.33;
+    txt(s, symptom, { x: leftX + 0.22, y: yy - 0.045, w: 1.10, h: 0.26, fontSize: 11.8, bold: true, color: C.text, valign: "middle" });
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
+      x: leftX + 1.35, y: yy, w: 3.50, h: 0.20,
+      fill: { color: C.line }, rectRadius: 0.055, line: { color: C.line },
     });
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
+      x: leftX + 1.35, y: yy, w: 3.50 * percent / 100, h: 0.20,
+      fill: { color: col }, rectRadius: 0.055, line: { color: col },
+    });
+    txt(s, percent.toFixed(1) + "%", {
+      x: leftX + 4.99, y: yy - 0.052, w: 0.73, h: 0.30,
+      fontSize: 13.2, bold: true, color: col, align: "right", valign: "middle",
+    });
+  });
+
+  // 오른쪽: 실험 보고서에 인용된 발화로 '라벨과 텍스트 사이의 간극'을 직관적으로 설명.
+  // 실제 최종 RoBERTa의 개별 예측 오류라고 주장하지 않는다.
+  card(s, rightX, topY, rightW, topH, C.light);
+  title(s, "■ 오류 분석에서 읽은 실제 발화", rightX + 0.20, topY + 0.14, rightW - 0.40, 14);
+  txt(s, "“어지러워서 정신을 못 차리겠다”", {
+    x: rightX + 0.23, y: topY + 0.51, w: rightW - 0.46, h: 0.43,
+    fontSize: 16.8, bold: true, color: C.blue, align: "center", valign: "middle",
+  });
+  txt(s, "오심 양성 라벨 사례지만 직접적인 오심 표현은 미검출", {
+    x: rightX + 0.22, y: topY + 1.03, w: rightW - 0.44, h: 0.29,
+    fontSize: 11.0, color: C.text, align: "center", valign: "middle",
+  });
+  txt(s, "보고서 인용 · 키워드 기준 · 최종 RoBERTa 예측 사례 아님", {
+    x: rightX + 0.20, y: topY + 1.43, w: rightW - 0.40, h: 0.17,
+    fontSize: 9.2, color: C.sub, align: "center",
+  });
   const lw = 5.0;
   insight(s, M, 4.15, lw, 1.3, [
     { text: "REJECT · 과거 결합 기각", options: { bold: true, color: C.blue, breakLine: true } },
@@ -1034,8 +1073,8 @@ function flow(slide, x, y, w, h, f) {
     txt(s, l, { x, y: 5.5, w: (rw - 3.2) / 2 - 0.1, h: 0.6, fontSize: 11, color: C.sub, align: "center" });
   });
   txt(s, "→ TF-IDF·KcBERT의 오류 양상 차이 확인\n(과거 모델 분석·정규식 기준, 오라벨 단정 아님)", { x: rx + 3.0, y: 6.2, w: rw - 3.2, h: 0.55, fontSize: 10.5, bold: true, color: C.blue, align: "center", valign: "middle" });
-  caption(s, "근거: docs/decisions.md M3-ENS-001·M3-FINAL-002, docs/experiment_log.md M3-ERR-001. 서로 다른 학습 조건의 공식 Val 점수 차이는 인과 효과가 아님.");
-  s.addNotes("근거: docs/decisions.md M3-ENS-001(내부 3-seed 평균 0.6455 vs RoBERTa 0.6427, +0.0028 < 사전 기준 +0.01로 기각)·M3-FINAL-002(최종 RoBERTa×3 + TF-IDF, 사전 가중치 0.55/0.45, 공식 Val 0.6534), submission/mission3/README.md, docs/experiment_log.md M3-ERR-001. 상단 차트는 공식 Val만; REJECT 카드 수치는 Training 내부 80:20 홀드아웃으로 공식 Val과 직접 비교하지 않음. 공식 Val 단일 vs 최종 점수 차이를 통제 실험의 개선으로 해석하지 않음. 오류 분석 '근거 없음'은 키워드 정규식 기준으로 오라벨 단정이 아님.");
+  caption(s, "근거: reports/mission3/error_analysis/README.md·M3-ERR-001. 상단은 Training 텍스트·라벨 탐색, 하단은 과거 TF-IDF·KcBERT 분석(최종 RoBERTa 오답 분석 아님).");
+  s.addNotes("상단은 공식 Validation 또는 최종 RoBERTa 예측 결과가 아니다. Training 80:20 내부 홀드아웃 5,792건의 증상별 라벨 양성 집합에 대해 정규식으로 직접 표현 탐색: 오심 592/668=88.6%, 전신쇠약 804/1,062=75.7%, 두통 370/581=63.7% 미검출. 인용 발화는 reports/mission3/error_analysis/README.md 1절의 오심 라벨 사례이다. 정규식은 구어체 변형을 모두 찾지 못하므로 직접 표현 미검출을 증상 부재나 오라벨이라고 단정하지 않는다. 하단 52%는 라벨-전사 탐색 비율, 92% 및 약 90%는 이전 TF-IDF·KcBERT 및 해당 앙상블의 오류 분석(공식 Val 3,640건)이며 최종 RoBERTa 모델의 오류 통계가 아님. 모델 결정을 위한 내부 실험 M3-ENS-001(KcBERT+RoBERTa +0.0028 < +0.01 기각)과 M3-FINAL-002(최종 RoBERTa×3+TF-IDF 가중치 0.55/0.45 Training 내부 결정)는 별도 조건으로 해석해야 한다. 출처: reports/mission3/error_analysis/README.md, docs/experiment_log.md M3-ERR-001, docs/decisions.md M3-ENS-001 및 M3-FINAL-002.");
 }
 
 // =====================================================================
