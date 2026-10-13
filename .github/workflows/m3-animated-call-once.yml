@@ -6,6 +6,7 @@ on:
       - subin/ppt-m3-summary-percent-icons-20261013
     paths:
       - .github/workflows/m3-animated-call-once.yml
+      - ppt/build_deck.js
 
 permissions:
   contents: write
