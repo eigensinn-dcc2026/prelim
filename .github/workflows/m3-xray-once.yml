@@ -1,0 +1,96 @@
+# One-time branch-only build. Remove after canonical output is checked.
+name: Temporary M3 X-ray visual verification
+on:
+  push:
+    branches:
+      - subin/ppt-m3-xray-visual-20261013
+    paths:
+      - .github/workflows/m3-xray-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ppt/package-lock.json
+      - name: Build X-ray GIF only from team icon
+        run: |
+          python -m pip install 'Pillow>=10,<13'
+          python ppt/scripts/generate_m3_xray_scan_gif.py
+          python - <<'PY'
+          from PIL import Image
+          p='ppt/figures/anim/m3_xray_scan.gif'
+          with Image.open(p) as im:
+              assert im.n_frames>=12,im.n_frames
+              assert im.info.get('loop')==0
+              im.seek(0)
+              im.convert('RGB').save('/tmp/m3_xray_frame0.png')
+          print('PASS: looping GIF + static first frame')
+          PY
+      - name: Rebuild original and modified 37-slide decks from JS
+        working-directory: ppt
+        run: |
+          npm ci --no-audit --no-fund
+          git show ba71b26713691e4ddbfac94d444de122f421de95:ppt/build_deck.js > build_deck.baseline_qa.js
+          node build_deck.baseline_qa.js /tmp/m3_xray_baseline.pptx
+          rm build_deck.baseline_qa.js
+          node build_deck.js DCC2026_예선_결과정리.pptx
+      - name: Verify slide31-only change and factual labels
+        run: |
+          python - <<'PY'
+          import re,zipfile,xml.etree.ElementTree as ET
+          D='{http://schemas.openxmlformats.org/drawingml/2006/main}t'
+          def extract(p):
+            with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              names=sorted([n for n in z.namelist() if re.fullmatch(r'ppt/slides/slide\d+\.xml',n)],key=lambda v:int(re.search(r'slide(\d+)',v).group(1)))
+              return [''.join(t.text or '' for t in ET.fromstring(z.read(n)).iter(D)) for n in names]
+          old=extract('/tmp/m3_xray_baseline.pptx')
+          new=extract('ppt/DCC2026_예선_결과정리.pptx')
+          assert len(old)==len(new)==37, (len(old),len(new))
+          changed=[i for i in range(1,38) if old[i-1]!=new[i-1]]
+          assert changed==[31], f'Expected only slide31 text change; found {changed}'
+          for term in ['어지러워서 정신을','못 차리겠다','오심 양성 라벨','오심 직접 표현 미검출','정규식 기반 탐색 연출','최종 RoBERTa 예측 사례 아님','88.6%','75.7%','63.7%','약 52%','92%','약 90%','REJECT','ADOPT']:
+            assert term in new[30], f'M3 content missing: {term}'
+          for term in ['88.6%','75.7%','63.7%','약 52%','92%','약 90%','REJECT','ADOPT']:
+            assert term in old[30] and term in new[30], f'Existing M3 content changed: {term}'
+          with zipfile.ZipFile('ppt/DCC2026_예선_결과정리.pptx') as z:
+            rel=z.read('ppt/slides/_rels/slide31.xml.rels').decode()
+            assert '.gif' in rel,'slide31 GIF missing'
+            assert any(n.endswith('.gif') for n in z.namelist()), 'PPTX GIF media missing'
+            slide31=z.read('ppt/slides/slide31.xml').decode()
+            assert slide31.count('<p:sp>')>=31,'Not enough editable PPT shapes on slide 31'
+          print('PASS: only slide31 text changed, original facts and 37 slides preserved, GIF embedded')
+          PY
+      - name: Upload official generated PPTX and GIF for visual review
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: m3-xray-review
+          path: |
+            ppt/DCC2026_예선_결과정리.pptx
+            ppt/figures/anim/m3_xray_scan.gif
+          retention-days: 3
+          if-no-files-found: error
+      - name: Commit generated GIF (PPTX stays artifact per latest team policy)
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- ppt/figures/anim/m3_xray_scan.gif
+          if git diff --cached --quiet; then
+            echo 'GIF unchanged'
+          else
+            git commit -m 'assets(ppt): generated M3 X-ray scan GIF from team phone icon'
+            git push origin HEAD:subin/ppt-m3-xray-visual-20261013
+          fi
