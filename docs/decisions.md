@@ -15,6 +15,12 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-13 — [M2] 앙상블 후보 분석(M2-ENS-CAND-001) — base·large·CNN 3모델 유지, 추가 이득 없음
+
+- **결정**: 현재 후보인 WavLM-base + WavLM-large + CNN(3 seed) 확률 평균을 유지한다. SSL-005(w2v2) 반영 전의 중간 결론이다.
+- **이유**: 같은 H 45,504발화에서 base+large+CNN 0.9334가 1위이고 large+CNN 0.9332는 p=0.72로 차이가 없으며 base+large 0.9321은 유의하게 낮다(p=0.0007). 사전 고정한 개선 기준(+0.2%p, p<0.05, 5묶음 중 4개 이상)을 넘은 조합은 없다. 모델 쌍의 오류 상관이 0.71~0.78로 높아 조합 이득이 작다. 임계값 0.5 고정, 1:1 평균만 사용, 공식 Validation 미사용.
+- **후속**: M2-SSL-005 완료 후 같은 스크립트로 w2v2 조합을 추가해 M2-OFFVAL-ENS 멤버를 정한다. 통화 5묶음은 소속 목록이 없어 call_id 정렬 5등분이라 SSL-004 진단의 묶음과 다르다. 근거: `docs/experiment_log.md` M2-ENS-CAND-001 행, [`reports/mission2/ensemble_candidates/`](../reports/mission2/ensemble_candidates/ensemble_candidates.md)
+
 ## 2026-10-13 — [M2] 통화 구성 앙상블(M2-CALLENS-001) 기각 — seed 앙상블 대비 이득 없음
 
 - **결정**: 서로 다른 1,200통화를 뺀 4,800통화 SpeakerCNNLarge 2모델 앙상블(B)을 같은 6,000통화 2-seed 앙상블(A)보다 낫다고 보지 않고, 통화 구성을 바꾼 3-fold 확장은 하지 않는다.
