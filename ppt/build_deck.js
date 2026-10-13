@@ -1053,7 +1053,7 @@ function flow(slide, x, y, w, h, f) {
     x: rightX + 1.75, y: topY + 0.47, w: rightW - 1.96, h: 0.69,
     fill: { color: C.white }, line: { color: C.sky, width: 1.7 }, rectRadius: 0.13,
   });
-  txt(s, "“어지러워서 정신을\\n못 차리겠다”", {
+  txt(s, "“어지러워서 정신을\n못 차리겠다”", {
     x: rightX + 1.89, y: topY + 0.52, w: rightW - 2.25, h: 0.58,
     fontSize: 15.0, bold: true, color: C.blue, align: "center", valign: "middle",
   });
@@ -1065,7 +1065,7 @@ function flow(slide, x, y, w, h, f) {
     x: rightX + 1.78, y: topY + 1.27, w: 1.37, h: 0.22,
     fontSize: 10.1, bold: true, color: C.white, align: "center", valign: "middle",
   });
-  txt(s, "↔", {
+  txt(s, "vs", {
     x: rightX + 3.19, y: topY + 1.29, w: 0.21, h: 0.18,
     fontSize: 11.0, bold: true, color: C.sub, align: "center",
   });
