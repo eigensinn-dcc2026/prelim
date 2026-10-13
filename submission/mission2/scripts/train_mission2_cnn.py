@@ -1,45 +1,29 @@
 #!/usr/bin/env python3
-"""Mission 2 L2 모델을 학습한다: 로그 멜 스펙트로그램 위의 작은 CNN.
+"""미션 2 CNN 학습: log-mel 스펙트로그램을 입력으로 ``SpeakerCNNLarge`` 를 학습한다.
 
-scripts/build_mission2_spectrograms.py가 만든 스펙트로그램 인덱스를 읽는다(Training에서 만들었다는
-도장이 없는 인덱스는 거부한다. dcc_data.mission2_spectrogram.assert_training_spectrogram_index 참고).
-정확도를 비교할 수 있도록 L1 기준선과 똑같은 call_id 단위 80/20 분할
-(dcc_data.mission2_train.make_group_split)을 쓰고, dcc_data.mission2_cnn.SpeakerCNN을 학습한다.
+scripts/build_mission2_spectrograms.py 가 만든 스펙트로그램 목록(index)을 읽는다. Training 으로 만들었다고 표시되지 않은 목록은
+거부한다(dcc_data.mission2_spectrogram.assert_training_spectrogram_index). 학습/검증은 다른 모델과 똑같은 통화 단위 80/20 분할
+(dcc_data.mission2_train.make_group_split)을 써서 정확도를 서로 비교할 수 있다.
 
-ReduceLROnPlateau(검증 정확도가 더 오르지 않으면 학습률을 절반으로)를 쓰고, 마지막 에폭이 어땠든 상관없이
-항상 *최고* 에폭의 체크포인트와 지표를 보고·저장한다. 첫 Colab 실행에서 학습 후반에 인접한 에폭 사이에
-val_acc가 20%p 이상 출렁였고(train_loss는 내내 매끄럽게 줄어드는, 전형적인 "학습률이 너무 높다" 증상),
-마지막 에폭이 진동 중간에 걸려 이미 도달한 정점보다 훨씬 나쁠 수 있기 때문이다.
+ReduceLROnPlateau(검증 정확도가 멈추면 학습률을 절반으로)를 쓰고, 마지막 에폭이 아니라 *가장 좋았던* 에폭의 가중치와 성적을
+저장·보고한다. 첫 Colab 실행에서 학습 후반에 검증 정확도가 인접 에폭 사이에 20%p 이상 출렁였기 때문이다
+(train_loss 는 계속 매끄럽게 줄어드는, 학습률이 높을 때의 전형적인 증상).
 
---resume은 처음부터 다시 하지 않고 --model-output에서 이어서 학습한다: 두 번째 Colab 실행(같은 3,000통화
-표본)은 20에폭 중 맨 마지막 에폭에서 최고(86.11%)를 찍었는데, 수렴하지 않았을 가능성이 크다는 뜻이다.
-이미 도달한 지점으로 돌아가려고 새로 20에폭을 다시 돌리면 GPU에서 약 20분을 낭비한다. 체크포인트는
-*마지막* 에폭의 모델/옵티마이저/스케줄러 상태(학습률 스케줄과 Adam의 모멘텀을 정확히 그 자리에서 이어 가기
-위한 것)를 *최고* 에폭의 모델 상태(추론용)와 따로 담는다. 그래서 이어 학습한 실행이 기존 최고를 넘지
-못해도 그것을 덮어쓰지 않는다. 이어 학습한 실행은 *자신의* 인덱스 출처 도장이 찍힌 체크포인트를 저장하므로,
---resume은 먼저 이어 가려는 파일이 정확히 같은 설정(모델, 멜 설정, 라벨 출처, split, 시드 --
-dcc_data.mission2_checkpoint.require_resumable_checkpoint)을 기록하고 있는지 확인하고, 아무것도 기록하지
-않은 파일(예: 설정을 저장하기 전에 쓴 모든 파일)은 거부한다.
+--resume 은 --model-output 에서 이어서 학습한다. 체크포인트에는 *마지막* 에폭의 모델·옵티마이저·스케줄러 상태(학습률 일정과
+Adam 모멘텀을 그대로 이어가기 위해)와 *최고* 에폭의 모델 상태(추론용)를 따로 담아서, 이어간 실행이 최고점을 못 넘어도 최고점은
+덮어쓰지 않는다. 이어가기 전에는 그 파일이 지금과 똑같은 설정(모델, mel 설정, 라벨 출처, 분할, seed)으로 학습됐는지 확인하고
+(dcc_data.mission2_checkpoint.require_resumable_checkpoint), 설정이 기록되지 않은 파일은 거부한다.
 
-작은 스모크 실행은 CPU로도 되지만, 전체 데이터에 가까운 실행은 Colab GPU에서 한다(--device cuda). 팀이
-이미 scripts/build_mission2_dataset.py를 거기서 돌리는 방식과 같다.
+CPU 는 아주 작은 시험 실행에만 쓰고, 전체 데이터는 Colab GPU(--device cuda)에서 돌린다.
 
-사용법:
-    python scripts/train_mission2_cnn.py \\
-        --index data/m2_spectrogram_index.parquet \\
-        --spectrogram-dir data/m2_spectrograms \\
-        --epochs 20 --device cuda \\
-        --model-output checkpoints/mission2/m2_cnn.pt
-
-    # 같은 체크포인트로 20에폭 더 이어서 학습:
-    python scripts/train_mission2_cnn.py ... --epochs 20 --resume
-
-    # 전체 데이터의 Colab 방식(--packed-spectrograms, --amp, --pad-to-multiple, --early-stop-patience).
-    # 호출당 1에폭이라 연결이 끊겨도 최대 1에폭만 잃는다:
+사용법 (최종 모델의 실제 학습 명령, CNN 학습 노트북과 같음. Colab 이 끊겨도 최대 1에폭만 잃도록 1에폭씩 이어서 실행):
     python scripts/train_mission2_cnn.py --index data/m2_spectrogram_index_packed.parquet \\
         --packed-spectrograms data/m2_spectrograms_packed.npy --model large --device cuda \\
-        --amp --pad-to-multiple 8 --cudnn-benchmark --num-workers 2 \\
-        --epochs 1 --early-stop-patience 5 --resume
+        --seed 42 --torch-seed 1 --amp --pad-to-multiple 8 --cudnn-benchmark --num-workers 2 \\
+        --epochs 1 --early-stop-patience 5 --model-output ckpt/m2_cnn_large_rerun_ts1.pt [--resume]
+    (--torch-seed 1/2/3 으로 3개를 학습한 뒤 scripts/pack_mission2_l2_ensemble.py 로 하나로 묶는다)
+
+(제출 폴더 정리 메모: 실험했지만 최종 모델에 쓰지 않은 --model small(작은 CNN)과 --model large-duration(발화 길이 추가 입력) 선택지는 뺐다.)
 """
 
 from __future__ import annotations
@@ -61,14 +45,10 @@ import torch  # noqa: E402
 from sklearn.metrics import confusion_matrix, recall_score  # noqa: E402
 
 from dcc_data.mission2_cnn import (  # noqa: E402
-    SpeakerCNN,
     SpeakerCNNLarge,
     PackedSpectrogramDataset,
-    SpeakerCNNLargeWithDuration,
     SpectrogramDataset,
-    SpectrogramWithDurationDataset,
     collate_batch,
-    collate_batch_with_duration,
     evaluate,
     move_optimizer_state_to_device,
     train_with_best_checkpoint,
@@ -77,12 +57,10 @@ from dcc_data.mission2_checkpoint import build_checkpoint_metadata, require_resu
 from dcc_data.mission2_spectrogram import assert_training_spectrogram_index  # noqa: E402
 from dcc_data.mission2_train import make_group_split  # noqa: E402
 
-MODEL_CLASSES = {"small": SpeakerCNN, "large": SpeakerCNNLarge, "large-duration": SpeakerCNNLargeWithDuration}
-# large-duration의 로더는 (specs, label) 대신 (specs, duration, label)을 돌려준다.
-# SpeakerCNNLargeWithDuration의 설명을 보라. 그래서 Dataset/
-# collate_fn도 다르다. 다른 모든 모델은 평범한 쌍을 함께 쓴다.
-DATASET_CLASSES = {"small": SpectrogramDataset, "large": SpectrogramDataset, "large-duration": SpectrogramWithDurationDataset}
-COLLATE_FNS = {"small": collate_batch, "large": collate_batch, "large-duration": collate_batch_with_duration}
+# --model 이름 -> 모델 클래스 / 낱개 스펙트로그램용 데이터셋 / 배치 묶음 함수
+MODEL_CLASSES = {"large": SpeakerCNNLarge}
+DATASET_CLASSES = {"large": SpectrogramDataset}
+COLLATE_FNS = {"large": collate_batch}
 
 
 def parse_args() -> argparse.Namespace:
@@ -90,6 +68,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--index", type=Path, default=Path("data/m2_spectrogram_index.parquet"))
     parser.add_argument("--spectrogram-dir", type=Path, default=Path("data/m2_spectrograms"))
     parser.add_argument("--seed", type=int, default=42, help="seed for the call_id-grouped train/val split only (make_group_split)")
+    # --torch-seed: 모델 초기값과 학습 데이터 섞는 순서의 seed. 분할 seed(--seed)와 따로 두어, 같은 검증 통화를 유지한 채
+    # 이 두 가지 우연만 바꿔 여러 모델(앙상블 멤버)을 학습한다.
     parser.add_argument(
         "--torch-seed", type=int, default=None,
         help="seed for model init + DataLoader shuffle order (defaults to --seed). Kept separate from --seed "
@@ -105,9 +85,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument(
-        "--model", type=str, default="small", choices=list(MODEL_CLASSES),
-        help="small=SpeakerCNN (25.7k params), large=SpeakerCNNLarge (422k params), "
-        "large-duration=SpeakerCNNLarge + this utterance's own duration_sec as an explicit input",
+        "--model", type=str, default="large", choices=list(MODEL_CLASSES),
+        help="large=SpeakerCNNLarge (422k params), the final model's CNN",
     )
     parser.add_argument("--model-output", type=Path, default=Path("checkpoints/mission2/m2_cnn.pt"))
     parser.add_argument("--resume", action="store_true", help="continue from --model-output instead of a fresh model")
@@ -134,8 +113,6 @@ def parse_args() -> argparse.Namespace:
         "val_acc; a --resume run that finds the checkpoint already stopped trains nothing and leaves it as is",
     )
     args = parser.parse_args()
-    if args.model == "large-duration" and (args.packed_spectrograms is not None or args.pad_to_multiple > 1):
-        parser.error("--packed-spectrograms / --pad-to-multiple support --model small/large only")
     if args.amp and args.device != "cuda":
         parser.error("--amp needs --device cuda")
     if args.pad_to_multiple < 1:
@@ -144,6 +121,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def _capture_rng_state(train_shuffle_generator: torch.Generator) -> dict:
+    """이어서 학습할 때 같은 난수 흐름을 이어가도록 모든 난수 상태를 저장한다."""
+
     return {
         "python": random.getstate(),
         "torch": torch.get_rng_state(),
@@ -165,6 +144,7 @@ def main() -> int:
     if args.device == "cuda" and not torch.cuda.is_available():
         raise SystemExit("--device cuda requested but torch.cuda.is_available() is False")
 
+    # 난수 seed 고정 (모델 초기값 + 학습 데이터 섞는 순서)
     torch_seed = args.torch_seed if args.torch_seed is not None else args.seed
     random.seed(torch_seed)
     torch.manual_seed(torch_seed)
@@ -176,15 +156,17 @@ def main() -> int:
     torch.backends.cudnn.benchmark = args.cudnn_benchmark
 
     df = pd.read_parquet(args.index)
-    # Training에서 만들었다는 도장이 없는 것은 모두 거부한다: 공식 Validation 폴더가
-    # --index를 잘못된 캐시로 지정하더라도 손실/역전파에 절대 닿지 않아야 한다.
+    # Training 으로 만들었다고 표시되지 않은 목록은 거부한다: --index 를 잘못 가리켜도 공식 Validation 이
+    # loss/역전파에 들어가는 일이 없게 한다.
     index_provenance = assert_training_spectrogram_index(df)
     print(f"index provenance: {index_provenance}")
+    # 통화 단위 80/20 분할 (다른 모델과 같은 검증 통화)
     train_idx, val_idx = make_group_split(df, seed=args.seed, test_size=args.test_size)
     train_df = df.iloc[train_idx]
     val_df = df.iloc[val_idx]
     print(f"train={len(train_df)} val={len(val_df)} train_calls={train_df['call_id'].nunique()} val_calls={val_df['call_id'].nunique()}")
 
+    # 묶음 파일(--packed-spectrograms)이 있으면 그것을, 없으면 발화별 .npy 를 읽는다
     if args.packed_spectrograms is not None:
         def make_dataset(part: pd.DataFrame) -> torch.utils.data.Dataset:
             return PackedSpectrogramDataset(part, args.packed_spectrograms)
@@ -203,15 +185,15 @@ def main() -> int:
     )
     val_loader = torch.utils.data.DataLoader(make_dataset(val_df), shuffle=False, **loader_options)
 
+    # 모델, 옵티마이저(Adam), 학습률 스케줄러(검증 정확도가 멈추면 절반), 혼합 정밀도 스케일러
     model_cls = MODEL_CLASSES[args.model]
     model = model_cls()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=args.lr_patience)
     scaler = torch.amp.GradScaler("cuda") if args.amp else None
 
-    # 이 실행이 저장하는 체크포인트에 찍을 도장. --resume은 먼저 이어 가려는 파일이 정확히 이 설정으로
-    # 학습되었음을 증명해야 하므로(require_resumable_checkpoint 참고) 미리 만든다. 그렇지 않으면
-    # 다른 라벨/설정으로 학습한 옛 가중치가 오늘의 출처 도장을 달고 나오게 된다.
+    # 이 실행이 저장할 체크포인트에 기록할 학습 설정. --resume 이 이어갈 파일과 설정이 같은지 먼저 확인해야 하므로 미리 만든다
+    # (그러지 않으면 다른 라벨·설정으로 학습한 옛 가중치에 오늘의 설정이 기록될 수 있다).
     checkpoint_metadata = build_checkpoint_metadata(
         model_name=args.model,
         model_class=model_cls.__name__,
@@ -242,11 +224,11 @@ def main() -> int:
         epochs_already_trained = checkpoint["total_epochs_trained"]
         if scaler is not None and checkpoint.get("scaler_state_dict") is not None:
             scaler.load_state_dict(checkpoint["scaler_state_dict"])
-        # 난수열(섞는 순서, 드롭아웃)을 torch_seed부터 다시 시작하지 않고 이어 간다. 다시 시작하면
-        # 이어 학습하는 모든 구간에서 첫 실행의 데이터 순서가 반복된다.
+        # 난수 흐름(섞는 순서, dropout)을 처음부터 다시 시작하지 않고 이어간다. 다시 시작하면 이어간 구간마다
+        # 첫 실행의 데이터 순서가 반복된다.
         if "rng_state" in checkpoint:
             _restore_rng_state(checkpoint["rng_state"], train_shuffle_generator)
-        else:  # 난수 상태를 기록하기 전에 저장한 파일: 적어도 1에폭째의 순서를 반복하지는 않는다
+        else:  # 난수 상태를 기록하기 전에 저장된 파일: 적어도 첫 에폭의 순서는 반복하지 않게 한다
             resumed_seed = torch_seed + epochs_already_trained
             random.seed(resumed_seed)
             torch.manual_seed(resumed_seed)
@@ -257,6 +239,7 @@ def main() -> int:
             f"Resumed from {args.model_output}: {epochs_already_trained} epochs already trained, "
             f"standing best val_acc={prev_best_val_acc:.4f} (epoch {prev_best_epoch})"
         )
+        # 이미 조기 종료 조건에 도달한 체크포인트면 더 학습하지 않는다
         if args.early_stop_patience is not None and epochs_already_trained - prev_best_epoch >= args.early_stop_patience:
             print(
                 f"EARLY STOPPED: no val_acc improvement for {epochs_already_trained - prev_best_epoch} epochs "
@@ -276,7 +259,7 @@ def main() -> int:
         )
         epoch_start = time.time()
 
-    # 조기 종료는 이번 실행을 포함해 지금까지 모든 실행에서의 최고 에폭부터 센다.
+    # 조기 종료는 지금까지의 모든 실행(이번 실행 포함) 중 최고 에폭부터 센다.
     running_best = {"val_acc": prev_best_val_acc, "epoch": prev_best_epoch}
 
     def should_stop(record: dict) -> bool:
@@ -297,6 +280,7 @@ def main() -> int:
     elapsed = time.time() - start
     total_epochs_trained = epochs_already_trained + len(result["history"])
 
+    # 이번 실행이 이전 최고점을 넘었을 때만 최고 가중치를 바꾼다
     improved = result["best_val_acc"] > prev_best_val_acc
     if improved:
         best_val_acc = result["best_val_acc"]
@@ -321,14 +305,13 @@ def main() -> int:
             "total_epochs_trained": total_epochs_trained,
             "rng_state": _capture_rng_state(train_shuffle_generator),
             "scaler_state_dict": scaler.state_dict() if scaler is not None else None,
-            # 이 실행이 어떻게 학습했는지(속도 설정이며 모델의 정체가 아니다). 기록일 뿐 확인하지는 않는다.
+            # 이 실행의 속도 관련 학습 옵션(모델이 무엇인지와는 무관). 기록용이고 검사하지 않는다.
             "training_options": {
                 "amp": args.amp, "pad_to_multiple": args.pad_to_multiple, "batch_size": args.batch_size,
                 "lr": args.lr, "lr_patience": args.lr_patience, "early_stop_patience": args.early_stop_patience,
                 "packed_spectrograms": args.packed_spectrograms is not None,
             },
-            # 이 체크포인트를 무엇으로 학습했는지. scripts/mission2_inference.py는 이 값이
-            # 실행하려는 방식과 다르면 실행을 거부한다(dcc_data.mission2_checkpoint 참고).
+            # 이 체크포인트의 학습 설정. 추론 코드는 이것이 추론 설정과 다르면 실행을 거부한다(dcc_data.mission2_checkpoint).
             "metadata": checkpoint_metadata,
         },
         args.model_output,
