@@ -1,49 +1,35 @@
 #!/usr/bin/env python3
-"""Mission 2 추론 진입점(대회가 정한 실행 명령 형식).
+"""미션 2 CNN 단독 추론 (대회 채점 명령과 같은 형식).
 
     python scripts/mission2_inference.py \\
         --audio_dir {wav folder} --label_dir {json folder} \\
-        --ckpt_path {checkpoint file} --output ./outputs/mission2.csv
+        --ckpt_path {CNN 체크포인트 .pt} --output ./outputs/mission2.csv
 
-audio_dir/label_dir는 파일 이름(stem)으로 짝짓고 Training/Validation 하위 폴더가 있다고 가정하지 않는다.
-채점 쪽이 평평한 폴더를 주기 때문이다(그래서 Training 또는 Validation 경로 구성 요소가 정확히 하나
-있어야 하는 dcc_data.manifest.build_manifest는 여기서 쓰지 않는다. 아래의 pair_by_stem_strict를 보라. 이는
-dcc_data.mission2_features.pair_by_stem에 제출에 필요한 검사를 더한 것이다).
+이 파일의 쓰임은 두 가지다.
+1. 최종 추론(scripts/mission2_final_inference.py)이 여기의 도우미 함수(라벨 짝짓기, 출력 검사, 스펙트로그램 채우기)를 그대로 가져다 쓴다.
+2. CNN 앙상블만 따로 평가할 때 쓴다. CNN 학습 노트북(train_mission2_l2_from_raw.ipynb)의 마지막 평가 단계가 당시
+   ``inference.py`` 로 실행한 것이 바로 이 코드다(지금의 ``inference.py`` 는 최종 묶음 체크포인트용이라 CNN 체크포인트를 받지 않는다).
 
-WAV에 라벨 JSON이 없거나(또는 그 반대), stem이 두 번 나오거나, 완성된 출력이 라벨이 있는 발화마다 한 행이
-아니면 CSV를 쓰지 않고 실패한다. 일부만 쓰인 CSV가 성공한 실행처럼 보이면 안 되기 때문이다.
+채점 폴더에는 Training/Validation 하위 폴더가 있다는 보장이 없어서, audio_dir/label_dir 를 폴더 구조 가정 없이 파일 이름으로
+짝짓는다(``pair_by_stem_strict``). WAV 에 짝 JSON 이 없거나(반대도), 같은 이름이 두 번 나오거나, 다 끝난 출력의 행 수가 라벨 발화 수와
+다르면 CSV 를 쓰지 않고 멈춘다. 일부만 담긴 CSV 가 성공한 결과처럼 보이면 안 되기 때문이다.
 
-행 순서는 각 라벨 파일 안의 발화 순서를 따르고, startAt/endAt은 대회의 출력 형식
-([audio file name], [startAt], [endAt], [speaker])에 따라 수정하지 않고 그대로 옮긴다.
+행 순서는 각 라벨 파일의 발화 순서 그대로이고, startAt/endAt 은 고치지 않고 그대로 옮겨 적는다(대회 출력 형식:
+[audio file name], [startAt], [endAt], [speaker]).
 
-특정 발화의 특징 추출이나 예측이 실패해도 그 행은 그대로 내보내서(다수 클래스로 대체), 출력 행 수가 항상
-입력 발화 수와 같게 한다. 행을 조용히 빼지 않고, 실패는 stem/utt_idx와 함께 stderr에 기록한다.
+어떤 발화의 처리에 실패해도 그 행은 빼지 않고 다수 클래스로 채워 넣는다(출력 행 수 = 입력 발화 수). 실패는 stem/utt_idx 와 함께
+stderr 에 남긴다.
 
-이 저장소가 만든 두 모델을 모두 지원하며, ``--ckpt_path``의 파일 확장자로 고른다. 별도 옵션이 필요 없어서
-위의 실행 명령 형식은 어느 쪽이든 그대로이다.
-- L1(음향 통계 특징 위의 GBM): torch가 아닌 확장자, 예: ``.pkl``(``dcc_data.mission2_train.save_model``의
-  pickle 형식).
-- L2(로그 멜 스펙트로그램 위의 CNN, ``dcc_data.mission2_cnn.SpeakerCNNLarge``): ``.pt``/``.pth``/``.ckpt``이며
-  ``scripts/train_mission2_cnn.py``의 ``--model large`` 체크포인트 형식과 같다. 스펙트로그램은 여기서
-  ``dcc_data.mission2_spectrogram``의 현재 모듈 기본값(``N_MELS``, ``mission2_features.HOP_LENGTH``)으로
-  만든다. 이 값은 체크포인트를 실제로 학습한 값과 같아야 한다. 어긋나도 오류가 나지 않고(``SpeakerCNNLarge``는
-  ``AdaptiveAvgPool2d`` 덕분에 어떤 크기의 스펙트로그램이든 받는다) 예측만 조용히 나빠지기 때문이다. 그래서
-  체크포인트에 기록된 학습 설정(학습기가 쓴 ``checkpoint["metadata"]``, ``dcc_data.mission2_checkpoint``)을
-  먼저 이 값들과 대조하고, 모델 종류·멜 설정·학습 split이 다르거나, 오디오의 샘플레이트가 학습한 것과
-  다르거나, 체크포인트가 제공된 화자 라벨을 그대로 쓰고 학습한 것이 아니면(주최 측의 2026-10-01 판정:
-  ``text``를 근거로 한 라벨 수정 금지) 실행에 실패한다. 설정이 기록되어 있지 않은 체크포인트도 거부한다.
-  예전의 ``m2_cnn_large.pt``(M2-VAL-003)는 수정한 라벨로 학습했으므로 더는 받아들이지 않는다.
+CNN(``dcc_data.mission2_cnn.SpeakerCNNLarge``, log-mel 스펙트로그램 입력)의 스펙트로그램은 ``dcc_data.mission2_spectrogram`` 의 설정
+(``N_MELS``, ``mission2_features.HOP_LENGTH``)으로 만든다. 이 값이 학습 때와 다르면 오류 없이 예측만 조용히 나빠지므로
+(``SpeakerCNNLarge`` 는 ``AdaptiveAvgPool2d`` 라 어떤 크기든 받는다), 체크포인트에 기록된 학습 설정(``checkpoint["metadata"]``)과 먼저
+대조한다. 모델 종류, mel 설정, 학습 분할, 음성 샘플링 주파수가 다르거나, 제공 라벨을 그대로 쓰지 않고 학습한 체크포인트면 멈춘다
+(운영 측 2026-10-01 판단: ``text`` 근거의 라벨 보정 금지). 학습 설정이 기록되지 않은 체크포인트도 받지 않는다.
 
-L2 ``--ckpt_path``는 ``scripts/pack_mission2_l2_ensemble.py``가 만든 *앙상블* 체크포인트일 수도 있다
-(``--torch-seed``만 다른, 구조와 멜 설정이 같은 모델 여러 개를 소프트 보팅. M2-ENS-003 참고: 공식
-Validation 전체에서 가장 좋은 단일 시드보다 +0.50%p). 그래도 ``--ckpt_path`` 파일은 정확히 하나이므로
-실행 명령 형식은 그대로이다. 앙상블 멤버의 가중치는 그 파일 하나 안에 ``"best_model_state_dict"`` 하나
-대신 ``checkpoint["ensemble_model_state_dicts"]`` 아래에 묶여 있고, 읽는 쪽이 확인하는 키는
-``dcc_data.mission2_checkpoint.ENSEMBLE_STATE_DICTS_KEY``이다.
+``--ckpt_path`` 는 여러 시드의 CNN 을 하나로 묶은 *앙상블* 체크포인트(scripts/pack_mission2_l2_ensemble.py)일 수 있다.
+그때는 멤버들의 확률을 평균(soft voting)한다. 파일은 여전히 하나라 채점 명령 형식은 그대로다.
 
-개발 메모: 이것이 최상위 inference.py가 아니라 scripts/ 아래에 있는 이유는, 이 저장소가 세 미션을 모두
-담고 있고 최종 제출 패키징(미션마다 inference.py 하나, 각 제출이 요구하는 경로에)이 아직 정해지지
-않았기 때문이다. dcc_data.mission2_train의 체크포인트 형식 메모를 보라.
+(제출 폴더 정리 메모: 초기 L1 모델(LightGBM, .pkl) 분기는 최종 모델에 쓰이지 않아 뺐다. 이제 .pt 같은 CNN 체크포인트만 받는다.)
 """
 
 from __future__ import annotations
@@ -65,11 +51,9 @@ if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
 
 from dcc_data.mission2_features import (  # noqa: E402
-    FEATURE_COLUMNS,
     N_FFT,
     read_call_waveform,
     slice_and_pad,
-    utterance_feature_vector,
     utterance_frame_range,
 )
 from dcc_data.mission2_checkpoint import (  # noqa: E402
@@ -78,25 +62,22 @@ from dcc_data.mission2_checkpoint import (  # noqa: E402
     require_l2_inference_config,
     resolve_l2_checkpoint_metadata,
 )
-from dcc_data.mission2_train import load_model  # noqa: E402
 
-# torch.save의 기본 형식(zip 압축 파일)이다. 이 세 가지는 이 저장소의 CNN 스크립트
-# (train_mission2_cnn.py, evaluate_mission2_l2_on_
-# official_validation.py)가 L2 체크포인트에 이미 쓰는 확장자이고, 그 외는 모두
-# dcc_data.mission2_train.load_model로 읽는 L1의 pickle 형식으로 취급한다.
+# torch.save 의 기본 형식(zip). 이 저장소의 CNN 스크립트가 쓰는 확장자들이다.
 CNN_CHECKPOINT_SUFFIXES = frozenset({".pt", ".pth", ".ckpt"})
 
 PredictFn = Callable[[np.ndarray, int, float], int]
 
-# CNN은 각 배치에서 가장 긴 발화에 맞춰 채운(SPEC_FLOOR_DB로, mission2_cnn.collate_batch 참고) 배치로
-# 학습했으므로 채우지 않은 짧은 발화는 거의 본 적이 없다. 추론 때 그런 발화를 넣으면
-# 약 1.1%p가 떨어진다(M2-VAL-004). 모든 발화를 고정 길이까지 채우면 -- 그 발화 자신의
-# 스펙트로그램만 쓰고 다른 발화는 쓰지 않는다 -- Training 내부에서 떼어 둔 통화에서 그 손실이 회복된다
-# (300프레임에서 89.58% -> 90.84%, 200~500은 평평한 구간). 300프레임은 이 저장소의 8 kHz / hop 160에서 6초이다.
+# CNN 은 학습 때 배치 안에서 가장 긴 발화에 맞춰 바닥값(SPEC_FLOOR_DB)으로 채운 입력만 봤다(mission2_cnn.collate_batch).
+# 그래서 짧은 발화를 채우지 않고 넣으면 정확도가 약 1.1%p 떨어졌다(M2-VAL-004). 모든 발화를 고정 길이까지
+# 그 발화 자신의 스펙트로그램에만 바닥값을 덧붙여 채우면(다른 발화는 전혀 쓰지 않음) 떼어 둔 Training 통화에서
+# 89.58% -> 90.84% 로 회복된다(300 기준, 200~500 은 거의 같음). 300프레임 = 8 kHz / hop 160 에서 6초.
 L2_MIN_FRAMES = 300
 
 
 def pad_spectrogram_to_min_frames(spectrogram: np.ndarray, min_frames: int = L2_MIN_FRAMES) -> np.ndarray:
+    """스펙트로그램이 ``min_frames`` 보다 짧으면 뒤를 바닥값(무음)으로 채운다. 길면 그대로 둔다."""
+
     from dcc_data.mission2_spectrogram import SPEC_FLOOR_DB
 
     n_mels, n_frames = spectrogram.shape
@@ -107,10 +88,9 @@ def pad_spectrogram_to_min_frames(spectrogram: np.ndarray, min_frames: int = L2_
 
 
 def _speaker_from_logits(logits) -> int:
-    """발화 하나의 로짓 두 개에 대한 대회의 판정 규칙: P(speaker=1) >= 0.5일 때만 클래스 1.
+    """대회 판정 규칙: P(speaker=1) >= 0.5 이면 1.
 
-        로짓이 둘이면 ``logit1 >= logit0``과 같다. ``argmax``는 값이 정확히 같은 경우에만 다르고 그때 클래스 0을
-        돌려준다. 그래서 ``logits.argmax`` 대신 이것을 쓴다.
+    두 클래스 logit 으로는 ``logit1 >= logit0`` 과 같다. ``argmax`` 는 정확히 같을 때 0 을 돌려주므로 이 함수를 쓴다.
     """
 
     return int((logits[0, 1] >= logits[0, 0]).item())
@@ -130,11 +110,10 @@ def _preview(items, limit: int = 5) -> str:
 
 
 def pair_by_stem_strict(audio_dir: Path, label_dir: Path) -> list[tuple[str, Path, Path]]:
-    """dcc_data.mission2_features.pair_by_stem이 돌려주는 것, 또는 모든 문제를 이름으로 밝힌 ValueError.
+    """WAV 와 라벨 JSON 을 파일 이름(확장자 제외)으로 짝지은 목록. 문제가 하나라도 있으면 전부 적어서 ValueError 로 멈춘다.
 
-        pair_by_stem은 두 폴더 *모두에* 있는 stem만 남기고 반복된 stem이 다른 것을 조용히 덮어쓰게 둔다.
-        학습 데이터를 만들 때는 괜찮지만 제출에는 안 된다: 라벨 JSON이 없는 WAV(또는 그 반대)가 CSV에서 그냥
-        사라지고 실행은 여전히 0으로 끝나기 때문이다.
+    양쪽에 다 있는 것만 남기고 넘어가면, 라벨 없는 WAV(또는 반대)가 CSV 에서 조용히 빠진 채 정상 종료된다.
+    제출물에서는 그러면 안 되므로 짝이 안 맞거나 이름이 겹치면 실행을 멈춘다. 결과는 이름순으로 정렬된다.
     """
 
     wavs = _index_by_stem(audio_dir, "*.wav")
@@ -164,6 +143,8 @@ def pair_by_stem_strict(audio_dir: Path, label_dir: Path) -> list[tuple[str, Pat
 
 
 def count_label_utterances(json_paths) -> int:
+    """라벨 JSON 들의 발화 수 합계 (출력 행 수가 이것과 같아야 한다)."""
+
     total = 0
     for json_path in json_paths:
         with Path(json_path).open("r", encoding="utf-8") as stream:
@@ -172,6 +153,8 @@ def count_label_utterances(json_paths) -> int:
 
 
 def verify_output_complete(*, expected_calls: int, calls_seen: int, expected_rows: int, rows: list) -> None:
+    """처리한 통화 수와 출력 행 수가 기대와 다르면 멈춘다(일부만 담긴 CSV 를 쓰지 않기 위해)."""
+
     if calls_seen != expected_calls or len(rows) != expected_rows:
         raise ValueError(
             f"output is incomplete: processed {calls_seen} of {expected_calls} calls and produced "
@@ -179,138 +162,9 @@ def verify_output_complete(*, expected_calls: int, calls_seen: int, expected_row
         )
 
 
-def _load_l1_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
-    model, meta = load_model(ckpt_path)
-    feature_columns = tuple(meta["feature_columns"])
-    if feature_columns != FEATURE_COLUMNS:
-        raise ValueError(
-            "checkpoint feature_columns do not match the current feature extractor "
-            "(dcc_data.mission2_features.FEATURE_COLUMNS) -- retrain or update the checkpoint"
-        )
-    fallback_speaker = int(meta.get("majority_class", 1))
-
-    def predict(segment: np.ndarray, sample_rate: int, duration_sec: float) -> int:
-        vector = utterance_feature_vector(segment, sample_rate, duration_sec)
-        return int(model.predict(vector.reshape(1, -1).astype(np.float64))[0])
-
-    return predict, fallback_speaker
-
-
-def _load_prob_ensemble_predictor(checkpoint: dict) -> tuple[PredictFn, int]:
-    """한 파일에 든 CNN + WavLM 멤버. 발화마다 그 발화 파형만 본다.
-
-    반환 함수는 여전히 화자 정수다. ``--save_probs``용으로 ``member_probs``와 ``mean_prob``를 남긴다.
-    판정 임계값은 0.5로 고정되어 있고 인자로 받지 않는다.
-    """
-
-    import torch
-
-    from dcc_data.mission2_cnn import SpeakerCNNLarge
-    from dcc_data.mission2_spectrogram import ALLOWED_LABEL_SOURCES, mel_spectrogram
-    from dcc_data.mission2_wavlm import (
-        COMBINE_PROB_MEAN,
-        COMBINE_WEIGHTED,
-        FIXED_THRESHOLD,
-        PROB_ENSEMBLE_FORMAT,
-        combine_probabilities,
-        decision_from_probability,
-        load_wavlm_classifier,
-        read_utterance_signal,
-        reporter_probability,
-    )
-
-    if checkpoint.get("format") != PROB_ENSEMBLE_FORMAT:
-        raise CheckpointConfigError(f"not a prob-ensemble checkpoint: {checkpoint.get('format')!r}")
-    metadata = checkpoint.get("metadata") or {}
-    if metadata.get("format") != PROB_ENSEMBLE_FORMAT:
-        raise CheckpointConfigError("prob-ensemble checkpoint is missing metadata")
-    combine = metadata.get("combine")
-    if combine not in (COMBINE_PROB_MEAN, COMBINE_WEIGHTED):
-        raise CheckpointConfigError(f"combine must be prob_mean or weighted_prob_mean, got {combine!r}")
-    if float(metadata.get("threshold", -1)) != FIXED_THRESHOLD:
-        raise CheckpointConfigError("the decision threshold is fixed at 0.5")
-    label_source = metadata.get("label_source")
-    if label_source not in ALLOWED_LABEL_SOURCES:
-        raise CheckpointConfigError(
-            f"label_source is {label_source!r}; members must use the provided speaker labels"
-        )
-    members = list(checkpoint.get("members") or [])
-    recorded_members = list(metadata.get("members") or [])
-    if not members or len(members) != len(recorded_members):
-        raise CheckpointConfigError("prob-ensemble members do not match the recorded member list")
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    loaded = []
-    names: list[str] = []
-    weights: list[float] = []
-    for member, recorded in zip(members, recorded_members):
-        if member.get("name") != recorded.get("name") or member.get("kind") != recorded.get("kind"):
-            raise CheckpointConfigError("prob-ensemble member metadata does not match the stored weights")
-        if member.get("sha256") != recorded.get("sha256"):
-            raise CheckpointConfigError(f"member {member.get('name')!r} sha256 does not match metadata")
-        if member.get("label_source") != label_source:
-            raise CheckpointConfigError(f"member {member.get('name')!r} label_source disagrees with the checkpoint")
-        names.append(str(member["name"]))
-        weights.append(float(member.get("weight", 1.0)))
-        kind = member["kind"]
-        if kind == "cnn_l2":
-            models = []
-            for state_dict in member["state_dicts"]:
-                model = SpeakerCNNLarge()
-                model.load_state_dict(state_dict)
-                model.to(device)
-                model.eval()
-                models.append(model)
-            if not models:
-                raise CheckpointConfigError(f"CNN member {member['name']!r} has no weights")
-            loaded.append(("cnn_l2", models, int(member["sample_rate"])))
-        elif kind == "wavlm":
-            model = load_wavlm_classifier(member["config"], member["state_dict"], device)
-            loaded.append(("wavlm", model, int(member.get("sr", 16000))))
-        else:
-            raise CheckpointConfigError(f"unknown ensemble member kind {kind!r}")
-    if not any(kind == "wavlm" for kind, _model, _sr in loaded):
-        raise CheckpointConfigError("a prob-ensemble checkpoint needs at least one WavLM member")
-
-    @torch.inference_mode()
-    def predict(
-        segment: np.ndarray,
-        sample_rate: int,
-        duration_sec: float,
-        wav_path: Path | None = None,
-        start_at=None,
-        end_at=None,
-    ) -> int:
-        del duration_sec  # CNN 구간과 WavLM 구간 모두 그 발화 자체에서만 만든다
-        probabilities: list[float] = []
-        for kind, model, member_sr in loaded:
-            if kind == "cnn_l2":
-                if sample_rate != member_sr:
-                    raise CheckpointConfigError(
-                        f"audio is {sample_rate} Hz but this CNN member was trained on {member_sr} Hz audio"
-                    )
-                spectrogram = pad_spectrogram_to_min_frames(mel_spectrogram(segment, sample_rate))
-                batch = torch.from_numpy(spectrogram).unsqueeze(0).unsqueeze(0).to(device)
-                member_probs = [torch.nn.functional.softmax(item(batch), dim=1)[0, 1] for item in model]
-                probabilities.append(float((sum(member_probs) / len(member_probs)).item()))
-            else:
-                if wav_path is None or start_at is None or end_at is None:
-                    raise CheckpointConfigError("WavLM members need the target utterance's own startAt/endAt")
-                signal = read_utterance_signal(wav_path, start_at, end_at, target_sr=member_sr)
-                probabilities.append(reporter_probability(model, signal, device))
-        mean_probability = combine_probabilities(probabilities, weights, combine)
-        predict.member_probs = probabilities
-        predict.mean_prob = mean_probability
-        return decision_from_probability(mean_probability)
-
-    predict.needs_bounds = True
-    predict.member_names = names
-    predict.member_probs = None
-    predict.mean_prob = None
-    return predict, 1
-
-
 def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
+    """CNN(단일 또는 앙상블) 체크포인트를 불러 발화 하나를 판정하는 함수를 만든다."""
+
     import torch
     import torch.nn.functional as torch_functional
 
@@ -318,29 +172,21 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
     from dcc_data.mission2_spectrogram import mel_spectrogram
 
     checkpoint = torch.load(ckpt_path, map_location="cpu")
-    # CNN+WavLM을 한 파일로 묶은 체크포인트도 --ckpt_path 하나다. L2 CNN 전용 경로는 아니다.
-    # 아래 CNN 단독 경로는 그대로다.
-    if checkpoint.get("format") == "mission2_prob_ensemble_v1":
-        return _load_prob_ensemble_predictor(checkpoint)
-    # SpeakerCNNLarge 모양의 state_dict는 무엇으로 학습했든 오류 없이 불러와지므로, 믿기 전에
-    # 체크포인트가 무엇으로 학습했다고 기록했는지 확인한다(dcc_data.mission2_checkpoint 참고).
+    # SpeakerCNNLarge 모양의 가중치는 무엇으로 학습했든 오류 없이 불러와지므로, 믿기 전에 체크포인트에 기록된
+    # 학습 설정부터 확인한다(dcc_data.mission2_checkpoint).
     metadata, _source = resolve_l2_checkpoint_metadata(checkpoint, ckpt_path)
     require_l2_inference_config(metadata)
     expected_sample_rate = int(metadata["sample_rate"])
 
-    # 앙상블 체크포인트(scripts/pack_mission2_l2_ensemble.py)는 여러 멤버의 가중치를
-    # "best_model_state_dict" 하나 대신 한 키 아래에 묶는다. 그 외의 모든 것(--ckpt_path 파일 하나,
-    # 같은 멜 설정)은 그대로이므로 여기가 유일한 갈림길이다.
+    # 앙상블 체크포인트는 멤버 가중치를 "best_model_state_dict" 하나 대신 여러 개 담고 있다. 그 외(파일 하나, 같은 mel 설정)는
+    # 같으므로 갈라지는 곳은 여기뿐이다.
     models = []
     for state_dict in l2_member_state_dicts(checkpoint, metadata):
         model = SpeakerCNNLarge()
         model.load_state_dict(state_dict)
         model.eval()
         models.append(model)
-    # L2 체크포인트에는 저장된 majority_class가 없다(train_mission2_cnn.py는
-    # 그것을 계산하지 않는다). 1은 위에 있는 load_model 자신의 "대체의 대체"
-    # 기본값과 같으므로, 더 나은 값을 모를 때 두 백엔드가
-    # 일치한다. 통화의 오디오조차 읽지 못했을 때만 쓰인다.
+    # CNN 체크포인트에는 다수 클래스가 기록돼 있지 않아 1 을 쓴다. 통화 음성을 아예 읽지 못했을 때만 쓰인다.
     fallback_speaker = 1
 
     @torch.no_grad()
@@ -350,12 +196,11 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
                 f"audio is {sample_rate} Hz but this checkpoint was trained on {expected_sample_rate} Hz audio"
             )
         spectrogram = pad_spectrogram_to_min_frames(mel_spectrogram(segment, sample_rate))
-        batch = torch.from_numpy(spectrogram).unsqueeze(0).unsqueeze(0)  # (배치, 채널, n_mels, n_frames)
+        batch = torch.from_numpy(spectrogram).unsqueeze(0).unsqueeze(0)  # (1, 1, n_mels, n_frames)
         if len(models) == 1:
-            # 항상 이랬던 단일 모델 경로와 비트 단위로 같다. 로짓 대신 softmax 출력을 비교해도
-            # 수학적으로는 같지만(softmax는 순서를 보존한다), 평균낼 것이 없을 때
-            # 이미 시험한 동점 처리 동작을 건드릴 이유가 없다.
+            # 모델이 하나면 예전과 똑같이 logit 을 바로 비교한다(softmax 를 거쳐도 결과는 같지만, 검증된 동점 처리를 건드리지 않음).
             return _speaker_from_logits(models[0](batch))
+        # 앙상블: 멤버들의 softmax 확률 평균에서 P(1) >= P(0) 이면 1 (= 평균 P(1) >= 0.5).
         average_probs = sum(torch_functional.softmax(model(batch), dim=1) for model in models) / len(models)
         return int((average_probs[0, 1] >= average_probs[0, 0]).item())
 
@@ -363,11 +208,11 @@ def _load_l2_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
 
 
 def load_predictor(ckpt_path: Path) -> tuple[PredictFn, int]:
-    """``ckpt_path``가 어떤 모델이든 그에 맞는 (predict_fn, fallback_speaker)를 돌려준다."""
+    """(발화 하나를 판정하는 함수, 실패 시 대체 화자)를 돌려준다. CNN 체크포인트(.pt/.pth/.ckpt)만 받는다."""
 
-    if ckpt_path.suffix.lower() in CNN_CHECKPOINT_SUFFIXES:
-        return _load_l2_predictor(ckpt_path)
-    return _load_l1_predictor(ckpt_path)
+    if ckpt_path.suffix.lower() not in CNN_CHECKPOINT_SUFFIXES:
+        raise ValueError(f"{ckpt_path}: expected a CNN checkpoint ({', '.join(sorted(CNN_CHECKPOINT_SUFFIXES))})")
+    return _load_l2_predictor(ckpt_path)
 
 
 def parse_args() -> argparse.Namespace:
@@ -376,26 +221,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--label_dir", type=Path, required=True)
     parser.add_argument("--ckpt_path", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument(
-        "--save_probs",
-        type=Path,
-        default=None,
-        help="묶인 CNN+WavLM 체크포인트의 멤버별 P(신고자)를 따로 저장한다. 채점 CSV 형식은 바꾸지 않는다.",
-    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     predict, fallback_speaker = load_predictor(args.ckpt_path)
-    if args.save_probs is not None and not getattr(predict, "needs_bounds", False):
-        raise SystemExit("--save_probs requires a packed CNN+WavLM checkpoint from scripts/pack_mission2_ensemble.py")
 
     pairs = pair_by_stem_strict(args.audio_dir, args.label_dir)
     expected_rows = count_label_utterances(json_path for _, _, json_path in pairs)
 
     rows: list[dict] = []
-    prob_rows: list[dict] | None = [] if args.save_probs is not None else None
     failure_count = 0
     calls_seen = 0
 
@@ -409,36 +245,23 @@ def main() -> int:
         sample_rate = None
         try:
             waveform, sample_rate = read_call_waveform(wav_path)
-        except Exception as exc:  # noqa: BLE001 - 통화 하나의 오류가 전체 실행을 멈추게 해서는 안 된다
+        except Exception as exc:  # noqa: BLE001 - 통화 하나가 잘못돼도 전체 실행은 멈추지 않는다
             print(f"[warn] failed to read {wav_path}: {type(exc).__name__}: {exc}", file=sys.stderr)
 
         for utt_idx, utterance in enumerate(utterances):
             start_at = utterance.get("startAt")
             end_at = utterance.get("endAt")
             speaker = fallback_speaker
-            if getattr(predict, "needs_bounds", False):
-                predict.member_probs = None
-                predict.mean_prob = None
 
             if waveform is not None:
                 try:
                     start_frame, end_frame = utterance_frame_range(start_at, end_at, sample_rate, waveform.shape[0])
                     segment = slice_and_pad(waveform, start_frame, end_frame, N_FFT)
                     duration_sec = (float(end_at) - float(start_at)) / 1000.0
-                    if getattr(predict, "needs_bounds", False):
-                        speaker = predict(
-                            segment,
-                            sample_rate,
-                            duration_sec,
-                            wav_path=wav_path,
-                            start_at=start_at,
-                            end_at=end_at,
-                        )
-                    else:
-                        speaker = predict(segment, sample_rate, duration_sec)
+                    speaker = predict(segment, sample_rate, duration_sec)
                 except CheckpointConfigError:
-                    raise  # 체크포인트와 입력이 맞지 않는 것은 설정 오류이지, 덮어 가릴 발화 하나의 문제가 아니다
-                except Exception as exc:  # noqa: BLE001 - 다수 클래스로 대체하고, 기록하고, 행은 유지한다
+                    raise  # 체크포인트와 입력이 안 맞는 것은 설정 오류라 발화 하나의 실패로 덮지 않는다
+                except Exception as exc:  # noqa: BLE001 - 다수 클래스로 채우고 기록한 뒤 행은 남긴다
                     failure_count += 1
                     print(
                         f"[warn] feature/predict failed for stem={stem} utt_idx={utt_idx}: "
@@ -456,21 +279,10 @@ def main() -> int:
                     "speaker": speaker,
                 }
             )
-            if prob_rows is not None:
-                item = {"audio_file_name": wav_path.name, "startAt": start_at, "endAt": end_at}
-                values = predict.member_probs
-                if values is None:
-                    for name in predict.member_names:
-                        item[name] = ""
-                    item["p_mean"] = ""
-                else:
-                    for name, value in zip(predict.member_names, values):
-                        item[name] = value
-                    item["p_mean"] = predict.mean_prob
-                prob_rows.append(item)
 
     verify_output_complete(expected_calls=len(pairs), calls_seen=calls_seen, expected_rows=expected_rows, rows=rows)
 
+    # 임시 파일에 다 쓴 뒤 이름을 바꿔서, 중간에 멈춰도 덜 쓴 CSV 가 남지 않게 한다.
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(prefix=f".{args.output.name}.", suffix=".tmp", dir=args.output.parent)
     try:
@@ -482,21 +294,6 @@ def main() -> int:
     except Exception:
         Path(tmp_name).unlink(missing_ok=True)
         raise
-
-    if prob_rows is not None:
-        args.save_probs.parent.mkdir(parents=True, exist_ok=True)
-        fieldnames = ["audio_file_name", "startAt", "endAt", *predict.member_names, "p_mean"]
-        fd, tmp_name = tempfile.mkstemp(prefix=f".{args.save_probs.name}.", suffix=".tmp", dir=args.save_probs.parent)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
-                writer = csv.DictWriter(stream, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(prob_rows)
-            os.replace(tmp_name, args.save_probs)
-        except Exception:
-            Path(tmp_name).unlink(missing_ok=True)
-            raise
-        print(f"Wrote {len(prob_rows)} probability rows to {args.save_probs}")
 
     print(f"Wrote {len(rows)} rows to {args.output} ({failure_count} fell back to majority class)")
     return 0

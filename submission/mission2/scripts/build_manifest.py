@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""원본 데이터를 건드리지 않고, 위치 정보만 담은 DCC 목록(manifest)을 만든다."""
+"""manifest(데이터 위치 목록) CSV 를 만든다. 원본 데이터는 바꾸지 않는다.
+
+    python scripts/build_manifest.py --data-root /content/dcc_data_full --output /content/dcc_manifest.csv --overwrite
+"""
 
 from __future__ import annotations
 
