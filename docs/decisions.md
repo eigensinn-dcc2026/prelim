@@ -15,6 +15,31 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-13 — [M2] 최종 제출 = CNN 3개 앙상블 + WavLM-large 2개 (공식 Validation 92.90%)
+
+- **결정**: 미션 2 제출물을 `p = 0.4 × P_CNN + 0.3 × P_WavLM(seed 1) + 0.3 × P_WavLM(seed 2)`, `p ≥ 0.5`이면 신고자로 정함
+  (M2-WLML-001/002, M2-BLEND-001). 제출 폴더 `submission/mission2`를 이 구성으로 바꾸고(PR #216), 같은 폴더에 들어 있던
+  M2-SSL-003/004 기반 앙상블 경로(commit d103622)는 대체함.
+- **이유**: 제출 폴더 코드 그대로 공식 Validation 전체를 실행해 92.8957%(CNN 단독 91.49% 대비 +1.41%p)를 확인했고,
+  압축 파일 그대로·`requirements.txt`만·인터넷 차단 조건의 GPU 실행 검증을 두 번(코드 정리 전후) 통과함. 비율은 Training 내부
+  데이터로만 골랐음. M2-SSL 계열은 내부 holdout이 달라 내부 점수로는 비교할 수 없고, 비교 기준인 공식 Validation 점수가 아직 없었음.
+- **상태/후속**: 가중치(`m2_final_ensemble.pt`, 1.27GB, sha256 `35e5e586…`)는 git에서 빠지므로 제출 zip에만 넣음. 채점은 GPU 환경
+  (공식 Validation 20.2분/A100, CPU는 발화당 1.3~6.6초라 며칠). HuBERT-large(M2-HUBERT-001)는 섞는 이득이 없어 기각.
+- **관련**: [`submission/mission2/README.md`](../submission/mission2/README.md), PR #216.
+
+## 2026-10-13 — [M2] 앙상블 후보 분석(M2-ENS-CAND-001) — base·large·CNN 3모델 유지, 추가 이득 없음
+
+- **결정**: 현재 후보인 WavLM-base + WavLM-large + CNN(3 seed) 확률 평균을 유지한다. SSL-005(w2v2) 반영 전의 중간 결론이다.
+- **이유**: 같은 H 45,504발화에서 base+large+CNN 0.9334가 1위이고 large+CNN 0.9332는 p=0.72로 차이가 없으며 base+large 0.9321은 유의하게 낮다(p=0.0007). 사전 고정한 개선 기준(+0.2%p, p<0.05, 5묶음 중 4개 이상)을 넘은 조합은 없다. 모델 쌍의 오류 상관이 0.71~0.78로 높아 조합 이득이 작다. 임계값 0.5 고정, 1:1 평균만 사용, 공식 Validation 미사용.
+- **후속**: M2-SSL-005 완료 후 같은 스크립트로 w2v2 조합을 추가해 M2-OFFVAL-ENS 멤버를 정한다. 통화 5묶음은 소속 목록이 없어 call_id 정렬 5등분이라 SSL-004 진단의 묶음과 다르다. 근거: `docs/experiment_log.md` M2-ENS-CAND-001 행, [`reports/mission2/ensemble_candidates/`](../reports/mission2/ensemble_candidates/ensemble_candidates.md)
+
+## 2026-10-13 — [M2] 통화 구성 앙상블(M2-CALLENS-001) 기각 — seed 앙상블 대비 이득 없음
+
+- **결정**: 서로 다른 1,200통화를 뺀 4,800통화 SpeakerCNNLarge 2모델 앙상블(B)을 같은 6,000통화 2-seed 앙상블(A)보다 낫다고 보지 않고, 통화 구성을 바꾼 3-fold 확장은 하지 않는다.
+- **이유**: 내부 holdout 45,823발화에서 A 90.29% vs B 90.29%(+0.002%p, 기준 ≥ +0.3%p). McNemar 정확검정 p=1.0(801 vs 802). 오류 방향(recall)만 이동했다.
+- **후속**: 91.49% 제출 모델 유지. M2는 WavLM 계열(M2-SSL-004 등)과 M2-OFFVAL-ENS에서 앙상블 구성을 정한다. 근거: `docs/experiment_log.md` M2-CALLENS-001 행, `dcc-lab` `results/M2-CALLENS-001/metrics.json`
+
+
 ## 2026-10-12 — [M2] WavLM-large 미세조정(M2-SSL-004) 채택 — 최종 앙상블 후보 멤버
 
 - **결정**: M2-SSL-003 레시피에서 백본만 WavLM-large로 바꾼 M2-SSL-004를 채택하고 최종 앙상블 후보 멤버로 둔다.

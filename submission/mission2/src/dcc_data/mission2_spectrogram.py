@@ -1,14 +1,12 @@
-"""Mission 2 L2 입력 표현: CNN을 위한 로그 멜 스펙트로그램.
+"""미션 2 CNN 입력: 발화별 log-mel 스펙트로그램 만들기와 그 목록(index)의 출처 검사.
 
-L1(dcc_data.mission2_features)은 발화마다 53~64개의 직접 고른 요약 통계로 줄인다. 그런 통계를 더하는
-시도를 세 번(피치/에너지, 통화 상대 z-점수, 자기상관 기반의 조화성/겹침 신호) 했는데, 각각 따로 보면
-분명한 효과가 있었지만 가장 중요한 두 오류 유형, 즉 길이 구간별 대원/신고자 편향과 겹침 때문에 생기는
-정확도 격차(reports/mission2/ 참고)는 움직이지 못했다. 이 모듈은 시간-주파수 구조를 그대로 보존한다.
-그 두 오류 유형이 기대는 정보(세밀한 피치/에너지의 *윤곽*, 또는 겹친 두 목소리의 간섭 무늬)가 바로
-평균/표준편차/백분위수로 줄이면서 버려지는 정보라는 가설에 따른 것이다.
+초기 L1 모델은 발화를 손으로 고른 요약 통계 53~64개로 줄였는데, 통계를 세 번 더 늘려도(음높이·에너지, 통화 상대값, 겹침 신호)
+가장 중요한 두 오류(발화 길이에 따른 대원/신고자 치우침, 목소리가 겹칠 때의 정확도 저하)가 줄지 않았다.
+이 모듈은 시간-주파수 구조를 그대로 남긴다. 두 오류가 의존하는 정보(세밀한 음높이·에너지 *변화*, 두 목소리가 겹치는 무늬)는
+평균·표준편차로 줄일 때 사라지는 정보이기 때문이다.
 
-dcc_data.mission2_features의 프레임 상수(N_FFT, HOP_LENGTH)와 목록/오디오 자르기 파이프라인
-(read_call_waveform, slice_and_pad, build_utterance_records)을 다시 만들지 않고 그대로 재사용한다.
+틀 설정(N_FFT, HOP_LENGTH)과 발화 자르기(read_call_waveform, slice_and_pad, build_utterance_records)는
+dcc_data.mission2_features 의 것을 그대로 쓴다.
 """
 
 from __future__ import annotations
@@ -36,40 +34,32 @@ from .mission2_features import (
 if TYPE_CHECKING:
     import pandas as pd
 
-N_MELS = 40
-# librosa.power_to_db의 기본 잘라냄 범위(top_db=80, 스펙트로그램 자신의
-# 최댓값 기준)이다. 채움 프레임을 정확히 이 하한으로 두어서
-# 채운 "무음" 프레임이 CNN에게 큰 신호가 아니라 무음으로 읽히게 한다
-# (그냥 0.0으로 채우면 정반대가 된다: 아래의 ref=np.max 정규화에서 0 dB는 이 발화에서
-# *가장 큰* 프레임이다).
+N_MELS = 40   # mel 주파수 칸 수
+# librosa.power_to_db 의 기본 잘라내기 범위(top_db=80, 그 스펙트로그램의 최댓값 기준). 채움 프레임을 정확히 이 바닥값으로 두어
+# CNN 이 무음으로 읽게 한다(0.0 으로 채우면 반대로 아래 ref=np.max 정규화에서 그 발화의 *가장 큰* 소리가 된다).
 SPEC_FLOOR_DB = -80.0
 
-# 인덱스의 ``speaker`` 열이 제공된 라벨 파일과 어떤 관계인지. 주최 측은 2026-10-01에
-# Mission 2 학습에는 제공된 화자 라벨을 그대로 써야 한다고 판정했다: ``text``를 근거로 한 수정도,
-# 데이터 선별도 안 된다. 그래서 인덱스는 자신의 라벨이 제공된 라벨이라고 밝혀야 한다.
-LABEL_SOURCE_PROVIDED = "provided_json"  # 만든 쪽이 제공된 라벨 JSON에서 곧바로 써 넣은 것
-LABEL_SOURCE_VERIFIED = "verified_against_provided_json"  # scripts/verify_mission2_raw_labels.py가 행마다 다시 확인한 것
+# 목록의 ``speaker`` 열이 제공 라벨 파일과 어떤 관계인지 나타내는 값. 운영 측 판단(2026-10-01)에 따라 미션 2 학습은 제공된 speaker
+# 라벨을 그대로 써야 한다(``text`` 근거의 보정이나 데이터 선별 금지). 그래서 목록은 자기 라벨이 제공 라벨임을 표시해야 한다.
+LABEL_SOURCE_PROVIDED = "provided_json"  # 목록을 만들 때 제공 라벨 JSON 에서 바로 옮겨 적음
+LABEL_SOURCE_VERIFIED = "verified_against_provided_json"  # 팀 저장소의 scripts/verify_mission2_raw_labels.py 로 한 행씩 다시 대조함
 ALLOWED_LABEL_SOURCES = (LABEL_SOURCE_PROVIDED, LABEL_SOURCE_VERIFIED)
 
-# 인덱스의 모든 행은 그 스펙트로그램이 어디서 왔는지(그 통화의 목록 split), 어떤 설정으로 만들었는지,
-# 라벨이 어디서 왔는지를 기록한다. 그래서 학습 실행은 입력이 제공된 라벨의 Training뿐임을 증명할 수 있고
-# 체크포인트는 무엇으로 학습했는지를 기록할 수 있다.
-# assert_training_spectrogram_index() 참고.
+# 목록의 모든 행에 스펙트로그램의 출처(그 통화의 분할), 만든 설정, 라벨 출처를 기록한다. 그래서 학습은 입력이 Training 전용이고
+# 제공 라벨임을 증명할 수 있고, 체크포인트는 무엇으로 학습했는지 기록할 수 있다(assert_training_spectrogram_index 참고).
 INDEX_PROVENANCE_COLUMNS = ("split", "n_mels", "hop_length", "n_fft", "sample_rate", "label_source")
 
 
 class LabelProvenanceError(ValueError):
-    """스펙트로그램 인덱스가 화자 라벨이 제공된 그대로의 것이라고 밝히지 않는다."""
+    """스펙트로그램 목록이 자기 speaker 라벨이 제공 라벨이라고 표시하지 않을 때."""
 
 
 def assert_training_spectrogram_index(index_df: "pd.DataFrame") -> dict:
-    """스펙트로그램 인덱스의 모든 행이 제공된 라벨로 Training에서 만들었다는 도장이 찍혀 있지 않으면 실패한다.
+    """스펙트로그램 목록의 모든 행이 Training 에서, 제공 라벨로 만들어졌다고 표시돼 있지 않으면 멈춘다. (학습 입구의 안전장치)
 
-        인덱스를 만든 ``{split, n_mels, hop_length, n_fft, sample_rate, label_source}`` 하나를 돌려준다.
-        도장이 없는 인덱스(도장이 생기기 전에 만든 것)는 Training만 썼는지, 제공된 화자 라벨을 담고 있는지
-        보일 수 없으므로 믿지 않고 거부한다. 공식 Validation 폴더가 학습 루프에 닿으면 절대 안 되고,
-        Training과 같은 경로에 만든 Validation 인덱스는 도장이 없으면 겉보기가 똑같으며, 라벨을 고친 캐시는
-        조용히 그 라벨로 학습하게 되기 때문이다.
+    목록을 만든 설정 하나 ``{split, n_mels, hop_length, n_fft, sample_rate, label_source}`` 를 돌려준다.
+    표시가 없는 목록은 Training 전용인지, 제공 라벨인지 증명할 수 없으므로 믿지 않고 거부한다. 그러지 않으면 같은 경로에 만든
+    Validation 목록이 Training 목록과 똑같아 보이고, 라벨이 수정된 캐시로도 조용히 학습될 수 있다.
     """
 
     missing = [column for column in INDEX_PROVENANCE_COLUMNS if column not in index_df.columns]
@@ -85,6 +75,7 @@ def assert_training_spectrogram_index(index_df: "pd.DataFrame") -> dict:
     if len(index_df) == 0:
         raise ValueError("spectrogram index is empty")
 
+    # Training 이 아닌 행이 하나라도 있으면 멈춘다
     foreign = index_df.loc[index_df["split"] != TRAINING, "split"]
     if len(foreign):
         counts = foreign.astype(str).value_counts().to_dict()
@@ -92,6 +83,7 @@ def assert_training_spectrogram_index(index_df: "pd.DataFrame") -> dict:
             f"Training run received {len(foreign)} non-Training spectrogram index row(s): {counts}"
         )
 
+    # 설정 값이 행마다 같아야 한다(섞여 있으면 멈춤)
     provenance = {}
     for column in INDEX_PROVENANCE_COLUMNS:
         values = index_df[column].unique()
@@ -111,17 +103,14 @@ def assert_training_spectrogram_index(index_df: "pd.DataFrame") -> dict:
 def mel_spectrogram(
     segment: np.ndarray, sample_rate: int, *, n_mels: int = N_MELS, hop_length: int = HOP_LENGTH
 ) -> np.ndarray:
-    """로그 멜 스펙트로그램, 모양 (n_mels, n_frames). 이 조각 자신의 최댓값을 기준으로 정규화한다
-        (상한 0 dB, 하한 SPEC_FLOOR_DB). 발화 단위의 상대적인 크기로, CALL_RELATIVE_FEATURE_COLUMNS가 절대 척도가
-        아니라 각 통화 자신의 평균/표준편차로 z-점수를 내는 것과 같은 이유이다: 절대적인 녹음 이득은 통화마다
-        다르고 화자를 구별하는 신호가 아니다.
+    """log-mel 스펙트로그램, 모양 (n_mels, n_frames). 그 발화 자신의 최댓값 기준으로 정규화한다(최대 0 dB, 최저 SPEC_FLOOR_DB).
 
-        ``hop_length``의 기본값은 L1의 수작업 특징이 쓰는 HOP_LENGTH와 같아서 기존의 모든 호출부는 영향을
-        받지 않는다. 더 작은 값을 주면 같은 오디오에서 프레임이 더 많아진다. SpeakerCNN은 MaxPool(stride 2)을
-        3번 거치므로 그렇지 않으면 짧은(맞장구 길이의) 발화는 AdaptiveAvgPool2d 앞에 시간 단계가 1~2개만
-        남을 수 있다. scripts/build_mission2_spectrograms.py의 --hop-length를 보라.
+    발화 자신 기준의 상대적인 소리 크기를 쓰는 이유: 통화마다 녹음 음량이 달라서 절대 크기는 화자를 가리는 신호가 아니다.
+    (다른 발화는 전혀 쓰지 않는다.) ``hop_length`` 를 줄이면 같은 소리에서 프레임이 더 많이 나온다
+    (scripts/build_mission2_spectrograms.py 의 --hop-length). 최종 모델은 기본값(160)이다.
     """
 
+    # STFT 창 하나보다 짧으면 0 으로 채운다(아주 짧은 발화도 계산이 실패하지 않게)
     if len(segment) < N_FFT:
         segment = np.pad(segment, (0, N_FFT - len(segment)))
     segment = segment.astype(np.float32, copy=False)
@@ -134,11 +123,7 @@ def mel_spectrogram(
 
 
 # ---------------------------------------------------------------------------
-# 전체 진행: 통화를 뽑고, 발화마다 잘라 내고, 발화마다 .npy 하나와
-# 무엇을 저장했는지 적은 인덱스를 저장한다(
-# mission2_features.build_seoul_training_dataset과 같고, 출력 형식만
-# 다르다. 스펙트로그램은 61차원 벡터처럼
-# 평평한 표의 한 행에 들어가지 않기 때문이다).
+# 학습 데이터 만들기: 통화를 고르고, 발화마다 잘라서 스펙트로그램 .npy 하나씩 저장하고, 저장한 것의 목록(index)을 만든다
 # ---------------------------------------------------------------------------
 
 OnCallDone = Callable[[int, int], None]
@@ -151,10 +136,10 @@ def _spectrogram_path(output_dir: Path, call_id: str, utt_idx: int) -> Path:
 def _process_one_call_spectrograms(
     row: ManifestRow, data_root: Path, output_dir: Path, hop_length: int = HOP_LENGTH, n_mels: int = N_MELS
 ) -> tuple[list[dict], list[dict]]:
-    """통화 하나를 처리한다: 모든 발화를 잘라 스펙트로그램을 저장한다.
+    """통화 하나를 처리한다: 발화마다 잘라 스펙트로그램을 저장하고 목록 행을 만든다.
 
-        mission2_features._process_one_call과 같은 "기록은 하되 조용히 버리지는 않는다" 실패 정책이며,
-        최상위 함수여야 하는 이유도 같다: 윈도우의 프로세스 풀 워커로 보내려면 피클로 직렬화할 수 있어야 한다.
+    실패한 발화는 조용히 빼지 않고 실패 목록에 이유와 함께 기록한다. 여러 프로세스로 나눠 처리할 때(Windows) 보낼 수 있도록
+    맨 바깥 함수로 둔다.
     """
 
     index_rows: list[dict] = []
@@ -163,7 +148,7 @@ def _process_one_call_spectrograms(
     wav_path = data_root / row.wav_path
     try:
         records = build_utterance_records(row, data_root)
-    except Exception as exc:  # noqa: BLE001 - 기록하며, 삼키지 않는다
+    except Exception as exc:  # noqa: BLE001 - 삼키지 않고 기록한다
         failures.append(
             {"stage": "index", "call_id": row.stem, "utt_idx": None, "error_type": type(exc).__name__, "error_message": str(exc)}
         )
@@ -193,6 +178,7 @@ def _process_one_call_spectrograms(
         path = _spectrogram_path(output_dir, record.call_id, record.utt_idx)
         path.parent.mkdir(parents=True, exist_ok=True)
         np.save(path, spec)
+        # 목록 행: 라벨(제공 라벨 그대로), 출처 분할, 만든 설정을 함께 기록한다
         index_rows.append(
             {
                 "call_id": record.call_id,
@@ -228,8 +214,9 @@ def _build_seoul_spectrograms(
     hop_length: int = HOP_LENGTH,
     n_mels: int = N_MELS,
 ) -> tuple[list[dict], list[dict]]:
-    """build_seoul_training_spectrograms와 build_seoul_validation_spectrograms가 함께 쓰는 구현.
-        대상이 되는 행(``select_rows``)만 다르며, mission2_features._build_seoul_dataset과 같은 구조이다.
+    """Training 용과 Validation 용 만들기의 공통 부분. 어떤 행을 쓸지(``select_rows``)만 다르다.
+
+    ``max_workers`` > 1 이면 통화들을 여러 프로세스로 나눠 처리한다. 통화마다 자기 파일만 다루므로 결과 내용은 같다(순서만 다름).
     """
 
     index_sink = index_sink if index_sink is not None else []
@@ -279,15 +266,9 @@ def build_seoul_training_spectrograms(
     hop_length: int = HOP_LENGTH,
     n_mels: int = N_MELS,
 ) -> tuple[list[dict], list[dict]]:
-    """서울/Training 통화를 뽑아 발화마다 스펙트로그램 .npy 하나를 저장한다.
+    """서울 Training 통화를 골라 발화마다 스펙트로그램 .npy 를 저장한다(학습용).
 
-        mission2_features.build_seoul_training_dataset의 뽑기/병렬 처리/실패 기록과 똑같다. 발화별 출력만 다르다
-        (61차원 특징 사전 대신, 저장한 .npy와 인덱스 행).
-
-        ``hop_length``의 기본값은 HOP_LENGTH(동작은 그대로)이다. 더 작은 값을 주면 시간 해상도가 더 높은
-        별도의 스펙트로그램 묶음을 다른 ``output_dir``에 만든다. mel_spectrogram()의 설명을 보라.
-        ``n_mels``의 기본값은 N_MELS(동작은 그대로)이다. 더 큰 값을 주면 주파수 해상도가 더 높은 묶음이 되며,
-        ``output_dir``에 대한 주의는 같다.
+    ``hop_length``/``n_mels`` 기본값이 최종 모델의 설정이다. 다른 값으로 만들 때는 다른 ``output_dir`` 을 쓴다.
     """
 
     return _build_seoul_spectrograms(
@@ -320,9 +301,8 @@ def build_seoul_validation_spectrograms(
     hop_length: int = HOP_LENGTH,
     n_mels: int = N_MELS,
 ) -> tuple[list[dict], list[dict]]:
-    """build_seoul_training_spectrograms와 같되, 공식 Validation split
-        (dcc_data.mission2_features.select_seoul_validation_rows)를 대상으로 한다.
-        평가 전용이며, 학습 루프의 ``.fit()``/역전파에는 절대 넘기지 않는다.
+    """build_seoul_training_spectrograms 와 같지만 공식 Validation 을 대상으로 한다. 평가 전용이며 학습에 넣으면 안 된다
+    (학습 입구의 assert_training_spectrogram_index 가 Validation 목록을 거부한다).
     """
 
     return _build_seoul_spectrograms(

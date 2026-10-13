@@ -1223,8 +1223,8 @@ function flow(slide, x, y, w, h, f) {
     x: M, y: 2.46, w: 6.35, h: 3.7, barDir: "bar", barGrouping: "clustered", catAxisOrientation: "maxMin",
     chartColors: [C.blue, "EF9A9A"], showTitle: true, title: "직접 표현 유무별 recall · Training 내부 홀드아웃",
     titleFontFace: F, titleFontSize: 11.5, titleColor: C.text, showLegend: true, legendPos: "b", legendFontFace: F, legendFontSize: 9.5,
-    showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "0.000", dataLabelFontFace: F, dataLabelFontSize: 10,
-    valAxisMinVal: 0, valAxisMaxVal: 1, valAxisMajorUnit: 0.2, valLabelFormatCode: "0.0",
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "0.0%", dataLabelFontFace: F, dataLabelFontSize: 10,
+    valAxisMinVal: 0, valAxisMaxVal: 1, valAxisMajorUnit: 0.2, valAxisLabelFormatCode: "0%",
     valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, catAxisLabelFontFace: F, catAxisLabelFontSize: 11,
     valAxisLabelFontFace: F, valAxisLabelFontSize: 9, showCatName: false,
   });
@@ -1252,7 +1252,7 @@ function flow(slide, x, y, w, h, f) {
     border: { type: "solid", pt: 0.7, color: C.line },
   });
   s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 7.08, y: 5.45, w: 5.75, h: 0.72, fill: { color: C.light }, rectRadius: 0.06, line: { color: C.sky, width: 1 } });
-  txt(s, "오심은 양성의 88.6%에서 직접 표현을 찾지 못했고, 두통은 표현이 없을 때 recall이 0.195까지 낮아졌다.", { x: 7.28, y: 5.5, w: 5.35, h: 0.35, fontSize: 11.2, bold: true, color: C.blue, align: "center", valign: "middle" });
+  txt(s, "오심은 양성의 88.6%에서 직접 표현을 찾지 못했고, 두통은 표현이 없을 때 recall이 19.5%까지 낮아졌다.", { x: 7.28, y: 5.5, w: 5.35, h: 0.35, fontSize: 11.2, bold: true, color: C.blue, align: "center", valign: "middle" });
   txt(s, "통화에서 관찰할 수 없는 정보가 성능을 제한했을 가능성", { x: 7.28, y: 5.86, w: 5.35, h: 0.22, fontSize: 9.5, color: C.sub, align: "center" });
   txt(s, [
     { text: "※ 최종 F1은 최종 RoBERTa 3-seed + TF-IDF 앙상블의 공식 Validation 결과", options: { breakLine: true } },

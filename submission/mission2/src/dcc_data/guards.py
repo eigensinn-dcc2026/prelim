@@ -1,8 +1,13 @@
-"""목록 무결성과 split 분리를 지키는, 즉시 실패(fail-fast) 검사."""
+"""데이터 안전장치: manifest 가 올바른지, Training 과 Validation 이 섞이지 않았는지 바로 검사하고 문제가 있으면 멈춘다.
+
+대회 규정상 Validation 은 학습(역전파)에 쓸 수 없다. 학습 경로로 들어가는 데이터는 이 검사들을 거친다.
+
+(제출 폴더 정리 메모: 쓰이지 않는 배치 검사 함수 ``ensure_training_batch`` 는 뺐다.)
+"""
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -13,31 +18,31 @@ VALID_SPLITS = frozenset({TRAINING, VALIDATION})
 
 
 class DataGuardError(ValueError):
-    """DCC 데이터 검사 실패의 기본 클래스."""
+    """데이터 안전장치 오류의 기본 클래스."""
 
 
 class UnknownSplitError(DataGuardError):
-    """경로에 인식되는 split이 정확히 하나 들어 있지 않을 때 발생한다."""
+    """경로에 Training/Validation 이 정확히 하나 들어 있지 않을 때."""
 
 
 class ManifestPairingError(DataGuardError):
-    """stem 하나에 WAV와 JSON이 정확히 하나씩 없을 때 발생한다."""
+    """같은 이름(stem)에 WAV 하나와 JSON 하나가 정확히 짝지어지지 않을 때."""
 
 
 class DuplicateIdentifierError(DataGuardError):
-    """한 split 안에 식별자가 중복될 때 발생한다."""
+    """한 분할 안에 같은 이름이 두 번 나올 때."""
 
 
 class CrossSplitIdentifierError(DataGuardError):
-    """같은 식별자가 Training과 Validation 양쪽에 나타날 때 발생한다."""
+    """같은 이름이 Training 과 Validation 양쪽에 나올 때."""
 
 
 class SplitContaminationError(DataGuardError):
-    """예상하지 못한 split의 데이터가 검사 대상 경로에 들어왔을 때 발생한다."""
+    """기대하지 않은 분할의 데이터가 들어왔을 때 (예: 학습 경로에 Validation)."""
 
 
 def split_from_path(path: str | Path) -> str:
-    """상대 경로나 절대 경로에서 split 구성 요소를 정확히 돌려준다."""
+    """경로에서 Training/Validation 폴더 이름을 정확히 하나 찾아 돌려준다. 없거나 둘 이상이면 멈춘다."""
 
     candidates = [part for part in Path(path).parts if part in VALID_SPLITS]
     if len(candidates) != 1:
@@ -51,7 +56,7 @@ def split_from_path(path: str | Path) -> str:
 def validate_manifest_rows(
     rows: Iterable[Any], data_root: str | Path | None = None
 ) -> None:
-    """유일성, 경로와 split의 일치, (선택) 파일 존재 여부를 검사한다."""
+    """manifest 행들을 검사한다: 이름 중복, 경로와 분할의 일치, 확장자, (data_root 를 주면) 파일 존재, 분할 간 이름 겹침."""
 
     materialized = list(rows)
     root = Path(data_root).resolve() if data_root is not None else None
@@ -95,7 +100,7 @@ def validate_manifest_rows(
 
 
 def ensure_split(rows: Iterable[Any], expected_split: str) -> list[Any]:
-    """행을 모두 꺼내 보고, 다른 split의 행이 하나라도 있으면 실패한다."""
+    """행들을 목록으로 만들고, 하나라도 다른 분할이면 멈춘다."""
 
     if expected_split not in VALID_SPLITS:
         raise UnknownSplitError(f"Unknown expected split: {expected_split!r}")
@@ -111,20 +116,6 @@ def ensure_split(rows: Iterable[Any], expected_split: str) -> list[Any]:
 
 
 def ensure_training_rows(rows: Iterable[Any]) -> list[Any]:
-    """모든 행이 Training에 속할 때만 행을 돌려준다."""
+    """모든 행이 Training 일 때만 돌려준다 (학습 데이터 입구의 검사)."""
 
     return ensure_split(rows, TRAINING)
-
-
-def ensure_training_batch(batch: Mapping[str, Any]) -> None:
-    """배치에 Training이 아닌 출처의 split가 섞여 있으면 즉시 실패한다."""
-
-    if "split" not in batch:
-        raise SplitContaminationError("Training batch has no split provenance")
-    value = batch["split"]
-    splits = [value] if isinstance(value, str) else list(value)
-    foreign = [split for split in splits if split != TRAINING]
-    if foreign:
-        raise SplitContaminationError(
-            f"Training batch contains non-Training split(s): {foreign[:10]}"
-        )

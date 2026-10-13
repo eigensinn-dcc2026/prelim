@@ -1,15 +1,13 @@
-"""Mission 2 L2 체크포인트를 어떻게 학습했는지를 가중치 옆에 기록해 두고, 추론할 때 확인한다.
+"""CNN 체크포인트의 학습 설정 기록과 검사: 가중치 옆에 "무엇으로 학습했는지"를 적어 두고, 추론할 때 확인한다.
 
-SpeakerCNNLarge의 state_dict는 어떤 멜 설정으로 학습했든, 또 모듈은 같지만 순전파만 다른 변형(모델 교체
-실험의 마스킹 풀링 모델은 SpeakerCNNLarge와 파라미터가 정확히 같다)이든 가리지 않고 SpeakerCNNLarge 모양의
-모델에 불러와진다. 가중치만 봐서는 어느 쪽인지 알 수 없으므로, 잘못된 체크포인트도 오류 없이 실행되고
-성능만 나빠진다.
+[규정 준수의 안전장치] SpeakerCNNLarge 가중치는 어떤 mel 설정으로 학습했든, 심지어 모양만 같은 다른 모델이었든 오류 없이 불러와진다.
+가중치만으로는 알 수 없으니, 잘못된 체크포인트도 아무 오류 없이 돌면서 예측만 나빠질 수 있다.
 
-그래서 scripts/train_mission2_cnn.py는 ``build_checkpoint_metadata(...)``를 ``checkpoint["metadata"]``에
-넣어 저장하고, scripts/mission2_inference.py는 기록된 설정이 실행하려는 설정과 다르거나 아무것도 기록하지 않은
-체크포인트(아래에 sha256으로 등록된 기존 체크포인트는 예외)는 실행을 거부한다.
+그래서 scripts/train_mission2_cnn.py 는 ``build_checkpoint_metadata(...)`` 를 ``checkpoint["metadata"]`` 에 넣고,
+추론(scripts/mission2_inference.py, scripts/mission2_final_inference.py)은 기록된 설정이 추론 설정과 다르거나 아무것도 기록돼 있지 않으면
+실행을 거부한다. 특히 Training 만으로, 제공 라벨을 그대로 써서 학습했는지(label_source)를 확인한다.
 
-이 모듈은 일부러 torch를 불러오지 않는다. L1만 쓰는 추론 경로가 그 비용을 치르면 안 되기 때문이다.
+이 모듈은 일부러 torch 를 불러오지 않는다(가벼운 검사만 한다).
 """
 
 from __future__ import annotations
@@ -23,14 +21,14 @@ from .mission2_spectrogram import ALLOWED_LABEL_SOURCES, N_MELS
 
 METADATA_VERSION = 1
 
-# scripts/mission2_inference.py가 만드는 유일한 L2 모델(train_mission2_cnn.py의 ``--model large``).
+# 추론이 만드는 유일한 CNN (train_mission2_cnn.py 의 ``--model large``)
 INFERENCE_MODEL_NAME = "large"
 
-# 앙상블 체크포인트(scripts/pack_mission2_l2_ensemble.py)가 멤버 state_dict를 담는 키이다.
-# 단일 모델 체크포인트의 "best_model_state_dict" 자리에 쓰이며, scripts/mission2_inference.py는
-# 이 키가 있는지 보고 모델 하나만 돌릴지 여러 모델을 소프트 보팅할지 정한다.
+# 앙상블 체크포인트(scripts/pack_mission2_l2_ensemble.py)가 멤버 가중치들을 담는 키. 단일 모델 체크포인트의
+# "best_model_state_dict" 대신 쓰이며, 추론은 이 키가 있으면 여러 모델의 확률을 평균한다.
 ENSEMBLE_STATE_DICTS_KEY = "ensemble_model_state_dicts"
 
+# 체크포인트에 반드시 기록돼 있어야 하는 학습 설정 항목
 REQUIRED_METADATA_KEYS = (
     "metadata_version",
     "model_name",
@@ -48,14 +46,15 @@ REQUIRED_METADATA_KEYS = (
 
 
 class CheckpointConfigError(ValueError):
-    """체크포인트에 기록된 학습 설정이 추론이 실행하려는 방식과 다르다(또는 기록이 없다).
+    """체크포인트에 기록된 학습 설정이 추론 설정과 다르거나 없을 때.
 
-        발화 하나의 문제가 아니라 설정 오류이다. scripts/mission2_inference.py는 이 오류를
-        다수 클래스 대체 예측으로 바꾸지 않는다.
+    발화 하나의 문제가 아니라 설정 오류라서, 추론은 이 오류를 다수 클래스로 덮지 않고 실행을 멈춘다.
     """
 
 
 def checkpoint_sha256(path: str | Path) -> str:
+    """파일의 sha256 지문."""
+
     digest = hashlib.sha256()
     with open(path, "rb") as stream:
         for chunk in iter(lambda: stream.read(1 << 20), b""):
@@ -72,11 +71,10 @@ def build_checkpoint_metadata(
     test_size: float,
     torch_seed: int | None,
 ) -> dict:
-    """train_mission2_cnn.py가 ``checkpoint["metadata"]``로 저장하는 사전.
+    """train_mission2_cnn.py 가 ``checkpoint["metadata"]`` 로 저장하는 학습 설정.
 
-        ``index_provenance``는 그 실행이 학습한 인덱스에 대해 dcc_data.mission2_spectrogram.
-        assert_training_spectrogram_index가 돌려준 값이다. 체크포인트를 ``torch.load(..., weights_only=True)``로
-        계속 읽을 수 있도록 순수 파이썬 값만 쓴다.
+    ``index_provenance`` 는 학습에 쓴 스펙트로그램 목록에 대해 dcc_data.mission2_spectrogram.assert_training_spectrogram_index 가
+    돌려준 값이다(Training 전용, 제공 라벨, mel 설정). 단순한 파이썬 값만 넣어서 ``torch.load(..., weights_only=True)`` 로도 열린다.
     """
 
     return {
@@ -95,17 +93,12 @@ def build_checkpoint_metadata(
     }
 
 
-# 메타데이터가 생기기 전에 학습한 체크포인트를 파일의 sha256으로 구분해 두고, 그때 적용된 설정을
-# 모듈 기본값에서 읽지 않고 그대로 적어 둔다. 그래서 나중에 기본값을 바꾸면 예전 파일을
-# 조용히 다른 설정으로 간주하지 않고 추론이 거부하게 된다.
+# 설정 기록이 생기기 전에 학습된 체크포인트를 파일 sha256 으로 등록해 두는 곳.
 #
-# 일부러 비워 둔다. 예전에 여기 등록했던 체크포인트 하나(m2_cnn_large.pt, M2-VAL-003의 공식 Validation 90.89%
-# 결과, sha256 04c0cc04e2c9f4033db4f28164b4c3c888b6642588728bc3ea1b3b73ce406189)는
-# 전사문(``text``)을 읽고 Training 6통화의 화자 라벨을 고친 인덱스로 학습한 것이다.
-# 주최 측이 학습에는 제공된 라벨을 그대로 써야 한다고 판정했으므로(2026-10-01) 그
-# 파일은 제출할 수 없고 더는 받아들이지 않는다. 제공된 라벨을 그대로 써서 학습했다는 것을 추측이 아니라
-# 확실히 알 때만 여기에 등록하고, 그렇지 않으면 label_source를 체크포인트에 직접 기록하는
-# scripts/train_mission2_cnn.py로 다시 학습한다.
+# 일부러 비워 둔다. 예전에 여기 등록돼 있던 파일(m2_cnn_large.pt, 공식 Validation 90.89%)은 ``text`` 를 읽고 Training 6통화의
+# speaker 라벨을 고친 목록으로 학습한 것이었다. 운영 측 판단(2026-10-01)에 따라 학습은 제공 라벨을 그대로 써야 하므로 그 파일은
+# 제출하면 안 되고 더 이상 받지 않는다. 제공 라벨로 학습했다고 *확실히 아는* 파일만 등록한다. 아니면 설정을 기록하는
+# scripts/train_mission2_cnn.py 로 다시 학습한다. (최종 제출 CNN 은 설정이 기록된 체크포인트라 여기와 무관하다.)
 LEGACY_L2_CHECKPOINTS: dict[str, dict] = {}
 
 
@@ -116,10 +109,9 @@ def _require_complete(metadata: dict, where: str) -> None:
 
 
 def resolve_l2_checkpoint_metadata(checkpoint: dict, ckpt_path: str | Path) -> tuple[dict, str]:
-    """불러온 L2 체크포인트의 (메타데이터, 어디서 왔는지)를 돌려주거나 CheckpointConfigError를 낸다.
+    """불러온 CNN 체크포인트의 (학습 설정, 그 출처)를 돌려준다. 없으면 CheckpointConfigError.
 
-        파일에 들어 있는 메타데이터가 우선한다. 메타데이터가 없는 체크포인트는 그 sha256이
-        LEGACY_L2_CHECKPOINTS에 등록되어 있을 때만 받아들인다.
+    체크포인트 안에 기록된 설정을 쓴다. 기록이 없는 파일은 sha256 이 LEGACY_L2_CHECKPOINTS 에 있을 때만 받는다(지금은 비어 있음).
     """
 
     embedded = checkpoint.get("metadata")
@@ -143,12 +135,10 @@ def resolve_l2_checkpoint_metadata(checkpoint: dict, ckpt_path: str | Path) -> t
 
 
 def build_ensemble_metadata(member_metadata: list[dict]) -> dict:
-    """구조가 같은 L2 체크포인트 여러 개의 메타데이터를 앙상블 체크포인트 하나의 메타데이터로 합친다.
+    """같은 구조의 CNN 체크포인트 여러 개의 설정을 하나의 앙상블 설정으로 합친다.
 
-        멤버는 ``torch_seed``를 뺀 ``REQUIRED_METADATA_KEYS``의 모든 항목이 같아야 한다. 시드 앙상블에서
-        달라져야 하는 것은 ``torch_seed``뿐이고, 나머지(멜 설정, 라벨 출처, 분할)가 다르면 평균을 내는 것이
-        공정하지 않다. 합친 사전은 ``torch_seed``를 ``None``(하나의 시드가 적용되지 않으므로)으로 바꾸고
-        대신 멤버별 시드와 개수를 기록한다.
+    멤버들은 ``torch_seed`` 외의 모든 항목이 같아야 한다. seed 앙상블은 seed 만 바꾸는 것이고, 나머지(mel 설정, 라벨 출처, 분할)가
+    다르면 함께 평균 내는 것이 공정하지 않다. 합친 설정의 ``torch_seed`` 는 None 으로 두고, 멤버별 seed 와 개수를 따로 기록한다.
     """
 
     if len(member_metadata) < 2:
@@ -166,6 +156,7 @@ def build_ensemble_metadata(member_metadata: list[dict]) -> dict:
                 f"ensemble members disagree on {key!r}: {sorted(map(str, values))} -- they must be the same "
                 "architecture/training setup, varied only by torch_seed, to be averaged together"
             )
+    # 같은 seed 가 두 번이면 같은 실행(또는 같은 파일의 복사본)이라 앙상블이 아니다
     seeds = [metadata["torch_seed"] for metadata in member_metadata]
     if None in seeds or len(set(seeds)) != len(seeds):
         raise CheckpointConfigError(
@@ -179,11 +170,10 @@ def build_ensemble_metadata(member_metadata: list[dict]) -> dict:
 
 
 def l2_member_state_dicts(checkpoint: dict, metadata: dict) -> list[dict]:
-    """scripts/mission2_inference.py가 실행하는 state_dict들: 단일 모델이면 하나, 묶은 앙상블이면 멤버마다 하나.
+    """추론이 돌릴 가중치(state_dict) 목록: 단일 모델이면 하나, 앙상블이면 멤버마다 하나.
 
-        저장된 가중치 개수는 메타데이터가 말하는 개수(``ensemble_size``, 기록이 없으면 1)와 같아야 한다.
-        그래서 메타데이터와 가중치가 어긋난 파일(멤버가 빠진 앙상블, 앙상블이라고 적힌 단일 모델, 그 반대)은
-        안에 있는 것을 그냥 평균하지 않고 거부한다.
+    저장된 가중치 수가 설정에 적힌 수(``ensemble_size``, 없으면 1)와 같아야 한다. 멤버가 빠진 앙상블, 앙상블이라고 적힌 단일 모델
+    (또는 반대)처럼 설정과 가중치가 안 맞는 파일은 안에 든 것만으로 평균 내지 않고 거부한다.
     """
 
     if ENSEMBLE_STATE_DICTS_KEY in checkpoint:
@@ -209,15 +199,12 @@ def l2_member_state_dicts(checkpoint: dict, metadata: dict) -> list[dict]:
 
 
 def require_resumable_checkpoint(checkpoint: dict, expected_metadata: dict, ckpt_path: str | Path) -> None:
-    """같은 설정에서 나온 것이 확실하지 않으면 체크포인트로 학습을 이어 가지 않는다.
+    """이어서 학습(--resume)할 체크포인트가 지금과 똑같은 설정에서 나왔음이 증명될 때만 허락한다.
 
-        ``--resume``은 예전 가중치를 불러 학습을 이어 간 뒤, *현재* 실행에서 다시 만든 ``metadata``로 체크포인트를
-        저장한다. 예전 파일을 확인하지 않으면, 다른 라벨(또는 다른 멜 설정)로 학습한 모델이 오늘의 인덱스로
-        학습한 것처럼 도장이 찍혀 나오게 되고, scripts/mission2_inference.py가 신뢰하는 것이 바로 그 도장이다.
-        그래서 이어 가는 파일은 설정이 완전하게 기록되어 있어야 하고 모든 항목이 이번 실행이 찍으려는 값과
-        같아야 한다(``torch_seed``도 포함: 다른 시드로 이어 가면 섞기·초기화 이력 두 개가 한 이름 아래 섞인다).
-        아무것도 기록하지 않은 체크포인트(설정을 저장하기 전에 쓴 모든 파일, 무엇으로 학습했든)는 일치함을
-        보일 수 없어 거부하고, 이어 갈 옵티마이저 상태가 없는 묶은 앙상블 파일도 거부한다.
+    ``--resume`` 은 옛 가중치를 불러 학습을 이어간 뒤, *지금* 실행의 설정을 ``metadata`` 로 적어 저장한다. 옛 파일을 확인하지 않으면
+    다른 라벨(또는 다른 mel 설정)로 학습한 모델이 오늘의 목록으로 학습한 것처럼 기록되어 나오고, 추론은 그 기록을 믿는다.
+    그래서 이어갈 파일은 설정이 빠짐없이 기록돼 있어야 하고 모든 항목(``torch_seed`` 포함)이 지금 실행과 같아야 한다.
+    설정이 기록되지 않은 파일과, 옵티마이저 상태가 없는 앙상블 파일도 거부한다.
     """
 
     if ENSEMBLE_STATE_DICTS_KEY in checkpoint:
@@ -245,10 +232,10 @@ def require_resumable_checkpoint(checkpoint: dict, expected_metadata: dict, ckpt
 
 
 def require_l2_inference_config(metadata: dict) -> None:
-    """체크포인트가 scripts/mission2_inference.py가 실행하는 방식에 맞지 않으면 CheckpointConfigError를 낸다.
+    """체크포인트가 추론 설정에 맞지 않으면 CheckpointConfigError 로 멈춘다.
 
-        이 스크립트는 현재 모듈 기본값으로 SpeakerCNNLarge와 로그 멜 스펙트로그램을 만들고, 체크포인트는
-        Training만으로, 제공된 그대로의 화자 라벨로 학습한 것이어야 한다.
+    추론은 SpeakerCNNLarge 와 현재 기본값의 log-mel 스펙트로그램을 쓴다. 그리고 체크포인트는 Training 만으로,
+    제공된 speaker 라벨을 그대로 써서 학습된 것이어야 한다(대회 규정).
     """
 
     expected = {

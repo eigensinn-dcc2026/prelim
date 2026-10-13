@@ -1,6 +1,8 @@
-# Mission 3 추론 전용 (제출 체크포인트로 CPU에서 검증한 버전).
-torch==2.12.1
-transformers==4.57.6
+# Mission 3 추론 전용 (CPU).
+# torch·transformers는 Dependabot 보안 경고를 닫는 패치 버전이다.
+# 체크포인트를 만들 때 쓴 버전은 torch 2.12.1, transformers 4.57.6.
+torch==2.14.1
+transformers==5.19.0
 numpy==2.4.4
 pandas==3.0.2
 scikit-learn==1.8.0
