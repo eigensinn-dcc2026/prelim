@@ -1,6 +1,8 @@
-// DCC 2026 대학부 예선 결과 정리 PPT — 장별 원고 v2(팀장 검토본)를 옮김. 데이터·규칙 장은 삭제해 20장
+// DCC 2026 대학부 예선 결과 정리 PPT — 장별 원고 v2(팀장 검토본)를 옮김. 신규 M3 본문·별첨을 포함해 24장
 // 디자인 규칙은 ppt/design_guide.md, 공식 템플릿 이미지는 ppt/figures/tpl_*.png
 const pptxgen = require("pptxgenjs");
+const fs = require("fs");
+const JSZip = require("jszip");
 const pres = new pptxgen();
 pres.layout = "LAYOUT_WIDE"; // 13.333 x 7.5
 pres.title = "DCC 2026 대학부 예선 결과 정리 — eigensinn";
@@ -172,6 +174,16 @@ function barChart(slide, labels, values, o) {
     showTitle: true, titleFontSize: 12, titleColor: C.text, titleFontFace: F,
   }, o));
 }
+// 숫자 요약 박스. 신규 M3 데이터 관찰 슬라이드의 상단 4개 지표에 사용.
+function metricBox(slide, x, y, w, num, label, note = "", accent = false) {
+  slide.addShape(pres.shapes.ROUNDED_RECTANGLE, {
+    x, y, w, h: 0.78, fill: { color: accent ? C.blue : C.white }, rectRadius: 0.08,
+    line: { color: accent ? C.blue : C.sky, width: 1.2 },
+  });
+  txt(slide, num, { x, y: y + 0.06, w, h: 0.34, fontSize: 22, bold: true, color: accent ? C.white : C.blue, align: "center", valign: "middle" });
+  txt(slide, label, { x: x + 0.05, y: y + 0.4, w: w - 0.1, h: note ? 0.2 : 0.28, fontSize: 9.5, bold: true, color: accent ? C.white : C.text, align: "center", valign: "middle" });
+  if (note) txt(slide, note, { x: x + 0.05, y: y + 0.59, w: w - 0.1, h: 0.14, fontSize: 7.8, color: accent ? C.white : C.sub, align: "center", valign: "middle" });
+}
 // 구조도 노드: 연한 파랑 상자(마지막 판정 상자만 진한 파랑), 제목 + 작은 설명
 function node(slide, x, y, w, h, t, b, dark = false) {
   slide.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h, fill: { color: dark ? C.blue : C.light }, rectRadius: 0.08, line: { color: dark ? C.blue : C.sky, width: 1 } });
@@ -253,7 +265,7 @@ function flow(slide, x, y, w, h, f) {
     ["01", "준비 과정", ["사전 학습 로드맵", "팀 구성과 협업 체계"]],
     ["02", "데이터 분석", ["EDA 핵심 발견"]],
     ["03", "미션별 수행", ["Mission 1  신고자 성별 분류", "Mission 2  신고자/대원 분류", "Mission 3  환자 증상 인식"]],
-    ["04", "종합 및 시사점", ["성능 요약과 교훈", "사회안전 시사점과 향후 계획"]],
+    ["04", "종합 및 시사점", ["성능 요약과 교훈", "사회안전 시사점", "추후 활동 계획"]],
   ];
   const cw = (CW - 3 * 0.3) / 4;
   secs.forEach(([n, name, items], i) => {
@@ -265,7 +277,7 @@ function flow(slide, x, y, w, h, f) {
     txt(s, items.map((t, k) => ({ text: `${k + 1}. ${t}`, options: { breakLine: k < items.length - 1 } })),
       { x: x + 0.1, y: 4.05, w: cw - 0.1, h: 2.2, fontSize: 14, color: C.sub, paraSpaceAfter: 10 });
   });
-  s.addNotes("원고 v2 구성 기준 목차 (데이터·규칙 장 삭제 후 20장).");
+  s.addNotes("원고 v2 구성 기준 목차 (데이터·규칙 장 삭제 후 21장).");
 }
 
 // =====================================================================
@@ -586,7 +598,7 @@ function flow(slide, x, y, w, h, f) {
 }
 
 // ======================================================================
-// Mission 3 — 환자 증상 인식 (15~17장)
+// Mission 3 — 환자 증상 인식 (15~18장)
 // ======================================================================
 
 // 15. 문제와 최종 모델 (main 유지 + 수빈 님 PR #200의 파이프라인·근거 문구)
@@ -664,10 +676,53 @@ function flow(slide, x, y, w, h, f) {
   s.addNotes("근거: submission/mission3/README.md 결과 표(seed 42·43·44 0.6479/0.6441/0.6445, 앙상블 0.6534, Micro 0.6690, 빈 예측 149). 개선 흐름: M3-OFFVAL-001(TF-IDF 0.5689, KcBERT 0.6246), M3-OFFVAL-002(RoBERTa-large 0.6433), M3-FINAL-002(앙상블 0.6534). 증상별 약점: M3-FINAL-002(오심·두통·전신쇠약 F1이 가장 낮음).");
 }
 
-// 17. 모델 선정과 오류 분석
+// 17. 데이터 관찰과 설계 결정
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 모델 선정과 오류 분석", 17);
+  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 데이터 관찰과 설계 결정", 17);
+  coreMsg(s, "데이터 불균형과 입력 길이 실험을 학습 설계에 반영");
+
+  const statGap = 0.2, statW = (CW - 3 * statGap) / 4;
+  metricBox(s, M, 2.34, statW, "29,200", "Training 통화 수");
+  metricBox(s, M + statW + statGap, 2.34, statW, "3,640", "Validation 통화 수", "평가 전용");
+  metricBox(s, M + 2 * (statW + statGap), 2.34, statW, "9", "타깃 증상 라벨");
+  metricBox(s, M + 3 * (statW + statGap), 2.34, statW, "1.43", "통화당 평균 증상 수", "Training", true);
+
+  const prevalence = [["열상", 23.2], ["어지러움", 21.7], ["전신쇠약", 18.2], ["고열", 17.8], ["구토", 15.3], ["호흡곤란", 13.4], ["복통", 11.9], ["오심", 11.4], ["두통", 9.9]];
+  barChart(s, prevalence.map(r => r[0]), prevalence.map(r => r[1]), {
+    name: "양성 비율 (%)", x: M, y: 3.32, w: 5.9, h: 3.45,
+    chartColors: prevalence.map((r, i) => i >= 7 ? C.blue : "A9C4E6"),
+    title: "라벨별 양성 비율 (%) · Training", titleFontSize: 11.5,
+    dataLabelFormatCode: "0.0", dataLabelFontSize: 9.5, dataLabelFontBold: true,
+    valAxisMinVal: 0, valAxisMaxVal: 25, valAxisMajorUnit: 5, valLabelFormatCode: "0",
+    catAxisLabelFontSize: 9, catAxisLabelRotate: 0, valAxisLabelFontSize: 8.5,
+    showLegend: false, showTitle: true, showValue: true, dataLabelPosition: "outEnd",
+  });
+
+  const rx = 6.7, obsW = 2.35, gap = 0.48, decX = rx + obsW + gap, decW = W - M - decX;
+  title(s, "■ 관찰과 설계 결정", rx, 3.32, W - M - rx, 15);
+  const decisions = [
+    ["양성 비율이 9.9~23.2%로 불균형", "증상별 pos_weight BCE\n+ soft macro-F1", "pos_weight = clip(0.5 × √(음성/양성), 1, 6)"],
+    ["내부 홀드아웃의 40.7%가\n256토큰 초과", "512토큰 확대안 기각\n앞 256토큰 유지", "Macro F1 +0.0074로 채택 기준 +0.01 미달\n학습시간 약 4배 증가"],
+    ["증상 라벨 외 정보는 입력 불가", "전사 text만 시간순으로 연결,\n화자 태그 없음", ""],
+  ];
+  decisions.forEach(([obs, dec, note], i) => {
+    const y = 3.78 + i * 0.96;
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: rx, y, w: obsW, h: 0.78, fill: { color: C.light }, rectRadius: 0.06, line: { color: C.line, width: 0.8 } });
+    txt(s, obs, { x: rx + 0.12, y: y + 0.05, w: obsW - 0.24, h: 0.68, fontSize: 10.4, color: C.text, valign: "middle" });
+    link(s, rx + obsW + 0.08, y + 0.39, decX - 0.08, y + 0.39);
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: decX, y, w: decW, h: 0.78, fill: { color: C.white }, rectRadius: 0.06, line: { color: C.blue, width: 1 } });
+    txt(s, dec, { x: decX + 0.12, y: y + 0.05, w: decW - 0.24, h: note ? 0.4 : 0.68, fontSize: 10.6, bold: true, color: C.blue, valign: "middle" });
+    if (note) txt(s, note, { x: decX + 0.12, y: y + 0.46, w: decW - 0.24, h: 0.25, fontSize: 8.3, color: C.sub, valign: "middle" });
+  });
+  caption(s, "※ Training 29,200건 기준. 입력 길이 비율과 512토큰 실험은 Training 내부 80:20 홀드아웃 기준이며, 공식 Validation은 모델 선택에 사용하지 않음.", 7.0);
+  s.addNotes("근거: reports/eda/eda_report.md, docs/experiment_log.md M3-ROBERTA-007, submission/mission3/train/train_final.py, submission/mission3/README.md");
+}
+
+// 18. 모델 선정과 오류 분석 (기존 17장, 페이지 번호 외 변경 없음)
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 모델 선정과 오류 분석", 18);
   coreMsg(s, "앙상블이라고 모두 채택하지 않았다 — 내부 개선폭과 사전 기준으로 선택을 구분");
   // 서로 다른 내부/공식 점수를 섞지 않도록, 이 도표에는 공식 Val 확인된 제출 후보 4개만 표시.
   // M3-ENS-001 기각 근거는 아래 REJECT 카드에 내부 홀드아웃 기준으로 별도 표시.
@@ -706,11 +761,11 @@ function flow(slide, x, y, w, h, f) {
 }
 
 // =====================================================================
-// 18. 04-(1) 성능 요약과 교훈
+// 19. 04-(1) 성능 요약과 교훈 (기존 18장)
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "04", "종합 및 시사점", "(1) 성능 요약과 교훈", 18);
+  header(s, "04", "종합 및 시사점", "(1) 성능 요약과 교훈", 19);
   coreMsg(s, "공식 Validation은 튜닝에 쓰지 않고, 결과를 보기 전에 고정한 기준만 확인했다.");
   const v = t => strong(t);
   const tiles = [
@@ -748,11 +803,11 @@ function flow(slide, x, y, w, h, f) {
 }
 
 // =====================================================================
-// 19. 04-(2) 사회안전 시사점과 향후 계획 — 사회안전은 이 장 한 곳에만
+// 20. 04-(2) 사회안전 시사점과 향후 계획 — 사회안전은 이 장 한 곳에만 (기존 19장)
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "04", "종합 및 시사점", "(2) 사회안전 시사점과 향후 계획", 19);
+  header(s, "04", "종합 및 시사점", "(2) 사회안전 시사점과 향후 계획", 20);
   coreMsg(s, "세 미션을 이으면, 신고 전화가 들어오는 순간부터 출동 판단까지를 돕는 하나의 흐름이 된다.");
   // 신고 전화 → M2 → M1 → M3 → 상황실: 순서대로 켜지는 GIF (ppt/tools/make_gif_flow.py), 첫 프레임은 전부 켜진 상태
   { const gw = 12.0, gh = gw * 232 / 1920; s.addImage({ path: "figures/anim/flow_pipeline.gif", x: (W - gw) / 2, y: 2.4, w: gw, h: gh }); }
@@ -780,7 +835,157 @@ function flow(slide, x, y, w, h, f) {
 }
 
 // =====================================================================
-// 20. 마무리 — 공식 템플릿 그대로 사용 + 팀 정보만 빈 여백(2.1~2.9in)에 추가
+// 21. 별첨 A1 — M3 학습 손실과 앙상블 판정식
+// =====================================================================
+{
+  const s = pres.addSlide();
+  header(s, "별첨", "Mission 3", "M3 학습 손실과 앙상블 판정식", 21);
+  coreMsg(s, "희소 증상은 학습 손실에서 보정하고, 최종 확률은 고정 가중치로 결합");
+
+  const leftX = M, leftW = 6.15, dividerX = 6.82, rightX = 7.08, rightW = W - M - rightX;
+  title(s, "■ RoBERTa 학습 손실", leftX, 2.48, leftW, 17);
+  txt(s, "증상별 가중치", { x: leftX, y: 2.9, w: leftW, h: 0.28, fontSize: 11.5, bold: true, color: C.sub });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: leftX, y: 3.18, w: leftW, h: 0.58, fill: { color: C.light }, rectRadius: 0.06, line: { color: C.light } });
+  txt(s, "wⱼ = clip(0.5 × √((N − Pⱼ) / max(Pⱼ, 1)), 1, 6)", { x: leftX + 0.15, y: 3.18, w: leftW - 0.3, h: 0.58, fontSize: 16, bold: true, color: C.blue, align: "center", valign: "middle" });
+  txt(s, "N: 전체 Training 통화 수    Pⱼ: 증상 j의 양성 통화 수\n희소 증상의 양성 오류에 더 큰 가중치 적용", { x: leftX + 0.1, y: 3.84, w: leftW - 0.2, h: 0.58, fontSize: 10.5, color: C.text, align: "center", valign: "middle" });
+
+  txt(s, "Soft macro-F1", { x: leftX, y: 4.52, w: leftW, h: 0.28, fontSize: 11.5, bold: true, color: C.sub });
+  txt(s, "pᵢⱼ = sigmoid(zᵢⱼ)", { x: leftX + 0.15, y: 4.83, w: 2.1, h: 0.42, fontSize: 14, bold: true, color: C.blue, align: "center", valign: "middle" });
+  txt(s, "SoftF1ⱼ =  2Σᵢ(pᵢⱼyᵢⱼ)  /  [Σᵢpᵢⱼ + Σᵢyᵢⱼ + 10⁻⁸]", { x: leftX + 2.1, y: 4.75, w: leftW - 2.15, h: 0.58, fontSize: 13, bold: true, color: C.blue, align: "center", valign: "middle" });
+
+  txt(s, "최종 손실", { x: leftX, y: 5.48, w: leftW, h: 0.28, fontSize: 11.5, bold: true, color: C.sub });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: leftX, y: 5.78, w: leftW, h: 0.68, fill: { color: C.bgGray }, rectRadius: 0.06, line: { color: C.line, width: 0.8 } });
+  txt(s, "L = BCEWithLogits(pos_weight = wⱼ) + 1 − meanⱼ(SoftF1ⱼ)", { x: leftX + 0.15, y: 5.78, w: leftW - 0.3, h: 0.68, fontSize: 14.5, bold: true, color: C.text, align: "center", valign: "middle" });
+  txt(s, "실효 batch 16 = micro batch 8 × 2\nsoft-F1은 micro batch별로 계산", { x: leftX, y: 6.55, w: leftW, h: 0.38, fontSize: 9.5, color: C.sub, align: "center" });
+
+  s.addShape(pres.shapes.LINE, { x: dividerX, y: 2.48, w: 0, h: 4.42, line: { color: C.line, width: 1 } });
+  title(s, "■ 최종 앙상블과 판정", rightX, 2.48, rightW, 17);
+  const ensembleRows = [
+    ["RoBERTa seed 평균", "pR = (p42 + p43 + p44) / 3"],
+    ["최종 확률", "pfinal = 0.55 × pR + 0.45 × pTF-IDF"],
+    ["최종 판정", "ŷⱼ = 1   if   pfinal,ⱼ ≥ 0.5"],
+  ];
+  ensembleRows.forEach(([label, formula], i) => {
+    const y = 3.02 + i * 1.0;
+    txt(s, label, { x: rightX, y, w: rightW, h: 0.25, fontSize: 11.5, bold: true, color: C.sub });
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: rightX, y: y + 0.28, w: rightW, h: 0.58, fill: { color: i === 1 ? C.light : C.white }, rectRadius: 0.06, line: { color: i === 1 ? C.sky : C.line, width: 1 } });
+    txt(s, formula, { x: rightX + 0.12, y: y + 0.28, w: rightW - 0.24, h: 0.58, fontSize: i === 1 ? 15 : 14, bold: true, color: C.blue, align: "center", valign: "middle" });
+  });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: rightX, y: 6.16, w: rightW, h: 0.72, fill: { color: C.mintLight }, rectRadius: 0.06, line: { color: C.mint, width: 1 } });
+  txt(s, "모든 증상에 동일한 0.5 기준 적용\n증상별 threshold 조정과 별도 후처리 없음", { x: rightX + 0.18, y: 6.16, w: rightW - 0.36, h: 0.72, fontSize: 12.5, bold: true, color: "2E7D32", align: "center", valign: "middle" });
+  s.addNotes("근거: submission/mission3/train/train_final.py, submission/mission3/train/build_ensemble.py, submission/mission3/mission3_model.py");
+}
+
+// =====================================================================
+// 22. 별첨 A2 — M3 입력 길이 확대 실험
+// =====================================================================
+{
+  const s = pres.addSlide();
+  header(s, "별첨", "Mission 3", "M3 입력 길이 확대 실험", 22);
+  coreMsg(s, "512토큰은 성능이 개선됐지만 사전 채택 기준과 계산비용 조건을 충족하지 못함");
+
+  const epochs = ["Epoch 1", "Epoch 2", "Epoch 3"];
+  s.addChart(pres.charts.LINE, [
+    { name: "512토큰 모델", labels: epochs, values: [0.6439, 0.6504, 0.6515] },
+    { name: "256토큰 기준 성능", labels: epochs, values: [0.6441, 0.6441, 0.6441] },
+    { name: "사전 채택 기준", labels: epochs, values: [0.6541, 0.6541, 0.6541] },
+  ], {
+    x: M, y: 2.45, w: 7.0, h: 3.75, showTitle: true,
+    title: "512토큰 모델의 epoch별 내부 홀드아웃 Macro F1", titleFontFace: F, titleFontSize: 11.5, titleColor: C.text,
+    chartColors: [C.blue, "9E9E9E", C.red], showLegend: true, legendPos: "b", legendFontFace: F, legendFontSize: 9,
+    showValue: false, lineSize: 2.2, lineDataSymbol: "circle", lineDataSymbolSize: 5,
+    catAxisLabelFontFace: F, catAxisLabelFontSize: 10.5, catAxisLabelColor: C.text,
+    valAxisLabelFontFace: F, valAxisLabelFontSize: 9.5, valAxisLabelColor: C.sub,
+    valAxisMinVal: 0.63, valAxisMaxVal: 0.66, valAxisMajorUnit: 0.005, valLabelFormatCode: "0.000",
+    valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" },
+    chartArea: { border: { color: C.white, pt: 0 }, fill: { color: C.white, transparency: 100 } },
+    plotArea: { border: { color: C.white, pt: 0 }, fill: { color: C.white, transparency: 100 } },
+  });
+  // 512토큰 계열만 필요한 값 레이블을 별도 편집 가능한 텍스트로 표시한다.
+  [["0.6439", 1.38, 4.34], ["0.6504", 3.35, 3.75], ["0.6515", 5.34, 3.63]].forEach(([v, x, y]) => {
+    txt(s, v, { x, y, w: 0.64, h: 0.22, fontSize: 9.5, bold: true, color: C.blue, align: "center" });
+  });
+
+  const expRows = [
+    ["항목", "결과"],
+    ["256토큰 초과 통화", "2,359건 · 40.7%"],
+    ["512토큰 초과 통화", "2.9%"],
+    ["256토큰 기준 Macro F1", "0.6441"],
+    ["512토큰 최종 Macro F1", "0.6515"],
+    ["개선폭", "+0.0074"],
+    ["사전 채택 기준", "+0.0100"],
+    ["학습시간", "77.5분"],
+    ["계산비용", "약 4배"],
+    ["결정", "512토큰 확대안 기각"],
+  ];
+  table(s, expRows, 7.75, 2.48, [3.0, 2.55], {
+    w: 5.55, rowH: [0.32, 0.29, 0.29, 0.29, 0.29, 0.29, 0.29, 0.29, 0.29, 0.33], fontSize: 9.3, margin: 0.04,
+    fill: C.white, border: { type: "solid", pt: 0.7, color: C.line },
+  });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 7.75, y: 6.2, w: 5.08, h: 0.68, fill: { color: C.light }, rectRadius: 0.06, line: { color: C.sky, width: 1 } });
+  txt(s, "성능은 개선됐지만 사전 기준에 미달했고 계산비용이 증가해 앞 256토큰을 유지", { x: 7.95, y: 6.2, w: 4.68, h: 0.68, fontSize: 11.5, bold: true, color: C.blue, align: "center", valign: "middle" });
+  caption(s, "※ Training 내부 80:20 홀드아웃, seed 42 기준. 공식 Validation은 사용하지 않음.", 7.0);
+  s.addNotes("근거: docs/experiment_log.md M3-ROBERTA-007, docs/decisions.md의 입력 512토큰 기각 결정");
+}
+
+// =====================================================================
+// 23. 별첨 A3 — Mission 3 낮은 성능 3개 라벨의 오류 구조
+// =====================================================================
+{
+  const s = pres.addSlide();
+  header(s, "별첨", "Mission 3", "Mission 3  낮은 성능 3개 라벨의 오류 구조", 23);
+  coreMsg(s, "직접 표현이 없는 양성이 많았고, 두통과 오심은 표현 유무에 따라 recall 차이가 컸다");
+
+  const labels = ["전신쇠약", "두통", "오심"];
+  s.addChart(pres.charts.BAR, [
+    { name: "직접 표현 있음 recall", labels, values: [0.907, 0.820, 0.684] },
+    { name: "직접 표현 없음 recall", labels, values: [0.549, 0.195, 0.356] },
+  ], {
+    x: M, y: 2.46, w: 6.35, h: 3.7, barDir: "bar", barGrouping: "clustered", catAxisOrientation: "maxMin",
+    chartColors: [C.blue, "EF9A9A"], showTitle: true, title: "직접 표현 유무별 recall · Training 내부 홀드아웃",
+    titleFontFace: F, titleFontSize: 11.5, titleColor: C.text, showLegend: true, legendPos: "b", legendFontFace: F, legendFontSize: 9.5,
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "0.000", dataLabelFontFace: F, dataLabelFontSize: 10,
+    valAxisMinVal: 0, valAxisMaxVal: 1, valAxisMajorUnit: 0.2, valLabelFormatCode: "0.0",
+    valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, catAxisLabelFontFace: F, catAxisLabelFontSize: 11,
+    valAxisLabelFontFace: F, valAxisLabelFontSize: 9, showCatName: false,
+  });
+
+  const headerCell = (text, options = {}) => ({ text, options: Object.assign({ bold: true, color: C.white, fill: { color: C.blue }, align: "center", valign: "middle" }, options) });
+  const diagFill = "3F629F";
+  const errRows = [
+    [
+      headerCell("증상", { rowspan: 2 }),
+      headerCell("최종 앙상블\n공식 Validation F1\n(3,640건)", { rowspan: 2 }),
+      headerCell("Training 내부 홀드아웃 오류 진단 (5,792건)", { colspan: 3, fill: { color: diagFill } }),
+    ],
+    [
+      headerCell("내부 홀드아웃\n양성 수", { fill: { color: diagFill } }),
+      headerCell("직접 표현 없음", { fill: { color: diagFill } }),
+      headerCell("내부 TF-IDF\nTP / FP / FN", { fill: { color: diagFill } }),
+    ],
+    ["전신쇠약", "0.5939", "1,062", "804건 · 75.7%", "675 / 846 / 387"],
+    ["두통", "0.5315", "581", "370건 · 63.7%", "245 / 372 / 336"],
+    ["오심", "0.4000", "668", "592건 · 88.6%", "263 / 754 / 405"],
+  ];
+  s.addTable(errRows, {
+    x: 7.08, y: 2.52, w: 5.75, colW: [0.72, 1.12, 0.96, 1.35, 1.6], rowH: [0.48, 0.55, 0.56, 0.56, 0.56],
+    fontFace: F, fontSize: 9.2, color: C.text, valign: "middle", align: "center", margin: 0.05,
+    border: { type: "solid", pt: 0.7, color: C.line },
+  });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 7.08, y: 5.45, w: 5.75, h: 0.72, fill: { color: C.light }, rectRadius: 0.06, line: { color: C.sky, width: 1 } });
+  txt(s, "오심은 양성의 88.6%에서 직접 표현을 찾지 못했고, 두통은 표현이 없을 때 recall이 0.195까지 낮아졌다.", { x: 7.28, y: 5.5, w: 5.35, h: 0.35, fontSize: 11.2, bold: true, color: C.blue, align: "center", valign: "middle" });
+  txt(s, "통화에서 관찰할 수 없는 정보가 성능을 제한했을 가능성", { x: 7.28, y: 5.86, w: 5.35, h: 0.22, fontSize: 9.5, color: C.sub, align: "center" });
+  txt(s, [
+    { text: "※ 최종 F1은 최종 RoBERTa 3-seed + TF-IDF 앙상블의 공식 Validation 결과", options: { breakLine: true } },
+    { text: "※ 오류 진단은 Training 80:20 홀드아웃 5,792건의 TF-IDF 모델 기준", options: { breakLine: true } },
+    { text: "※ 직접 표현 여부는 증상별 정규식 탐색 결과이며, 구어체 변형을 모두 포착하지 못하므로 표현 비율은 하한값", options: { breakLine: true } },
+    { text: "※ 직접 표현이 없다는 결과는 오라벨을 의미하지 않음" },
+  ], { x: M, y: 6.34, w: CW, h: 0.74, fontSize: 8.8, color: C.sub, paraSpaceAfter: 1.5 });
+  s.addNotes("근거: 최종 라벨별 F1은 기존 16장의 sym 데이터와 docs/experiment_log.md M3-FINAL-002. 표현 비율과 근거별 recall: reports/mission3/error_analysis/m3_error_analysis.json. 오류 분석 설명: reports/mission3/error_analysis/README.md. precision, recall, F1, support: reports/mission3/m3_reeval_tfidf_lr/per_label_metrics.csv. 예측 양성 수와 TP/FP/FN 계산 근거: reports/mission3/p0_rerun/min1_per_label.csv");
+}
+
+// =====================================================================
+// 24. 마무리 — 기존 20장 공식 템플릿 그대로 사용 + 팀 정보 유지
 // =====================================================================
 {
   const s = pres.addSlide();
@@ -790,4 +995,39 @@ function flow(slide, x, y, w, h, f) {
   s.addNotes("공식 템플릿(슬라이드4) 그대로. 흰 여백(약 2.1~2.9in)에만 팀 정보를 얹음 — 배너 그래픽은 건드리지 않음.");
 }
 
-pres.writeFile({ fileName: process.argv[2] || "DCC2026_예선_결과정리.pptx" }).then(f => console.log("wrote", f));
+// PptxGenJS 4.0은 선 계열별 점선 옵션을 직접 노출하지 않는다. 생성 후 해당 네이티브 차트 XML의
+// 두 기준선에만 점선을 지정해 PowerPoint 편집 가능성을 유지한다.
+async function styleLengthExperimentLines(fileName) {
+  const zip = await JSZip.loadAsync(await fs.promises.readFile(fileName));
+  const setDash = (seriesXml, dash) => {
+    if (/<a:prstDash\b/.test(seriesXml)) return seriesXml.replace(/<a:prstDash\b[^>]*\/>/, `<a:prstDash val="${dash}"/>`);
+    return seriesXml.replace(/<\/a:ln>/, `<a:prstDash val="${dash}"/></a:ln>`);
+  };
+  let patched = false;
+  for (const [name, entry] of Object.entries(zip.files)) {
+    if (!/^ppt\/charts\/chart\d+\.xml$/.test(name)) continue;
+    let xml = await entry.async("string");
+    if (!xml.includes("512토큰 모델") || !xml.includes("사전 채택 기준")) continue;
+    xml = xml.replace(/<c:ser>[\s\S]*?<\/c:ser>/g, block => {
+      if (block.includes("256토큰 기준 성능") || block.includes("사전 채택 기준")) return setDash(block, "dash");
+      return setDash(block, "solid");
+    });
+    zip.file(name, xml);
+    patched = true;
+  }
+  if (!patched) throw new Error("M3 입력 길이 차트의 계열을 찾지 못했습니다.");
+  // PptxGenJS가 실제로 만들지 않은 slideMaster2..N의 Content-Type 선언을 남기는 문제를 정리한다.
+  const contentTypesName = "[Content_Types].xml";
+  let contentTypes = await zip.file(contentTypesName).async("string");
+  contentTypes = contentTypes.replace(/<Override\s+PartName="\/ppt\/slideMasters\/slideMaster(\d+)\.xml"[^>]*\/>/g, (tag, number) =>
+    zip.file(`ppt/slideMasters/slideMaster${number}.xml`) ? tag : ""
+  );
+  zip.file(contentTypesName, contentTypes);
+  await fs.promises.writeFile(fileName, await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
+}
+
+const outputFile = process.argv[2] || "DCC2026_예선_결과정리.pptx";
+pres.writeFile({ fileName: outputFile }).then(async f => {
+  await styleLengthExperimentLines(outputFile);
+  console.log("wrote", f);
+});
