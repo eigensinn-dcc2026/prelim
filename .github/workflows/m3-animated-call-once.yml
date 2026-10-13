@@ -1,0 +1,97 @@
+# Temporary generator and QA, deleted once GIF and deck are reviewed.
+name: Temporary M3 animated call and wave QA
+on:
+  push:
+    branches:
+      - subin/ppt-m3-summary-percent-icons-20261013
+    paths:
+      - .github/workflows/m3-animated-call-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout branch with latest source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Use Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ppt/package-lock.json
+      - name: Generate reproducible looping M3 GIF from team icon
+        run: |
+          python -m pip install 'Pillow>=10,<13'
+          python ppt/scripts/generate_m3_call_gif.py
+          python - <<'PY'
+          from PIL import Image
+          p='ppt/figures/anim/m3_call_wave.gif'
+          with Image.open(p) as im:
+              assert im.n_frames==12, im.n_frames
+              assert im.info.get('loop')==0
+              assert im.size==(360,144)
+              im.seek(0)
+              im.convert('RGB').save('/tmp/m3_first_frame.png')
+          print('GIF loops; first frame static-safe')
+          PY
+      - name: Generate original and updated 37-slide decks
+        working-directory: ppt
+        run: |
+          npm ci --no-audit --no-fund
+          git show 7f1304ad90f1c6c0be02a265e558789ed2896d72:ppt/build_deck.js > original_m3_qa.js
+          node original_m3_qa.js /tmp/m3_prior.pptx
+          rm original_m3_qa.js
+          node build_deck.js DCC2026_예선_결과정리.pptx
+      - name: Verify slide text, M3 facts, GIF embedding
+        run: |
+          python - <<'PY'
+          import re, zipfile, xml.etree.ElementTree as ET
+          ns='{http://schemas.openxmlformats.org/drawingml/2006/main}t'
+          def texts(path):
+              with zipfile.ZipFile(path) as z:
+                  assert z.testzip() is None
+                  files=sorted([n for n in z.namelist() if re.fullmatch(r'ppt/slides/slide\d+\.xml',n)],key=lambda n:int(re.search(r'slide(\d+)',n).group(1)))
+                  return [''.join(x.text or '' for x in ET.fromstring(z.read(f)).iter(ns)) for f in files]
+          a=texts('/tmp/m3_prior.pptx')
+          b=texts('ppt/DCC2026_예선_결과정리.pptx')
+          assert len(a)==len(b)==37
+          changed=[i for i in range(1,38) if a[i-1]!=b[i-1]]
+          assert changed==[30,31,32,35,36],changed
+          for term in ['어지러워서 정신을','못 차리겠다','오심 양성 라벨','오심 직접 표현 미검출','최종 RoBERTa 예측 사례 아님','88.6%','75.7%','63.7%','REJECT','ADOPT','92%','약 90%']:
+              assert term in b[30],term
+          for term in ['65.34%','66.90%','56.89%','64.33%']:
+              assert term in b[29],term
+          assert '65.34%' in b[31]
+          with zipfile.ZipFile('ppt/DCC2026_예선_결과정리.pptx') as z:
+              gif=[name for name in z.namelist() if name.startswith('ppt/media/') and name.lower().endswith('.gif')]
+              assert gif, 'animated GIF not embedded'
+              rel=z.read('ppt/slides/_rels/slide31.xml.rels').decode()
+              assert '.gif' in rel, 'slide31 missing GIF media reference'
+          print('PASS: 37 slides, M1/M2 unchanged, M3 facts preserved and 12-frame GIF embedded')
+          PY
+      - name: Upload reviewed PPTX and first-frame GIF for visual preview
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: m3-animated-review
+          path: |
+            ppt/DCC2026_예선_결과정리.pptx
+            ppt/figures/anim/m3_call_wave.gif
+          retention-days: 2
+          if-no-files-found: error
+      - name: Commit only new animation asset
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- ppt/figures/anim/m3_call_wave.gif
+          if git diff --cached --quiet; then
+            echo 'GIF asset unchanged'
+          else
+            git commit -m 'assets(ppt): add M3 call-and-wave looping GIF from team icon'
+            git push origin HEAD:subin/ppt-m3-summary-percent-icons-20261013
+          fi
