@@ -669,13 +669,14 @@ function flow(slide, x, y, w, h, f) {
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 모델 선정과 오류 분석", 17);
   coreMsg(s, "앙상블이라고 모두 채택하지 않았다 — 내부 개선폭과 사전 기준으로 선택을 구분");
-  // 서로 다른 내부/공식 점수를 섞지 않도록, 이 도표에는 공식 Val 확인된 제출 후보 4개만 표시.
+  // 서로 다른 내부/공식 점수를 섞지 않고, F1 전체 범위(0~1)를 써 막대 길이로 차이를 과장하지 않음.
+  // 공식 Val로 확인된 제출 후보 4개만 표시.
   // M3-ENS-001 기각 근거는 아래 REJECT 카드에 내부 홀드아웃 기준으로 별도 표시.
   barChart(s, ["TF-IDF + LR (기준선)", "KcBERT-005", "RoBERTa-003", "최종 RoBERTa×3 + TF-IDF"],
     [0.5689, 0.6246, 0.6433, 0.6534], {
       name: "Macro F1 · 공식 Val", barDir: "bar", catAxisOrientation: "maxMin", x: M, y: 2.3, w: CW, h: 1.75,
       chartColors: [C.sky, C.blue, C.blue, C.mint], showTitle: false,
-      valAxisMinVal: 0.5, valAxisMaxVal: 0.68, valAxisHidden: true, valGridLine: { style: "none" },
+      valAxisMinVal: 0, valAxisMaxVal: 1, valAxisHidden: true, valGridLine: { style: "none" },
       dataLabelFormatCode: "0.0000", dataLabelFontSize: 11, catAxisLabelFontSize: 11,
     });
   const lw = 5.0;
@@ -700,7 +701,7 @@ function flow(slide, x, y, w, h, f) {
     stat(s, x, 4.75, (rw - 3.2) / 2 - 0.1, n, "", col, 30);
     txt(s, l, { x, y: 5.5, w: (rw - 3.2) / 2 - 0.1, h: 0.6, fontSize: 11, color: C.sub, align: "center" });
   });
-  txt(s, "→ 두 모델의 오류가 달라 앙상블로 보완\n(키워드 정규식 기준 탐색, 오라벨 단정 아님)", { x: rx + 3.0, y: 6.2, w: rw - 3.2, h: 0.55, fontSize: 10.5, bold: true, color: C.blue, align: "center", valign: "middle" });
+  txt(s, "→ TF-IDF·KcBERT의 오류 양상 차이 확인\n(과거 모델 분석·정규식 기준, 오라벨 단정 아님)", { x: rx + 3.0, y: 6.2, w: rw - 3.2, h: 0.55, fontSize: 10.5, bold: true, color: C.blue, align: "center", valign: "middle" });
   caption(s, "근거: docs/decisions.md M3-ENS-001·M3-FINAL-002, docs/experiment_log.md M3-ERR-001. 서로 다른 학습 조건의 공식 Val 점수 차이는 인과 효과가 아님.");
   s.addNotes("근거: docs/decisions.md M3-ENS-001(내부 3-seed 평균 0.6455 vs RoBERTa 0.6427, +0.0028 < 사전 기준 +0.01로 기각)·M3-FINAL-002(최종 RoBERTa×3 + TF-IDF, 사전 가중치 0.55/0.45, 공식 Val 0.6534), submission/mission3/README.md, docs/experiment_log.md M3-ERR-001. 상단 차트는 공식 Val만; REJECT 카드 수치는 Training 내부 80:20 홀드아웃으로 공식 Val과 직접 비교하지 않음. 공식 Val 단일 vs 최종 점수 차이를 통제 실험의 개선으로 해석하지 않음. 오류 분석 '근거 없음'은 키워드 정규식 기준으로 오라벨 단정이 아님.");
 }
