@@ -31,10 +31,13 @@ jobs:
         working-directory: ppt
         run: |
           npm ci --no-audit --no-fund
+          git show 9cebdb76b12492dd38636900da9d1672e7680f9f:ppt/build_deck.js > build_deck.original_qa.js
+          node build_deck.original_qa.js /tmp/m3_before.pptx
+          rm build_deck.original_qa.js
           node build_deck.js DCC2026_예선_결과정리.pptx
       - name: Verify exactly slide 31 changes, and audit graph evidence
         run: |
-          git show origin/main:ppt/DCC2026_예선_결과정리.pptx > /tmp/original.pptx
+          test -s /tmp/m3_before.pptx
           python - <<'PY'
           import re,zipfile,xml.etree.ElementTree as ET
           from pathlib import Path
@@ -44,7 +47,7 @@ jobs:
               assert z.testzip() is None
               paths=sorted([n for n in z.namelist() if re.fullmatch(r'ppt/slides/slide\d+\.xml',n)],key=lambda p:int(re.search(r'slide(\d+)',p).group(1)))
               return [''.join(t.text or '' for t in ET.fromstring(z.read(p)).iter(ns)) for p in paths]
-          before=stxt('/tmp/original.pptx')
+          before=stxt('/tmp/m3_before.pptx')
           after=stxt('ppt/DCC2026_예선_결과정리.pptx')
           assert len(before)==len(after)==37,(len(before),len(after))
           for slide in range(1,38):
@@ -67,14 +70,6 @@ jobs:
           path: ppt/DCC2026_예선_결과정리.pptx
           if-no-files-found: error
           retention-days: 2
-      - name: Commit exact regenerated official deck
+      - name: Summarize artifact-only build policy
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- ppt/DCC2026_예선_결과정리.pptx
-          if git diff --cached --quiet; then
-            echo 'PPTX unchanged'
-          else
-            git commit -m 'build(ppt): regenerate 37-slide PPTX with Mission 3 evidence graphic'
-            git push origin HEAD:subin/ppt-m3-evidence-visual-20261013
-          fi
+          echo 'PASS: Generated PPTX supplied as Actions artifact only; latest main intentionally omits oversized .pptx' >> "$GITHUB_STEP_SUMMARY"
