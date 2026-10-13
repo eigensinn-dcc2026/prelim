@@ -1034,26 +1034,52 @@ function flow(slide, x, y, w, h, f) {
     });
   });
 
-  // 오른쪽: 통화 → 전사 대화 아이콘(기존 자산)을 실제 발화 카드 안에 배치해 사례를 직관적으로 설명.
-  // 실제 최종 RoBERTa의 개별 예측 오류라고 주장하지 않는다.
+  // 실제 발화 카드: 전화 통화 GIF(가벼운 흔들림/파형) + PPT 편집 가능한 말풍선/라벨.
+  // 미션 2와 동일한 GIF 삽입 방식. 첫 프레임만 보여도 전체 메시지를 이해할 수 있다.
+  // 실제 모델 예측 장면이 아닌, 기존 보고서의 정규식 기반 전사-라벨 탐색 사례이다.
   card(s, rightX, topY, rightW, topH, C.light);
-  title(s, "■ 오류 분석에서 읽은 실제 발화", rightX + 0.20, topY + 0.14, rightW - 0.40, 14);
-  // 119 신고가 전사문으로 이어지는 상황을 보여 주는 기존 팀 아이콘 2종.
-  // 잘못 배치했던 32장 종합 카드 대신 여기(미션 3 분석 카드)에 둔다.
-  s.addImage({ path: IC + "flow_call.png", x: rightX + 0.22, y: topY + 0.59, w: 0.39, h: 0.39 });
-  txt(s, "→", { x: rightX + 0.64, y: topY + 0.67, w: 0.25, h: 0.22, fontSize: 12.5, bold: true, color: C.sky, align: "center" });
-  s.addImage({ path: IC + "flow_m3.png", x: rightX + 0.91, y: topY + 0.59, w: 0.39, h: 0.39 });
-  txt(s, "“어지러워서 정신을 못 차리겠다”", {
-    x: rightX + 1.34, y: topY + 0.51, w: rightW - 1.55, h: 0.54,
-    fontSize: 14.8, bold: true, color: C.blue, align: "center", valign: "middle",
+  title(s, "■ 오류 분석에서 읽은 실제 발화", rightX + 0.20, topY + 0.12, rightW - 0.40, 14);
+  s.addImage({
+    path: "figures/anim/m3_call_wave.gif",
+    x: rightX + 0.24, y: topY + 0.60, w: 1.38, h: 0.55,
   });
-  txt(s, "오심 양성 라벨 사례지만 직접적인 오심 표현은 미검출", {
-    x: rightX + 0.22, y: topY + 1.03, w: rightW - 0.44, h: 0.29,
-    fontSize: 11.0, color: C.text, align: "center", valign: "middle",
+  txt(s, "119 신고 · 음성 전달", {
+    x: rightX + 0.20, y: topY + 1.21, w: 1.46, h: 0.22,
+    fontSize: 9.0, color: C.sub, align: "center",
   });
-  txt(s, "보고서 인용 · 키워드 기준 · 최종 RoBERTa 예측 사례 아님", {
-    x: rightX + 0.20, y: topY + 1.43, w: rightW - 0.40, h: 0.17,
-    fontSize: 9.2, color: C.sub, align: "center",
+
+  // 말풍선 안의 전사 원문·라벨 대비 문구는 편집 가능한 개별 PPT 도형/텍스트.
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
+    x: rightX + 1.75, y: topY + 0.47, w: rightW - 1.96, h: 0.69,
+    fill: { color: C.white }, line: { color: C.sky, width: 1.7 }, rectRadius: 0.13,
+  });
+  txt(s, "“어지러워서 정신을\\n못 차리겠다”", {
+    x: rightX + 1.89, y: topY + 0.52, w: rightW - 2.25, h: 0.58,
+    fontSize: 15.0, bold: true, color: C.blue, align: "center", valign: "middle",
+  });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
+    x: rightX + 1.76, y: topY + 1.24, w: 1.41, h: 0.29,
+    fill: { color: C.blue }, line: { color: C.blue }, rectRadius: 0.10,
+  });
+  txt(s, "오심 양성 라벨", {
+    x: rightX + 1.78, y: topY + 1.27, w: 1.37, h: 0.22,
+    fontSize: 10.1, bold: true, color: C.white, align: "center", valign: "middle",
+  });
+  txt(s, "↔", {
+    x: rightX + 3.19, y: topY + 1.29, w: 0.21, h: 0.18,
+    fontSize: 11.0, bold: true, color: C.sub, align: "center",
+  });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
+    x: rightX + 3.43, y: topY + 1.24, w: rightW - 3.65, h: 0.29,
+    fill: { color: C.white }, line: { color: C.red, width: 1.4 }, rectRadius: 0.10,
+  });
+  txt(s, "오심 직접 표현 미검출", {
+    x: rightX + 3.45, y: topY + 1.27, w: rightW - 3.69, h: 0.22,
+    fontSize: 9.5, bold: true, color: C.red, align: "center", valign: "middle",
+  });
+  txt(s, "발화와 증상 라벨 사이의 정보 차이 · 키워드 기준 · 최종 RoBERTa 예측 사례 아님", {
+    x: rightX + 0.17, y: topY + 1.57, w: rightW - 0.34, h: 0.18,
+    fontSize: 8.8, color: C.sub, align: "center", valign: "middle",
   });
   const lw = 5.0;
   insight(s, M, 4.15, lw, 1.3, [
