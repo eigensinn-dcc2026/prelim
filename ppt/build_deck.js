@@ -690,7 +690,7 @@ function flow(slide, x, y, w, h, f) {
     panels(s);
     title(s, "■ 가설: 새 정보가 구분에 도움이 될까?", M + 0.25, 2.65, leftW - 0.5, 17);
     txt(s, "음색 요약에 없는 정보, 고음이 퍼진 정도와\n소리가 떨리는 빈도를 더하면 도움이 될까?", { x: M + 0.3, y: 3.2, w: leftW - 0.6, h: 0.85, fontSize: 16 });
-    stepBox(s, M + 0.3, 4.3, 2.5, 1.35, "Rolloff (롤오프)", "소리 에너지가 어느 높이의 음까지 퍼져 있나", C.blue, 13);
+    stepBox(s, M + 0.3, 4.3, 2.5, 1.35, "Rolloff", "소리 에너지가 어느 높이의 음까지 퍼져 있나", C.blue, 13);
     stepBox(s, M + 3.15, 4.3, 2.5, 1.35, "ZCR (영교차율)", "소리 파형이 위아래로 얼마나 자주 뒤집히나", C.sky, 13);
     txt(s, "음색 40개 + 새 정보 2개 = 42개 숫자", { x: M + 0.3, y: 5.9, w: leftW - 0.6, h: 0.35, fontSize: 15, bold: true, color: C.blue, align: "center" });
     txt(s, "※ 숫자 1개가 1차원이라, 이후 \"42D\"는 이 42개 숫자를 뜻합니다", { x: M + 0.3, y: 6.3, w: leftW - 0.6, h: 0.3, fontSize: 11, color: C.sub, align: "center" });
