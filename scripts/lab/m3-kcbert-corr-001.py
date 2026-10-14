@@ -90,20 +90,32 @@ def prepare_rows(out, work):
     cache = out / "rows.json"
     if cache.exists():
         return json.loads(cache.read_text(encoding="utf-8"))
-    from dcc_data.colab_env import find_data_root
-    source = find_data_root() / "Training" / "TL_서울_구급.zip"
-    local = work / source.name
-    atomic_write(local, lambda p: shutil.copyfile(source, p))
-    extracted = work / "labels"
-    extracted.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(local) as archive:
-        for item in archive.infolist():
-            target = (extracted / item.filename).resolve()
-            if not target.is_relative_to(extracted.resolve()):
-                raise ValueError(f"Unsafe zip member: {item.filename}")
-        archive.extractall(extracted)
+    # An official folder of JSON files is supported when the shared data is not zipped.
+    # Reading is strictly read-only and preserves the baseline's sorted filename order.
+    raw_dir = os.environ.get("DCC_JSON_DIR")
+    if raw_dir:
+        root = Path(raw_dir).expanduser()
+        if root.name != "TL_서울_구급" or not root.is_dir():
+            raise FileNotFoundError(f"DCC_JSON_DIR must point to the TL_서울_구급 label folder: {root}")
+        json_paths = sorted(root.rglob("*.json"))
+    else:
+        from dcc_data.colab_env import find_data_root
+        source = find_data_root() / "Training" / "TL_서울_구급.zip"
+        local = work / source.name
+        atomic_write(local, lambda p: shutil.copyfile(source, p))
+        extracted = work / "labels"
+        extracted.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(local) as archive:
+            for item in archive.infolist():
+                target = (extracted / item.filename).resolve()
+                if not target.is_relative_to(extracted.resolve()):
+                    raise ValueError(f"Unsafe zip member: {item.filename}")
+            archive.extractall(extracted)
+        json_paths = sorted((extracted / "TL_서울_구급").rglob("*.json"))
+    if not json_paths:
+        raise FileNotFoundError("No 119 Training label JSON files were found in the selected source.")
     rows = []
-    for path in sorted((extracted / "TL_서울_구급").rglob("*.json")):
+    for path in json_paths:
         doc = json.loads(path.read_text(encoding="utf-8-sig"))
         symptoms = doc.get("symptom", [])
         if isinstance(symptoms, str):
