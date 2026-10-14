@@ -266,7 +266,7 @@ function flow(slide, x, y, w, h, f) {
     ["01", "준비 과정", ["사전 학습 로드맵", "팀 구성과 협업 체계"]],
     ["02", "데이터 분석", ["EDA 핵심 발견"]],
     ["03", "미션별 수행", ["Mission 1  신고자 성별 분류", "Mission 2  신고자/대원 분류\n   (+ 실험 흐름·공식 검증·오류 분석)", "Mission 3  환자 증상 인식"]],
-    ["04", "종합 및 시사점", ["성능 요약과 교훈", "사회안전 시사점", "추후 활동 계획"]],
+    ["04", "종합 및 시사점", ["성능 요약과 교훈", "사회안전 시사점", "추후 활동 계획", "별첨 · Mission 3 상세 근거"]],
   ];
   const cw = (CW - 3 * 0.3) / 4;
   secs.forEach(([n, name, items], i) => {
@@ -1194,8 +1194,8 @@ function flow(slide, x, y, w, h, f) {
   card(s, rightX, topY, rightW, topH);
   title(s, "■ 데이터 관찰 → 설계 결정", M + 0.2, topY + 0.11, leftW - 0.4, 15);
   const observations = [
-    ["라벨 불균형", "9개 증상 양성 비율 9.9~23.2%", "pos_weight BCE + Soft macro-F1"],
-    ["입력 길이", "40.7%가 256토큰 초과 · 512토큰 +0.74%p", "기준 +1.00%p 미달·약 4배 시간 → 256 유지"],
+    ["라벨 불균형", "9개 증상 양성 비율 9.9~23.2%", "희귀 증상 가중 BCE(pos_weight) + Soft macro-F1"],
+    ["입력 길이", "40.7%가 256토큰 초과 · 512토큰 +0.74%p", "기준(+1.00%p)에 못 미치고 약 4배 느려 256토큰 유지"],
     ["입력 정보", "전사 text만 원본 시간순 연결", "화자 태그·허용되지 않은 라벨 제외"],
   ];
   observations.forEach(([name, observed, decision], i) => {
@@ -1215,7 +1215,7 @@ function flow(slide, x, y, w, h, f) {
   txt(s, "최종 학습 손실", { x: rightX + 0.2, y: topY + 1.81, w: rightW - 0.4, h: 0.23, fontSize: 10.8, bold: true, color: C.sub });
   s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: rightX + 0.18, y: topY + 2.07, w: rightW - 0.36, h: 0.42, fill: { color: C.bgGray }, rectRadius: 0.06, line: { color: C.line, width: 0.6 } });
   txt(s, "L = BCEWithLogits(pos_weight = wⱼ) + 1 − meanⱼ(SoftF1ⱼ)", { x: rightX + 0.27, y: topY + 2.07, w: rightW - 0.54, h: 0.42, fontSize: 11.6, bold: true, color: C.blue, valign: "middle", align: "center" });
-  txt(s, "실효 batch 16 = micro batch 8 × 2 · Soft-F1은 micro batch별 계산", { x: rightX + 0.2, y: topY + 2.54, w: rightW - 0.4, h: 0.18, fontSize: 9.3, color: C.sub });
+  txt(s, "BCE = 증상 유무 예측 오차 · SoftF1 = 학습에 쓸 수 있게 만든 F1 점수 (한 번에 16건씩 학습)", { x: rightX + 0.2, y: topY + 2.54, w: rightW - 0.4, h: 0.18, fontSize: 9.3, color: C.sub });
 
   // 하단: 3단계 최종 앙상블과 판정 — 가중치·임계값 고정.
   const bottomY = 5.31, bottomH = 1.55;
@@ -1223,7 +1223,7 @@ function flow(slide, x, y, w, h, f) {
   title(s, "■ 최종 앙상블과 판정", M + 0.21, bottomY + 0.08, CW - 0.42, 15);
   const boxY = bottomY + 0.44, boxH = 0.77, bw = 3.75, arrowW = 0.25;
   const steps = [
-    ["STEP 1 · RoBERTa 3-seed 평균", "pR = (p42 + p43 + p44) / 3"],
+    ["STEP 1 · RoBERTa 3개 평균", "pR = (p42 + p43 + p44) / 3"],
     ["STEP 2 · 최종 앙상블 확률", "pfinal = 0.55 × pR + 0.45 × pTF-IDF"],
     ["STEP 3 · 최종 판정", "ŷⱼ = 1 if pfinal,ⱼ ≥ 0.5"],
   ];
@@ -1234,7 +1234,7 @@ function flow(slide, x, y, w, h, f) {
     txt(s, eq, { x: x + 0.07, y: boxY + 0.37, w: bw - 0.14, h: 0.29, fontSize: i === 1 ? 13.6 : 14, color: C.blue, bold: true, align: "center" });
     if (i < 2) txt(s, "→", { x: x + bw + 0.015, y: boxY + 0.25, w: arrowW, h: 0.3, fontSize: 16, bold: true, color: C.sky, align: "center" });
   });
-  txt(s, "모든 증상에 동일한 threshold 0.5 적용 · 증상별 threshold 조정 및 별도 후처리 없음", { x: M + 0.2, y: bottomY + 1.27, w: CW - 0.4, h: 0.2, fontSize: 10.1, bold: true, color: C.blue, align: "center" });
+  txt(s, "p42·p43·p44 = 시작값 42·43·44로 학습한 모델의 예측 확률 · 모든 증상에 같은 판정 기준(threshold) 0.5 적용, 증상별 조정·후처리 없음", { x: M + 0.2, y: bottomY + 1.27, w: CW - 0.4, h: 0.2, fontSize: 10.1, bold: true, color: C.blue, align: "center" });
   caption(s, "※ 입력 길이와 512토큰 실험은 Training 내부 80:20 홀드아웃 기준이며, 공식 Validation은 모델 선택에 사용하지 않음.", 7.02);
   s.addNotes("기존 p17 + p21 통합. 데이터: Training 29,200통화, 평가 전용 Validation 3,640통화, 9개 증상, Training 통화당 평균 증상 수 1.43. 라벨별 양성 비율(Training): 열상 23.2, 어지러움 21.7, 전신쇠약 18.2, 고열 17.8, 구토 15.3, 호흡곤란 13.4, 복통 11.9, 오심 11.4, 두통 9.9(%). 입력 길이와 512토큰 실험은 Training 내부 80:20 홀드아웃: 40.7% 256토큰 초과, Macro F1 +0.74%p, 사전 기준 +1.00%p 미달, 학습시간 약 4배. 전사 utterances[].text만 원본 순서로 연결하며 화자 태그와 허용되지 않은 라벨은 사용하지 않음. Soft macro-F1 상세: pᵢⱼ = sigmoid(zᵢⱼ), SoftF1ⱼ = 2Σᵢ(pᵢⱼyᵢⱼ) / [Σᵢpᵢⱼ + Σᵢyᵢⱼ + 10⁻⁸]. 가중치 wⱼ = clip(0.5 × √((N − Pⱼ) / max(Pⱼ,1)),1,6). 실효 batch 16 = micro 8 × 2, soft-F1 micro batch별 계산. 최종 RoBERTa seeds 42·43·44 확률 평균 가중치 55%와 TF-IDF 확률 가중치 45%를 결합, 모든 증상 threshold 0.5 적용(별도 후처리 없음). 근거: reports/eda/eda_report.md; docs/experiment_log.md M3-ROBERTA-007; submission/mission3/README.md; submission/mission3/train/train_final.py; submission/mission3/train/build_ensemble.py; submission/mission3/mission3_model.py.");
 }
@@ -1244,7 +1244,7 @@ function flow(slide, x, y, w, h, f) {
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "별첨", "Mission 3", "별첨 2. M3 입력 길이 확대 실험", 34);
+  header(s, "별첨", "Mission 3", "별첨 2. Mission 3 입력 길이 확대 실험", 34);
   coreMsg(s, "512토큰은 성능이 개선됐지만 사전 채택 기준과 계산비용 조건을 충족하지 못함");
 
   const epochs = ["Epoch 1", "Epoch 2", "Epoch 3"];
@@ -1286,7 +1286,7 @@ function flow(slide, x, y, w, h, f) {
     fill: C.white, border: { type: "solid", pt: 0.7, color: C.line },
   });
   s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 7.75, y: 6.2, w: 5.08, h: 0.68, fill: { color: C.light }, rectRadius: 0.06, line: { color: C.sky, width: 1 } });
-  txt(s, "성능은 개선됐지만 사전 기준에 미달했고 계산비용이 증가해 앞 256토큰을 유지", { x: 7.95, y: 6.2, w: 4.68, h: 0.68, fontSize: 11.5, bold: true, color: C.blue, align: "center", valign: "middle" });
+  txt(s, "성능은 개선됐지만 사전 기준에 미달했고 계산비용이 증가해 앞 256토큰만 읽는 방식을 유지", { x: 7.95, y: 6.2, w: 4.68, h: 0.68, fontSize: 11.5, bold: true, color: C.blue, align: "center", valign: "middle" });
   caption(s, "※ Training 내부 80:20 홀드아웃, seed 42 기준. 공식 Validation은 사용하지 않음.", 7.0);
   s.addNotes("근거: docs/experiment_log.md M3-ROBERTA-007, docs/decisions.md의 입력 512토큰 기각 결정");
 }
@@ -1296,13 +1296,13 @@ function flow(slide, x, y, w, h, f) {
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "별첨", "Mission 3", "별첨 3. Mission 3 낮은 성능 3개 라벨의 오류 구조", 35);
+  header(s, "별첨", "Mission 3", "별첨 3. Mission 3 낮은 성능 3개 증상의 오류 구조", 35);
   coreMsg(s, "직접 표현이 없는 양성이 많았고, 두통과 오심은 표현 유무에 따라 재현율 차이가 컸다");
 
-  const labels = ["전신쇠약", "두통", "오심"];
+  const labels = ["오심", "두통", "전신쇠약"];
   s.addChart(pres.charts.BAR, [
-    { name: "직접 표현 있음 재현율", labels, values: [0.907, 0.820, 0.684] },
-    { name: "직접 표현 없음 재현율", labels, values: [0.549, 0.195, 0.356] },
+    { name: "직접 표현 있음 재현율", labels, values: [0.684, 0.820, 0.907] },
+    { name: "직접 표현 없음 재현율", labels, values: [0.356, 0.195, 0.549] },
   ], {
     x: M, y: 2.46, w: 6.35, h: 3.7, barDir: "bar", barGrouping: "clustered", catAxisOrientation: "maxMin",
     chartColors: [C.blue, "EF9A9A"], showTitle: true, title: "직접 표현 유무별 재현율 · Training 내부 홀드아웃",
@@ -1318,7 +1318,7 @@ function flow(slide, x, y, w, h, f) {
   const errRows = [
     [
       headerCell("증상", { rowspan: 2 }),
-      headerCell("최종 앙상블\n공식 Validation F1\n(3,640건)", { rowspan: 2 }),
+      headerCell("최종 모델 F1\n(공식 Validation)", { rowspan: 2 }),
       headerCell("Training 내부 홀드아웃 오류 진단 (5,792건)", { colspan: 3, fill: { color: diagFill } }),
     ],
     [
@@ -1326,12 +1326,12 @@ function flow(slide, x, y, w, h, f) {
       headerCell("직접 표현 없음", { fill: { color: diagFill } }),
       headerCell("내부 TF-IDF\nTP / FP / FN", { fill: { color: diagFill } }),
     ],
-    ["전신쇠약", "59.39%", "1,062", "804건 · 75.7%", "675 / 846 / 387"],
-    ["두통", "53.15%", "581", "370건 · 63.7%", "245 / 372 / 336"],
     ["오심", "40.00%", "668", "592건 · 88.6%", "263 / 754 / 405"],
+    ["두통", "53.15%", "581", "370건 · 63.7%", "245 / 372 / 336"],
+    ["전신쇠약", "59.39%", "1,062", "804건 · 75.7%", "675 / 846 / 387"],
   ];
   s.addTable(errRows, {
-    x: 7.08, y: 2.52, w: 5.75, colW: [0.72, 1.12, 0.96, 1.35, 1.6], rowH: [0.48, 0.55, 0.56, 0.56, 0.56],
+    x: 7.08, y: 2.52, w: 5.75, colW: [0.72, 1.3, 0.93, 1.3, 1.5], rowH: [0.48, 0.55, 0.56, 0.56, 0.56],
     fontFace: F, fontSize: 9.2, color: C.text, valign: "middle", align: "center", margin: 0.05,
     border: { type: "solid", pt: 0.7, color: C.line },
   });
@@ -1339,7 +1339,7 @@ function flow(slide, x, y, w, h, f) {
   txt(s, "오심은 양성의 88.6%에서 직접 표현을 찾지 못했고, 두통은 표현이 없을 때 재현율이 19.5%까지 낮아졌다.", { x: 7.28, y: 5.5, w: 5.35, h: 0.35, fontSize: 11.2, bold: true, color: C.blue, align: "center", valign: "middle" });
   txt(s, "통화에서 관찰할 수 없는 정보가 성능을 제한했을 가능성", { x: 7.28, y: 5.86, w: 5.35, h: 0.22, fontSize: 9.5, color: C.sub, align: "center" });
   txt(s, [
-    { text: "※ 최종 F1은 최종 RoBERTa 3-seed + TF-IDF 앙상블의 공식 Validation 결과", options: { breakLine: true } },
+    { text: "※ 최종 F1은 최종 모델(RoBERTa 3개 + TF-IDF)의 공식 Validation 결과(3,640건)", options: { breakLine: true } },
     { text: "※ 오류 진단은 Training 80:20 홀드아웃 5,792건의 TF-IDF 모델 기준", options: { breakLine: true } },
     { text: "※ 직접 표현 여부는 증상별 정규식 탐색 결과이며, 구어체 변형을 모두 포착하지 못하므로 표현 비율은 하한값", options: { breakLine: true } },
     { text: "※ 직접 표현이 없다는 결과는 오라벨을 의미하지 않음" },
@@ -1354,7 +1354,7 @@ function flow(slide, x, y, w, h, f) {
 {
   const s = pres.addSlide();
   header(s, "별첨", "Mission 3", "별첨 4. Mission 3 채택 실험 로그", 36);
-  coreMsg(s, "가중 BCE와 soft macro-F1, RoBERTa 확장이 단계적인 성능 개선을 만들었다.");
+  coreMsg(s, "가중 BCE와 soft macro-F1, RoBERTa 확장과 함께 성능이 단계적으로 개선됐다.");
   const rows = [
     ["실험 ID", "핵심 변경", "평가 기준", "Macro F1", "판단"],
     ["M3-REEVAL-P0", "TF-IDF + One-vs-Rest LR", "내부 80:20", "56.76%", "기준선"],
@@ -1372,9 +1372,11 @@ function flow(slide, x, y, w, h, f) {
       align: (j === 3 || j === 4) ? "center" : "left", valign: "middle" } };
   }));
   s.addTable(nativeRows, { x: M, y: 2.43, w: CW, colW: [2.05, 4.18, 2.0, 1.3, 2.8],
-    rowH: [0.53, 0.51, 0.51, 0.51, 0.51, 0.51, 0.51, 0.55], fontFace: F,
+    rowH: [0.48, 0.46, 0.46, 0.46, 0.46, 0.46, 0.46, 0.5], fontFace: F,
     fontSize: 11, color: C.text, margin: 0.065, valign: "middle",
     border: { type: "solid", pt: 0.65, color: C.line } });
+  txt(s, "※ 가중 BCE: 희귀 증상을 놓칠 때 더 큰 벌점을 주는 학습 방식 · soft macro-F1: F1 점수 자체를 높이도록 학습 손실에 포함 · One-vs-Rest LR: 증상마다 따로 만든 로지스틱 회귀",
+    { x: M, y: 6.3, w: CW, h: 0.3, fontSize: 9.8, color: C.sub, valign: "middle" });
   card(s, M, 6.66, 6.06, 0.38, C.light);
   txt(s, [{ text: "내부 검증  ", options: { bold: true, color: C.blue } },
     { text: "56.76% → 64.27%  (+7.51%p)", options: { bold: true } }],
@@ -1384,7 +1386,7 @@ function flow(slide, x, y, w, h, f) {
     { text: "Macro F1  65.34%", options: { bold: true } }],
     { x: 6.87, y: 6.68, w: 5.85, h: 0.3, fontSize: 12.5, valign: "middle", align: "center" });
   caption(s, "※ 56.76%~64.27%는 Training 내부 80:20 홀드아웃, 65.34%는 전체 Training 학습 후 공식 Validation 결과.", 7.12);
-  s.addNotes("근거: docs/experiment_log.md, docs/decisions.md — M3-REEVAL-P0, M3-KCBERT-002·003·005·012, M3-ROBERTA-003, M3-FINAL-002. 내부 홀드아웃과 공식 Validation 수치를 직접 비교하지 않음.");
+  s.addNotes("화면의 \"RoBERTa 3개\"는 seed 42·43·44. 가중 BCE·soft macro-F1·One-vs-Rest LR 풀이는 화면 하단 각주. 근거: docs/experiment_log.md, docs/decisions.md — M3-REEVAL-P0, M3-KCBERT-002·003·005·012, M3-ROBERTA-003, M3-FINAL-002. 내부 홀드아웃과 공식 Validation 수치를 직접 비교하지 않음.");
 }
 
 // 37. 별첨 5 — Mission 3 주요 기각 실험 (네이티브 편집 가능 표)
@@ -1397,7 +1399,7 @@ function flow(slide, x, y, w, h, f) {
     ["실험 방향", "대표 실험", "대표 결과", "비교 기준", "기각 이유"],
     ["긴 입력 처리", "M3-ROBERTA-007", "65.15%", "RoBERTa seed 42 64.41%", "+0.74%p, 계산 비용 약 4배"],
     ["학습 기간 확대", "M3-KCBERT-006", "58.83%", "KcBERT-005 60.92%", "3 epochs보다 성능 하락"],
-    ["정규화·도메인 적응", "M3-KCBERT-011·013", "61.32% / 61.18%", "KcBERT-005 60.92%", "개선폭이 seed 편차 수준"],
+    ["정규화·도메인 적응", "M3-KCBERT-011·013", "61.32% / 61.18%", "KcBERT-005 60.92%", "개선폭이 시작값에 따른 흔들림 수준"],
     ["손실 함수 변형", "M3-KCBERT-014·015", "62.53% / 62.49%", "KcBERT-012 62.65%", "soft-F1 기준선보다 낮음"],
     ["다른 인코더", "M3-E5-001·KCELECTRA-001·QWEN-001", "최고 63.84%", "RoBERTa seed 42 64.41%", "RoBERTa-large를 넘지 못함"],
     ["보조 증상·출력 구조", "M3-ROBERTA-004·STRUCT-001", "64.74% / 64.31%", "각 기준선", "최대 개선폭 +0.33%p"],
@@ -1413,11 +1415,11 @@ function flow(slide, x, y, w, h, f) {
     rowH: [0.46, 0.48, 0.48, 0.50, 0.48, 0.62, 0.54, 0.48],
     fontFace: F, fontSize: 10.1, color: C.text, margin: 0.055, valign: "middle",
     border: { type: "solid", pt: 0.65, color: C.line } });
-  card(s, M, 6.82, CW, 0.34, C.light);
-  txt(s, "모델 복잡화보다 클래스 불균형과 Macro F1을 반영한 손실 설계가 더 효과적이었다.",
-    { x: M + 0.16, y: 6.84, w: CW - 0.32, h: 0.28, fontSize: 12.2, bold: true,
+  card(s, M, 6.68, CW, 0.34, C.light);
+  txt(s, "모델 복잡화보다 클래스 불균형과 Macro F1을 반영한 손실 설계 쪽에서 더 큰 개선이 있었다.",
+    { x: M + 0.16, y: 6.70, w: CW - 0.32, h: 0.28, fontSize: 12.2, bold: true,
       color: C.blue, align: "center", valign: "middle" });
-  caption(s, "근거: docs/experiment_log.md, docs/decisions.md — M3-ROBERTA-007 등 주요 기각 실험", 7.17);
+  caption(s, "근거: docs/experiment_log.md, docs/decisions.md — M3-ROBERTA-007 등 주요 기각 실험", 7.12);
   s.addNotes("근거: docs/experiment_log.md, docs/decisions.md — M3-ROBERTA-007, M3-KCBERT-006·011·013·014·015, M3-E5-001, M3-KCELECTRA-001, M3-QWEN-001, M3-ROBERTA-004, M3-STRUCT-001, M3-ENS-001. 미리 정한 +1.00%p 개선 기준에 못 미치거나 비교 모델보다 낮은 주요 변형만 정리함.");
 }
 
