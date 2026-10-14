@@ -32,3 +32,7 @@ ppt/node_modules/
 submission/**/*.pt
 submission/**/*.pth
 submission/**/*.ckpt
+
+# Locally retrained reeval model binary and per-utterance predictions (only metrics/per-label CSV are committed)
+reports/mission3/m3_reeval_tfidf_lr/*.joblib
+reports/mission3/m3_reeval_tfidf_lr/validation_predictions.csv
