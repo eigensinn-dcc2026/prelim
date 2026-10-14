@@ -32,44 +32,45 @@ const IC = "figures/icons/"; // ppt/tools/make_icons.py 로 생성
 // M2 제출 모델을 바꾸면 이 블록만 고친다. 12·13·14·15·30·32장이 모두 여기서 읽는다.
 // 현재 값: CNN 3-seed 앙상블 + WavLM-large 2개 확률 가중 평균 (submission/mission2/README.md, experiment_log.md M2-BLEND-001)
 const M2 = {
-  // 12장 문제·제약·최종 모델
-  core12: "발화 하나만 보고 신고자/대원을 가린다. CNN 3개 + WavLM-large 2개 확률 가중 평균, 공식 Validation 92.90%.",
+  // 11장 문제·제약·최종 모델
+  core12: "발화 하나의 소리만 쓰는 규칙 안에서, 처음부터 배운 CNN과 사전학습 음성 모델 WavLM을 섞어 92.90%.",
   // 구조도 (flow 함수 입력): 앞 단계 → 앙상블 멤버 → 판정
   flow: {
-    pre: [["발화 구간", "startAt~endAt만"], ["그 발화만 사용", "text·순서·다른 발화 X"]], preW: 1.95,
+    pre: [["발화 구간만 입력", "startAt~endAt\ntext·순서·다른 발화 X"]], preW: 2.5,
     branches: [["CNN 3개 평균", "log-mel · 300프레임", "× 0.4"], ["WavLM-large 2개", "16 kHz · 3초 창", "× 0.3 + 0.3"]], brW: 2.6, brGap: 0.1,
     post: [["가중 평균", "≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 2.0,
   },
   why: [
     ["음향 차이", "대원 헤드셋·정해진 말투\n신고자 휴대전화·잡음"],
-    ["단계적 검증", "통계 특징(L1) → CNN(L2)\n→ WavLM 결합"],
-    ["두 종류 결합", "CNN 처음부터 학습 +\n공개 사전학습 WavLM 미세조정"],
+    ["CNN", "log-mel을 처음부터 학습\n강의 교안의 Log-Mel → CNN"],
+    ["WavLM", "공개 사전학습 모델 미세조정\n교안의 wav2vec 2.0 계열 후속 모델"],
   ],
-  // 13장 성능 개선 과정 (막대 차트: 공식 Validation Accuracy)
-  core13: "86.44% → 91.49% → 92.90%. CNN의 이득은 겹친 구간에 몰렸고, 사전학습 WavLM을 더해 +1.41%p를 더 얻었다.",
-  chart: { labels: ["L1 LightGBM", "L2 CNN 3-seed 앙상블\n(처음부터 학습)", "CNN 3개 + WavLM 2개\n(사전학습 미세조정)"], values: [86.44, 91.49, 92.90] },
-  gainTitle: "■ CNN의 이득이 몰린 곳",
+  // 12장 성능 개선 과정 (막대 차트: 공식 Validation Accuracy)
+  core13: "세 번의 전환점: CNN 도입(+5.05%p) → 제출 방식 차이 보정 → 사전학습 WavLM 결합(+1.41%p).",
+  chart: { labels: ["L1 LightGBM", "L2 CNN\n3-seed 앙상블", "CNN 3개\n+ WavLM 2개"], values: [86.44, 91.49, 92.90] },
+  gainTitle: "■ 전환점 ①  CNN의 이득이 몰린 곳",
   gains: [["약 +7%p", "겹친 구간"], ["약 +2%p", "겹치지 않은 구간"]],
   gainNote: "통계 특징(L1) 대비 CNN 단일 모델의 개선 폭 (공식 Validation)",
-  gainWhy: "대원: 헤드셋·정해진 말투  /  신고자: 휴대전화·잡음",
-  finding: "제출과 같은 방식(한 발화씩 추론)으로 평가하자 정확도가 1.15%p 떨어졌다. 학습 때의 배치 패딩과 입력이 달랐기 때문이며, 각 발화를 자기 자신만으로 300프레임까지 채워 회복했다.",
-  // 14장 다른 접근 — 마지막 행이 최종 채택한 WavLM-large 미세조정 + CNN 결합
-  core14: "CNN 하나로 끝내지 않고 여러 방향을 검증했다. 효과가 없거나 규칙에 어긋난 것은 이유와 함께 기록했다.",
-  lastRow: ["WavLM-large 미세조정 2개 + CNN 결합", "채택", "내부 +1.27%p (공식 Val 92.90%)"],
-  // 15장 최종 결과와 보완할 점
-  core15: "공식 Validation 92.90%. 제출 폴더 그대로 GPU에서 검증했고, 코드 정리·속도 개선 전후 판정이 모두 같았다.",
+  turn2: "한 발화씩 추론하자 정확도가 떨어졌다(학습 때와 채우기 방식 차이). 발화마다 자기 자신만으로 같은 길이로 채워 회복.",
+  turn3: "사전학습 WavLM-large는 단독으로도 CNN보다 높았고(92.40·92.71%), 둘을 섞어 92.90%.",
+  // 13장 다른 접근 — 마지막 행이 최종 채택한 WavLM-large 미세조정 + CNN 결합
+  core14: "규칙에 어긋날 소지가 있으면 성능이 좋아도 뺐고, 효과가 확인된 것만 남겼다.",
+  lastRow: ["WavLM-large 미세조정 2개 + CNN 결합", "✓ 채택", "large·전체 데이터로 단독도 CNN 초과 → 결합 92.90%"],
+  // 14장 최종 결과와 보완할 점
+  core15: "92.90%. 남은 오류는 \"네\"·\"여보세요\" 같은 짧은 응답에 몰려 있다 — 발화 하나만 보는 규칙의 한계.",
   acc: "92.90%",
   recalls: [["88.36%", "대원 recall"], ["97.10%", "신고자 recall"]],
-  repro: "제출 폴더 그대로 다시 실행해도 같은 결과\n(92.90%, 111,947발화 판정 차이 0건)",
-  improve: "대원 recall이 더 낮다.\n\"네\", \"여보세요\" 같은 짧은 응답은 두 화자가 비슷하게 들리고, 규칙상 통화 맥락을 쓸 수 없다.",
-  // 30장 성능 요약 표, 32장 향후 계획
+  repro: "파라미터 6.3억 개 · GPU(A100) 1장\n공식 Val 전체 12.1분 (발화당 6.5ms)\n제출 폴더 그대로 재실행해도 판정 차이 0건",
+  improve: "대원 recall(88.36%)이 신고자(97.10%)보다 낮다.\n남은 오답의 약 78%는 모든 모델이 함께 틀리고,\n대부분 짧은 응답이다.\n규칙상 통화 맥락을 쓸 수 없어,\n소리만으로는 두 화자가 비슷하게 들린다.",
+  // 18장 성능 요약 표, 19장 향후 계획
   summary: { task: "M2 신고자/대원", model: "CNN × 3 + WavLM-large × 2", val: "92.90%", gain: "+6.46%p" },
   future: "짧은 응답(\"네\"·\"예\") 보강 — 오답의 약 78%가 모든 모델 공통",
+  refs: "대학부 강의 교안 오디오 단원(p.176~182), WavLM(Chen et al., 2022)",
   evidence: "submission/mission2/README.md, docs/experiment_log.md M2-BLEND-001·M2-WLML-001·002·M2-RERUN-001·M2-RETRAIN-001",
-  // 슬라이드 노트·캡션의 근거 (13·15장)
+  // 슬라이드 노트·캡션의 근거 (12·14장)
   evidence13: "근거: docs/experiment_log.md M2-RETRAIN-001, M2-RERUN-001, M2-BLEND-001, M2-COMPARE-002, M2-PAD-001·002",
   notes13: "근거: L1 86.44%(M2-RETRAIN-001, 제공 라벨 재학습 L1) / CNN 단일 90.98%(M2-ENS-003 ts1) / 3-seed 앙상블 91.49%(M2-RERUN-001) / CNN 3개 + WavLM-large 2개 92.90%(M2-BLEND-001, submission/mission2/README.md). 겹침 구간: M2-COMPARE-002 — 겹침 L1 81.83%→L2 88.88%(+7.05%p), 안 겹침 90.01%→92.44%(+2.43%p), L2 단일 모델 기준. 패딩: M2-PAD-001(발화별 300프레임 채우기), M2-VAL-005, M2-PAD-002.",
-  notes15: "근거: submission/mission2/README.md '결과와 계산 효율성' 표(92.90% = 103,994/111,947, 대원 recall 88.36%, 신고자 recall 97.10%). 검증: submission/mission2/verify_mission2_final_on_gpu.ipynb(제출 폴더 그대로 Colab A100, requirements만·인터넷 차단, 코드 정리·속도 개선 전후 판정 동일), PR #216·#222. 비율(CNN 0.4 / WavLM 0.3·0.3)은 Training 내부 20,000발화로 고름(공식 Val로 고르지 않음).",
+  notes15: "근거: submission/mission2/README.md '결과와 계산 효율성' 표(92.90% = 103,994/111,947, 대원 recall 88.36%, 신고자 recall 97.10%, 파라미터 633,220,220, A100 추론 12.1분·발화당 6.5ms). 공통 오답 약 78%: M2-HUBERT-001 분석. 검증: submission/mission2/verify_mission2_final_on_gpu.ipynb(제출 폴더 그대로 Colab A100, requirements만·인터넷 차단, 코드 정리·속도 개선 전후 판정 동일), PR #216·#222. 비율(CNN 0.4 / WavLM 0.3·0.3)은 Training 내부 20,000발화로 고름(공식 Val로 고르지 않음).",
 };
 
 const shadow = () => ({ type: "outer", blur: 5, offset: 1, angle: 90, color: "000000", opacity: 0.1 });
@@ -224,6 +225,207 @@ function flow(slide, x, y, w, h, f) {
     if (i > 0) link(slide, cx - gap, mid, cx, mid);
     cx += f.postW + gap;
   });
+}
+
+// ======================================================================
+// Mission 2 (김광희 담당) 추가 슬라이드: 모델 선택 근거 + 별첨 3장
+// 숫자 출처: submission/mission2/README.md, docs/experiment_log.md (M2-RETRAIN-001, M2-RERUN-001, M2-COMPARE-002,
+// M2-PAD-001, M2-WLML-001·002, M2-HUBERT-001, M2-BLEND-001), 발화별 확률 파일(내부 20,000발화·공식 Validation)로 재계산
+// ======================================================================
+
+// ---------- 본문: 모델 선택 근거 ----------
+function m2ReasonSlide() {
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 모델 선택 근거", 0);
+  coreMsg(s, "통계 요약 → 스펙트로그램 CNN → 사전학습 음성 모델. 교안 오디오 단원의 순서를 그대로 밟았다.");
+
+  const colW = 3.95, gap = (CW - 3 * colW) / 2, top = 2.45, h = 3.3;
+  const cols = [
+    {
+      head: "1단계  통계 특징 + LightGBM", color: C.line, textColor: C.text,
+      rows: [
+        ["입력", "발화를 숫자 53개로 요약\n(MFCC·에너지·스펙트럼 통계)"],
+        ["교안", "p.173 Mel-spectrogram · MFCC"],
+        ["한계", "시간에 따른 소리 변화가 사라짐\n목소리가 겹친 구간 81.83%"],
+      ],
+      result: "86.44%",
+    },
+    {
+      head: "2단계  log-mel CNN", color: C.sky, textColor: C.white,
+      rows: [
+        ["입력", "발화의 log-mel 스펙트로그램\n(40 mel × 시간, 그 발화만)"],
+        ["교안", "p.176~179 Log-Mel → CNN"],
+        ["한계", "89만 발화로 처음부터 학습\n0.5~1초 발화 정확도 87.60%"],
+      ],
+      result: "91.49%",
+    },
+    {
+      head: "3단계  사전학습 WavLM-large", color: C.blue, textColor: C.white,
+      rows: [
+        ["입력", "발화 파형 3초 (16 kHz)\n공개 음성 9.4만 시간으로 사전학습"],
+        ["교안", "p.182 wav2vec 2.0: 사전학습 → 미세조정\nWavLM: 화자 과제까지 학습한 후속작"],
+        ["효과", "단독 92.40·92.71% (CNN보다 높음)\n짧은 발화에서 개선 폭이 가장 큼"],
+      ],
+      result: "92.90%",
+    },
+  ];
+  cols.forEach((c, i) => {
+    const x = M + i * (colW + gap);
+    card(s, x, top, colW, h);
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y: top, w: colW, h: 0.48, fill: { color: c.color }, rectRadius: 0.1, line: { color: c.color } });
+    s.addShape(pres.shapes.RECTANGLE, { x, y: top + 0.28, w: colW, h: 0.2, fill: { color: c.color }, line: { color: c.color } });
+    txt(s, c.head, { x, y: top, w: colW, h: 0.48, fontSize: 13.5, bold: true, color: c.textColor, align: "center", valign: "middle" });
+    c.rows.forEach(([k, v], r) => {
+      const y = top + 0.62 + r * 0.72;
+      txt(s, k, { x: x + 0.18, y, w: 0.6, h: 0.6, fontSize: 11.5, bold: true, color: C.blue, valign: "middle" });
+      txt(s, v, { x: x + 0.8, y, w: colW - 0.95, h: 0.6, fontSize: 11, color: C.text, valign: "middle" });
+      s.addShape(pres.shapes.LINE, { x: x + 0.18, y: y + 0.66, w: colW - 0.36, h: 0, line: { color: C.line, width: 0.6 } });
+    });
+    txt(s, [{ text: c.result, options: { fontSize: 24, bold: true, color: i === 0 ? C.sub : C.blue } },
+            { text: i === 2 ? "  CNN과 결합" : "  공식 Validation", options: { fontSize: 11, color: C.sub } }],
+        { x, y: top + 2.8, w: colW, h: 0.45, align: "center", valign: "middle" });
+    if (i < 2) arrow(s, x + colW + (gap - 0.24) / 2, top + h / 2 - 0.19, 0.24, 0.38);
+  });
+
+  insight(s, M, 5.95, CW, 0.88, [
+    { text: "출발점이 된 관찰  ", options: { bold: true, color: C.blue } },
+    { text: "대원은 헤드셋으로 정해진 말을, 신고자는 휴대전화로 주변 잡음 속에서 말한다. 말의 내용이 아니라 소리의 질감 차이라서, 소리를 직접 보는 모델로 옮겨 갔다." },
+  ], C.mintLight, 12);
+  caption(s, "참고: 대학부 강의 교안 오디오 단원(p.173, p.176~182), Chen et al., WavLM (IEEE JSTSP, 2022).  근거: docs/experiment_log.md M2-RETRAIN-001·RERUN-001·COMPARE-002·WLML-001·002", 7.02);
+  s.addNotes("단계별 공식 Validation: L1 86.44%(M2-RETRAIN-001), CNN 3-seed 91.49%(M2-RERUN-001), CNN+WavLM-large 2개 92.90%(M2-BLEND-001, 제출 코드 92.8957%). 겹친 구간 L1 81.83%(M2-COMPARE-002). CNN 0.5~1초 정확도 87.60%(공식 Validation 발화별 확률 재계산). WavLM-large 단독 92.40%/92.71%(M2-WLML-001/002). 사전학습 데이터 9.4만 시간(Libri-Light·GigaSpeech·VoxPopuli, WavLM 논문). 교안 p.176 학습목표: Log-Mel spectrogram이 CNN에 입력되는 과정, Wav2Vec2·AST 구조. p.182: wav2vec 2.0은 대규모 음성으로 표현을 먼저 학습한 뒤 새 음성 문제에 Fine-tuning.");
+}
+
+// ---------- 별첨 1: 모델 구조와 판정식 ----------
+function m2Appendix1() {
+  const s = pres.addSlide();
+  header(s, "별첨", "Mission 2", "별첨 1. Mission 2 모델 구조와 판정식", 0);
+  coreMsg(s, "두 모델 모두 발화 하나만 입력으로 받고, 확률을 섞은 뒤 0.5 한 번으로 판정한다.");
+
+  const topY = 2.36, topH = 2.82, gp = 0.25, leftW = 6.0;
+  const rightX = M + leftW + gp, rightW = CW - leftW - gp;
+  card(s, M, topY, leftW, topH);
+  card(s, rightX, topY, rightW, topH);
+  title(s, "■ 입력 조건 → 설계 결정", M + 0.2, topY + 0.11, leftW - 0.4, 15);
+  const obs = [
+    ["발화 하나", "text·순서·같은 통화의 다른 발화 사용 불가", "그 발화 구간(startAt~endAt)의 소리만 입력"],
+    ["짧은 발화", "학습은 배치 최장 길이로 채워짐 · 추론은 한 발화씩", "모든 발화를 그 발화만으로 300프레임(6초)까지 채움"],
+    ["길이 차이", "0.1초 응답부터 18초 설명까지", "WavLM은 가운데 3초, 짧으면 그 발화를 반복"],
+  ];
+  obs.forEach(([name, observed, decision], i) => {
+    const y = topY + 0.53 + i * 0.73;
+    txt(s, name, { x: M + 0.23, y, w: 1.15, h: 0.25, fontSize: 11.3, bold: true, color: C.blue });
+    txt(s, observed, { x: M + 1.43, y, w: 4.32, h: 0.25, fontSize: 10.8, color: C.text });
+    txt(s, "→ " + decision, { x: M + 1.43, y: y + 0.29, w: 4.32, h: 0.3, fontSize: 10.6, bold: true, color: C.blue });
+    if (i < 2) s.addShape(pres.shapes.LINE, { x: M + 0.22, y: y + 0.65, w: leftW - 0.44, h: 0, line: { color: C.line, width: 0.6 } });
+  });
+
+  title(s, "■ 두 모델의 구조", rightX + 0.2, topY + 0.11, rightW - 0.4, 15);
+  const models = [
+    ["CNN × 3 (seed 1·2·3)", "log-mel(40 mel · 8 kHz) → 합성곱 4단(채널 32→256) → 평균 풀링 → 2클래스", "42만 파라미터 · Adam 1e-3 · 배치 64 · 조기 종료 · T4"],
+    ["WavLM-large × 2 (seed 1·2)", "파형 3초(16 kHz) → WavLM 24층 → 층 가중합 → 평균·표준편차 → MLP → 2클래스", "3.2억 파라미터 · AdamW 2e-5 · 42,500 step · A100 약 2.5시간"],
+  ];
+  models.forEach(([name, arch, train], i) => {
+    const y = topY + 0.52 + i * 1.12;
+    txt(s, name, { x: rightX + 0.22, y, w: rightW - 0.44, h: 0.24, fontSize: 11.3, bold: true, color: C.blue });
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: rightX + 0.18, y: y + 0.27, w: rightW - 0.36, h: 0.5, fill: { color: C.light }, rectRadius: 0.06, line: { color: C.line, width: 0.6 } });
+    txt(s, arch, { x: rightX + 0.28, y: y + 0.27, w: rightW - 0.56, h: 0.5, fontSize: 10.4, color: C.text, valign: "middle" });
+    txt(s, train, { x: rightX + 0.22, y: y + 0.8, w: rightW - 0.44, h: 0.2, fontSize: 9.6, color: C.sub });
+  });
+
+  const bottomY = 5.31, bottomH = 1.55;
+  card(s, M, bottomY, CW, bottomH);
+  title(s, "■ 최종 확률과 판정", M + 0.21, bottomY + 0.08, CW - 0.42, 15);
+  const boxY = bottomY + 0.44, boxH = 0.77, bw = 3.75, arrowW = 0.25;
+  [
+    ["STEP 1 · CNN 3-seed 평균", "P_CNN = (p₁ + p₂ + p₃) / 3"],
+    ["STEP 2 · 가중 평균", "p = 0.4·P_CNN + 0.3·P_W1 + 0.3·P_W2"],
+    ["STEP 3 · 최종 판정", "신고자(1) if p ≥ 0.5"],
+  ].forEach(([lab, eq], i) => {
+    const x = M + 0.2 + i * (bw + arrowW + 0.1);
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y: boxY, w: bw, h: boxH, fill: { color: i === 1 ? C.light : C.white }, rectRadius: 0.06, line: { color: i === 1 ? C.sky : C.line, width: 1 } });
+    txt(s, lab, { x: x + 0.12, y: boxY + 0.11, w: bw - 0.24, h: 0.2, fontSize: 10.2, color: C.sub, bold: true, align: "center" });
+    txt(s, eq, { x: x + 0.07, y: boxY + 0.37, w: bw - 0.14, h: 0.29, fontSize: i === 1 ? 13 : 14, color: C.blue, bold: true, align: "center" });
+    if (i < 2) txt(s, "→", { x: x + bw + 0.015, y: boxY + 0.25, w: arrowW, h: 0.3, fontSize: 16, bold: true, color: C.sky, align: "center" });
+  });
+  txt(s, "판정 기준 0.5 고정 · 비율은 Training 내부 20,000발화로 선택 · 여러 발화를 묶어 계산해도 결과는 한 발화씩과 같음", { x: M + 0.2, y: bottomY + 1.27, w: CW - 0.4, h: 0.2, fontSize: 10.1, bold: true, color: C.blue, align: "center" });
+  caption(s, "※ 모든 가중치는 체크포인트 하나(6.3억 파라미터)에 들어 있어 채점 때 아무것도 내려받지 않음. 근거: submission/mission2/README.md", 7.02);
+  s.addNotes("CNN: SpeakerCNNLarge 421,954 파라미터 × 3, log-mel 40 mel · FFT 512 · hop 160(8 kHz), 짧은 발화는 바닥값(-80 dB)으로 300프레임까지 채움(M2-PAD-001, 내부 89.58%→90.84%). WavLM-large: 315,977,179 파라미터 × 2, 파형 CNN만 고정, AdamW 본체 2e-5 / head 3e-4, 웜업 500 + 코사인, 배치 32, 42,500 step, best step 선택(seed1 15,000 / seed2 20,000). 합계 633,220,220 파라미터. 묶음 vs 한 발화씩 확률 차이: WavLM 9e-9, CNN 4.8e-7. 근거: submission/mission2/README.md, docs/experiment_log.md M2-WLML-001·002, M2-BLEND-001.");
+}
+
+// ---------- 별첨 2: 섞는 비율과 모델 조합 ----------
+function m2Appendix2() {
+  const s = pres.addSlide();
+  header(s, "별첨", "Mission 2", "별첨 2. 섞는 비율과 모델 조합", 0);
+  coreMsg(s, "비율은 Training 내부 20,000발화로만 골랐고, 공식 Validation은 고른 뒤 한 번 확인했다.");
+
+  const lw = 6.2;
+  card(s, M, 2.45, lw, 4.35);
+  barChart(s, ["CNN\n3-seed", "WavLM\nseed 1", "WavLM\nseed 2", "WavLM\n2개", "CNN +\nWavLM 2개"], [91.94, 92.73, 92.99, 93.04, 93.21], {
+    x: M + 0.15, y: 2.55, w: lw - 0.3, h: 4.15, chartColors: [C.line, C.sky, C.sky, C.sky, C.blue],
+    title: "Training 내부 20,000발화 Accuracy (%)", valAxisMinVal: 91, valAxisMaxVal: 93.5,
+  });
+
+  const rx = M + lw + 0.3, rw = W - M - rx;
+  table(s, [
+    ["조합", "내부 20,000", "공식 Val"],
+    ["CNN 3-seed", "91.94%", "91.49%"],
+    ["WavLM seed 1 / seed 2", "92.73 / 92.99%", "92.40 / 92.71%"],
+    ["WavLM 2개 평균", "93.04%", "92.74%"],
+    [strong("CNN 0.4 + WavLM 0.3·0.3", C.text), strong("93.21%"), strong("92.90%")],
+    ["+ HuBERT-large (1/4씩)", "93.16%", "92.82%"],
+  ], rx, 2.45, [2.85, 1.55, rw - 4.4], { rowH: 0.42, fontSize: 11.5 });
+
+  insight(s, rx, 5.15, rw, 1.65, [
+    { text: "비율  ", options: { bold: true, color: C.blue } },
+    { text: "0.1 간격 66개 조합 중 7개가 최고와 0.05%p 이내. 비율에 민감하지 않다.", options: { breakLine: true } },
+    { text: " ", options: { fontSize: 5, breakLine: true } },
+    { text: "더 섞기  ", options: { bold: true, color: C.blue } },
+    { text: "HuBERT를 더해도 오르지 않았다. 오답의 78%를 세 모델이 함께 틀린다." },
+  ], C.mintLight, 11.5);
+  caption(s, "※ 공식 Val 열은 확인용이며 조합·비율 선택에 쓰지 않음. 최종 행 92.90%는 제출 코드로 잰 값(92.8957%).  근거: docs/experiment_log.md M2-BLEND-001·M2-HUBERT-001", 7.02);
+  s.addNotes("내부 20,000발화: CNN·WavLM과 같은 통화 단위 80/20 분할(split seed 42)의 떼어 둔 5,840통화에서 뽑은 고정 표본. 0.1 간격 66개 조합: 최고 0.4/0.3/0.3 93.21%, 0.4/0.2/0.4 93.205%, 1/3씩 93.155%. HuBERT-large(facebook/hubert-large-ll60k) 단독 내부 92.15% / 공식 91.88%, 1/4씩 결합 내부 93.155% / 공식 92.82%. 공통 오답: 공식 Validation 최종 오답 7,955개 중 CNN·WavLM1·WavLM2가 모두 틀린 발화 6,207개(78.0%). 공식 Val 열은 발화별 확률로 재계산한 값(최종 행 연구용 계산 92.894%, 제출 코드 92.8957%).");
+}
+
+// ---------- 별첨 3: 발화 길이별 오류 분석 ----------
+function m2Appendix3() {
+  const s = pres.addSlide();
+  header(s, "별첨", "Mission 2", "별첨 3. Mission 2 발화 길이별 오류 분석", 0);
+  coreMsg(s, "2초 미만 발화가 전체의 65%인데 오답의 84%를 차지한다. WavLM의 효과도 짧은 발화에서 가장 컸다.");
+
+  const lw = 6.6;
+  card(s, M, 2.45, lw, 4.35);
+  const labels = ["0.5초 미만", "0.5~1초", "1~2초", "2~3초", "3초 이상"];
+  s.addChart(pres.charts.BAR, [
+    { name: "CNN 3-seed", labels, values: [90.95, 87.60, 89.71, 94.21, 97.49] },
+    { name: "CNN + WavLM 2개(최종)", labels, values: [93.20, 89.71, 91.16, 95.31, 97.84] },
+  ], {
+    x: M + 0.15, y: 2.55, w: lw - 0.3, h: 4.15, barDir: "col", barGrouping: "clustered", chartColors: [C.line, C.blue],
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 9.5, dataLabelFormatCode: "0.0",
+    valAxisMinVal: 84, valAxisMaxVal: 100, valAxisLabelColor: C.sub, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 11,
+    valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" },
+    showLegend: true, legendPos: "b", legendFontSize: 10.5, legendFontFace: F,
+    showTitle: true, title: "발화 길이별 공식 Validation Accuracy (%)", titleFontSize: 12, titleColor: C.text, titleFontFace: F,
+  });
+
+  const rx = M + lw + 0.3, rw = W - M - rx;
+  table(s, [
+    ["발화 길이", "발화 비율", "정확도", "오답 비율"],
+    ["0.5초 미만", "8.0%", "93.20%", "7.7%"],
+    [strong("0.5~1초", C.red), "24.5%", strong("89.71%", C.red), strong("35.4%", C.red)],
+    [strong("1~2초", C.red), "32.9%", strong("91.16%", C.red), strong("41.0%", C.red)],
+    ["2~3초", "15.2%", "95.31%", "10.0%"],
+    ["3초 이상", "19.4%", "97.84%", "5.9%"],
+  ], rx, 2.45, [1.5, 1.3, 1.25, rw - 4.05], { rowH: 0.4, fontSize: 11.5 });
+
+  insight(s, rx, 5.0, rw, 1.8, [
+    { text: "WavLM의 효과  ", options: { bold: true, color: C.blue } },
+    { text: "CNN 대비 0.5초 미만 +2.3%p, 3초 이상 +0.4%p. 짧을수록 사전학습이 도움이 됐다.", options: { breakLine: true } },
+    { text: " ", options: { fontSize: 5, breakLine: true } },
+    { text: "남은 과제  ", options: { bold: true, color: C.blue } },
+    { text: "\"네\", \"여보세요\" 같은 0.5~2초 응답이 오답의 76%를 차지한다." },
+  ], C.mintLight, 11.5);
+  caption(s, "※ 공식 Validation 111,947발화, 발화 길이 = endAt − startAt. 발화별 확률로 계산한 값(전체 92.89%, 제출 코드 92.90%).  근거: docs/experiment_log.md M2-BLEND-001", 7.02);
+  s.addNotes("공식 Validation 발화별 확률(CNN 3-seed, WavLM seed1·2)로 재계산. 길이 구간별 발화 수: 0.5초 미만 8,954 / 0.5~1초 27,392 / 1~2초 36,858 / 2~3초 17,028 / 3초 이상 21,715. 최종(0.4/0.3/0.3) 정확도 93.20/89.71/91.16/95.31/97.84%, CNN 단독 90.95/87.60/89.71/94.21/97.49%. 2초 미만 발화는 전체의 65.4%, 최종 오답 7,955개 중 84.1%. 0.5~2초가 오답의 76.4%(35.4% + 41.0%). Training 내부 20,000발화에서도 같은 모양(0.5~1초 89.63%, 3초 이상 98.72%).");
 }
 
 // =====================================================================
@@ -543,28 +745,39 @@ function flow(slide, x, y, w, h, f) {
 // Mission 2 — 신고자/119대원 분류 (12~15장, 수치·모델명은 상단 M2 상수)
 // ======================================================================
 
-// 12. 문제·제약·최종 모델
+// 12. 문제·제약·최종 모델 (광희)
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 문제·제약·최종 모델", 12);
+  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 문제·제약·최종 모델", 11);
   coreMsg(s, M2.core12);
-  // 92.90% 수치는 핵심 메시지와 12장 차트에서 보여주므로 이 장에서는 뺐다.
-  // 문제·제약은 한 줄에 나란히 두어 아래 도식 자리를 넓혔다. "왜 이 구조인가" 카드 3개(M2.why)는 뺐다.
-  txt(s, [strong("■ 문제   "), { text: "한 발화 조각 → 신고자(1) / 대원(0)   ·   지표 Accuracy" }], { x: M, y: 2.5, w: 6.4, h: 0.4, fontSize: 15 });
-  txt(s, [strong("■ 제약   ", C.red), { text: "text · 발화 순서 · 다른 발화 정보 사용 불가" }], { x: M + 6.6, y: 2.5, w: CW - 6.6, h: 0.4, fontSize: 15 });
-  flow(s, M, 3.1, CW, 1.15, M2.flow);
+  const lw = 8.9;
+  txt(s, [strong("■ 문제   "), { text: "한 발화 조각 → 신고자(1) / 대원(0)   ·   지표 Accuracy" }], { x: M, y: 2.5, w: lw, h: 0.4, fontSize: 15 });
+  txt(s, [strong("■ 제약   ", C.red), { text: "text · 발화 순서 · 다른 발화 정보 사용 불가" }], { x: M, y: 2.95, w: lw, h: 0.4, fontSize: 15 });
+  const rx = M + lw + 0.3, rw = W - M - rx;
+  card(s, rx, 2.45, rw, 0.95, C.light);
+  txt(s, [{ text: M2.acc, options: { fontSize: 28, bold: true, color: C.blue } }, { text: "   공식 Validation", options: { fontSize: 12, color: C.sub } }],
+    { x: rx, y: 2.45, w: rw, h: 0.95, align: "center", valign: "middle" });
+  flow(s, M, 3.55, CW, 1.15, M2.flow);
   // 합성 도식(실제 통화 아님): ppt/tools/make_m2_synthetic.py
-  const gy = 4.45, fh = 6.9 - gy - 0.16, fw = fh * 1658 / 482, gx = (W - fw - 0.16) / 2;
-  s.addShape(pres.shapes.RECTANGLE, { x: gx, y: gy, w: fw + 0.16, h: fh + 0.16, fill: { color: C.white }, line: { color: C.line, width: 1 } });
-  s.addImage({ path: "figures/anim/m2_waveform_to_mel.gif", x: gx + 0.08, y: gy + 0.08, w: fw, h: fh });
-  caption(s, "※ 위 도식은 합성 신호(실제 통화 아님).  근거: " + M2.evidence);
-  s.addNotes("근거: " + M2.evidence + ". 제약은 출제문제·주최측 Q&A(2026.09.15), 추론 방식은 submission/mission2/README.md '추론' 절.");
+  const fw = 6.6, fh = fw * 482 / 1658;
+  s.addShape(pres.shapes.RECTANGLE, { x: M, y: 4.9, w: fw + 0.16, h: fh + 0.16, fill: { color: C.white }, line: { color: C.line, width: 1 } });
+  s.addImage({ path: "figures/anim/m2_waveform_to_mel.gif", x: M + 0.08, y: 4.98, w: fw, h: fh });
+  const wx = M + fw + 0.4, ww = W - M - wx, wh = (fh + 0.16 - 2 * 0.12) / 3;
+  M2.why.forEach(([k, v], i) => {
+    const y = 4.9 + i * (wh + 0.12);
+    card(s, wx, y, ww, wh, i === 0 ? C.light : C.white);
+    txt(s, k, { x: wx + 0.15, y, w: 1.45, h: wh, fontSize: 13, bold: true, color: C.blue, valign: "middle" });
+    txt(s, v, { x: wx + 1.6, y, w: ww - 1.7, h: wh, fontSize: 11.5, valign: "middle" });
+  });
+  caption(s, "※ 왼쪽 도식은 합성 신호.  참고: " + M2.refs + ".  근거: submission/mission2/README.md");
+  s.addNotes("근거: " + M2.evidence + ". 제약은 출제문제·주최측 Q&A(2026.09.15), 추론 방식은 submission/mission2/README.md '추론' 절. 참고: 대학부 강의 교안 오디오 단원 p.176(학습목표: Log-Mel spectrogram이 CNN에 입력되는 과정, Wav2Vec2·AST 구조), p.182(wav2vec 2.0: 대규모 음성으로 표현을 먼저 학습한 뒤 새 문제에 Fine-tuning). WavLM: Chen et al., 'WavLM: Large-Scale Self-Supervised Pre-Training for Full Stack Speech Processing', IEEE JSTSP 2022.");
 }
 
-// 13. 성능 개선 과정
+m2ReasonSlide();
+// 12. 성능 개선 과정
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 성능 개선 과정", 13);
+  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 성능 개선 과정", 12);
   coreMsg(s, M2.core13);
   const lw = 6.2;
   card(s, M, 2.45, lw, 4.35);
@@ -572,9 +785,6 @@ function flow(slide, x, y, w, h, f) {
     x: M + 0.15, y: 2.55, w: lw - 0.3, h: 4.15, chartColors: [C.line, C.sky, C.blue],
     title: "공식 Validation Accuracy (%)", valAxisMinVal: 84, valAxisMaxVal: 94,
   });
-  // 최종 제출 수치 강조 (차트 오른쪽 위)
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: M + lw - 1.8, y: 2.6, w: 1.65, h: 0.32, fill: { color: C.blue }, rectRadius: 0.18, line: { color: C.blue } });
-  txt(s, "최종 제출  " + M2.acc, { x: M + lw - 1.8, y: 2.6, w: 1.65, h: 0.32, fontSize: 12, bold: true, color: C.white, align: "center", valign: "middle" });
   const rx = M + lw + 0.3, rw = W - M - rx;
   card(s, rx, 2.45, rw, 2.15);
   title(s, M2.gainTitle, rx + 0.2, 2.56, rw - 0.4);
@@ -585,22 +795,22 @@ function flow(slide, x, y, w, h, f) {
     txt(s, n, { x: rx + 3.0, y, w: 1.5, h: 0.5, fontSize: 24, bold: true, color: i === 0 ? C.blue : C.sky, valign: "middle" });
     txt(s, l, { x: rx + 4.45, y, w: rw - 4.55, h: 0.5, fontSize: 11.5, color: C.sub, valign: "middle" });
   });
-  txt(s, [
-    { text: M2.gainNote, options: { breakLine: true } },
-    { text: M2.gainWhy, options: { bold: true, color: C.blue } },
-  ], { x: rx + 0.2, y: 4.1, w: rw - 0.4, h: 0.45, fontSize: 10, color: C.sub, align: "center", valign: "middle" });
+  txt(s, M2.gainNote, { x: rx + 0.2, y: 4.2, w: rw - 0.4, h: 0.3, fontSize: 10, color: C.sub, align: "center" });
   insight(s, rx, 4.75, rw, 2.05, [
-    { text: "발견  ", options: { bold: true, color: C.blue, breakLine: true } },
-    { text: M2.finding },
+    { text: "전환점 ②  ", options: { bold: true, color: C.blue } },
+    { text: M2.turn2, options: { breakLine: true } },
+    { text: " ", options: { fontSize: 6, breakLine: true } },
+    { text: "전환점 ③  ", options: { bold: true, color: C.blue } },
+    { text: M2.turn3 },
   ], C.mintLight, 12);
   caption(s, M2.evidence13);
   s.addNotes(M2.notes13);
 }
 
-// 14. 다른 접근과 기각·보류 이유
+// 13. 다른 접근과 기각·채택 이유
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 다른 접근과 기각·보류 이유", 14);
+  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 다른 접근과 기각·채택 이유", 13);
   coreMsg(s, M2.core14);
   const red = t => strong("✗ " + t, C.red);
   const [lastTry, lastVerdict, lastWhy] = M2.lastRow;
@@ -610,17 +820,17 @@ function flow(slide, x, y, w, h, f) {
     [{ text: "text로 고친 라벨로 학습" }, strong("제공 라벨로 재학습"), "점수는 거의 그대로"],
     ["통계 모델과 CNN 확률 평균", red("기각"), "단독 CNN보다 낮음"],
     ["더 큰 CNN / 패딩 제외 풀링 / 길이 입력 / Mixup", red("기각"), "사전 기준 미달 또는 재현 안 됨"],
-    ["WavLM 고정 임베딩 · 기본 미세조정", red("기각"), "이득 없음, 추론 비용 큼"],
-    [strong(lastTry, C.text), strong(lastVerdict, C.sub), lastWhy],
+    ["WavLM-base 고정 임베딩 · 일부 데이터 미세조정", red("기각"), "작은 모델·적은 데이터로는 CNN보다 낮음"],
+    [strong(lastTry, C.text), strong(lastVerdict, C.blue), strong(lastWhy, C.blue)],
   ], M, 2.45, [5.2, 2.4, 4.73], { rowH: 0.6, fontSize: 13 });
   caption(s, "비교는 Training 내부 통화 단위 홀드아웃 기준 (공식 Val 아님).", 6.75);
-  s.addNotes("근거: 통화 단위 특징 M2-EXP-008 / 제공 라벨 재학습 M2-RETRAIN-001 / 확률 평균 M2-ENS-001 / 더 큰 CNN M2-CNN-008, 패딩 제외 풀링 M2-CNN-009, 길이 입력 M2-CNN-004·006, Mixup M2-MIX-001 / WavLM 고정 임베딩 M2-SSL-001, 기본 미세조정 M2-SSL-002 / WavLM-large 미세조정 2개 + CNN 결합 M2-WLML-001·002, M2-BLEND-001(내부 20,000발화 CNN 단독 91.94% → 93.21%). 모두 docs/experiment_log.md·docs/decisions.md.");
+  s.addNotes("근거: 통화 단위 특징 M2-EXP-008 / 제공 라벨 재학습 M2-RETRAIN-001 / 확률 평균 M2-ENS-001 / 더 큰 CNN M2-CNN-008, 패딩 제외 풀링 M2-CNN-009, 길이 입력 M2-CNN-004·006, Mixup M2-MIX-001 / WavLM 고정 임베딩 M2-SSL-001, 기본 미세조정 M2-SSL-002 / WavLM-large 미세조정 2개 + CNN 결합 M2-WLML-001·002, M2-BLEND-001(내부 20,000발화 CNN 단독 91.94% → 93.21%). WavLM 기각→채택 차이: SSL-002는 base 모델·6,000통화(85.65%), WLML은 large 모델·Training 전체(단독 공식 Val 92.40·92.71%). 모두 docs/experiment_log.md·docs/decisions.md.");
 }
 
-// 15. 최종 결과와 보완할 점
+// 14. 최종 결과와 보완할 점
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 최종 결과와 보완할 점", 15);
+  header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 최종 결과와 보완할 점", 14);
   coreMsg(s, M2.core15);
   const lw = 5.6;
   card(s, M, 2.45, lw, 4.35);
@@ -635,8 +845,8 @@ function flow(slide, x, y, w, h, f) {
   });
   const rx = M + lw + 0.3, rw = W - M - rx;
   card(s, rx, 2.45, rw, 1.6);
-  title(s, "■ 재현성", rx + 0.25, 2.6, rw - 0.5, 16);
-  txt(s, M2.repro, { x: rx + 0.25, y: 3.05, w: rw - 0.5, h: 0.9, fontSize: 14 });
+  title(s, "■ 계산 효율성 · 재현성", rx + 0.25, 2.6, rw - 0.5, 16);
+  txt(s, M2.repro, { x: rx + 0.25, y: 3.0, w: rw - 0.5, h: 1.0, fontSize: 13 });
   card(s, rx, 4.2, rw, 2.6, C.bgGray);
   title(s, "■ 보완할 점", rx + 0.25, 4.35, rw - 0.5, 16);
   txt(s, M2.improve, { x: rx + 0.25, y: 4.8, w: rw - 0.5, h: 1.9, fontSize: 14 });
@@ -644,198 +854,186 @@ function flow(slide, x, y, w, h, f) {
   s.addNotes(M2.notes15);
 }
 
+m2Appendix1(); m2Appendix2(); m2Appendix3();
+
 // ======================================================================
-// ---------- Mission 2 추가: 지연우 음향 특징 실험 (10장) ----------
-// 초기 비교 / 내부 비교 / 고정 후보의 최종 평가는 각 평가 조건 안에서만 설명한다.
-{
-  const leftW = 6.0, rightX = M + leftW + 0.3, rightW = W - M - rightX;
-  const page = (name, message) => {
-    const s = pres.addSlide();
-    header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — " + name, pres._slides.length);
-    coreMsg(s, message);
-    return s;
-  };
-  const panels = s => {
-    card(s, M, 2.45, leftW, 4.35);
-    card(s, rightX, 2.45, rightW, 4.35);
-  };
-  const comparison = (s, a, b, aName, bName, gain, label = "Accuracy (%)") => {
-    title(s, "■ " + label, rightX + 0.25, 2.65, rightW - 0.5, 17);
-    const half = (rightW - 0.5) / 2;
-    stat(s, rightX + 0.15, 3.35, half, a, aName, C.sky, 33);
-    stat(s, rightX + 0.35 + half, 3.35, half, b, bName, C.blue, 33);
-    txt(s, gain, { x: rightX + 0.3, y: 4.9, w: rightW - 0.6, h: 0.55, fontSize: 29, bold: true, color: C.blue, align: "center" });
-  };
+// ---------- Mission 2 음향 특징 모델(지연우) 4장 압축본 ----------
+// ======================================================================
+// Mission 2 음향 특징 모델(지연우) 4장 압축본
+// 숫자 출처: 기존 연우 슬라이드 10장, docs/mission2_experiment_log.md (clean 59D 구성, Stage 15 149D E_TRG 88.49%)
+// ======================================================================
+const YW = "Mission 2  음향 특징 모델(비교 실험) — ";
 
-  // 1. Baseline: 초기 수치는 화면에서 평가 집합 명칭을 생략하고 실제 출처는 노트에 보존.
-  {
-    const s = page("음색 요약(MFCC) 기준선과 오류 관찰", "음색 요약(MFCC)으로 첫 기준선을 만들고, 짧은 발화와 겹침 구간에서 보완할 정보를 찾았습니다.");
-    panels(s);
-    title(s, "■ 한 발화를 40개 숫자로 요약", M + 0.25, 2.65, leftW - 0.5, 17);
-    const items = [["발화 음성", "현재 발화만"], ["음색 요약 40개", "음색 값 20개의 평균·표준편차"], ["역할 분류", "로지스틱 회귀 (간단한 분류기)"]];
-    items.forEach(([t, b], i) => {
-      stepBox(s, M + 0.2 + i * 1.9, 3.3, 1.75, 1.75, t, b, i === 2 ? C.sky : C.blue, 12);
-      if (i < 2) arrow(s, M + 1.96 + i * 1.9, 4.0, 0.13, 0.3);
-    });
-    txt(s, "음색과 주파수 모양을 요약한 간단한 기준선\ntext·발화 순서·다른 발화 정보는 사용하지 않음", { x: M + 0.3, y: 5.5, w: leftW - 0.6, h: 0.9, fontSize: 14, paraSpaceAfter: 6 });
-    stat(s, rightX + 0.2, 2.95, rightW - 0.4, "80.9%", "기준선 정확도", C.blue, 44);
-    title(s, "■ 오류에서 발견한 점", rightX + 0.3, 4.6, rightW - 0.6, 17);
-    bullets(s, ["짧은 발화에서 정확도가 낮음", "목소리가 겹친 구간에서도 정확도가 낮음"], rightX + 0.3, 5.15, rightW - 0.6, 1.1, 15);
-    s.addNotes("초기 E00: Official Validation 111,947행, Accuracy 0.809106147, CM [[41190,12655],[8715,49387]]. short는 Training 분위수로 정의한 구간이며 이후 0.5–1초 구간과 같지 않다. 짧은 발화와 overlap의 낮은 정확도는 관찰이며 원인 확정이 아니다. 화면에서 평가 집합 이름만 생략했으며 Internal Validation으로 재분류하지 않는다.");
-  }
-
-  // 2. 초기 feature 비교: E00/E05의 같은 평가 집합 결과만 연결.
-  {
-    const s = page("음색 요약에 고음 정보 2개 추가", "고음 분포와 파형이 떨리는 정도 2가지를 더하자 정확도가 +0.4%p 올라, 이후 실험의 기준으로 사용했습니다.");
-    panels(s);
-    title(s, "■ 가설: 새 정보가 구분에 도움이 될까?", M + 0.25, 2.65, leftW - 0.5, 17);
-    txt(s, "음색 요약에 없는 정보, 고음이 퍼진 정도와\n소리가 떨리는 빈도를 더하면 도움이 될까?", { x: M + 0.3, y: 3.2, w: leftW - 0.6, h: 0.85, fontSize: 16 });
-    stepBox(s, M + 0.3, 4.3, 2.5, 1.35, "Rolloff", "소리 에너지가 어느 높이의 음까지 퍼져 있나", C.blue, 13);
-    stepBox(s, M + 3.15, 4.3, 2.5, 1.35, "ZCR (영교차율)", "소리 파형이 위아래로 얼마나 자주 뒤집히나", C.sky, 13);
-    txt(s, "음색 40개 + 새 정보 2개 = 42개 숫자", { x: M + 0.3, y: 5.9, w: leftW - 0.6, h: 0.35, fontSize: 15, bold: true, color: C.blue, align: "center" });
-    txt(s, "※ 숫자 1개가 1차원이라, 이후 \"42D\"는 이 42개 숫자를 뜻합니다", { x: M + 0.3, y: 6.3, w: leftW - 0.6, h: 0.3, fontSize: 11, color: C.sub, align: "center" });
-    comparison(s, "80.9%", "81.3%", "기준선 (음색 40개)", "+ 새 정보 2개 (42개)", "+0.4%p", "정확도 (%)");
-    txt(s, "같은 데이터, 같은 방식으로 비교한 초기 실험", { x: rightX + 0.3, y: 5.95, w: rightW - 0.6, h: 0.4, fontSize: 13, color: C.sub, align: "center" });
-    s.addNotes("화면의 \"기준선\"은 실험 번호 E00(MFCC 40D), \"새 정보 2개 추가\"는 E05(MFCC 40D + Rolloff·ZCR 2D = 42D)다. E00/E05는 초기 Official Validation 결과: 0.809106147 / 0.8131169214, 차이 약 +0.4011%p. 개별 E02–E04는 Markdown 기록만 남아 있어 본문 비교에서 제외. 두 정보를 추가한 조합의 관측 결과이며 각 특징의 인과 효과나 통계적 유의성을 주장하지 않는다. 이후 내부 검증 MLP 결과와 Delta를 계산하지 않는다.");
-  }
-
-  // 3. 동일 42D 조건의 모델 비교: 초기 E05 Official 수치와 연결하지 않는다.
-  {
-    const s = page("단순 분류기에서 신경망(MLP)으로 확장", "같은 42개 숫자 입력에서 MLP가 4.22%p 높아, 이후 음향 특징 비교의 기준 모델로 고정했습니다.");
-    panels(s);
-    title(s, "■ 가설: 특징 간 복잡한 관계 학습", M + 0.25, 2.65, leftW - 0.5, 17);
-    node(s, M + 1.1, 3.2, 3.8, 0.85, "같은 입력 (42개 숫자)", "같은 통화 단위 내부 분할·같은 전처리");
-    node(s, M + 0.3, 4.55, 2.5, 0.9, "로지스틱 회귀", "단순 비교 기준");
-    node(s, M + 3.2, 4.55, 2.5, 0.9, "MLP (신경망)", "복잡한 관계 학습", true);
-    s.addShape(pres.shapes.LINE, { x: M + 3.0, y: 4.05, w: 0, h: 0.2, line: { color: C.sky, width: 1.5 } });
-    s.addShape(pres.shapes.LINE, { x: M + 1.55, y: 4.25, w: 2.9, h: 0, line: { color: C.sky, width: 1.5 } });
-    link(s, M + 1.55, 4.25, M + 1.55, 4.55);
-    link(s, M + 4.45, 4.25, M + 4.45, 4.55);
-    txt(s, "입력 특징은 유지하고 분류 방법을 비교", { x: M + 0.3, y: 6.05, w: leftW - 0.6, h: 0.35, fontSize: 15, color: C.blue, bold: true, align: "center" });
-    comparison(s, "81.73%", "85.95%", "로지스틱 회귀", "MLP (신경망)", "+4.22%p", "내부 검증 정확도");
-    txt(s, "이 MLP를 고정한 뒤 음향 특징을 추가 비교", { x: rightX + 0.3, y: 5.95, w: rightW - 0.6, h: 0.45, fontSize: 14, color: C.sub, align: "center" });
-    s.addNotes("M00 LR 0.8173319625, M04-100 MLP 0.8595319610: 같은 E05 42D, fixed GroupSplit, seed 42, internal-train-only scaler. 차이 4.21999985%p. MLP (64,)의 ReLU 비선형 상호작용은 실험 가설이며 개선 원인을 증명한 것은 아니다. max_iter=100에서도 convergence warning이 있어 수렴 완료를 주장하지 않는다. 81.31% 초기 Official 결과와 직접 비교하지 않는다.");
-  }
-
-  // 4. 당시 고정 MLP의 AF02 직접 비교.
-  {
-    const s = page("음높이·성대 울림 정보의 효과", "음높이와 성대가 울리는 정도 정보를 더하자 정확도와 두 역할의 재현율(Recall)이 함께 올라 채택했습니다.");
-    panels(s);
-    title(s, "■ 가설: 음높이와 발성 정보를 보완", M + 0.25, 2.65, leftW - 0.5, 17);
-    txt(s, "기존 입력에 없는 목소리 높낮이(F0) 변화와\n성대 울림 정보가 역할 분류를 보완할까?", { x: M + 0.3, y: 3.2, w: leftW - 0.6, h: 0.85, fontSize: 16 });
-    stepBox(s, M + 0.3, 4.3, 2.5, 1.4, "Pitch (음높이)", "목소리 높낮이의 중간값·변동 폭·오르내림 경향", C.blue, 13);
-    stepBox(s, M + 3.15, 4.3, 2.5, 1.4, "Voicing (성대 울림)", "성대가 울린 구간의 비율·규칙성", C.sky, 13);
-    txt(s, "기존 42개 + 새 정보 5개 = 47개 숫자", { x: M + 0.3, y: 6.05, w: leftW - 0.6, h: 0.35, fontSize: 15, bold: true, color: C.blue, align: "center" });
-    comparison(s, "85.95%", "86.63%", "기존 42개 (MLP)", "+ 음높이·울림 5개", "+0.67%p", "당시 내부 검증 정확도");
-    txt(s, "재현율 변화: 대원 +0.71%p / 신고자 +0.64%p", { x: rightX + 0.25, y: 5.95, w: rightW - 0.5, h: 0.5, fontSize: 14, bold: true, color: C.blue, align: "center" });
-    s.addNotes("historical cache 내부 비교: M04-100 42D 0.8595319610 → AF02 47D 0.8662664219, +0.67344609%p. Recall0 0.815608→0.822662, Recall1 0.900043→0.906484. clean chain의 별도 결과로 재해석하지 않는다. 짧거나 noisy/unvoiced한 구간의 pitch 추출 위험도 확인한 실험이다.");
-  }
-
-  // 5. 과거 조합 점수 대신 재현된 clean B4 52D/59D 비교 사용.
-  {
-    const s = page("말하는 패턴·소리 퍼짐 정보의 효과", "말한 구간의 패턴과 소리가 퍼진 정도를 함께 더해 전체 정확도를 높였고, 역할별 변화도 확인했습니다.");
-    panels(s);
-    title(s, "■ 가설: 평균이 놓치는 발화 변화 표현", M + 0.25, 2.65, leftW - 0.5, 17);
-    txt(s, "말소리가 나는 구간의 패턴과 소리 분포의 변화가\n짧거나 잘린 발화의 정보를 보완할까?", { x: M + 0.3, y: 3.2, w: leftW - 0.6, h: 0.85, fontSize: 16 });
-    stepBox(s, M + 0.3, 4.3, 2.5, 1.4, "활동성 (말한 비율)", "말소리가 있는 구간의 비율·시작과 끝 패턴", C.blue, 13);
-    stepBox(s, M + 3.15, 4.3, 2.5, 1.4, "엔트로피 (퍼짐 정도)", "소리 에너지가 주파수에 퍼진 정도·변동", C.sky, 13);
-    txt(s, "52개 + 활동성 4개 + 엔트로피 3개 = 59개 숫자", { x: M + 0.25, y: 6.05, w: leftW - 0.5, h: 0.35, fontSize: 14, bold: true, color: C.blue, align: "center" });
-    comparison(s, "86.96%", "87.38%", "기존 52개", "+ 새 정보 7개 (59개)", "+0.42%p", "재현 실험 내부 검증 정확도");
-    txt(s, "재현율 변화: 대원 +1.23%p / 신고자 −0.33%p", { x: rightX + 0.25, y: 5.95, w: rightW - 0.5, h: 0.5, fontSize: 14, color: C.sub, align: "center" });
-    s.addNotes("clean B4 same-run: 52D 0.869594, CM [[71215,14136],[9062,83478]]; 59D 0.873760, CM [[72265,13086],[9371,83169]], 순 정답 +741. 대원 Recall 0.834378→0.846680, 신고자 0.902075→0.898736. 따라서 두 역할 모두 개선이라고 하지 않는다. 52D prefix는 MFCC40/E05/AF02/AF04/AF09이며 CPP 단독 증분은 partially verified. old-cache 59D 87.46% 및 과거 조합 점수와 연결하지 않는다.");
-  }
-
-  // 6. F01/F02의 가설과 joint 149D 결과. 단독 개선량은 주장하지 않음.
-  {
-    const s = page("음색 분포·대역 대비 정보와 149개 입력", "음색 분포와 주파수 대역 대비를 더한 149개 숫자를 세 모델에 적용해, 모델을 합치는 후보로 검증했습니다.");
-    panels(s);
-    title(s, "■ 두 가지 보완 가설", M + 0.25, 2.65, leftW - 0.5, 17);
-    title(s, "① 음색 분포 요약 (80개)", M + 0.3, 3.25, leftW - 0.6, 16);
-    txt(s, "평균·표준편차에 분포 정보를 더하면 도움이 될까?\n음색 값 20개마다 하위 10%·중앙값·상위 10%·퍼짐 폭을 추가", { x: M + 0.3, y: 3.8, w: leftW - 0.6, h: 0.9, fontSize: 14, paraSpaceAfter: 5 });
-    title(s, "② 주파수 대역 대비 (10개)", M + 0.3, 5.0, leftW - 0.6, 16);
-    txt(s, "대역 안의 강한 소리와 약한 소리의 차이가 보완할까?\n0–4 kHz를 5개 대역으로 나눈 차이의 평균·표준편차", { x: M + 0.3, y: 5.55, w: leftW - 0.6, h: 0.9, fontSize: 14, paraSpaceAfter: 5 });
-    title(s, "■ 결합 입력과 내부 검증 결과", rightX + 0.25, 2.65, rightW - 0.5, 17);
-    const bw = (rightW - 0.8) / 3;
-    [["기존 59개", "음향 특징"], ["+ 80개", "음색 분포"], ["+ 10개", "대역 대비"]].forEach(([t, b], i) => {
-      node(s, rightX + 0.2 + i * (bw + 0.2), 3.25, bw, 0.95, t, b, i === 2);
-      if (i < 2) txt(s, "+", { x: rightX + 0.2 + bw + i * (bw + 0.2), y: 3.55, w: 0.2, h: 0.3, align: "center", fontSize: 14, bold: true });
-    });
-    txt(s, "총 149개 숫자", { x: rightX + 0.3, y: 4.35, w: rightW - 0.6, h: 0.35, fontSize: 18, bold: true, color: C.blue, align: "center" });
-    table(s, [["모델", "정확도"], ["TabM", "88.64%"], ["Tabular ResNet", "88.55%"], ["GANDALF", "88.58%"]], rightX + 0.3, 4.95, [(rightW - 0.6) * 0.6, (rightW - 0.6) * 0.4], { rowH: 0.36, fontSize: 12 });
-    txt(s, "※ 세 모델 모두 표 형태의 숫자 데이터를 다루는 신경망", { x: rightX + 0.3, y: 6.45, w: rightW - 0.6, h: 0.25, fontSize: 11, color: C.sub, align: "center" });
-    s.addNotes("F01는 20 MFCC 계수별 q10/median/q90/IQR의 80D. F02는 8kHz 발화의 0–250, 250–500, 500–1000, 1000–2000, 2000–4000Hz 5대역 spectral contrast mean/std 10D. Stage14 TabM 0.8864304546, ResNet 0.8854916775, GANDALF 0.8858458269. 별도 학습의 59D 결과와 차이를 F01/F02 각각의 독립 개선량으로 귀속하지 않는다. 개념 Diagram은 실제 분포/파형 그래프가 아니다.");
-  }
-
-  // 7. 성공한 특징 설명 바로 다음: 제외/보류 실험을 한 장으로 압축.
-  {
-    const s = page("제외·보류한 실험", "특징 수를 늘리는 대신, 비교 결과를 확인해 필요한 정보를 선별했습니다.");
-    table(s, [
-      ["실험 방향", "확인한 결과", "판단"],
-      ["발화 길이 (Duration)", "초기 비교에서 정확도 변화가 거의 없음", "제외"],
-      ["소리 크기·변화량 (Energy, Flux)", "각각 당시 42개 기준보다 정확도가 낮음", "제외"],
-      ["음색 변화량 (Delta-MFCC)", "재검토에서도 전체 이득이 작고, 역할별 재현율 변화가 서로 반대", "보류"],
-      ["표준 음성 특징 세트(eGeMAPS)로 대체", "같은 조건 내부 비교: 기존 59개 87.38% / eGeMAPS 86.40%", "기존 입력 유지"],
-    ], M, 2.65, [2.7, 7.0, CW - 9.7], { rowH: 0.66, fontSize: 13.5 });
-    insight(s, M, 6.05, CW, 0.65, "효과가 작거나 균형이 나빠진 방향은 제외·보류하고, 확인된 특징을 이후 비교에 사용했습니다.", C.light, 14);
-    s.addNotes("Duration는 초기 Official 비교. Energy/Flux는 당시 42D M04-100 내부 비교. Delta-MFCC 재검토는 old-cache 59→61D +0.018%p, net +32, Recall0 +1.47%p / Recall1 −1.32%p로 HOLD. eGeMAPS는 같은 clean 계약에서 0.8639897465, clean59D 0.8737597742. 서로 다른 실험의 결과를 한 순위나 합산 효과로 읽지 않는다. Formants는 미실행, Stage12 pretrained는 성능 미평가이므로 실패 성능 사례로 넣지 않는다.");
-  }
-
-  // 8. 별도 stage의 clean 59D 저장 비교 기준: 모든 후보의 탐색표는 제거.
-  {
-    const s = page("모델 비교와 후보 선정", "기준 모델 TabM·ResNet을 유지하고, 새로 시도한 모델 중 가장 높은 GANDALF를 합치는 후보에 포함했습니다.");
-    const gap = 0.3, bw = (CW - 2 * gap) / 3;
-    const models = [["TabM", "88.40%", "비교 기준 (59개 숫자 입력)"], ["Tabular ResNet", "88.38%", "비교 기준 (59개 숫자 입력)"], ["GANDALF", "88.17%", "새로 시도한 모델 중 가장 높음"]];
-    models.forEach(([name, accuracy, role], i) => {
-      const x = M + i * (bw + gap);
-      card(s, x, 2.8, bw, 2.7);
-      title(s, name, x + 0.2, 3.05, bw - 0.4, 18);
-      stat(s, x + 0.1, 3.75, bw - 0.2, accuracy, role, i === 2 ? C.sky : C.blue, 32);
-    });
-    txt(s, "입력 59개 숫자 · 같은 내부 검증 분할 · 전처리 기준은 Training 데이터만 사용", { x: M, y: 2.3, w: CW, h: 0.3, fontSize: 12, color: C.sub, align: "center" });
-    insight(s, M, 5.85, CW, 0.85, "GANDALF가 두 기준 모델을 넘지는 못했지만, 서로 다른 종류의 모델을 합치는 후보로 포함해 검증했습니다.", C.light, 14);
-    s.addNotes("TabM 0.8839795155460366, Tabular ResNet 0.8837546587517076는 Stage10 dual frozen references. GANDALF 약 0.8817은 Stage13 신규 6-family first-screen 중 최고. 동일 clean59D와 고정 내부 split을 사용했으나 다른 stage의 학습 모델이다. 세 모델만 같은 run에서 학습했다고 하지 않는다. 실제 오류 상보성은 이후 Stage14 149D 결과로 평가했으며 family가 다르다는 사실만으로 상보성을 보장하지 않는다.");
-  }
-
-  // 9. 앙상블 구성 + 고정 후보 최종 평가 통합. 초기 Official 사용 문장은 화면에서 제거.
-  {
-    const s = page("149개 입력 모델 합치기와 최종 평가", "세 모델을 같은 비중으로 합치고, 미리 고정한 연우 최종 모델의 정확도 88.49%를 확인했습니다.");
-    panels(s);
-    title(s, "■ 세 모델의 예측 확률 평균", M + 0.25, 2.65, leftW - 0.5, 17);
-    flow(s, M + 0.2, 3.3, leftW - 0.4, 2.2, {
-      pre: [["149개", "음향 특징 숫자"]], preW: 1.1,
-      branches: [["TabM", "", "1/3"], ["ResNet", "", "1/3"], ["GANDALF", "", "1/3"]], brW: 1.75, brGap: 0.14,
-      post: [["확률 평균", "≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 1.65,
-    });
-    txt(s, "추가 튜닝 없이 전체 Training 데이터로 재학습\n입력 149개·같은 비중·판정 기준(threshold) 0.5 고정", { x: M + 0.3, y: 5.95, w: leftW - 0.6, h: 0.6, fontSize: 13, color: C.sub, align: "center" });
-    stat(s, rightX + 0.2, 2.85, rightW - 0.4, "88.49%", "최종 평가 · 공식 Validation", C.blue, 42);
-    const half = (rightW - 0.4) / 2;
-    stat(s, rightX + 0.1, 4.5, half, "84.2%", "119대원 재현율", C.blue, 26);
-    stat(s, rightX + 0.3 + half, 4.5, half, "92.5%", "신고자 재현율", C.sky, 26);
-    txt(s, "내부 검증: 88.85%\n평가 집합이 달라 두 수치의 차이를 개선량으로 계산하지 않음", { x: rightX + 0.3, y: 6.0, w: rightW - 0.6, h: 0.6, fontSize: 12, color: C.sub, align: "center" });
-    s.addNotes("E_TRG는 연우 개인 최종 실험 모델이며 팀 제출 모델 개발자로 오해시키지 않는다. Stage14 Internal 177,891행 Accuracy 0.8884822729; Stage15 full-Training refit의 Official Validation 111,947행/3,640통화 Accuracy 0.884918756, Recall0 0.84178661, Recall1 0.92489071. FINAL_VERIFIED, 세 reload EXACT_PASS, alignment/metric recomputation PASS. 이 refit에서는 Official을 scaler fit, gradient/loss, early stopping, checkpoint 선택에 쓰지 않았고 가중치/threshold 튜닝도 없다. 과거 E-series에서 같은 Official을 사용한 이력이 있어 독립된 최초 1회 holdout이라고 주장하지 않는다. 과거 사용 문장은 화면에서 생략하고 근거 기록에 보존한다. 학습 artifact는 Drive run mission2_final_fulltrain_official_validation_20261012T151108Z_a1606771에 있다.");
-  }
-
-  // 10. 실제 marginal slice만 시각화하며 잔여 오류를 원인으로 단정하지 않음.
-  {
-    const s = page("남은 오류와 실험 결론", "음향 특징의 보완 효과를 비교하고, 짧은 발화와 겹침 구간에 남은 오류를 확인했습니다.");
-    panels(s);
-    title(s, "■ 최종 평가의 구간별 오류율", M + 0.25, 2.65, leftW - 0.5, 17);
-    barChart(s, ["전체", "0.5–1초", "겹침"], [11.5, 15.7, 15.3], {
-      x: M + 0.2, y: 3.2, w: leftW - 0.4, h: 2.9, name: "오류율", title: "오류율 (%)",
-      chartColors: [C.line, C.sky, C.blue], valAxisMinVal: 0, valAxisMaxVal: 20, valAxisMajorUnit: 5, dataLabelFormatCode: "0.0",
-    });
-    txt(s, "각 구간은 서로 겹칠 수 있으며 오류율을 합산하지 않음", { x: M + 0.2, y: 6.3, w: leftW - 0.4, h: 0.28, fontSize: 11, color: C.sub, align: "center" });
-    title(s, "■ 음향 특징 실험에서 얻은 결론", rightX + 0.25, 2.65, rightW - 0.5, 17);
-    bullets(s, [
-      "가설에 따라 음향 정보를 추가하고 비교",
-      "효과를 확인한 특징으로 입력 구성",
-      "모델 결합 후 고정 후보를 최종 평가",
-    ], rightX + 0.3, 3.25, rightW - 0.6, 2.4, 16);
-    insight(s, rightX + 0.2, 5.8, rightW - 0.4, 0.8, "짧은 발화·겹침 구간은 추가 분석이 필요한 영역", C.light, 13);
-    s.addNotes("FINAL_VERIFIED Official 저장 예측: 전체 111,947행 중 12,883오류(11.5081%); 0.5–1초 27,392행 중 4,299오류(15.6944%); overlap 48,863행 중 7,457오류(15.2610%). 각 marginal slice는 겹칠 수 있어 동시에 짧고 겹친 구간의 결과로 해석하지 않는다. 저장 예측의 기술통계이며 음성 청취/원인 확정/새 학습을 수행한 결과가 아니다. 개인 분석의 의미를 설명하며 팀 제출 CNN에 특정 특징이 반영됐다는 기여 관계를 주장하지 않는다.");
-  }
+function ywChip(s, x, y, w, h, color, head, body) {
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h, fill: { color: C.white }, rectRadius: 0.06, line: { color: C.line, width: 0.8 } });
+  s.addShape(pres.shapes.RECTANGLE, { x, y, w: 0.09, h, fill: { color }, line: { color } });
+  txt(s, head, { x: x + 0.2, y, w: 1.9, h, fontSize: 11.5, bold: true, color: C.blue, valign: "middle" });
+  txt(s, body, { x: x + 2.1, y, w: w - 2.2, h, fontSize: 10.8, color: C.text, valign: "middle" });
 }
 
+// ---------- 1. Baseline에서 59D까지 ----------
+function yw1() {
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", YW + "Baseline에서 59D까지", 0);
+  coreMsg(s, "기본 특징과 분류기를 먼저 개선하고, 효과가 확인된 음향 정보만 선별해 59D를 구성했다.");
+
+  // 상단: 실험 흐름
+  const nodes = [
+    ["MFCC 40D", "20계수의 평균·표준편차"],
+    ["+ Rolloff·ZCR = 42D", "주파수 경계·파형 변화"],
+    ["MLP로 전환", "같은 42D · 비선형 관계 학습"],
+    ["음향 특징 59D", "가설별로 추가하고 선별"],
+  ];
+  const nw = 2.55, ny = 2.42, nh = 0.82, ngap = (CW - 4 * nw) / 3;
+  nodes.forEach(([t, b], i) => {
+    const x = M + i * (nw + ngap);
+    node(s, x, ny, nw, nh, t, b, i === 3);
+    if (i < 3) link(s, x + nw, ny + nh / 2, x + nw + ngap, ny + nh / 2);
+  });
+
+  // 하단 왼쪽: LR vs MLP
+  const by = 3.5, bh = 3.35, lw = 5.3;
+  card(s, M, by, lw, bh);
+  title(s, "■ 같은 42D 입력, 분류기만 교체", M + 0.2, by + 0.1, lw - 0.4, 14);
+  barChart(s, ["Logistic Regression", "MLP"], [81.73, 85.95], {
+    x: M + 0.15, y: by + 0.5, w: lw - 1.75, h: bh - 0.6, chartColors: [C.line, C.blue],
+    title: "내부 검증 Accuracy (%)", valAxisMinVal: 0, valAxisMaxVal: 100, valAxisMajorUnit: 20,
+  });
+  txt(s, [{ text: "+4.22%p", options: { fontSize: 24, bold: true, color: C.blue, breakLine: true } },
+          { text: "이 MLP를 고정한 뒤\n음향 특징을 비교", options: { fontSize: 10.5, color: C.sub } }],
+      { x: M + lw - 1.6, y: by + 1.2, w: 1.5, h: 1.4, align: "center", valign: "middle" });
+
+  // 하단 오른쪽: 59D 구성
+  const rx = M + lw + 0.3, rw = W - M - rx;
+  card(s, rx, by, rw, bh);
+  title(s, "■ clean 59D 구성", rx + 0.2, by + 0.1, rw - 0.4, 14);
+  const chips = [
+    [C.line, "기본 42D", "MFCC 40 + Rolloff·ZCR 2"],
+    [C.sky, "음높이·유성성 5D", "F0 변화폭·기울기, 유성 비율·주기성"],
+    [C.sky, "조화성·대역 관계 5D", "켑스트럼 봉우리(CPP) 2 + 대역 포락선 일관성 3"],
+    [C.blue, "활동성·엔트로피 7D", "음성 활동 패턴 4 + 스펙트럼 엔트로피 3"],
+  ];
+  chips.forEach(([col, h, b], i) => ywChip(s, rx + 0.2, by + 0.55 + i * 0.55, rw - 0.4, 0.46, col, h, b));
+  txt(s, [{ text: "87.38%", options: { fontSize: 24, bold: true, color: C.blue } },
+          { text: "   clean 59D · 내부 검증", options: { fontSize: 11, color: C.sub } }],
+      { x: rx, y: by + 2.8, w: rw, h: 0.45, align: "center", valign: "middle" });
+  caption(s, "※ 수치는 모두 Training 통화 단위 내부 검증 기준. 초기 Baseline(MFCC 40D + LR)은 공식 Validation 80.9%.", 7.02);
+  s.addNotes("기존 연우 슬라이드 15~20장 압축. Baseline: MFCC 40D(20계수 평균·표준편차) + Logistic Regression, 공식 Validation 80.9%. E05 42D = MFCC40 + Rolloff·ZCR(81.3%). 같은 E05 42D 입력, 같은 통화 단위 내부 분할: LR 81.73% / MLP 85.95%(+4.22%p). clean 59D = clean MFCC40 + E05 2D + AF02 5D(음높이·유성성) + AF04 2D(CPP) + AF09 3D(다중 대역 진폭 포락선 일관성) + AF10 4D(활동성) + AF11 3D(엔트로피), 내부 87.38%(clean 52D 86.96% 대비 +0.42%p). 제외·보류: Duration, Energy·Spectral Flux(제외), Delta-MFCC(보류), eGeMAPS 대체(86.40%, 기존 유지). 근거: docs/mission2_experiment_log.md.");
+}
+
+// ---------- 2. 세 모델과 149D 확장 ----------
+function yw2() {
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", YW + "세 모델과 149D 확장", 0);
+  coreMsg(s, "분포 요약과 대역 대비를 보완한 149D 입력을 서로 다른 세 모델에 적용했다.");
+
+  const top = 2.36, h = 4.5, lw = 7.2;
+  card(s, M, top, lw, h);
+  title(s, "■ 두 가지 보완 가설", M + 0.2, top + 0.1, lw - 0.4, 14);
+  const hyps = [
+    ["F01 · MFCC 분포 요약", "평균·표준편차가 놓치는 분포 모양을 보완", ["20개 MFCC", "×", "q10·중앙값·q90·IQR", "=", "80D"]],
+    ["F02 · 대역 대비", "대역 안의 강한·약한 성분 차이를 보완", ["0–4 kHz 5개 대역", "×", "대비의 평균·표준편차", "=", "10D"]],
+  ];
+  hyps.forEach(([name, why, eq], i) => {
+    const y = top + 0.5 + i * 1.18;
+    txt(s, name, { x: M + 0.25, y, w: 3.2, h: 0.3, fontSize: 12.5, bold: true, color: C.blue });
+    txt(s, why, { x: M + 3.3, y, w: lw - 3.5, h: 0.3, fontSize: 10.8, color: C.sub, align: "right" });
+    const parts = [[2.0, false], [0.3, true], [2.35, false], [0.3, true], [1.25, false]];
+    let x = M + 0.25;
+    eq.forEach((t, k) => {
+      const [w, op] = parts[k];
+      if (op) txt(s, t, { x, y: y + 0.4, w, h: 0.6, fontSize: 16, bold: true, color: C.sky, align: "center", valign: "middle" });
+      else {
+        const last = k === eq.length - 1;
+        s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y: y + 0.4, w, h: 0.6, fill: { color: last ? C.blue : C.light }, rectRadius: 0.06, line: { color: last ? C.blue : C.sky, width: 0.8 } });
+        txt(s, t, { x, y: y + 0.4, w, h: 0.6, fontSize: last ? 16 : 11.5, bold: true, color: last ? C.white : C.blue, align: "center", valign: "middle" });
+      }
+      x += w + 0.08;
+    });
+  });
+  // 149D 구성 막대 (길이 비례)
+  const barY = top + 3.45, barX = M + 0.25, barW = lw - 0.5;
+  txt(s, "결합 입력", { x: barX, y: barY - 0.36, w: 2, h: 0.3, fontSize: 11.5, bold: true, color: C.text });
+  let bx = barX;
+  [[59, "기존 59D", C.blue], [80, "F01 80D", C.sky], [10, "10D", C.mint]].forEach(([n, lab, col]) => {
+    const w = barW * n / 149;
+    s.addShape(pres.shapes.RECTANGLE, { x: bx, y: barY, w, h: 0.5, fill: { color: col }, line: { color: C.white, width: 1 } });
+    txt(s, lab, { x: bx, y: barY, w, h: 0.5, fontSize: 11, bold: true, color: C.white, align: "center", valign: "middle" });
+    bx += w;
+  });
+  txt(s, [{ text: "= 149D", options: { fontSize: 15, bold: true, color: C.blue } },
+          { text: "   (마지막 10D = F02 대역 대비)", options: { fontSize: 10, color: C.sub } }],
+      { x: barX, y: barY + 0.55, w: barW, h: 0.3, align: "right" });
+
+  const rx = M + lw + 0.3, rw = W - M - rx;
+  card(s, rx, top, rw, h);
+  title(s, "■ 149D · 세 모델 내부 검증", rx + 0.2, top + 0.1, rw - 0.4, 14);
+  [["TabM", "88.64%", "여러 MLP를 한 번에 학습하는 정형 모델"],
+   ["Tabular ResNet", "88.55%", "잔차 연결을 둔 정형 신경망"],
+   ["GANDALF", "88.58%", "게이트로 특징을 고르는 다른 계열"]].forEach(([n, v, d], i) => {
+    const y = top + 0.55 + i * 1.02;
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: rx + 0.2, y, w: rw - 0.4, h: 0.88, fill: { color: i === 0 ? C.light : C.white }, rectRadius: 0.06, line: { color: C.line, width: 0.8 } });
+    txt(s, n, { x: rx + 0.35, y: y + 0.08, w: 2.2, h: 0.35, fontSize: 13, bold: true, color: C.blue });
+    txt(s, d, { x: rx + 0.35, y: y + 0.45, w: rw - 2.2, h: 0.35, fontSize: 10.3, color: C.sub });
+    txt(s, v, { x: rx + rw - 1.85, y, w: 1.5, h: 0.88, fontSize: 21, bold: true, color: C.blue, align: "right", valign: "middle" });
+  });
+  txt(s, "선택 이유: 59D에서 가장 높은 두 기준 모델(TabM·ResNet)과, 다른 계열 중 가장 높은 GANDALF", { x: rx + 0.2, y: top + 3.68, w: rw - 0.4, h: 0.6, fontSize: 10.5, color: C.text, valign: "middle" });
+  caption(s, "※ Training 통화 단위 내부 검증 기준. 전처리는 Training에서만 fit.", 7.02);
+  s.addNotes("기존 연우 슬라이드 21·23장 압축. F01 MFCC Robust Stats 80D(20계수의 q10·중앙값·q90·IQR), F02 Spectral Contrast 10D(0–4 kHz 5대역 contrast 평균·표준편차). 149D = clean 59D + F01 80D + F02 10D. 149D 내부: TabM 88.64%, Tabular ResNet 88.55%, GANDALF 88.58%. 59D 동결 비교: TabM 88.40%, ResNet 88.38%, GANDALF 88.17%(신규 계열 중 최고).");
+}
+
+// ---------- 3. 최종 E_TRG 구성 ----------
+function yw3() {
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", YW + "최종 E_TRG 구성", 0);
+  coreMsg(s, "세 모델의 확률을 같은 비중(1/3씩)으로 평균한 E_TRG를 선택했다.");
+  flow(s, M, 2.55, CW, 2.5, {
+    pre: [["149D 음향 특징", "59D + F01 80D + F02 10D\n그 발화만 사용"]], preW: 2.9,
+    branches: [["TabM"], ["Tabular ResNet"], ["GANDALF"]].map(b => [b[0], "", "× 1/3"]), brW: 2.9, brGap: 0.12,
+    post: [["확률 평균", "≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 2.5,
+  });
+  const by = 5.35, bh = 1.5, lw = 4.0;
+  card(s, M, by, lw, bh, C.light);
+  txt(s, [{ text: "88.85%", options: { fontSize: 30, bold: true, color: C.blue, breakLine: true } },
+          { text: "E_TRG 내부 검증 Accuracy", options: { fontSize: 11, color: C.sub } }],
+      { x: M, y: by, w: lw, h: bh, align: "center", valign: "middle" });
+  const rx = M + lw + 0.3, rw = W - M - rx;
+  insight(s, rx, by, rw, bh, [
+    { text: "선택 결론  ", options: { bold: true, color: C.blue } },
+    { text: "세 단일 모델(88.55~88.64%)보다 높았다. 비중은 조정하지 않고 1/3씩 고정했고, 추가 튜닝 없이 Training 전체로 다시 학습해 확정했다.", options: {} },
+  ], C.mintLight, 12);
+  s.addNotes("기존 연우 슬라이드 24장 상단. E_TRG = TabM·Tabular ResNet·GANDALF 확률 1/3씩 평균, threshold 0.5. 내부 검증 88.85%. 149D 입력·동일 가중치·threshold 0.5 고정, 전체 Training으로 재학습(Stage 15).");
+}
+
+// ---------- 4. 최종 평가와 결론 ----------
+function yw4() {
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", YW + "최종 평가와 결론", 0);
+  coreMsg(s, "고정한 모델을 공식 Validation에서 한 번 평가해 88.49%를 확인했다.");
+  const top = 2.36, h = 2.9, lw = 4.6;
+  card(s, M, top, lw, h);
+  stat(s, M, top + 0.75, lw, "88.49%", "Accuracy (공식 Validation)", C.blue, 46);
+  const rx = M + lw + 0.3, rw = W - M - rx;
+  card(s, rx, top, rw, h);
+  title(s, "■ 역할별 Recall (공식 Validation)", rx + 0.2, top + 0.1, rw - 0.4, 14);
+  s.addChart(pres.charts.BAR, [{ name: "Recall", labels: ["119대원", "신고자"], values: [84.2, 92.5] }], {
+    x: rx + 0.2, y: top + 0.5, w: rw - 0.4, h: h - 0.6, barDir: "bar", varyColors: true, chartColors: [C.red, C.sky],
+    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 13, dataLabelFontBold: true, dataLabelFormatCode: "0.0",
+    valAxisMinVal: 0, valAxisMaxVal: 100, valAxisMajorUnit: 20, valAxisLabelColor: C.sub,
+    catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 12,
+    valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, showLegend: false,
+  });
+  const by = 5.45, bh = 1.4;
+  card(s, M, by, CW, bh);
+  title(s, "■ 결론", M + 0.2, by + 0.08, 3, 14);
+  bullets(s, [
+    [strong("음향 정보 선별  ", C.text), { text: "가설마다 음향 특징을 하나씩 더하고 효과가 확인된 것만 남겼다 (42D → 59D → 149D)." }],
+    [strong("남은 오류  ", C.text), { text: "짧은 발화와 목소리가 겹친 구간. 최종 제출 모델(CNN + WavLM, 92.90%)에서도 짧은 발화가 가장 어렵다." }],
+  ], M + 0.25, by + 0.45, CW - 0.5, 0.9, 12);
+  s.addNotes("기존 연우 슬라이드 24·25장. Stage 15 149D E_TRG 공식 Validation Accuracy 0.884919(88.49%), Recall 0/1 0.841787 / 0.924891, 111,947발화/3,640통화, FINAL_VERIFIED. 내부 88.85%와 평가 집합이 달라 차이를 개선량으로 계산하지 않음. 최종 제출 모델은 CNN 3개 + WavLM-large 2개(공식 Validation 92.90%, 11~15장). 근거: docs/mission2_experiment_log.md.");
+}
+
+yw1(); yw2(); yw3(); yw4();
 
 // Mission 3 — 환자 증상 인식 (26~29장)
 // ======================================================================
@@ -1463,7 +1661,7 @@ async function styleLengthExperimentLines(fileName) {
 }
 
 // 빌드 이전 자동 검증: 표지·타이틀·목차(1~3), 본문 및 별첨(4~37), 마무리(38).
-const EXPECTED_SLIDE_COUNT = 38;
+const EXPECTED_SLIDE_COUNT = 36;
 if (pres._slides.length !== EXPECTED_SLIDE_COUNT) {
   throw new Error(`슬라이드 수 오류: ${pres._slides.length}장 (예상 ${EXPECTED_SLIDE_COUNT}장)`);
 }
@@ -1481,7 +1679,7 @@ for (const slide of pres._slides) {
 }
 // 내부 객체 구조가 버전에 따라 달라질 수 있으므로 비어 있으면 출력하지 않는다.
 if (headerPageNumbers.length && (
-  headerPageNumbers.length !== 34 ||
+  headerPageNumbers.length !== 32 ||
   headerPageNumbers.some((n, i) => n !== i + 4)
 )) {
   throw new Error(`헤더 페이지 번호 중복/누락: ${headerPageNumbers.join(', ')}`);
