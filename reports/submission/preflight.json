@@ -1,0 +1,99 @@
+{
+  "checked_at_utc": "2026-10-11T13:41:38.091997+00:00",
+  "scope": "acquired package; M3 real offline smoke and CLI boundary checks",
+  "checks": {
+    "package_file_hashes": {
+      "status": "passed",
+      "files": 51,
+      "sha256_verified": true
+    },
+    "archive_integrity": {
+      "status": "passed",
+      "files": 51,
+      "sha256": "4f237c448820a5e5c4439355584d4810bb4d3177cb7964fe4833689ee1c72d98",
+      "member_hashes_and_crc_verified": true
+    },
+    "required_artifact_inventory": {
+      "status": "passed",
+      "mission1": {
+        "checkpoints": [
+          "m1_xvec001_combined.ckpt"
+        ],
+        "notebooks": [
+          "training.ipynb"
+        ],
+        "notebooks_with_execution_outputs": []
+      },
+      "mission2": {
+        "checkpoints": [],
+        "notebooks": [
+          "training_reference.ipynb"
+        ],
+        "notebooks_with_execution_outputs": []
+      },
+      "mission3": {
+        "checkpoints": [
+          "m3_roberta003_seed42.pt"
+        ],
+        "notebooks": [
+          "training.ipynb"
+        ],
+        "notebooks_with_execution_outputs": []
+      }
+    },
+    "m3_installed_versions": {
+      "status": "passed",
+      "versions": {
+        "torch": {
+          "expected": "2.12.1",
+          "installed": "2.12.1"
+        },
+        "transformers": {
+          "expected": "4.57.6",
+          "installed": "4.57.6"
+        },
+        "numpy": {
+          "expected": "2.4.4",
+          "installed": "2.4.4"
+        },
+        "pandas": {
+          "expected": "3.0.2",
+          "installed": "3.0.2"
+        }
+      }
+    },
+    "m3_offline_real_checkpoint": {
+      "status": "passed",
+      "rows": 2,
+      "elapsed_seconds": 74.37,
+      "checkpoint_sha256": "bbc0bd7a5f320df78bc20e59fc98827c6d9bb9367d23ac45367d7c2ff9a56e7e",
+      "network_attempts": 0,
+      "empty_hf_cache": true,
+      "no_audio_or_disallowed_annotation": true,
+      "matches_full_validation_csv": true,
+      "csv_columns_and_label_order": true,
+      "sample_check_only": true
+    },
+    "m3_cli_threshold_boundary": {
+      "status": "passed",
+      "below_half_empty": true,
+      "exact_half_positive": true,
+      "all_nine_in_order": true,
+      "python_list_cell_roundtrip": true,
+      "no_minimum_one_rule": true,
+      "controlled_probabilities_only": true
+    }
+  },
+  "pending": [
+    "M1: selected training notebook with execution outputs unavailable",
+    "M2: selected final checkpoint missing",
+    "M2: selected training notebook with execution outputs unavailable",
+    "M3: selected training notebook with execution outputs unavailable",
+    "M3: replace with full-Training final .pt and matching executed notebook, then rerun preflight",
+    "Fresh environment requirements installation not verified",
+    "M1/M2 runtime checks retained from prior manifest; not repeated in this M3 preflight"
+  ],
+  "failures": [],
+  "ready_for_final_submission": false,
+  "status": "passed_with_pending_artifacts"
+}
