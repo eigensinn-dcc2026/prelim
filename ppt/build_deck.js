@@ -478,17 +478,17 @@ function flow(slide, x, y, w, h, f) {
 {
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 채택하지 않은 시도", 10);
-  coreMsg(s, "점수가 올라도 미리 정한 기준을 못 넘으면 채택하지 않았다.");
+  coreMsg(s, "점수가 조금 올라도 미리 정해 둔 목표를 넘지 못하면 채택하지 않았다.");
   table(s, [
     ["시도", "판정", "이유"],
-    ["LightGBM", strong("✓ LR 채택"), "점수 차이가 작고 더 단순·해석 쉬움"],
-    ["RBF-SVM 분류기", strong("✗ 기각", C.red), "이득이 기준 미달, 추론이 훨씬 느림"],
-    ["ECAPA 임베딩 추가·교체", strong("✗ 기각", C.red), "이득이 기준 미달"],
-    ["x-vector LR + ECAPA LR 확률 평균", strong("✗ 기각", C.red), "공식 Val 98.30%로 소폭 높았지만 미리 정한 기준 미달, 차이가 우연과 구분되지 않음"],
-  ], M, 2.45, [3.5, 1.4, 7.43], { rowH: 0.62, fontSize: 13 });
+    ["트리 기반 모델 (LightGBM)", strong("✓ 유지"), "점수 차이가 거의 없고, 로지스틱 회귀가 더 단순해서 설명하기 쉬움"],
+    ["비선형 분류기 (RBF-SVM)", strong("✗ 기각", C.red), "정확도 향상 +0.33%p로 목표(+0.4%p)에 못 미치고, 예측이 훨씬 느림"],
+    ["다른 음성 특징 모델 (ECAPA) 추가·교체", strong("✗ 기각", C.red), "향상 폭이 목표에 못 미침 (교체 비교 +0.28%p, 목표 +0.3%p)"],
+    ["두 모델의 예측 확률 평균 (x-vector 모델 + ECAPA 모델)", strong("✗ 기각", C.red), "공식 Validation 98.30%로 조금 높았지만(+6통화) 목표에 못 미치고, 우연과 구분되지 않음"],
+  ], M, 2.45, [3.9, 1.5, 6.93], { rowH: 0.62, fontSize: 13 });
   insight(s, M, 5.75, CW, 1.05, [
-    { text: "공식 Val에서 더 높았던 모델을 왜 버렸나?  ", options: { bold: true, color: C.blue, breakLine: true } },
-    { text: "몇 통화 차이는 우연과 구분되지 않는다. 결과를 본 뒤 기준을 낮추면 Validation에 과적합된다." },
+    { text: "공식 Validation에서 더 높았던 모델을 왜 버렸나?  ", options: { bold: true, color: C.blue, breakLine: true } },
+    { text: "몇 통화 차이는 우연과 구분되지 않는다. 결과를 본 뒤 기준을 낮추면 공식 Validation에만 잘 맞는 모델이 되어(과적합) 실제 성능을 믿을 수 없다." },
   ], C.light, 13.5);
   caption(s, "근거: docs/decisions.md 2026-10-05, docs/experiment_log.md M1-HEAD-001, M1-ECAPA-002, M1-FUSE-001-OFFVAL");
   s.addNotes("근거: LightGBM vs LR — docs/decisions.md 2026-10-05 / RBF-SVM — M1-HEAD-001 / ECAPA — M1-ECAPA-001(3차)·M1-ECAPA-002 / 확률 평균 — M1-FUSE-001, M1-FUSE-001-OFFVAL(98.30%, 사전 고정 기준 98.434% 미달, McNemar p=0.345).");
