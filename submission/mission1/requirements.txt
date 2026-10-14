@@ -1,11 +1,16 @@
 # Mission 1 추론 전용 (CPU, Python 3.11).
 # torch·transformers는 Dependabot 보안 경고를 닫는 패치 버전이다.
 # 체크포인트를 만들 때 쓴 버전은 torch 2.12.1, transformers 4.57.6.
+# 이 파일 그대로 새로 설치한 환경에서 공식 Validation 31통화를 돌려 이전 버전과 비교했다(2026-10-14):
+# 판정 31/31 같음, 로지스틱 점수 차이 최대 1e-5, x-vector 차이 최대 6e-8.
 torch==2.14.1
 transformers==5.19.0
 numpy==2.4.4
 pandas==3.0.2
 librosa==0.11.0
 scipy==1.17.1
-# librosa가 끌어오는 패키지이지만 검증한 버전으로 고정한다(고정하지 않으면 더 새 버전이 설치된다).
+# 아래는 다른 패키지가 끌어오지만 검증한 버전으로 고정한다(고정하지 않으면 더 새 버전이 설치된다).
 scikit-learn==1.8.0
+tokenizers==0.23.3
+huggingface_hub==2.2.0
+safetensors==0.8.0

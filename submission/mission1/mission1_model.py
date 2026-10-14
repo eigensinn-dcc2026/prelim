@@ -3,7 +3,7 @@
 통화마다 ``startAt`` / ``endAt`` / ``speaker``만 사용해 신고자(speaker=1)의 음성을 잘라 이어 붙인 뒤
 564차원 특징을 만든다.
 
-* 52차원 음향 벡터(MFCC·F0·에너지 통계): 신고자 음성 전체에서 계산한다.
+* 52차원 음향 벡터(MFCC·RMS·ZCR·스펙트럼 통계): 신고자 음성 전체에서 계산한다.
 * 512차원 x-vector(``microsoft/wavlm-base-plus-sv``): 신고자 음성을 겹치지 않는 20초 창으로 나눈다
   (최대 4개, 뒤쪽 창은 3초 이상일 때만 사용). 창마다 임베딩을 L2 정규화하고, 창 길이로 가중 평균한 뒤
   다시 L2 정규화한다.
@@ -143,10 +143,13 @@ def extract_features(wav_path: Path, json_path: Path, processor, model, torch) -
 
 
 def classify(head: dict, features: np.ndarray) -> int:
-    """표준화한 564차원 벡터의 로지스틱 점수가 양수이면 1(M), 아니면 0(F)을 돌려준다."""
+    """표준화한 564차원 벡터의 확률이 0.5 이상(로지스틱 점수 >= 0)이면 1(M), 아니면 0(F)을 돌려준다.
+
+    주최 측이 정한 판정 기준 ``p >= 0.5 -> 1``과 같다(점수 0은 확률 0.5).
+    """
     standardised = (features - head["scaler_mean"]) / head["scaler_scale"]
     score = float(standardised @ head["coef"][0] + head["intercept"][0])
-    return int(score > 0)
+    return int(score >= 0)
 
 
 def predict(audio_dir: Path, label_dir: Path, ckpt_path: Path) -> pd.DataFrame:
