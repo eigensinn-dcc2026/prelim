@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-"""Mission 2 L2(CNN) 체크포인트 여러 개를 앙상블 체크포인트 하나로 묶는다.
+"""CNN 체크포인트 여러 개(seed 만 다른 것)를 앙상블 체크포인트 하나로 묶는다.
 
-멤버는 구조, 멜 설정, 라벨 출처가 같아야 하고 --torch-seed만 달라야 한다(시드 앙상블의 핵심이다.
-M2-ENS-002/003 참고: 3,000통화 파일럿에서 +0.48%p를 준 같은 3개 모델 소프트 보팅이 전체 29,200통화
-원본 라벨 모델에서는 +0.50%p를 주었다). scripts/mission2_inference.py는 --ckpt_path를 정확히 하나만
-받으므로, 모든 멤버의 가중치를 "best_model_state_dict" 하나 대신 "ensemble_model_state_dicts"
-아래 한 파일에 담는다. 그래서 대회의 실행 명령 형식은 바꿀 필요가 없다.
+멤버들은 구조·mel 설정·라벨 출처가 같고 --torch-seed 만 달라야 한다(seed 앙상블의 핵심. M2-ENS-002/003: 3개 모델의 확률 평균이
+3,000통화 시험에서 +0.48%p, 전체 29,200통화 모델에서 +0.50%p). 추론 명령은 --ckpt_path 를 하나만 받으므로, 모든 멤버의 가중치를
+"best_model_state_dict" 하나 대신 "ensemble_model_state_dicts" 아래에 한 파일로 담는다. 최종 제출 체크포인트의 CNN 부분이 이 결과다.
 
-사용법:
-    python scripts/pack_mission2_l2_ensemble.py \\
-        --ckpt-path checkpoints/mission2/m2_cnn_large_raw_ts1.pt \\
-        --ckpt-path checkpoints/mission2/m2_cnn_large_raw_ts2.pt \\
-        --ckpt-path checkpoints/mission2/m2_cnn_large_raw_ts3.pt \\
-        --output checkpoints/mission2/m2_cnn_large_raw_ensemble.pt
+사용법 (CNN 학습 노트북의 실제 명령과 같음):
+    python scripts/pack_mission2_l2_ensemble.py \
+        --ckpt-path ckpt/m2_cnn_large_rerun_ts1.pt \
+        --ckpt-path ckpt/m2_cnn_large_rerun_ts2.pt \
+        --ckpt-path ckpt/m2_cnn_large_rerun_ts3.pt \
+        --output ckpt/m2_cnn_large_rerun_ensemble.pt
 """
 
 from __future__ import annotations
@@ -63,7 +61,7 @@ def main() -> int:
         state_dicts.append(checkpoint["best_model_state_dict"])
         best_val_accs.append(checkpoint.get("best_val_acc"))
 
-    merged_metadata = build_ensemble_metadata(member_metadata)  # 같은 torch_seed가 반복되면 거부한다
+    merged_metadata = build_ensemble_metadata(member_metadata)  # 같은 torch_seed 가 두 번 나와도 거부한다
     for i in range(len(state_dicts)):
         for j in range(i + 1, len(state_dicts)):
             if all(torch.equal(state_dicts[i][name], state_dicts[j][name]) for name in state_dicts[i]):

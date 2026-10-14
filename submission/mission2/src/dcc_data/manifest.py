@@ -1,4 +1,7 @@
-"""내려받은 모든 조각(shard)에 걸쳐 위치 정보만 담은 목록(manifest)을 만들고 읽는다."""
+"""manifest(데이터 위치 목록) 만들기·저장·불러오기. 라벨이나 대사 내용 없이 WAV/JSON 의 위치만 담는다.
+
+같은 통화의 WAV 와 JSON 을 (분할, 파일 이름) 으로 짝짓는다. 내려받은 조각(zip)의 경계는 일부러 무시한다.
+"""
 
 from __future__ import annotations
 
@@ -16,6 +19,7 @@ from .guards import (
 )
 
 
+# manifest CSV 형식 버전과 컬럼
 MANIFEST_VERSION = "1"
 MANIFEST_COLUMNS = (
     "manifest_version",
@@ -28,6 +32,8 @@ MANIFEST_COLUMNS = (
 
 @dataclass(frozen=True)
 class ManifestRow:
+    """통화 하나: 분할(Training/Validation), 파일 이름(stem), WAV 와 JSON 의 상대 경로."""
+
     split: str
     stem: str
     wav_path: str
@@ -35,10 +41,10 @@ class ManifestRow:
 
 
 def build_manifest(data_root: str | Path) -> list[ManifestRow]:
-    """모든 WAV/JSON 파일을 ``(split, stem)`` 기준으로 전체에서 짝지운다.
+    """``data_root`` 아래의 모든 WAV/JSON 을 ``(분할, 파일 이름)`` 으로 짝짓는다.
 
-        돌려주는 행의 경로는 ``data_root`` 기준 POSIX 형식 상대 경로이다.
-        내려받은 조각의 경계는 짝짓기에서 일부러 무시한다.
+    경로는 ``data_root`` 기준 상대 경로(POSIX 형식)다. 내려받은 조각의 경계는 짝짓기에서 일부러 무시한다.
+    같은 이름이 두 번 나오거나 짝이 없으면 멈추고, 마지막에 guards.validate_manifest_rows 로 한 번 더 검사한다.
     """
 
     root = Path(data_root).resolve()
@@ -92,7 +98,7 @@ def build_manifest(data_root: str | Path) -> list[ManifestRow]:
 def write_manifest(
     rows: list[ManifestRow], output_path: str | Path, *, overwrite: bool = False
 ) -> Path:
-    """라벨이나 전사 내용이 없는, 항상 같은 결과가 나오는 CSV를 쓴다."""
+    """라벨과 대사 없이 위치만 담은 CSV 를 쓴다(항상 같은 순서). 임시 파일에 다 쓴 뒤 이름을 바꾼다."""
 
     output = Path(output_path)
     if output.exists() and not overwrite:
@@ -137,7 +143,7 @@ def load_manifest(
     data_root: str | Path | None = None,
     validate_paths: bool = True,
 ) -> list[ManifestRow]:
-    """목록을 읽고 무결성 검사를 다시 실행한다."""
+    """manifest CSV 를 불러오고 안전장치 검사를 다시 한다(``data_root`` 를 주면 파일 존재까지 확인)."""
 
     path = Path(manifest_path)
     rows: list[ManifestRow] = []

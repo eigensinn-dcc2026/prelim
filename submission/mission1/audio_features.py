@@ -132,7 +132,7 @@ N_ACOUSTIC_FEATURES = 52  # MFCC·RMS·ZCR·스펙트럼 통계만 센다 (acous
 
 
 def acoustic_feature_vector(segment: np.ndarray, sample_rate: int) -> np.ndarray:
-    """52차원 MFCC·RMS·ZCR·스펙트럼 통계. 호출하는 쪽에서 앞에 duration_sec를 붙인다."""
+    """52차원 MFCC·RMS·ZCR·스펙트럼 통계(MFCC 20개의 평균·표준편차 40 + 나머지 6종의 평균·표준편차 12)."""
 
     if len(segment) < N_FFT:
         segment = np.pad(segment, (0, N_FFT - len(segment)))

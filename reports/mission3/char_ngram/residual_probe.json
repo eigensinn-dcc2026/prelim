@@ -1,0 +1,89 @@
+{
+ "baseline": "0.55 * r3_holdout + 0.45 * p0_holdout, threshold 0.5",
+ "n": 5792,
+ "macro_f1": 0.6494,
+ "per_label_f1": {
+  "고열": 0.6694,
+  "구토": 0.6173,
+  "두통": 0.5248,
+  "복통": 0.8038,
+  "어지러움": 0.6675,
+  "열상": 0.8889,
+  "오심": 0.376,
+  "전신쇠약": 0.5919,
+  "호흡곤란": 0.7053
+ },
+ "weak": {
+  "오심": {
+   "support": 668,
+   "fn": 405,
+   "fp": 468,
+   "tp": 263,
+   "fn_strict": 13,
+   "fn_no_mention": 391,
+   "fn_spacing_gap": 1,
+   "fp_related": 424,
+   "fp_question_only": 12
+  },
+  "두통": {
+   "support": 581,
+   "fn": 290,
+   "fp": 237,
+   "tp": 291,
+   "fn_strict": 9,
+   "fn_no_mention": 281,
+   "fn_spacing_gap": 0,
+   "fp_related": 121,
+   "fp_question_only": 13
+  },
+  "전신쇠약": {
+   "support": 1062,
+   "fn": 439,
+   "fp": 420,
+   "tp": 623,
+   "fn_strict": 23,
+   "fn_no_mention": 416,
+   "fn_spacing_gap": 0,
+   "fp_related": 302,
+   "fp_question_only": 18
+  }
+ },
+ "spacing_gap_fn": {
+  "고열": 2,
+  "구토": 1,
+  "두통": 0,
+  "복통": 0,
+  "어지러움": 0,
+  "열상": 0,
+  "오심": 1,
+  "전신쇠약": 0,
+  "호흡곤란": 0
+ },
+ "spacing_gap_fn_total": 4,
+ "spacing_gap_oracle_macro": 0.6498,
+ "spacing_gap_oracle_delta": 0.0004,
+ "question_only_fp": {
+  "고열": 25,
+  "구토": 12,
+  "두통": 13,
+  "복통": 20,
+  "어지러움": 17,
+  "열상": 11,
+  "오심": 12,
+  "전신쇠약": 18,
+  "호흡곤란": 24
+ },
+ "question_only_fp_total": 152,
+ "question_oracle_macro": 0.6557,
+ "question_oracle_delta": 0.0063,
+ "weak_question_fp_share": {
+  "오심": 0.0256,
+  "두통": 0.0549,
+  "전신쇠약": 0.0429
+ },
+ "weak_question_oracle_delta": 0.0016,
+ "run_char_model": false,
+ "run_turn_probe": false,
+ "gate": 0.004,
+ "official_val_used": false
+}

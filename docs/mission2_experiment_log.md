@@ -2,7 +2,7 @@
 
 > 이 문서는 Mission 2의 진행 중 실험 기록이다. 최종 모델 보고서가 아니며, 새로운 실험 결과와 결정이 검증될 때마다 누적 갱신한다.
 
-최종 수정일: 2026-10-12
+최종 수정일: 2026-10-13
 
 결과 표기의 우선순위는 **저장된 Notebook output → persisted artifact → source code → Git branch/commit → 설명 문서**다. 같은 ID라도 평가 집단이나 모델이 다르면 별도 결과로 기록한다. `canonical`은 다음 비교의 기준이라는 뜻이며, `final model`을 뜻하지 않는다.
 
@@ -18,15 +18,15 @@
 | 시드 | 42 |
 | 평가 지표 | 공식 1차 metric Accuracy; 보조 진단은 confusion matrix, speaker별 Recall, confidence/HCE, duration, overlap, paired prediction change |
 | 전처리 | 학습되는 `StandardScaler`는 해당 비교의 Training 또는 internal-training에만 fit하고 평가 집합에는 그대로 적용 |
-| 공식 검증의 역할 | 초기 baseline/E-series 및 M00/M01/M04-30 확인에 사용. gradient update에는 사용하지 않음 |
+| 공식 검증의 역할 | 초기 baseline/E-series 및 M00/M01/M04-30 확인에 사용. 이후 Stage 15에서는 고정한 149D E_TRG를 full-Training refit 후 최종 평가했다. 해당 refit에서 scaler fit·gradient·early stopping·checkpoint 선택 및 추가 튜닝에 사용하지 않음 |
 | 내부 검증의 역할 | 현재 feature/model 반복 비교의 주 평가 집합. 동일 payload/split/scaler/model 계약 안에서만 Delta 계산 |
 | 현재 수작업 특징 비교 기준 | **clean 59D** = clean MFCC40 + current v2 E05 2D + AF02 5D + AF04 2D + AF09 3D + AF10 4D + AF11 3D; 다음 representation 비교의 기준이며 final representation이 아님 |
 | 현재 비교 기준 모델 | **59D 이중 동결 비교 기준: TabM + Tabular ResNet**. Stage 6 Stronger MLP는 복잡한 정형 모델 비교의 직접 기준으로 보존; Stage 4 M04-100은 당시 비교 기준으로 보존 |
 | 현재 내부 검증 기준 결과 | TabM `0.8839795155460366`, errors `20,639`; Tabular ResNet `0.8837546587517076`, errors `20,679`. 동일 `177,891` internal-validation 행; 상세 CM·gap·paired 결과는 §4.11 |
-| 현재 공식 검증 결과 | 현재 59D dual reference의 Official 결과는 없음. 과거 40D/42D Official 결과와 혼동하지 않음 |
+| 현재 공식 검증 결과 | Stage 15 **149D E_TRG Accuracy `0.884919` (88.49%)**, Recall 0/1 `0.841787 / 0.924891`, 111,947발화/3,640통화; `FINAL_VERIFIED`. 59D dual reference 자체의 Official 결과는 없으며 과거 40D/42D 결과와 구분함 |
 | Stage 11 최종 상태 | **SKIP — team duplication avoidance(팀 중복 회피)**. 팀원 김광희가 시간×주파수 표현 계열을 별도로 탐색 중이므로 개인 실험 중복을 피함 |
 | Stage 12 최종 상태 / 성능 | **CLOSED — resource/time feasibility(자원/시간 문제로 종료)** / **PERFORMANCE NOT EVALUATED(성능 미평가)**. Stage 12-A WavLM Base+와 Stage 12-B DPWavLM을 별도 실험으로 보존 |
-| 최종 후보 / 다음 단계 | 사용자 결정으로 Stage 14의 **E_TRG (TabM + Tabular ResNet + GANDALF, 동일가중치 1/3씩)** 채택. 이는 반복 사용된 Internal Validation 기반의 현재 채택 후보이며 Official Validation·Stage 15 튜닝은 아직 수행하지 않음 |
+| 최종 후보 / 다음 단계 | Stage 14에서 **E_TRG (TabM + Tabular ResNet + GANDALF, 동일가중치 1/3씩)** 채택 → Stage 15 full-Training refit 및 Official Validation 완료. 추가 튜닝은 수행하지 않음. 지연우 개인 최종 실험 모델이며 팀 제출 모델과 구분함; 제출 inference 준비·독립 재다운로드 SHA 확인 상태는 Stage 15 기록 참조 |
 
 공정 비교 gate는 동일 row/key/label, 동일 GroupSplit·seed·evaluation set, internal-train-only scaler, 비교하지 않는 model 또는 feature의 고정이다. 조건이 다른 Internal과 Official 사이에는 Delta를 계산하지 않는다.
 
@@ -540,11 +540,11 @@ B5에서 MFCC40, AF02, AF04, AF09, AF10/AF11의 저장된 model-input 값은 old
 
 - **현재 수작업 특징 비교 기준:** clean AF10+AF11 59D = clean AF09 52D + speech activity boundary 4D + spectral entropy dynamics 3D. fingerprint `49d65a35d1e98c280f98e45cbed864ef8bac36268ccffbe81aa0985923c90de3`의 versioned chain을 사용하며 final representation이 아니다.
 - **59D 이중 동결 비교 기준:** TabM 내부 검증 정확도 `0.8839795155` / ResNet `0.8837546588`. 동일 clean 59D, 고정 분할·시드 42·스케일러·임계값 0.5를 유지한 후속 표현 비교 기준이다. Stage 6 Stronger MLP `0.8760364493`은 직접 비교 기준, Stage 4 M04-100 MLP `(64,)`는 당시의 미수렴 기준으로 보존한다.
-- **현재 채택 후보:** Stage 14 `E_TRG` (TabM + Tabular ResNet + GANDALF, 각 1/3)를 사용자 결정으로 채택했다. 이 선택은 Internal Validation 결과에 기반한다. Official Validation과 Stage 15 튜닝은 아직 하지 않았으며, 이를 통과한 대회 제출 최종 모델로 표현하지 않는다.
+- **현재 채택 후보 / 최종 평가:** Stage 14 `E_TRG` (TabM + Tabular ResNet + GANDALF, 각 1/3)를 Internal Validation 결과에 기반해 채택했다. Stage 15에서는 추가 튜닝 없이 149D 입력·가중치·threshold를 고정해 full-Training refit과 Official Validation을 완료했다. Accuracy `0.884919`, Recall 0/1 `0.841787 / 0.924891`, audit `FINAL_VERIFIED`다. 지연우 개인 최종 실험 모델이며 팀의 대회 제출 모델로 표현하지 않는다.
 - **현재 clean B4:** 52D 내부 검증 정확도 `0.869594`, 혼동행렬 `[[71215,14136],[9062,83478]]`; 59D 내부 검증 정확도 `0.873760`, 혼동행렬 `[[72265,13086],[9371,83169]]`. 같은 B4를 2회 실행해 동일 결과를 얻었다는 사용자 보고다.
 - **과거 Stage 1:** 과거 캐시 59D 학습 정확도 `0.8766112834467376`, 내부 검증 정확도 `0.8745580158636468`, 격차 `0.0020532675830907676`. 현재 clean 학습 정확도·격차로 재사용하지 않는다.
 - **일반화 해석:** Stage 4 same-run clean 59D gap은 `0.0020278589` (§4.9), Stage 6 Stronger MLP는 `0.0057402178`, complex TabM/FT/ResNet은 `0.0038410018 / 0.0110020186 / 0.0164248295`다. Stage 4 비교만으로 optimization/representation을 구분하지 못했던 한계를 유지하며 historical gap을 current clean 결과로 재사용하지 않는다. 단일 seed의 gap과 공통 residual만으로 bottleneck을 확정하지 않는다.
-- **현재 표현의 공식 검증 결과:** 없음. 과거 40D/42D Official 결과를 59D 점수로 재사용하지 않는다.
+- **현재 표현의 공식 검증 결과:** 149D E_TRG의 Stage 15 Official 결과가 있다. 59D dual reference 자체의 Official 결과는 없으며, 과거 40D/42D Official 결과를 59D 또는 149D 점수로 재사용하지 않는다.
 - **과거 특징 검증:** old-cache 61D(59D+AF05)는 Val `0.874738`, old-cache delta `+0.000180`, net +32였다. AF05는 HOLD이며 clean 59D에 대한 결과로 재해석하지 않는다.
 - **과거 재현성 기준:** old-cache guarded 52D `0.8695324665103912`와 59D `0.8745580158636468`은 exact 재현된 과거 결과로 보존한다. 최초 52D `0.8689703245245685`는 미재현·원인 미해결이다.
 - **수작업 특징 Stage 3:** 추가 handcrafted feature 조합 탐색은 종료했다.
@@ -557,9 +557,9 @@ B5에서 MFCC40, AF02, AF04, AF09, AF10/AF11의 저장된 model-input 값은 old
 - **복잡한 정형 모델 실행 검증 / 미확인 사항:** 저장 예측에서 정확도·혼동행렬·HCE·짝지은 비교/화자별/신뢰도 결과를 재계산해 일치 확인. 직접 짝지은 공통 오류 `17,236`, TabM 정답 수 순우위 `40`이다. 발화 길이/중첩은 **미분석/현재 추적 근거 파일 미확인**이며 과거 구간 결과와 섞지 않는다. 재로드 `EXACT_PASS`는 저장된 Colab 기록이며 이번 문서 작업에서 모델 학습/추론은 실행하지 않았다.
 - **Stage 13 데이터·prediction 검증:** clean 59D 지문 `49d65a35d1e9…`, train/validation `711,467 / 177,891`, seed `42`, `call_id` overlap `0`, threshold `0.5`, Official Validation 미사용. exact record identity로 붙인 tracking은 오류 분석 전용이다. 6개 저장 prediction 모두 validation `177,891`행으로 재정렬되고 저장 지표를 재계산했으며, 6개 checkpoint reload gate가 모두 `EXACT_PASS`다. TabNet의 초기 in-memory prediction과 저장본 불일치는 남아 있으며 §4.13에 범위를 구분해 기록한다.
 - **Stage 13 계획 변경:** 로드맵 Stage 13의 원래 후보 수 제한은 `1–2개`다. 이번 실행은 사용자의 명시적 요청으로 6개 family로 확장됐다. Colab Checkpoint D에서 여섯 설정이 첫 결과 전에 고정됐고 결과 기반 튜닝은 없었다. 변경 전의 별도 2개 후보 목록·승인 기록은 현재 저장소/Colab 출력에서 찾지 못했다.
-- **보류 / 미해결:** AF05 61D, model/optimization/representation bottleneck 구분, AF04 promotion provenance, 최초 AF09 `0.868970` divergence 원인, M04-60 fit provenance. Stage 15 튜닝과 Official Validation도 현재 미실행이다.
+- **보류 / 미해결:** AF05 61D, model/optimization/representation bottleneck 구분, AF04 promotion provenance, 최초 AF09 `0.868970` divergence 원인, M04-60 fit provenance. Stage 15 최종 평가는 완료됐고 추가 튜닝은 수행하지 않았다. 실행 Notebook 저장본 일치, 독립 Drive 재다운로드 SHA 확인 및 제출 inference 준비는 Stage 15의 미완료 기록을 유지한다.
 
-현재 사용자가 채택한 모델 후보는 Stage 14의 149D 입력 3모델 동일가중치 앙상블 `E_TRG`다. clean 59D dual reference와 Stage 13 first-screen 결과는 비교 이력으로 보존한다. 이번 채택 근거는 재사용된 Internal Validation이므로 독립 일반화 성능을 뜻하지 않으며, Official Validation과 Stage 15 튜닝은 수행하지 않았다.
+현재 사용자가 채택한 모델은 149D 입력 3모델 동일가중치 앙상블 `E_TRG`다. clean 59D dual reference와 Stage 13 first-screen 결과는 비교 이력으로 보존한다. Stage 14 채택은 재사용된 Internal Validation에 기반하고, 이후 Stage 15에서 고정 후보의 full-Training refit 및 Official Validation을 완료했다. 추가 튜닝은 수행하지 않았다. 과거에도 Official Validation을 사용한 이력이 있으므로 최초의 독립 holdout 평가로 표현하지 않는다. 현재 상태는 아래 Stage 15 완료 기록과 run artifact를 기준으로 한다.
 
 ## 11. 전체 실험 요약표
 
@@ -620,7 +620,11 @@ B5에서 MFCC40, AF02, AF04, AF09, AF10/AF11의 저장된 model-input 값은 old
 | Stage14-E_TR | Stage14 members | TabM + ResNet, each 1/2 | 149/member | fixed equal-weight ensemble | Internal (`177,891`) | `0.887217` | `+0.0787 pp` vs best member | candidate; below E_TRG | same Stage14 run; §4.14 |
 | Stage14-E_TG | Stage14 members | TabM + GANDALF, each 1/2 | 149/member | fixed equal-weight ensemble | Internal (`177,891`) | `0.888151` | `+0.1720 pp` vs best member | candidate; below E_TRG | same Stage14 run; §4.14 |
 | Stage14-E_RG | Stage14 members | ResNet + GANDALF, each 1/2 | 149/member | fixed equal-weight ensemble | Internal (`177,891`) | `0.888167` | `+0.2322 pp` vs best member | strongest 2-member candidate; E_TRG higher by `0.0315 pp` | same Stage14 run; §4.14 |
-| Stage14-E_TRG | Stage14 members | TabM + ResNet + GANDALF, each 1/3 | 149/member | fixed equal-weight ensemble | Internal (`177,891`) | **`0.888482`** | `+0.2052 pp` vs best single member; `+0.0315 pp` vs E_RG | **사용자 채택 후보**; Official/Stage15 미실행 | same Stage14 run; §4.14 |
+| Stage14-E_TRG | Stage14 members | TabM + ResNet + GANDALF, each 1/3 | 149/member | fixed equal-weight ensemble | Internal (`177,891`) | **`0.888482`** | `+0.2052 pp` vs best single member; `+0.0315 pp` vs E_RG | **Stage 14 사용자 채택**; 이후 Stage 15 최종 평가 완료 | same Stage14 run; §4.14 |
+| Stage15-TabM | Stage14 frozen configuration | full-Training refit, 68 epoch | 149 | TabM | Official (`111,947`) | `0.880560` | N/A | 고정 멤버 최종 평가 완료 | Stage 15 final run; `official_validation_comparison.csv` |
+| Stage15-ResNet | Stage14 frozen configuration | full-Training refit, 16 epoch | 149 | Tabular ResNet | Official (`111,947`) | `0.880854` | N/A | 고정 멤버 최종 평가 완료 | same Stage15 run |
+| Stage15-GANDALF | Stage14 frozen configuration | full-Training refit, 17 epoch | 149 | GANDALF | Official (`111,947`) | `0.881864` | N/A | 고정 멤버 최종 평가 완료 | same Stage15 run |
+| Stage15-E_TRG | Stage15 members | TabM + ResNet + GANDALF, each 1/3 | 149/member | fixed equal-weight ensemble | Official (`111,947`) | **`0.884919`** | `+0.3055 pp` vs same-run GANDALF | **지연우 개인 최종 실험 모델**; 최종 평가 `FINAL_VERIFIED`, 추가 튜닝 없음 | Stage 15 final run; `final_audit.json`, `official_validation_comparison.csv` |
 
 ## 근거 파일 목록
 
@@ -645,6 +649,8 @@ B5에서 MFCC40, AF02, AF04, AF09, AF10/AF11의 저장된 model-input 값은 old
 - Stage 13 실행 Notebook: [mission2_stage13_untested_model_family_first_screen.ipynb](https://colab.research.google.com/drive/1aW0NTaCbnNv7-QAUm3lUZIO3Ci4XdIIJ). 저장된 Checkpoint B/C/D와 모델별 Checkpoint E–J, 통합 분석 Checkpoint K–M output을 대조했다. run root: `/content/drive/MyDrive/prelim/data/processed/mission2_stage13_untested_model_family_first_screen/20261009T051303Z_7d149a2b`.
 - Stage 13 공통·통합 artifact: run root의 `contract.json`, `environment.json`, `run_summary.json`, `reference_metrics.json`, `model_artifact_audit.json`, `implementation_patch_recovery.json`, `analysis_patch_recovery.json`; 통합 결과 `eight_model_comparison.csv`/`.parquet`, `paired_error_comparison.csv`, `common_reference_error_corrections.csv`, `class_recall_comparison.csv`, `slice_comparison.csv`.
 - Stage 13 행 단위 검토·후보 artifact: `row_level_error_ledger.parquet`, `misclassified_sample_review.parquet`, `high_confidence_error_cases.parquet`, `model_unique_correction_cases.parquet`, `all_model_common_errors.parquet`, `validated_tracking.parquet`; 각 후보 폴더에는 고정 config, checkpoint, `predictions.parquet`, `metrics.json`, status/history와 해당하는 복구 근거가 저장돼 있다. TabNet 상세 근거는 `tabnet/failure.json`, `tabnet/attempt_02/failure.json`, `tabnet/checkpoint_recovery_evidence.json`; 전체 reload·row audit는 `model_artifact_audit.json`이다. 파일은 Colab output에서 확인했으며 이번 문서 작업에서 다시 읽거나 재추론하지 않았다.
+- Stage 14 채택 근거: Drive run `20261010T012333Z_8de41728_stage14_joint_f01_f02_attempt_02`의 `STAGE14_REPORT_KO.md`, 세 멤버 및 네 앙상블 artifact; §4.14와 아래 Stage 14 기록 참조.
+- Stage 15 최종 평가 근거: [Drive final run](https://drive.google.com/drive/folders/1ITmKuvHSx6LcIdm31HJ2T3GoYAJkOHqf)의 `final_audit.json`, `official_validation_comparison.csv`, `official_validation_paired_errors.csv`, `official_validation_duration_overlap_slices.csv`, `artifact_manifest.json`; run `mission2_final_fulltrain_official_validation_20261012T151108Z_a1606771`, `FINAL_VERIFIED`. 후속 오류 집계는 [misclassification_analysis](https://drive.google.com/drive/folders/1Gz53pNofawO_1ImcFiwPe9_OhbqBWFmV)에 있다. 이번 요약 갱신에서 재학습·재평가는 하지 않았다.
 
 ### Stage 11 — 최종 SKIP 사유 (2026-10-09 상태 갱신)
 
@@ -946,3 +952,57 @@ E_TRG와 각 멤버의 paired 결과는 TabM 대비 교정 1,974/회귀 1,609(�
 - 저장 보고서: `STAGE14_REPORT_KO.md` (Drive); Stage14 run 경로는 위와 같다.
 - 코드 push: remote branch `codex/mission2-stage14-ensemble`, commit `41c221f16` (Stage14 구현).
 - 사용자 선택 기록: E_TRG 3-member equal-weight를 Stage14 채택 후보로 선택. Official Validation 또는 Stage15 튜닝은 실행하지 않았다. 현재 채택은 내부 검증 재사용에 따른 불확실성을 가진다.
+
+### Stage 15 — Final Full-Training Refit + Official Validation (2026-10-12 구현, 2026-10-13 실행 완료)
+
+**결정과 고정 계약:** 추가 튜닝 없이 Stage 14의 TabM + Tabular ResNet + GANDALF를 유지하고, Clean 59D + F01 80D + F02 10D의 149D 입력, seed 42, E_TRG 확률 단순 평균 1:1:1, threshold 0.5를 고정한다. Training 전체 889,358행/29,200통화에서 scaler를 fit하고, Stage 14 저장 근거에서 정한 고정 학습 길이(TabM 68 epoch, ResNet 16 epoch, GANDALF 17 epoch)를 사용하도록 구현했다. Official Validation은 학습·scaler·checkpoint 선택에 사용하지 않는 최종 평가 split이다.
+
+**구현 및 사전 검증:** 새 실행 모듈 `src/dcc_data/mission2_final_fulltrain_refit.py`, 계약 테스트 `tests/test_mission2_final_fulltrain_refit.py`, Colab Notebook `notebooks/mission2_final_fulltrain_official_validation.ipynb`, source-only bundle 생성 스크립트 `scripts/package_mission2_final_refit_code_bundle.py`를 추가했다. bundle SHA-256은 `e6e25dba621d43f76e5ac6e91c27f62338a7256342cddde34ac279bd53af7e53`이며 원본 데이터는 포함하지 않는다. 계약 테스트 9개와 Notebook JSON/Python 구문 검사는 통과했다. 로컬 Validation 원천으로 만든 text-free 추적 manifest는 111,947행/3,640통화이며 기존 manifest와 row identity, label, timestamp, crop 경계가 모두 일치했다. 이 로컬 manifest 정합성은 Colab 최종 모델 평가 결과가 아니다.
+
+**실행 및 복구 경과:** 첫 Colab Drive mount 시도는 `credential propagation was unsuccessful`로 preflight 전에 중단됐다. 이후 본 실행에서 Official Validation 3,640통화의 E05·AF·F01/F02 추출이 각각 `3,640/3,640`까지 완료됐다. 첫 refit run은 TabM 68 epoch와 ResNet 16 epoch를 완료했으나 GANDALF가 17 대신 18 epoch로 기록되어 고정 epoch 계약에 따라 `FAILED_STOP`됐다. 복구 run `mission2_final_fulltrain_official_validation_20261012T151108Z_a1606771`은 기존 Validation feature cache(SHA-256 `6aaefb7c8bc5548fac07e8ae95a3ecfe5698158166dcebb34368cd374b412666`)를 재사용하고, TabM/ResNet checkpoint를 복사 후 재검증했으며 GANDALF만 17 epoch 다시 학습했다. 복구 preflight 계약 테스트는 `10 passed in 1.23s`였다. 따라서 복구 때 feature 추출과 앞의 두 모델 학습은 반복되지 않았다. TabM·ResNet·GANDALF fit 시간은 각각 `2,119.841s`, `389.427s`, `357.305s`다.
+
+**Official Validation 결과:** 최종 run의 manifest는 `source_split=Validation`, 111,947행/3,640통화이며 Training과 `call_id` 및 record key 교집합은 모두 0이다. 149D feature schema fingerprint는 `0e9834296216cf39b5715e9e80df20b56fba2ee70d2ffa84dfed90179ace1626`이다. Official Validation은 scaler fit, gradient, loss, early stopping, checkpoint 선택에 사용되지 않았고, 고정 threshold `0.5`에서 저장된 예측을 평가했다. 혼동행렬 순서는 `TN/FP/FN/TP`다.
+
+| 모델 | Accuracy | Balanced Accuracy | Recall 0 | Recall 1 | HCE | TN/FP/FN/TP |
+|---|---:|---:|---:|---:|---:|---:|
+| TabM | `0.880560` | `0.878692` | `0.829585` | `0.927799` | 1,189 | 44,669 / 9,176 / 4,195 / 53,907 |
+| Tabular ResNet | `0.880854` | `0.879486` | `0.843514` | `0.915459` | 1,780 | 45,419 / 8,426 / 4,912 / 53,190 |
+| GANDALF | `0.881864` | `0.880256` | `0.837979` | `0.922533` | 1,938 | 45,121 / 8,724 / 4,501 / 53,601 |
+| **E_TRG (각 1/3 확률 평균)** | **`0.884919`** | **`0.883339`** | **`0.841787`** | **`0.924891`** | **1,301** | **45,326 / 8,519 / 4,364 / 53,738** |
+
+HCE는 각 모델의 confidence가 `0.90` 이상인 오분류 건수다.
+
+E_TRG는 세 단독 멤버 중 가장 높은 Accuracy인 GANDALF보다 0.003055(0.3055 percentage point) 높았다. 단, Official 결과는 이 고정 후보의 최종 평가이며 가중치·threshold를 탐색하지 않았다. E_TRG와 각 멤버의 paired 비교에서 (앙상블만 맞음/멤버만 맞음/공통 오답/순 교정/예측 변경 행)은 TabM `1,785/1,297/11,586/+488/3,082`, ResNet `1,483/1,028/11,855/+455/2,511`, GANDALF `1,532/1,190/11,693/+342/2,722`였다.
+
+| Official Validation slice | 행 수 | TabM | ResNet | GANDALF | E_TRG |
+|---|---:|---:|---:|---:|---:|
+| 전체 | 111,947 | `0.880560` | `0.880854` | `0.881864` | **`0.884919`** |
+| overlap | 48,863 | `0.841762` | `0.842805` | `0.844136` | **`0.847390`** |
+| no-overlap | 63,084 | `0.910611` | `0.910326` | `0.911087` | **`0.913988`** |
+| 발화 길이 0.5–1초 | 27,392 | `0.837288` | `0.837215` | `0.838347` | **`0.843056`** |
+
+**최종 artifact audit 및 경계:** run audit 상태는 `FINAL_VERIFIED`; 세 checkpoint reload은 `EXACT_PASS`, 저장 prediction alignment와 재계산 metric은 `PASS`, 혼동행렬 count 합도 111,947행과 일치한다. run artifact manifest/SHA 점검은 `FINAL_RUN_ARTIFACTS_AND_SHA256: PASS`였다. 결과와 증거 파일은 [Drive run 폴더](https://drive.google.com/drive/folders/1ITmKuvHSx6LcIdm31HJ2T3GoYAJkOHqf)의 `final_audit.json`, `official_validation_comparison.csv`, `official_validation_paired_errors.csv`, `official_validation_duration_overlap_slices.csv`, `ensemble_predictions.parquet`, `artifact_manifest.json`에 있다. 독립적인 Drive 재다운로드 후 SHA 검증은 아직 남아 있다.
+
+복구 run provenance의 실행 bundle SHA-256은 `e8496dec85e2528d6e63f011740f9a3417f5fbea7c936e6d185303fb0e7dd5b0`, 실행 module SHA-256은 `c76cb7524e39ef939238fde87f2528b4ea0c72d724550269d34b7f1859404fd7`이다. 현재 열린 Colab Notebook에는 원격/다른 탭 업데이트로 자동 저장할 수 없다는 경고가 표시된다. 화면의 셀에 입력된 bundle SHA(`02dc4983998ea91f46395874f68d0093feb8caa74652a623e569160b02d3b61e`)는 실행 provenance의 bundle SHA와 다르므로, 현재 Notebook 저장 상태가 이 실행본과 동일한지는 확인되지 않았다. 본 결과의 기준은 run별 Drive audit와 manifest다.
+
+공용 `src/dcc_inference/mission2.py`와 `scripts/mission2_inference.py`는 수정하지 않았다. 최종 audit도 `SUBMISSION INFERENCE NOT READY`로 판정했다. 149D Stage 15 모델을 공용 42D inference 경로에 통합하고 공식 sample-output parity를 확인하는 일, 그리고 artifact 재다운로드 SHA 확인은 미완료다.
+
+#### Stage 15 후속 — 저장 예측 기반 E_TRG 오분류 분석
+
+분석 대상은 복구 run `mission2_final_fulltrain_official_validation_20261012T151108Z_a1606771`의 `FINAL_VERIFIED` Official Validation 예측과 text-free manifest다. 111,947행의 저장된 예측을 고정 threshold `0.5`로 재확인했으며, 재학습·재추출·threshold/모델 튜닝·음성 청취·transcript 사용은 하지 않았다. 이 내용은 기존 Official Validation 성능 결과와 별개의 기술적 오류 분석이다.
+
+E_TRG는 12,883건(11.508%)을 오분류했다: FP 8,519, FN 4,364, HCE(confidence ≥ `0.90`) 1,301건. 혼동행렬은 `[[45,326, 8,519], [4,364, 53,738]]`(행=true 0/1, 열=prediction 0/1)이며, speaker 0/1 Recall은 각각 `0.841787`/`0.924891`이다.
+
+| 구간 | 행 수 | 오류 | 오류율 |
+|---|---:|---:|---:|
+| overlap | 48,863 | 7,457 | 15.2610% |
+| no-overlap | 63,084 | 5,426 | 8.6012% |
+| 발화 길이 `<0.5초` | 8,954 | 986 | 11.0118% |
+| 발화 길이 `0.5–1초` | 27,392 | 4,299 | 15.6944% |
+| 발화 길이 `1–2초` | 36,858 | 5,101 | 13.8396% |
+| 발화 길이 `2–5초` | 31,637 | 2,279 | 7.2036% |
+| 발화 길이 `≥5초` | 7,106 | 218 | 3.0678% |
+
+confidence `[0.50,0.60)` 구간은 12,253행 중 5,507건(44.9441%)이 오답이었고, confidence `≥0.90` 구간은 75,016행 중 1,301건(1.7343%)이 오답이었다. 세 멤버 투표는 FP 중 7,040/8,519건에서 모두 speaker 1, FN 중 2,871/4,364건에서 모두 speaker 0이었다. 오류행에서 멤버 예측 불일치율은 FP `17.3612%`, FN `34.2117%`였다. 모두 고정 예측을 설명하는 기술 통계이며 원인이나 개선 효과를 입증하지 않는다.
+
+집계 CSV/JSON과 오류행 CSV/Parquet는 [Drive misclassification_analysis 폴더](https://drive.google.com/drive/folders/1Gz53pNofawO_1ImcFiwPe9_OhbqBWFmV)에 보존했다. 원본 학습 Colab Notebook(Drive ID `1IZTQcwMnaCCsSm-mzSWoRuglvC15F7AN`)과 저장 output이 없는 로컬 단일 notebook `notebooks/mission2_final_fulltrain_official_validation.ipynb`에는 분석 코드를 source-only로 추가했다. 이 notebook 셀은 새로 실행하지 않았으며, Git에 오류 개별 행이나 실행 output은 넣지 않는다.

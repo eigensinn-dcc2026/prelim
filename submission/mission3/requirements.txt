@@ -1,7 +1,15 @@
-# Mission 3 추론 전용 (제출 체크포인트로 CPU에서 검증한 버전).
-torch==2.12.1
-transformers==4.57.6
+# Mission 3 추론 전용 (CPU).
+# torch·transformers는 Dependabot 보안 경고를 닫는 패치 버전이다.
+# 체크포인트를 만들 때(m3_final_train.executed.ipynb) 쓴 버전은 torch 2.11.0+cu130, transformers 5.18.0.
+# 이 파일 그대로 새로 설치한 환경에서 공식 Validation 40건을 돌려 이전 환경(torch 2.12.1, transformers 4.57.6)과
+# 비교했다(2026-10-14): 토큰 id 40/40 같음, 앙상블 확률 차이 0, 판정 360/360 같음.
+torch==2.14.1
+transformers==5.19.0
 numpy==2.4.4
 pandas==3.0.2
 scikit-learn==1.8.0
 scipy==1.17.1
+# 아래는 transformers가 끌어오지만 검증한 버전으로 고정한다(고정하지 않으면 더 새 버전이 설치된다).
+tokenizers==0.23.3
+huggingface_hub==2.2.0
+safetensors==0.8.0

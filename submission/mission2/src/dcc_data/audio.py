@@ -1,4 +1,4 @@
-"""프레임 단위 경계로 PCM WAV를 읽는, 의존성이 적은 로더."""
+"""PCM WAV 읽기 (외부 라이브러리 없이 표준 wave 모듈로). 위치는 샘플(프레임) 번호로 받는다."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ import numpy as np
 
 @dataclass(frozen=True)
 class WaveInfo:
+    """WAV 파일 정보: 채널 수, 샘플링 주파수, 샘플 크기(바이트), 전체 샘플 수."""
+
     channels: int
     sample_rate: int
     sample_width: int
@@ -19,11 +21,15 @@ class WaveInfo:
 
 @dataclass(frozen=True)
 class AudioSegment:
+    """읽어 들인 소리: (채널, 샘플) float32 배열과 샘플링 주파수."""
+
     waveform: np.ndarray
     sample_rate: int
 
 
 def read_wav_info(path: str | Path) -> WaveInfo:
+    """WAV 헤더만 읽어 정보를 돌려준다. 압축된 WAV 이거나 값이 이상하면 멈춘다."""
+
     with wave.open(str(path), "rb") as wav_file:
         if wav_file.getcomptype() != "NONE":
             raise ValueError(f"Only uncompressed PCM WAV is supported: {path}")
@@ -41,10 +47,10 @@ def read_wav_info(path: str | Path) -> WaveInfo:
 def read_wav_frames(
     path: str | Path, start_frame: int = 0, end_frame: int | None = None
 ) -> AudioSegment:
-    """반열린 프레임 구간 ``[start_frame, end_frame)``을 읽는다.
+    """샘플 구간 ``[start_frame, end_frame)`` 을 읽어 -1~1 범위의 float32 로 돌려준다.
 
-        이 함수는 일부러 프레임 번호만 받는다. 데이터의 ``startAt``/``endAt``이
-        초 단위인지 밀리초 단위인지는 가정하지 않는다.
+    일부러 샘플 번호만 받는다. 라벨의 ``startAt``/``endAt`` 이 초인지 밀리초인지는 여기서 가정하지 않는다
+    (밀리초 -> 샘플 변환은 dcc_data.mission2.milliseconds_to_frame).
     """
 
     if not isinstance(start_frame, int):
@@ -75,6 +81,7 @@ def read_wav_frames(
             f"Truncated WAV segment: expected {expected_bytes} bytes, got {len(raw)}"
         )
 
+    # 샘플 크기(8/16/32비트)에 맞춰 정수를 -1~1 범위 실수로 바꾼다
     if sample_width == 1:
         values = (np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128.0) / 128.0
     elif sample_width == 2:

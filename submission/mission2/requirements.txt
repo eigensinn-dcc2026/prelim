@@ -1,11 +1,12 @@
-# Python 3.12 기준. 학습·추론 노트북 실행 환경(Colab, 2026-10-06 로그의 pip list)과 같은 버전
+# Python 3.12 / 3.13 에서 확인 (공식 Validation 전체 검증: Colab Python 3.13.15).
+# 학습·추론 노트북(Colab)과 같은 버전이다. torch는 공식 Validation 전체를 GPU(float16)로 검증한 2.11.0으로 고정한다
+# (보안 패치판 2.14.1도 CPU 2통화 71발화에서 확률이 소수점 8자리까지 같았지만, GPU 경로는 2.11.0에서만 확인했다).
 numpy==2.1.3
 pandas==2.2.3
-pyarrow==23.0.1
+pyarrow==23.0.1       # pandas 의 parquet 읽기·쓰기 (CNN 학습용 스펙트로그램 목록)
 librosa==0.11.0
-scikit-learn==1.6.1
-lightgbm==4.6.0
-tqdm==4.67.3
+scikit-learn==1.6.1   # 통화 단위 분할(GroupShuffleSplit), CNN 학습의 recall/혼동행렬
+tqdm==4.67.3          # 스펙트로그램 만들기 진행 표시
 torch==2.11.0
-torchaudio==2.11.0
-transformers==4.57.6
+# WavLM-large 모델 구조 (가중치는 checkpoints/ 안에 있고, 실행 중 아무것도 내려받지 않는다)
+transformers==5.19.0
