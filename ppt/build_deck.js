@@ -47,11 +47,12 @@ const M2 = {
   ],
   // 13장 성능 개선 과정 (막대 차트: 공식 Validation Accuracy)
   core13: "86.44% → 91.49% → 92.90%. CNN의 이득은 겹친 구간에 몰렸고, 사전학습 WavLM을 더해 +1.41%p를 더 얻었다.",
-  chart: { labels: ["L1 LightGBM", "L2 CNN\n3-seed 앙상블", "CNN 3개\n+ WavLM 2개"], values: [86.44, 91.49, 92.90] },
+  chart: { labels: ["L1 LightGBM", "L2 CNN 3-seed 앙상블\n(처음부터 학습)", "CNN 3개 + WavLM 2개\n(사전학습 미세조정)"], values: [86.44, 91.49, 92.90] },
   gainTitle: "■ CNN의 이득이 몰린 곳",
   gains: [["약 +7%p", "겹친 구간"], ["약 +2%p", "겹치지 않은 구간"]],
   gainNote: "통계 특징(L1) 대비 CNN 단일 모델의 개선 폭 (공식 Validation)",
-  finding: "제출 방식(한 발화씩 추론)으로 바꾸자 정확도가 떨어졌다. 원인은 학습 때의 배치 패딩과 추론 방식 차이였고, 모든 발화를 자기 자신만으로 같은 길이까지 채우도록 맞춰 회복했다.",
+  gainWhy: "대원: 헤드셋·정해진 말투  /  신고자: 휴대전화·잡음",
+  finding: "제출과 같은 방식(한 발화씩 추론)으로 평가하자 정확도가 1.15%p 떨어졌다. 학습 때의 배치 패딩과 입력이 달랐기 때문이며, 각 발화를 자기 자신만으로 300프레임까지 채워 회복했다.",
   // 14장 다른 접근 — 마지막 행이 최종 채택한 WavLM-large 미세조정 + CNN 결합
   core14: "CNN 하나로 끝내지 않고 여러 방향을 검증했다. 효과가 없거나 규칙에 어긋난 것은 이유와 함께 기록했다.",
   lastRow: ["WavLM-large 미세조정 2개 + CNN 결합", "채택", "내부 +1.27%p (공식 Val 92.90%)"],
@@ -547,26 +548,16 @@ function flow(slide, x, y, w, h, f) {
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — 문제·제약·최종 모델", 12);
   coreMsg(s, M2.core12);
-  const lw = 8.9;
-  txt(s, [strong("■ 문제   "), { text: "한 발화 조각 → 신고자(1) / 대원(0)   ·   지표 Accuracy" }], { x: M, y: 2.5, w: lw, h: 0.4, fontSize: 15 });
-  txt(s, [strong("■ 제약   ", C.red), { text: "text · 발화 순서 · 다른 발화 정보 사용 불가" }], { x: M, y: 2.95, w: lw, h: 0.4, fontSize: 15 });
-  const rx = M + lw + 0.3, rw = W - M - rx;
-  card(s, rx, 2.45, rw, 0.95, C.light);
-  txt(s, [{ text: M2.acc, options: { fontSize: 28, bold: true, color: C.blue } }, { text: "   공식 Validation", options: { fontSize: 12, color: C.sub } }],
-    { x: rx, y: 2.45, w: rw, h: 0.95, align: "center", valign: "middle" });
-  flow(s, M, 3.55, CW, 1.15, M2.flow);
+  // 92.90% 수치는 핵심 메시지와 12장 차트에서 보여주므로 이 장에서는 뺐다.
+  // 문제·제약은 한 줄에 나란히 두어 아래 도식 자리를 넓혔다. "왜 이 구조인가" 카드 3개(M2.why)는 뺐다.
+  txt(s, [strong("■ 문제   "), { text: "한 발화 조각 → 신고자(1) / 대원(0)   ·   지표 Accuracy" }], { x: M, y: 2.5, w: 6.4, h: 0.4, fontSize: 15 });
+  txt(s, [strong("■ 제약   ", C.red), { text: "text · 발화 순서 · 다른 발화 정보 사용 불가" }], { x: M + 6.6, y: 2.5, w: CW - 6.6, h: 0.4, fontSize: 15 });
+  flow(s, M, 3.1, CW, 1.15, M2.flow);
   // 합성 도식(실제 통화 아님): ppt/tools/make_m2_synthetic.py
-  const fw = 6.6, fh = fw * 482 / 1658;
-  s.addShape(pres.shapes.RECTANGLE, { x: M, y: 4.9, w: fw + 0.16, h: fh + 0.16, fill: { color: C.white }, line: { color: C.line, width: 1 } });
-  s.addImage({ path: "figures/anim/m2_waveform_to_mel.gif", x: M + 0.08, y: 4.98, w: fw, h: fh });
-  const wx = M + fw + 0.4, ww = W - M - wx, wh = (fh + 0.16 - 2 * 0.12) / 3;
-  M2.why.forEach(([k, v], i) => {
-    const y = 4.9 + i * (wh + 0.12);
-    card(s, wx, y, ww, wh, i === 0 ? C.light : C.white);
-    txt(s, k, { x: wx + 0.15, y, w: 1.45, h: wh, fontSize: 13, bold: true, color: C.blue, valign: "middle" });
-    txt(s, v, { x: wx + 1.6, y, w: ww - 1.7, h: wh, fontSize: 11.5, valign: "middle" });
-  });
-  caption(s, "※ 왼쪽 도식은 합성 신호(실제 통화 아님).  근거: " + M2.evidence);
+  const gy = 4.45, fh = 6.9 - gy - 0.16, fw = fh * 1658 / 482, gx = (W - fw - 0.16) / 2;
+  s.addShape(pres.shapes.RECTANGLE, { x: gx, y: gy, w: fw + 0.16, h: fh + 0.16, fill: { color: C.white }, line: { color: C.line, width: 1 } });
+  s.addImage({ path: "figures/anim/m2_waveform_to_mel.gif", x: gx + 0.08, y: gy + 0.08, w: fw, h: fh });
+  caption(s, "※ 위 도식은 합성 신호(실제 통화 아님).  근거: " + M2.evidence);
   s.addNotes("근거: " + M2.evidence + ". 제약은 출제문제·주최측 Q&A(2026.09.15), 추론 방식은 submission/mission2/README.md '추론' 절.");
 }
 
@@ -581,6 +572,9 @@ function flow(slide, x, y, w, h, f) {
     x: M + 0.15, y: 2.55, w: lw - 0.3, h: 4.15, chartColors: [C.line, C.sky, C.blue],
     title: "공식 Validation Accuracy (%)", valAxisMinVal: 84, valAxisMaxVal: 94,
   });
+  // 최종 제출 수치 강조 (차트 오른쪽 위)
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: M + lw - 1.8, y: 2.6, w: 1.65, h: 0.32, fill: { color: C.blue }, rectRadius: 0.18, line: { color: C.blue } });
+  txt(s, "최종 제출  " + M2.acc, { x: M + lw - 1.8, y: 2.6, w: 1.65, h: 0.32, fontSize: 12, bold: true, color: C.white, align: "center", valign: "middle" });
   const rx = M + lw + 0.3, rw = W - M - rx;
   card(s, rx, 2.45, rw, 2.15);
   title(s, M2.gainTitle, rx + 0.2, 2.56, rw - 0.4);
@@ -591,7 +585,10 @@ function flow(slide, x, y, w, h, f) {
     txt(s, n, { x: rx + 3.0, y, w: 1.5, h: 0.5, fontSize: 24, bold: true, color: i === 0 ? C.blue : C.sky, valign: "middle" });
     txt(s, l, { x: rx + 4.45, y, w: rw - 4.55, h: 0.5, fontSize: 11.5, color: C.sub, valign: "middle" });
   });
-  txt(s, M2.gainNote, { x: rx + 0.2, y: 4.2, w: rw - 0.4, h: 0.3, fontSize: 10, color: C.sub, align: "center" });
+  txt(s, [
+    { text: M2.gainNote, options: { breakLine: true } },
+    { text: M2.gainWhy, options: { bold: true, color: C.blue } },
+  ], { x: rx + 0.2, y: 4.1, w: rw - 0.4, h: 0.45, fontSize: 10, color: C.sub, align: "center", valign: "middle" });
   insight(s, rx, 4.75, rw, 2.05, [
     { text: "발견  ", options: { bold: true, color: C.blue, breakLine: true } },
     { text: M2.finding },
