@@ -479,7 +479,7 @@ function m2Appendix3() {
   const secs = [
     ["01", "준비 과정", ["사전 학습 로드맵", "팀 구성과 협업 체계"]],
     ["02", "데이터 분석", ["EDA 핵심 발견"]],
-    ["03", "미션별 수행", ["Mission 1  신고자 성별 분류", "Mission 2  신고자/대원 분류\n   (+ 별첨 3장·음향 특징 비교 실험)", "Mission 3  환자 증상 인식"]],
+    ["03", "미션별 수행", ["Mission 1  신고자 성별 분류", "Mission 2  신고자/대원 분류", "Mission 3  환자 증상 인식", "별첨 · Mission 2 상세 근거\n   (3장·음향 특징 비교 실험)"]],
     ["04", "종합 및 시사점", ["성능 요약과 교훈", "활용 흐름과 기대효과", "사회안전 시사점과\n   향후 계획", "별첨 · Mission 3 상세 근거"]],
   ];
   const cw = (CW - 3 * 0.3) / 4;
@@ -1178,13 +1178,13 @@ yw1(); yw2(); yw3(); yw4();
   card(s, M, 1.60, lw, 2.52);
   title(s, "오류 분석 - 전사에 직접 표현이 없는 양성 라벨", M+0.16, 1.72, lw-0.32, 13.7);
   s.addChart(pres.charts.DOUGHNUT, [{ name:"양성 라벨", labels:["직접 표현 없음", "직접 표현 있음"], values:[52,48] }], {
-    x:M+0.14, y:2.12, w:2.55, h:1.73, holeSize:63, chartColors:[C.an2,C.line],
+    x:M+0.14, y:2.12, w:2.55, h:1.73, holeSize:63, chartColors:[C.an1,C.line],
     showLegend:false, showPercent:false, showValue:false, showLabel:false,
     dataBorder:{ pt:1, color:"FFFFFF" }
   });
-  txt(s, "약 52%", { x:M+0.14, y:2.68, w:2.55, h:0.42, fontSize:19, color:C.an2t, bold:true, align:"center", valign:"middle" });
+  txt(s, "약 52%", { x:M+0.14, y:2.68, w:2.55, h:0.42, fontSize:19, color:C.an1, bold:true, align:"center", valign:"middle" });
   txt(s, "직접 표현 없음 52% · 있음 48%", { x:M+0.18, y:3.76, w:2.6, h:0.24, fontSize:9.4, color:C.sub, align:"center" });
-  txt(s, "92%", { x:M+2.95, y:2.26, w:1.28, h:0.56, fontSize:27, bold:true, color:C.an2t, align:"center" });
+  txt(s, "92%", { x:M+2.95, y:2.26, w:1.28, h:0.56, fontSize:27, bold:true, color:C.an1, align:"center" });
   txt(s, "두 모델이 놓친 양성 중\n직접 표현 없는 라벨", { x:M+2.81, y:2.87, w:1.56, h:0.53, fontSize:9.7, color:C.sub, align:"center" });
   txt(s, "약 90%", { x:M+4.45, y:2.26, w:1.47, h:0.56, fontSize:24, bold:true, color:C.sky, align:"center" });
   txt(s, "표현 있는 라벨 중\n맞힌 비율", { x:M+4.40, y:2.87, w:1.55, h:0.53, fontSize:9.7, color:C.sub, align:"center" });
@@ -1196,7 +1196,7 @@ yw1(); yw2(); yw3(); yw4();
     const y=5.16+i*0.45;
     txt(s,name,{ x:M+0.22,y,w:1.03,h:0.27,fontSize:11.5,bold:true,color:C.text });
     s.addShape(pres.shapes.RECTANGLE,{ x:M+1.42,y:y+0.03,w:3.6,h:0.20,fill:{color:C.bgGray},line:{color:C.line,width:0.5} });
-    s.addShape(pres.shapes.RECTANGLE,{ x:M+1.42,y:y+0.03,w:3.6*value/100,h:0.20,fill:{color:C.an2},line:{color:C.an2} });
+    s.addShape(pres.shapes.RECTANGLE,{ x:M+1.42,y:y+0.03,w:3.6*value/100,h:0.20,fill:{color:C.an1},line:{color:C.an1} });
     txt(s,value.toFixed(1)+"%",{ x:M+5.07,y:y-0.01,w:0.75,h:0.31,fontSize:11.2,bold:true,color:C.blue,align:"right" });
   });
   txt(s, "※ 미검출은 증상 부재·오라벨을 뜻하지 않음 (정규식이 구어체를 다 잡지 못함)", { x:M+0.17, y:6.75, w:lw-0.34, h:0.34, fontSize:9.1, color:C.sub });
@@ -1222,8 +1222,8 @@ yw1(); yw2(); yw3(); yw4();
   txt(s,"오심 양성 라벨",{x:7.20,y:4.15,w:2.08,h:0.37,fontSize:12.0,bold:true,color:C.white,align:"center",valign:"middle"});
   txt(s,"vs",{x:9.48,y:4.15,w:0.42,h:0.37,fontSize:12,bold:true,color:C.sub,align:"center",valign:"middle"});
   s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:10.01,y:4.09,w:2.54,h:0.49,
-    fill:{color:C.white},line:{color:C.an2,width:1.4},rectRadius:0.06});
-  txt(s,"오심 직접 표현 미검출",{x:10.05,y:4.15,w:2.47,h:0.37,fontSize:10.5,bold:true,color:C.an2t,align:"center",valign:"middle"});
+    fill:{color:C.white},line:{color:C.an1,width:1.4},rectRadius:0.06});
+  txt(s,"오심 직접 표현 미검출",{x:10.05,y:4.15,w:2.47,h:0.37,fontSize:10.5,bold:true,color:C.an1,align:"center",valign:"middle"});
   s.addShape(pres.shapes.LINE,{x:7.06,y:4.83,w:5.50,h:0,line:{color:C.line,width:1}});
   title(s,"이 사례에서 확인한 문제",7.09,4.97,5.40,12.5);
   s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:7.08,y:5.33,w:5.47,h:0.73,
