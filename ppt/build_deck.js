@@ -15,6 +15,10 @@ const C = {
   red: "E53935", pink: "FFCDD2",
   bgGray: "F8F9FA", text: "212121", sub: "616161", line: "E0E0E0",
   white: "FFFFFF", bigNum: "DCE3EC",
+  // 그래프 색: 모델 비교 = 제출 빨강 + 나머지 파랑 / 분석 그래프 = 파랑·주황(EDA 그림과 동일)
+  hi: "E53935", mid: "009DDA", lo: "B4D2EC",
+  // 분석 그래프 색: EDA 그림과 같은 파랑·주황 (an2t = 주황 글자용 진한 색)
+  an1: "0072B2", an2: "E69F00", an2t: "C77C00",
 };
 // 공식 템플릿 자산 (D+AICC PPT 대학부 템플릿.pptx에서 추출)
 const TPL = {
@@ -38,7 +42,7 @@ const M2 = {
   flow: {
     pre: [["발화 구간만 입력", "startAt~endAt\ntext·순서·다른 발화 X"]], preW: 2.5,
     branches: [["CNN 3개 평균", "log-mel · 300프레임", "× 0.4"], ["WavLM-large 2개", "16 kHz · 3초 창", "× 0.3 + 0.3"]], brW: 2.6, brGap: 0.1,
-    post: [["가중 평균", "≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 2.0,
+    post: [["가중 평균", "확률 × 비중의 합\n≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 2.0,
   },
   why: [
     ["음향 차이", "대원 헤드셋·정해진 말투\n신고자 휴대전화·잡음"],
@@ -167,6 +171,10 @@ function table(slide, rows, x, y, colW, o = {}) {
 }
 const strong = (t, color = C.blue) => ({ text: t, options: { bold: true, color } });
 // 막대 차트 공통 설정 (PowerPoint에서 편집되는 내장 차트). 콤보 차트는 파일이 안 열리는 문제가 있어 쓰지 않음.
+// 모델 비교 그래프 색: 제출 모델(winnerIndex)만 빨강, 나머지는 파랑. 분석 그래프는 빨강을 쓰지 않는다.
+function winner(n, winnerIndex) {
+  return Array.from({ length: n }, (_, i) => (i === winnerIndex ? C.hi : C.mid));
+}
 function barChart(slide, labels, values, o) {
   slide.addChart(pres.charts.BAR, [{ name: o.name || "Accuracy", labels, values }], Object.assign({
     barDir: "col", varyColors: true,
@@ -216,8 +224,12 @@ function flow(slide, x, y, w, h, f) {
     node(slide, bx, by, f.brW, bh, t, b);
     if (pre.length) link(slide, bx - gap, mid, bx, bm);
     link(slide, bx + f.brW, bm, px, mid);
-    // 라벨은 선이 시작하는 높이(bm)의 바깥쪽(위 갈래는 위, 아래 갈래는 아래)에 둬서 선과 겹치지 않게
-    if (label) txt(slide, label, { x: bx + f.brW + 0.04, y: bm < mid ? bm - 0.34 : bm + 0.08, w: gap - 0.08, h: 0.26, fontSize: 11, bold: true, color: C.blue, align: "left" });
+    // 비중(가중치)은 모델 상자에서 최종 상자로 가는 연결선 한가운데에 알약으로 얹어, 모델의 속성이 아니라 합칠 때 곱하는 값임을 분명히 한다
+    if (label) {
+      const pw = Math.max(0.62, 0.085 * label.length + 0.22), cx0 = bx + f.brW + gap * 0.4, cy0 = bm + (mid - bm) * 0.4;
+      slide.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: cx0 - pw / 2, y: cy0 - 0.15, w: pw, h: 0.3, fill: { color: C.white }, rectRadius: 0.15, line: { color: C.blue, width: 1 } });
+      txt(slide, label, { x: cx0 - pw / 2, y: cy0 - 0.15, w: pw, h: 0.3, fontSize: 10.5, bold: true, color: C.blue, align: "center", valign: "middle" });
+    }
   });
   cx = px;
   post.forEach(([t, b], i) => {
@@ -361,7 +373,7 @@ function m2Appendix2() {
   const lw = 6.2;
   card(s, M, 2.45, lw, 4.35);
   barChart(s, ["CNN\n3개", "WavLM\n시작값 1", "WavLM\n시작값 2", "WavLM\n2개", "CNN +\nWavLM 2개"], [91.94, 92.73, 92.99, 93.04, 93.21], {
-    x: M + 0.15, y: 2.55, w: lw - 0.3, h: 4.15, chartColors: [C.line, C.sky, C.sky, C.sky, C.blue],
+    x: M + 0.15, y: 2.55, w: lw - 0.3, h: 4.15, chartColors: winner(5, 4),
     title: "Training 내부 20,000발화 정확도 (%)", valAxisMinVal: 91, valAxisMaxVal: 93.5,
   });
 
@@ -399,7 +411,7 @@ function m2Appendix3() {
     { name: "CNN 3개", labels, values: [90.95, 87.60, 89.71, 94.21, 97.49] },
     { name: "CNN + WavLM 2개(최종)", labels, values: [93.20, 89.71, 91.16, 95.31, 97.84] },
   ], {
-    x: M + 0.15, y: 2.55, w: lw - 0.3, h: 4.15, barDir: "col", barGrouping: "clustered", chartColors: [C.line, C.blue],
+    x: M + 0.15, y: 2.55, w: lw - 0.3, h: 4.15, barDir: "col", barGrouping: "clustered", chartColors: [C.an1, C.an2],
     showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 9.5, dataLabelFormatCode: "0.0",
     valAxisMinVal: 84, valAxisMaxVal: 100, valAxisLabelColor: C.sub, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 11,
     valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" },
@@ -411,8 +423,8 @@ function m2Appendix3() {
   table(s, [
     ["발화 길이", "발화 비율", "정확도", "오답 비율"],
     ["0.5초 미만", "8.0%", "93.20%", "7.7%"],
-    [strong("0.5~1초", C.red), "24.5%", strong("89.71%", C.red), strong("35.4%", C.red)],
-    [strong("1~2초", C.red), "32.9%", strong("91.16%", C.red), strong("41.0%", C.red)],
+    [strong("0.5~1초", C.blue), "24.5%", strong("89.71%", C.blue), strong("35.4%", C.blue)],
+    [strong("1~2초", C.blue), "32.9%", strong("91.16%", C.blue), strong("41.0%", C.blue)],
     ["2~3초", "15.2%", "95.31%", "10.0%"],
     ["3초 이상", "19.4%", "97.84%", "5.9%"],
   ], rx, 2.45, [1.5, 1.3, 1.25, rw - 4.05], { rowH: 0.4, fontSize: 11.5 });
@@ -467,7 +479,7 @@ function m2Appendix3() {
   const secs = [
     ["01", "준비 과정", ["사전 학습 로드맵", "팀 구성과 협업 체계"]],
     ["02", "데이터 분석", ["EDA 핵심 발견"]],
-    ["03", "미션별 수행", ["Mission 1  신고자 성별 분류", "Mission 2  신고자/대원 분류\n   (+ 실험 흐름·공식 검증·오류 분석)", "Mission 3  환자 증상 인식"]],
+    ["03", "미션별 수행", ["Mission 1  신고자 성별 분류", "Mission 2  신고자/대원 분류\n   (+ 별첨 3장·음향 특징 비교 실험)", "Mission 3  환자 증상 인식"]],
     ["04", "종합 및 시사점", ["성능 요약과 교훈", "활용 흐름과 기대효과", "사회안전 시사점과\n   향후 계획", "별첨 · Mission 3 상세 근거"]],
   ];
   const cw = (CW - 3 * 0.3) / 4;
@@ -578,7 +590,7 @@ function m2Appendix3() {
     if (path === "overlap") {
       s.addShape(pres.shapes.RECTANGLE, { x: x + 0.2, y: 2.86, w: cw - 0.4, h: 3.29, fill: { color: C.white }, line: { color: C.line, width: 1 } });
       barChart(s, ["겹침이 있는\n통화 비율", "통화당 겹침 시간\n(중앙값)"], [98.15, 3.82], {
-        name: "%", x: x + 0.25, y: 2.9, w: cw - 0.5, h: 3.21, chartColors: [C.sky, C.red], title: "Training 통화 기준 (%)", titleFontSize: 14,
+        name: "%", x: x + 0.25, y: 2.9, w: cw - 0.5, h: 3.21, chartColors: [C.an1, C.an2], title: "Training 통화 기준 (%)", titleFontSize: 14,
         dataLabelFormatCode: "0.00", dataLabelFontSize: 18, catAxisLabelFontSize: 14, valAxisMinVal: 0, valAxisMaxVal: 115, valAxisHidden: true, valGridLine: { style: "none" },
       });
     } else {
@@ -658,7 +670,7 @@ function m2Appendix3() {
   card(s, M, 2.45, 7.3, 4.35);
   barChart(s, ["① 음향 특징 52개\n+ LR (baseline)", "② + x-vector\n(앞 20초)", "③ + 여러 구간\n평균 x-vector", "④ ③을 전체 데이터로\n재학습 (제출)"],
     [95.11, 97.47, 98.13, 98.10], {
-      x: M + 0.15, y: 2.55, w: 7.0, h: 4.15, chartColors: [C.line, C.sky, C.sky, C.blue],
+      x: M + 0.15, y: 2.55, w: 7.0, h: 4.15, chartColors: winner(4, 3),
       title: "공식 Validation Accuracy (%)", valAxisMinVal: 94, valAxisMaxVal: 99, catAxisLabelFontSize: 10.5,
     });
   const rx = M + 7.6, rw = W - M - rx;
@@ -782,7 +794,7 @@ m2ReasonSlide();
   const lw = 6.2;
   card(s, M, 2.45, lw, 4.35);
   barChart(s, M2.chart.labels, M2.chart.values, {
-    x: M + 0.15, y: 2.55, w: lw - 0.3, h: 4.15, chartColors: [C.line, C.sky, C.blue],
+    x: M + 0.15, y: 2.55, w: lw - 0.3, h: 4.15, chartColors: winner(M2.chart.values.length, M2.chart.values.length - 1),
     title: "공식 Validation 정확도 (%)", valAxisMinVal: 84, valAxisMaxVal: 94,
   });
   const rx = M + lw + 0.3, rw = W - M - rx;
@@ -823,7 +835,7 @@ m2ReasonSlide();
     ["WavLM-base 고정 특징(임베딩) · 일부 데이터 미세조정(fine-tuning)", red("기각"), "작은 모델·적은 데이터로는 CNN보다 낮음"],
     [strong(lastTry, C.text), strong(lastVerdict, C.blue), strong(lastWhy, C.blue)],
   ], M, 2.45, [5.2, 2.4, 4.73], { rowH: 0.6, fontSize: 13 });
-  caption(s, "비교는 Training 내부 통화 단위 홀드아웃 기준 (공식 Validation 아님).", 6.75);
+  caption(s, "비교는 Training 내부 통화 단위 홀드아웃 기준이며, 마지막 행의 92.90%만 공식 Validation 결과.", 6.75);
   s.addNotes("근거: 통화 단위 특징 M2-EXP-008 / 제공 라벨 재학습 M2-RETRAIN-001 / 확률 평균 M2-ENS-001 / 더 큰 CNN M2-CNN-008, 패딩 제외 풀링 M2-CNN-009, 길이 입력 M2-CNN-004·006, Mixup M2-MIX-001 / WavLM 고정 임베딩 M2-SSL-001, 기본 미세조정 M2-SSL-002 / WavLM-large 미세조정 2개 + CNN 결합 M2-WLML-001·002, M2-BLEND-001(내부 20,000발화 CNN 단독 91.94% → 93.21%). WavLM 기각→채택 차이: SSL-002는 base 모델·6,000통화(85.65%), WLML은 large 모델·Training 전체(단독 공식 Val 92.40·92.71%). 모두 docs/experiment_log.md·docs/decisions.md.");
 }
 
@@ -837,7 +849,7 @@ m2ReasonSlide();
   stat(s, M, 2.75, lw, M2.acc, "정확도 (공식 Validation)", C.blue, 48);
   s.addShape(pres.shapes.LINE, { x: M + 0.4, y: 4.25, w: lw - 0.8, h: 0, line: { color: C.line, width: 1 } });
   M2.recalls.forEach(([n, l], i) => {
-    const y = 4.45 + i * 1.05, bx = M + 0.4, bw = lw - 0.8, pct = parseFloat(n) / 100, col = i === 0 ? C.red : C.sky;
+    const y = 4.45 + i * 1.05, bx = M + 0.4, bw = lw - 0.8, pct = parseFloat(n) / 100, col = i === 0 ? C.an1 : C.an2;
     txt(s, l, { x: bx, y, w: 2.0, h: 0.35, fontSize: 13, bold: true, color: C.sub, valign: "middle" });
     txt(s, n, { x: bx + bw - 1.8, y, w: 1.8, h: 0.35, fontSize: 20, bold: true, color: col, align: "right", valign: "middle" });
     s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: bx, y: y + 0.42, w: bw, h: 0.22, fill: { color: C.line }, rectRadius: 0.1, line: { color: C.line } });
@@ -896,7 +908,7 @@ function yw1() {
   card(s, M, by, lw, bh);
   title(s, "■ 같은 42개 입력, 분류기만 교체", M + 0.2, by + 0.1, lw - 0.4, 14);
   barChart(s, ["로지스틱 회귀", "MLP (신경망)"], [81.73, 85.95], {
-    x: M + 0.15, y: by + 0.5, w: lw - 1.75, h: bh - 0.6, chartColors: [C.line, C.blue],
+    x: M + 0.15, y: by + 0.5, w: lw - 1.75, h: bh - 0.6, chartColors: [C.an1, C.an2],
     title: "내부 검증 정확도 (%)", valAxisMinVal: 0, valAxisMaxVal: 100, valAxisMajorUnit: 20,
   });
   txt(s, [{ text: "+4.22%p", options: { fontSize: 24, bold: true, color: C.blue, breakLine: true } },
@@ -990,7 +1002,7 @@ function yw3() {
   flow(s, M, 2.55, CW, 2.5, {
     pre: [["149개 음향 특징", "기존 59개 + ① 80개 + ② 10개\n그 발화만 사용"]], preW: 2.9,
     branches: [["TabM"], ["Tabular ResNet"], ["GANDALF"]].map(b => [b[0], "", "× 1/3"]), brW: 2.9, brGap: 0.12,
-    post: [["확률 평균", "≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 2.5,
+    post: [["확률 평균", "확률 × 1/3의 합\n≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 2.5,
   });
   const by = 5.35, bh = 1.5, lw = 4.0;
   card(s, M, by, lw, bh, C.light);
@@ -1017,7 +1029,7 @@ function yw4() {
   card(s, rx, top, rw, h);
   title(s, "■ 역할별 재현율 (공식 Validation)", rx + 0.2, top + 0.1, rw - 0.4, 14);
   s.addChart(pres.charts.BAR, [{ name: "재현율", labels: ["119대원", "신고자"], values: [84.2, 92.5] }], {
-    x: rx + 0.2, y: top + 0.5, w: rw - 0.4, h: h - 0.6, barDir: "bar", varyColors: true, chartColors: [C.red, C.sky],
+    x: rx + 0.2, y: top + 0.5, w: rw - 0.4, h: h - 0.6, barDir: "bar", varyColors: true, chartColors: [C.an1, C.an2],
     showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 13, dataLabelFontBold: true, dataLabelFormatCode: "0.0",
     valAxisMinVal: 0, valAxisMaxVal: 100, valAxisMajorUnit: 20, valAxisLabelColor: C.sub,
     catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 12,
@@ -1063,9 +1075,9 @@ yw1(); yw2(); yw3(); yw4();
   const rx = M + lw + 0.4, rw = W - M - rx;
   txt(s, "■ 모델 구성", { x: rx, y: 2.45, w: rw, h: 0.4, fontSize: 18, bold: true });
   flow(s, rx, 2.95, rw, 1.75, {
-    pre: [["입력 정제", "발화 text만\n원본 순서 유지"]], preW: 1.55,
-    branches: [["RoBERTa-large", "시작값 3개로 학습해 평균", "55%"], ["TF-IDF + 로지스틱 회귀", "단어 빈도 기반 기준 모델", "45%"]], brW: 2.5, brGap: 0.15,
-    post: [["비중을 둔 평균", "증상별 확률 ≥ 0.5\n이면 있음으로 판정"]], postW: 1.75,
+    pre: [["입력 정제", "발화 text만\n원본 순서 유지"]], preW: 1.4,
+    branches: [["RoBERTa-large", "시작값 3개로 학습해 평균", "× 0.55"], ["TF-IDF + 로지스틱 회귀", "단어 빈도 기반 기준 모델", "× 0.45"]], brW: 2.3, brGap: 0.15,
+    post: [["비중을 둔 합", "확률 × 비중의 합이\n0.5 이상이면 있음"]], postW: 1.75,
   });
   txt(s, "■ 왜 이 방법인가", { x: rx, y: 4.95, w: rw, h: 0.4, fontSize: 18, bold: true });
   bullets(s, [
@@ -1096,8 +1108,8 @@ yw1(); yw2(); yw3(); yw4();
   const sym = [["열상",88.28],["복통",82.71],["고열",70.01],["호흡곤란",67.95],["어지러움",65.70],["구토",60.88],["전신쇠약",59.39],["두통",53.15],["오심",40.00]];
   barChart(s, sym.map(r => r[0]), sym.map(r => r[1]), {
     name: "F1 (%)", barDir: "bar", catAxisOrientation: "maxMin", dataLabelFormatCode: '0.00"%"', x: M + 2.95, y: 2.6, w: 4.2, h: 4.1,
-    chartColors: sym.map((r, i) => (i >= 6 ? C.red : C.sky)), showTitle: true, title: "증상별 F1 (%) · 최종 모델 공식 Validation", titleFontSize: 11,
-    dataLabelFontSize: 11, dataLabelFontBold: false, valAxisMinVal: 0, valAxisMaxVal: 100, valAxisHidden: true, valGridLine: { style: "none" }, catAxisLabelFontSize: 12,
+    chartColors: sym.map(() => C.an1), showTitle: true, title: "증상별 F1 (%) · 최종 모델 공식 Validation", titleFontSize: 11,
+    dataLabelFontSize: 11, dataLabelFontBold: false, valAxisMinVal: 0, valAxisMaxVal: 118, valAxisHidden: true, valGridLine: { style: "none" }, catAxisLabelFontSize: 12,
   });
   const rx = M + 7.6, rw = W - M - rx;
   // 모델별 점수 흐름은 28장 차트에 있으므로 여기서는 약한 증상과 이유를 한 카드로 보여준다.
@@ -1109,7 +1121,7 @@ yw1(); yw2(); yw3(); yw4();
     const y = 3.1 + i * 1.02;
     if (i > 0) s.addShape(pres.shapes.LINE, { x: rx + 0.25, y: y - 0.06, w: rw - 0.5, h: 0, line: { color: C.line, width: 1 } });
     txt(s, nm, { x: rx + 0.25, y, w: 1.35, h: 0.3, fontSize: 12.5, bold: true, color: C.text });
-    txt(s, f1, { x: rx + 0.25, y: y + 0.3, w: 1.35, h: 0.5, fontSize: 21, bold: true, color: C.red, valign: "middle" });
+    txt(s, f1, { x: rx + 0.25, y: y + 0.3, w: 1.35, h: 0.5, fontSize: 21, bold: true, color: C.blue, valign: "middle" });
     txt(s, why, { x: rx + 1.75, y, w: rw - 1.95, h: 0.85, fontSize: 12, valign: "middle" });
   });
   txt(s, "※ 이유는 Training 내부 홀드아웃 5,792건의 TF-IDF 진단 기준 (29장)", { x: rx + 0.2, y: 6.2, w: rw - 0.4, h: 0.45, fontSize: 10, color: C.sub, align: "center", valign: "middle" });
@@ -1126,7 +1138,7 @@ yw1(); yw2(); yw3(); yw4();
     [56.89, 62.46, 64.33, 65.34], {
       name: "Macro F1 (%) · 공식 Validation", barDir: "bar", catAxisOrientation: "maxMin",
       x: M + 0.18, y: 2.25, w: CW - 0.36, h: 1.83,
-      chartColors: [C.sky, C.blue, C.blue, C.mint], showTitle: true,
+      chartColors: winner(4, 3), showTitle: true,
       title: "모델별 공식 Validation Macro F1 (%)", titleFontSize: 11.5,
       valAxisMinVal: 0, valAxisMaxVal: 100, valAxisHidden: true,
       valGridLine: { style: "none" }, dataLabelFormatCode: '0.00"%"',
@@ -1166,13 +1178,13 @@ yw1(); yw2(); yw3(); yw4();
   card(s, M, 1.60, lw, 2.52);
   title(s, "오류 분석 - 전사에 직접 표현이 없는 양성 라벨", M+0.16, 1.72, lw-0.32, 13.7);
   s.addChart(pres.charts.DOUGHNUT, [{ name:"양성 라벨", labels:["직접 표현 없음", "직접 표현 있음"], values:[52,48] }], {
-    x:M+0.14, y:2.12, w:2.55, h:1.73, holeSize:63, chartColors:[C.red,C.line],
+    x:M+0.14, y:2.12, w:2.55, h:1.73, holeSize:63, chartColors:[C.an2,C.line],
     showLegend:false, showPercent:false, showValue:false, showLabel:false,
     dataBorder:{ pt:1, color:"FFFFFF" }
   });
-  txt(s, "약 52%", { x:M+0.14, y:2.68, w:2.55, h:0.42, fontSize:19, color:C.red, bold:true, align:"center", valign:"middle" });
+  txt(s, "약 52%", { x:M+0.14, y:2.68, w:2.55, h:0.42, fontSize:19, color:C.an2t, bold:true, align:"center", valign:"middle" });
   txt(s, "직접 표현 없음 52% · 있음 48%", { x:M+0.18, y:3.76, w:2.6, h:0.24, fontSize:9.4, color:C.sub, align:"center" });
-  txt(s, "92%", { x:M+2.95, y:2.26, w:1.28, h:0.56, fontSize:27, bold:true, color:C.red, align:"center" });
+  txt(s, "92%", { x:M+2.95, y:2.26, w:1.28, h:0.56, fontSize:27, bold:true, color:C.an2t, align:"center" });
   txt(s, "두 모델이 놓친 양성 중\n직접 표현 없는 라벨", { x:M+2.81, y:2.87, w:1.56, h:0.53, fontSize:9.7, color:C.sub, align:"center" });
   txt(s, "약 90%", { x:M+4.45, y:2.26, w:1.47, h:0.56, fontSize:24, bold:true, color:C.sky, align:"center" });
   txt(s, "표현 있는 라벨 중\n맞힌 비율", { x:M+4.40, y:2.87, w:1.55, h:0.53, fontSize:9.7, color:C.sub, align:"center" });
@@ -1184,10 +1196,10 @@ yw1(); yw2(); yw3(); yw4();
     const y=5.16+i*0.45;
     txt(s,name,{ x:M+0.22,y,w:1.03,h:0.27,fontSize:11.5,bold:true,color:C.text });
     s.addShape(pres.shapes.RECTANGLE,{ x:M+1.42,y:y+0.03,w:3.6,h:0.20,fill:{color:C.bgGray},line:{color:C.line,width:0.5} });
-    s.addShape(pres.shapes.RECTANGLE,{ x:M+1.42,y:y+0.03,w:3.6*value/100,h:0.20,fill:{color:i===0?C.red:C.sky},line:{color:i===0?C.red:C.sky} });
+    s.addShape(pres.shapes.RECTANGLE,{ x:M+1.42,y:y+0.03,w:3.6*value/100,h:0.20,fill:{color:C.an2},line:{color:C.an2} });
     txt(s,value.toFixed(1)+"%",{ x:M+5.07,y:y-0.01,w:0.75,h:0.31,fontSize:11.2,bold:true,color:C.blue,align:"right" });
   });
-  txt(s, "※ 직접 표현 미검출은 증상 부재나 오라벨을 의미하지 않으며 정규식은 구어체 변형을 모두 포착하지 못함", { x:M+0.17, y:6.75, w:lw-0.34, h:0.34, fontSize:9.1, color:C.sub });
+  txt(s, "※ 미검출은 증상 부재·오라벨을 뜻하지 않음 (정규식이 구어체를 다 잡지 못함)", { x:M+0.17, y:6.75, w:lw-0.34, h:0.34, fontSize:9.1, color:C.sub });
   caption(s, "근거: docs/experiment_log.md M3-ERR-001; reports/mission3/error_analysis/m3_error_analysis.json · README.md",7.15);
   s.addNotes("과거 TF-IDF·KcBERT 오류 분석: 전사에 직접 표현이 없는 양성 라벨 약 52%, 두 모델이 놓친 양성 중 직접 표현 없는 사례 92%, 직접 표현이 있는 라벨 중 맞힌 비율 약 90%. 이 수치는 최종 RoBERTa 오류 통계가 아님. Training 내부 홀드아웃 5,792건에서 직접 표현 미검출률: 오심 88.6%, 전신쇠약 75.7%, 두통 63.7%. 정규식 키워드 탐색은 구어체 변형을 모두 포착하지 못하므로 직접 표현 없음은 증상 부재 또는 오라벨의 증거가 아님. 근거: docs/experiment_log.md M3-ERR-001; reports/mission3/error_analysis/m3_error_analysis.json; reports/mission3/error_analysis/README.md.");
 
@@ -1210,8 +1222,8 @@ yw1(); yw2(); yw3(); yw4();
   txt(s,"오심 양성 라벨",{x:7.20,y:4.15,w:2.08,h:0.37,fontSize:12.0,bold:true,color:C.white,align:"center",valign:"middle"});
   txt(s,"vs",{x:9.48,y:4.15,w:0.42,h:0.37,fontSize:12,bold:true,color:C.sub,align:"center",valign:"middle"});
   s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:10.01,y:4.09,w:2.54,h:0.49,
-    fill:{color:C.white},line:{color:C.red,width:1.4},rectRadius:0.06});
-  txt(s,"오심 직접 표현 미검출",{x:10.05,y:4.15,w:2.47,h:0.37,fontSize:10.5,bold:true,color:C.red,align:"center",valign:"middle"});
+    fill:{color:C.white},line:{color:C.an2,width:1.4},rectRadius:0.06});
+  txt(s,"오심 직접 표현 미검출",{x:10.05,y:4.15,w:2.47,h:0.37,fontSize:10.5,bold:true,color:C.an2t,align:"center",valign:"middle"});
   s.addShape(pres.shapes.LINE,{x:7.06,y:4.83,w:5.50,h:0,line:{color:C.line,width:1}});
   title(s,"이 사례에서 확인한 문제",7.09,4.97,5.40,12.5);
   s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:7.08,y:5.33,w:5.47,h:0.73,
@@ -1453,7 +1465,7 @@ yw1(); yw2(); yw3(); yw4();
   ], {
     x: M, y: 2.45, w: 7.0, h: 3.75, showTitle: true,
     title: "512토큰 모델의 epoch별 내부 홀드아웃 Macro F1 (%)", titleFontFace: F, titleFontSize: 11.5, titleColor: C.text,
-    chartColors: [C.blue, "9E9E9E", C.red], showLegend: true, legendPos: "b", legendFontFace: F, legendFontSize: 9,
+    chartColors: [C.an2, C.an1, "9E9E9E"], showLegend: true, legendPos: "b", legendFontFace: F, legendFontSize: 9,
     showValue: false, lineSize: 2.2, lineDataSymbol: "circle", lineDataSymbolSize: 5,
     catAxisLabelFontFace: F, catAxisLabelFontSize: 10.5, catAxisLabelColor: C.text,
     valAxisLabelFontFace: F, valAxisLabelFontSize: 9.5, valAxisLabelColor: C.sub,
@@ -1463,8 +1475,8 @@ yw1(); yw2(); yw3(); yw4();
     plotArea: { border: { color: C.white, pt: 0 }, fill: { color: C.white, transparency: 100 } },
   });
   // 512토큰 계열만 필요한 값 레이블을 별도 편집 가능한 텍스트로 표시한다.
-  [["64.39%", 1.38, 4.34], ["65.04%", 3.35, 3.75], ["65.15%", 5.34, 3.63]].forEach(([v, x, y]) => {
-    txt(s, v, { x, y, w: 0.64, h: 0.22, fontSize: 9.5, bold: true, color: C.blue, align: "center" });
+  [["64.39%", 1.68, 4.52], ["65.04%", 3.97, 3.95], ["65.15%", 5.93, 3.84]].forEach(([v, x, y]) => {
+    txt(s, v, { x, y, w: 0.7, h: 0.22, fontSize: 9.5, bold: true, color: C.an2t, align: "center" });
   });
 
   const expRows = [
@@ -1503,7 +1515,7 @@ yw1(); yw2(); yw3(); yw4();
     { name: "직접 표현 없음 재현율", labels, values: [0.356, 0.195, 0.549] },
   ], {
     x: M, y: 2.46, w: 6.35, h: 3.7, barDir: "bar", barGrouping: "clustered", catAxisOrientation: "maxMin",
-    chartColors: [C.blue, "EF9A9A"], showTitle: true, title: "직접 표현 유무별 재현율 · Training 내부 홀드아웃",
+    chartColors: [C.an1, C.an2], showTitle: true, title: "직접 표현 유무별 재현율 · Training 내부 홀드아웃",
     titleFontFace: F, titleFontSize: 11.5, titleColor: C.text, showLegend: true, legendPos: "b", legendFontFace: F, legendFontSize: 9.5,
     showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "0.0%", dataLabelFontFace: F, dataLabelFontSize: 10,
     valAxisMinVal: 0, valAxisMaxVal: 1, valAxisMajorUnit: 0.2, valAxisLabelFormatCode: "0%",
@@ -1627,7 +1639,7 @@ yw1(); yw2(); yw3(); yw4();
   const s = pres.addSlide();
   s.addImage({ path: TPL.closing, x: 0, y: 0, w: W, h: 7.5, sizing: { type: "cover", w: W, h: 7.5 } });
   txt(s, "팀 eigensinn  |  김장수 · 김광희 · 지연우 · 이수빈 · 조지은", { x: M, y: 2.2, w: CW, h: 0.4, fontSize: 16, bold: true, color: C.blue, align: "center" });
-  txt(s, "코드 · 실험 기록: GitHub eigensinn-dcc2026/prelim  (docs/experiment_log.md, docs/decisions.md)", { x: M, y: 2.58, w: CW, h: 0.3, fontSize: 11, color: C.sub, align: "center" });
+  txt(s, "코드 · 실험 기록: 제출 폴더(Mission 1·2·3)의 README와 학습 노트북 참고", { x: M, y: 2.58, w: CW, h: 0.3, fontSize: 11, color: C.sub, align: "center" });
   s.addNotes("공식 템플릿(슬라이드4) 그대로. 흰 여백(약 2.1~2.9in)에만 팀 정보를 얹음 — 배너 그래픽은 건드리지 않음.");
 }
 
