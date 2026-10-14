@@ -669,16 +669,16 @@ function flow(slide, x, y, w, h, f) {
 
   // 1. Baseline: 초기 수치는 화면에서 평가 집합 명칭을 생략하고 실제 출처는 노트에 보존.
   {
-    const s = page("MFCC Baseline과 오류 관찰", "MFCC로 첫 기준선을 만들고, 짧은 발화와 겹침 구간에서 보완할 정보를 찾았습니다.");
+    const s = page("음색 요약(MFCC) 기준선과 오류 관찰", "음색 요약(MFCC)으로 첫 기준선을 만들고, 짧은 발화와 겹침 구간에서 보완할 정보를 찾았습니다.");
     panels(s);
     title(s, "■ 한 발화를 40개 숫자로 요약", M + 0.25, 2.65, leftW - 0.5, 17);
-    const items = [["발화 음성", "현재 발화만"], ["MFCC 40D", "20계수의 평균·표준편차"], ["역할 분류", "Logistic Regression"]];
+    const items = [["발화 음성", "현재 발화만"], ["음색 요약 40개", "음색 값 20개의 평균·표준편차"], ["역할 분류", "로지스틱 회귀 (간단한 분류기)"]];
     items.forEach(([t, b], i) => {
       stepBox(s, M + 0.2 + i * 1.9, 3.3, 1.75, 1.75, t, b, i === 2 ? C.sky : C.blue, 12);
       if (i < 2) arrow(s, M + 1.96 + i * 1.9, 4.0, 0.13, 0.3);
     });
     txt(s, "음색과 주파수 모양을 요약한 간단한 기준선\ntext·발화 순서·다른 발화 정보는 사용하지 않음", { x: M + 0.3, y: 5.5, w: leftW - 0.6, h: 0.9, fontSize: 14, paraSpaceAfter: 6 });
-    stat(s, rightX + 0.2, 2.95, rightW - 0.4, "80.9%", "Baseline Accuracy", C.blue, 44);
+    stat(s, rightX + 0.2, 2.95, rightW - 0.4, "80.9%", "기준선 정확도", C.blue, 44);
     title(s, "■ 오류에서 발견한 점", rightX + 0.3, 4.6, rightW - 0.6, 17);
     bullets(s, ["짧은 발화에서 정확도가 낮음", "목소리가 겹친 구간에서도 정확도가 낮음"], rightX + 0.3, 5.15, rightW - 0.6, 1.1, 15);
     s.addNotes("초기 E00: Official Validation 111,947행, Accuracy 0.809106147, CM [[41190,12655],[8715,49387]]. short는 Training 분위수로 정의한 구간이며 이후 0.5–1초 구간과 같지 않다. 짧은 발화와 overlap의 낮은 정확도는 관찰이며 원인 확정이 아니다. 화면에서 평가 집합 이름만 생략했으며 Internal Validation으로 재분류하지 않는다.");
@@ -686,81 +686,83 @@ function flow(slide, x, y, w, h, f) {
 
   // 2. 초기 feature 비교: E00/E05의 같은 평가 집합 결과만 연결.
   {
-    const s = page("Rolloff·ZCR 특징 보완", "Rolloff와 ZCR을 추가한 E05에서 정확도 상승을 확인해 후속 모델 비교에 사용했습니다.");
+    const s = page("음색 요약에 고음 정보 2개 추가", "고음 분포와 파형이 떨리는 정도 2가지를 더하자 정확도가 +0.4%p 올라, 이후 실험의 기준으로 사용했습니다.");
     panels(s);
-    title(s, "■ 가설: MFCC에 없는 주파수 단서 보완", M + 0.25, 2.65, leftW - 0.5, 17);
-    txt(s, "에너지의 주파수 분포와 파형 변화 정보를 더하면\n역할 구분에 도움이 될까?", { x: M + 0.3, y: 3.2, w: leftW - 0.6, h: 0.85, fontSize: 16 });
-    stepBox(s, M + 0.3, 4.3, 2.5, 1.35, "Rolloff", "에너지가 퍼지는 주파수 경계", C.blue, 13);
-    stepBox(s, M + 3.15, 4.3, 2.5, 1.35, "ZCR · 영교차율", "파형의 부호 변화 빈도", C.sky, 13);
-    txt(s, "MFCC 40D + Rolloff·ZCR 2D = E05 42D", { x: M + 0.3, y: 6.0, w: leftW - 0.6, h: 0.35, fontSize: 15, bold: true, color: C.blue, align: "center" });
-    comparison(s, "80.9%", "81.3%", "E00 · MFCC40", "E05 · 42D", "+0.4%p");
-    txt(s, "같은 평가 조건에서 확인한 초기 특징 조합", { x: rightX + 0.3, y: 5.95, w: rightW - 0.6, h: 0.4, fontSize: 13, color: C.sub, align: "center" });
-    s.addNotes("E00/E05는 초기 Official Validation 결과: 0.809106147 / 0.8131169214, 차이 약 +0.4011%p. 개별 E02–E04는 Markdown 기록만 남아 있어 본문 비교에서 제외. 두 정보를 추가한 조합의 관측 결과이며 각 특징의 인과 효과나 통계적 유의성을 주장하지 않는다. 이후 내부 검증 MLP 결과와 Delta를 계산하지 않는다.");
+    title(s, "■ 가설: 새 정보가 구분에 도움이 될까?", M + 0.25, 2.65, leftW - 0.5, 17);
+    txt(s, "음색 요약에 없는 정보, 고음이 퍼진 정도와\n소리가 떨리는 빈도를 더하면 도움이 될까?", { x: M + 0.3, y: 3.2, w: leftW - 0.6, h: 0.85, fontSize: 16 });
+    stepBox(s, M + 0.3, 4.3, 2.5, 1.35, "Rolloff (롤오프)", "소리 에너지가 어느 높이의 음까지 퍼져 있나", C.blue, 13);
+    stepBox(s, M + 3.15, 4.3, 2.5, 1.35, "ZCR (영교차율)", "소리 파형이 위아래로 얼마나 자주 뒤집히나", C.sky, 13);
+    txt(s, "음색 40개 + 새 정보 2개 = 42개 숫자", { x: M + 0.3, y: 5.9, w: leftW - 0.6, h: 0.35, fontSize: 15, bold: true, color: C.blue, align: "center" });
+    txt(s, "※ 숫자 1개가 1차원이라, 이후 \"42D\"는 이 42개 숫자를 뜻합니다", { x: M + 0.3, y: 6.3, w: leftW - 0.6, h: 0.3, fontSize: 11, color: C.sub, align: "center" });
+    comparison(s, "80.9%", "81.3%", "기준선 (음색 40개)", "+ 새 정보 2개 (42개)", "+0.4%p", "정확도 (%)");
+    txt(s, "같은 데이터, 같은 방식으로 비교한 초기 실험", { x: rightX + 0.3, y: 5.95, w: rightW - 0.6, h: 0.4, fontSize: 13, color: C.sub, align: "center" });
+    s.addNotes("화면의 \"기준선\"은 실험 번호 E00(MFCC 40D), \"새 정보 2개 추가\"는 E05(MFCC 40D + Rolloff·ZCR 2D = 42D)다. E00/E05는 초기 Official Validation 결과: 0.809106147 / 0.8131169214, 차이 약 +0.4011%p. 개별 E02–E04는 Markdown 기록만 남아 있어 본문 비교에서 제외. 두 정보를 추가한 조합의 관측 결과이며 각 특징의 인과 효과나 통계적 유의성을 주장하지 않는다. 이후 내부 검증 MLP 결과와 Delta를 계산하지 않는다.");
   }
 
   // 3. 동일 42D 조건의 모델 비교: 초기 E05 Official 수치와 연결하지 않는다.
   {
-    const s = page("선형 모델에서 MLP로 확장", "같은 42D 입력에서 MLP가 4.22%p 높아, 후속 음향 특징 비교의 기준 모델로 고정했습니다.");
+    const s = page("단순 분류기에서 신경망(MLP)으로 확장", "같은 42개 숫자 입력에서 MLP가 4.22%p 높아, 이후 음향 특징 비교의 기준 모델로 고정했습니다.");
     panels(s);
-    title(s, "■ 가설: 특징 사이의 비선형 관계 학습", M + 0.25, 2.65, leftW - 0.5, 17);
-    node(s, M + 1.1, 3.2, 3.8, 0.85, "동일한 E05 42D 입력", "같은 통화 단위 내부 분할·전처리");
-    node(s, M + 0.3, 4.55, 2.5, 0.9, "Logistic Regression", "선형 비교 기준");
-    node(s, M + 3.2, 4.55, 2.5, 0.9, "MLP", "비선형 관계 학습", true);
+    title(s, "■ 가설: 특징 간 복잡한 관계 학습", M + 0.25, 2.65, leftW - 0.5, 17);
+    node(s, M + 1.1, 3.2, 3.8, 0.85, "같은 입력 (42개 숫자)", "같은 통화 단위 내부 분할·같은 전처리");
+    node(s, M + 0.3, 4.55, 2.5, 0.9, "로지스틱 회귀", "단순 비교 기준");
+    node(s, M + 3.2, 4.55, 2.5, 0.9, "MLP (신경망)", "복잡한 관계 학습", true);
     s.addShape(pres.shapes.LINE, { x: M + 3.0, y: 4.05, w: 0, h: 0.2, line: { color: C.sky, width: 1.5 } });
     s.addShape(pres.shapes.LINE, { x: M + 1.55, y: 4.25, w: 2.9, h: 0, line: { color: C.sky, width: 1.5 } });
     link(s, M + 1.55, 4.25, M + 1.55, 4.55);
     link(s, M + 4.45, 4.25, M + 4.45, 4.55);
     txt(s, "입력 특징은 유지하고 분류 방법을 비교", { x: M + 0.3, y: 6.05, w: leftW - 0.6, h: 0.35, fontSize: 15, color: C.blue, bold: true, align: "center" });
-    comparison(s, "81.73%", "85.95%", "Logistic Regression", "MLP", "+4.22%p", "내부 검증 Accuracy");
+    comparison(s, "81.73%", "85.95%", "로지스틱 회귀", "MLP (신경망)", "+4.22%p", "내부 검증 정확도");
     txt(s, "이 MLP를 고정한 뒤 음향 특징을 추가 비교", { x: rightX + 0.3, y: 5.95, w: rightW - 0.6, h: 0.45, fontSize: 14, color: C.sub, align: "center" });
     s.addNotes("M00 LR 0.8173319625, M04-100 MLP 0.8595319610: 같은 E05 42D, fixed GroupSplit, seed 42, internal-train-only scaler. 차이 4.21999985%p. MLP (64,)의 ReLU 비선형 상호작용은 실험 가설이며 개선 원인을 증명한 것은 아니다. max_iter=100에서도 convergence warning이 있어 수렴 완료를 주장하지 않는다. 81.31% 초기 Official 결과와 직접 비교하지 않는다.");
   }
 
   // 4. 당시 고정 MLP의 AF02 직접 비교.
   {
-    const s = page("Pitch·Voicing의 효과", "음높이·유성성 특징은 정확도와 두 역할의 Recall을 함께 개선해 채택했습니다.");
+    const s = page("음높이·성대 울림 정보의 효과", "음높이와 성대가 울리는 정도 정보를 더하자 정확도와 두 역할의 재현율(Recall)이 함께 올라 채택했습니다.");
     panels(s);
     title(s, "■ 가설: 음높이와 발성 정보를 보완", M + 0.25, 2.65, leftW - 0.5, 17);
-    txt(s, "기존 입력에 없는 F0 변화와 주기적 발성 정보가\n역할 분류를 보완할까?", { x: M + 0.3, y: 3.2, w: leftW - 0.6, h: 0.85, fontSize: 16 });
-    stepBox(s, M + 0.3, 4.3, 2.5, 1.4, "Pitch · 음높이", "F0 중앙값·변동폭·기울기", C.blue, 13);
-    stepBox(s, M + 3.15, 4.3, 2.5, 1.4, "Voicing · 유성성", "유성 비율·주기성", C.sky, 13);
-    txt(s, "E05 42D + AF02 5D = 47D", { x: M + 0.3, y: 6.05, w: leftW - 0.6, h: 0.35, fontSize: 15, bold: true, color: C.blue, align: "center" });
-    comparison(s, "85.95%", "86.63%", "42D · MLP", "+ Pitch/Voicing", "+0.67%p", "당시 내부 검증 Accuracy");
-    txt(s, "Recall 변화: 대원 +0.71%p / 신고자 +0.64%p", { x: rightX + 0.25, y: 5.95, w: rightW - 0.5, h: 0.5, fontSize: 14, bold: true, color: C.blue, align: "center" });
+    txt(s, "기존 입력에 없는 목소리 높낮이(F0) 변화와\n성대 울림 정보가 역할 분류를 보완할까?", { x: M + 0.3, y: 3.2, w: leftW - 0.6, h: 0.85, fontSize: 16 });
+    stepBox(s, M + 0.3, 4.3, 2.5, 1.4, "Pitch (음높이)", "목소리 높낮이의 중간값·변동 폭·오르내림 경향", C.blue, 13);
+    stepBox(s, M + 3.15, 4.3, 2.5, 1.4, "Voicing (성대 울림)", "성대가 울린 구간의 비율·규칙성", C.sky, 13);
+    txt(s, "기존 42개 + 새 정보 5개 = 47개 숫자", { x: M + 0.3, y: 6.05, w: leftW - 0.6, h: 0.35, fontSize: 15, bold: true, color: C.blue, align: "center" });
+    comparison(s, "85.95%", "86.63%", "기존 42개 (MLP)", "+ 음높이·울림 5개", "+0.67%p", "당시 내부 검증 정확도");
+    txt(s, "재현율 변화: 대원 +0.71%p / 신고자 +0.64%p", { x: rightX + 0.25, y: 5.95, w: rightW - 0.5, h: 0.5, fontSize: 14, bold: true, color: C.blue, align: "center" });
     s.addNotes("historical cache 내부 비교: M04-100 42D 0.8595319610 → AF02 47D 0.8662664219, +0.67344609%p. Recall0 0.815608→0.822662, Recall1 0.900043→0.906484. clean chain의 별도 결과로 재해석하지 않는다. 짧거나 noisy/unvoiced한 구간의 pitch 추출 위험도 확인한 실험이다.");
   }
 
   // 5. 과거 조합 점수 대신 재현된 clean B4 52D/59D 비교 사용.
   {
-    const s = page("활동성·엔트로피의 효과", "활동성과 엔트로피를 함께 추가해 전체 정확도를 높이고, 역할별 변화도 확인했습니다.");
+    const s = page("말하는 패턴·소리 퍼짐 정보의 효과", "말한 구간의 패턴과 소리가 퍼진 정도를 함께 더해 전체 정확도를 높였고, 역할별 변화도 확인했습니다.");
     panels(s);
     title(s, "■ 가설: 평균이 놓치는 발화 변화 표현", M + 0.25, 2.65, leftW - 0.5, 17);
-    txt(s, "음성 활동 패턴과 스펙트럼 분포 변화가\n짧거나 잘린 발화의 정보를 보완할까?", { x: M + 0.3, y: 3.2, w: leftW - 0.6, h: 0.85, fontSize: 16 });
-    stepBox(s, M + 0.3, 4.3, 2.5, 1.4, "AF10 · 활동성", "음성 활동 비율·경계 패턴", C.blue, 13);
-    stepBox(s, M + 3.15, 4.3, 2.5, 1.4, "AF11 · 엔트로피", "스펙트럼의 퍼짐·변동성", C.sky, 13);
-    txt(s, "clean 52D + 활동성 4D + 엔트로피 3D = 59D", { x: M + 0.25, y: 6.05, w: leftW - 0.5, h: 0.35, fontSize: 14, bold: true, color: C.blue, align: "center" });
-    comparison(s, "86.96%", "87.38%", "clean 52D", "clean 59D", "+0.42%p", "clean 내부 검증 Accuracy");
-    txt(s, "Recall 변화: 대원 +1.23%p / 신고자 −0.33%p", { x: rightX + 0.25, y: 5.95, w: rightW - 0.5, h: 0.5, fontSize: 14, color: C.sub, align: "center" });
+    txt(s, "말소리가 나는 구간의 패턴과 소리 분포의 변화가\n짧거나 잘린 발화의 정보를 보완할까?", { x: M + 0.3, y: 3.2, w: leftW - 0.6, h: 0.85, fontSize: 16 });
+    stepBox(s, M + 0.3, 4.3, 2.5, 1.4, "활동성 (말한 비율)", "말소리가 있는 구간의 비율·시작과 끝 패턴", C.blue, 13);
+    stepBox(s, M + 3.15, 4.3, 2.5, 1.4, "엔트로피 (퍼짐 정도)", "소리 에너지가 주파수에 퍼진 정도·변동", C.sky, 13);
+    txt(s, "52개 + 활동성 4개 + 엔트로피 3개 = 59개 숫자", { x: M + 0.25, y: 6.05, w: leftW - 0.5, h: 0.35, fontSize: 14, bold: true, color: C.blue, align: "center" });
+    comparison(s, "86.96%", "87.38%", "기존 52개", "+ 새 정보 7개 (59개)", "+0.42%p", "재현 실험 내부 검증 정확도");
+    txt(s, "재현율 변화: 대원 +1.23%p / 신고자 −0.33%p", { x: rightX + 0.25, y: 5.95, w: rightW - 0.5, h: 0.5, fontSize: 14, color: C.sub, align: "center" });
     s.addNotes("clean B4 same-run: 52D 0.869594, CM [[71215,14136],[9062,83478]]; 59D 0.873760, CM [[72265,13086],[9371,83169]], 순 정답 +741. 대원 Recall 0.834378→0.846680, 신고자 0.902075→0.898736. 따라서 두 역할 모두 개선이라고 하지 않는다. 52D prefix는 MFCC40/E05/AF02/AF04/AF09이며 CPP 단독 증분은 partially verified. old-cache 59D 87.46% 및 과거 조합 점수와 연결하지 않는다.");
   }
 
   // 6. F01/F02의 가설과 joint 149D 결과. 단독 개선량은 주장하지 않음.
   {
-    const s = page("MFCC 분포·대역 대비와 149D 입력", "분포 요약과 대역 대비를 더한 149D 입력을 세 모델에 적용해 앙상블 후보로 검증했습니다.");
+    const s = page("음색 분포·대역 대비 정보와 149개 입력", "음색 분포와 주파수 대역 대비를 더한 149개 숫자를 세 모델에 적용해, 모델을 합치는 후보로 검증했습니다.");
     panels(s);
     title(s, "■ 두 가지 보완 가설", M + 0.25, 2.65, leftW - 0.5, 17);
-    title(s, "F01 · MFCC Robust Stats · 80D", M + 0.3, 3.25, leftW - 0.6, 16);
-    txt(s, "평균·표준편차에 분포 정보를 더하면 도움이 될까?\n20계수의 q10·중앙값·q90·IQR을 추가", { x: M + 0.3, y: 3.8, w: leftW - 0.6, h: 0.9, fontSize: 14, paraSpaceAfter: 5 });
-    title(s, "F02 · Spectral Contrast · 10D", M + 0.3, 5.0, leftW - 0.6, 16);
-    txt(s, "대역 안의 강한 성분과 약한 성분의 대비가 보완할까?\n0–4 kHz 5대역의 contrast 평균·표준편차", { x: M + 0.3, y: 5.55, w: leftW - 0.6, h: 0.9, fontSize: 14, paraSpaceAfter: 5 });
+    title(s, "① 음색 분포 요약 (80개)", M + 0.3, 3.25, leftW - 0.6, 16);
+    txt(s, "평균·표준편차에 분포 정보를 더하면 도움이 될까?\n음색 값 20개마다 하위 10%·중앙값·상위 10%·퍼짐 폭을 추가", { x: M + 0.3, y: 3.8, w: leftW - 0.6, h: 0.9, fontSize: 14, paraSpaceAfter: 5 });
+    title(s, "② 주파수 대역 대비 (10개)", M + 0.3, 5.0, leftW - 0.6, 16);
+    txt(s, "대역 안의 강한 소리와 약한 소리의 차이가 보완할까?\n0–4 kHz를 5개 대역으로 나눈 차이의 평균·표준편차", { x: M + 0.3, y: 5.55, w: leftW - 0.6, h: 0.9, fontSize: 14, paraSpaceAfter: 5 });
     title(s, "■ 결합 입력과 내부 검증 결과", rightX + 0.25, 2.65, rightW - 0.5, 17);
     const bw = (rightW - 0.8) / 3;
-    [["clean 59D", "기존 음향 특징"], ["F01 80D", "MFCC 분포"], ["F02 10D", "대역 대비"]].forEach(([t, b], i) => {
+    [["기존 59개", "음향 특징"], ["+ 80개", "음색 분포"], ["+ 10개", "대역 대비"]].forEach(([t, b], i) => {
       node(s, rightX + 0.2 + i * (bw + 0.2), 3.25, bw, 0.95, t, b, i === 2);
       if (i < 2) txt(s, "+", { x: rightX + 0.2 + bw + i * (bw + 0.2), y: 3.55, w: 0.2, h: 0.3, align: "center", fontSize: 14, bold: true });
     });
-    txt(s, "총 149D", { x: rightX + 0.3, y: 4.35, w: rightW - 0.6, h: 0.35, fontSize: 18, bold: true, color: C.blue, align: "center" });
-    table(s, [["모델", "Accuracy"], ["TabM", "88.64%"], ["Tabular ResNet", "88.55%"], ["GANDALF", "88.58%"]], rightX + 0.3, 4.95, [(rightW - 0.6) * 0.6, (rightW - 0.6) * 0.4], { rowH: 0.36, fontSize: 12 });
+    txt(s, "총 149개 숫자", { x: rightX + 0.3, y: 4.35, w: rightW - 0.6, h: 0.35, fontSize: 18, bold: true, color: C.blue, align: "center" });
+    table(s, [["모델", "정확도"], ["TabM", "88.64%"], ["Tabular ResNet", "88.55%"], ["GANDALF", "88.58%"]], rightX + 0.3, 4.95, [(rightW - 0.6) * 0.6, (rightW - 0.6) * 0.4], { rowH: 0.36, fontSize: 12 });
+    txt(s, "※ 세 모델 모두 표 형태의 숫자 데이터를 다루는 신경망", { x: rightX + 0.3, y: 6.45, w: rightW - 0.6, h: 0.25, fontSize: 11, color: C.sub, align: "center" });
     s.addNotes("F01는 20 MFCC 계수별 q10/median/q90/IQR의 80D. F02는 8kHz 발화의 0–250, 250–500, 500–1000, 1000–2000, 2000–4000Hz 5대역 spectral contrast mean/std 10D. Stage14 TabM 0.8864304546, ResNet 0.8854916775, GANDALF 0.8858458269. 별도 학습의 59D 결과와 차이를 F01/F02 각각의 독립 개선량으로 귀속하지 않는다. 개념 Diagram은 실제 분포/파형 그래프가 아니다.");
   }
 
@@ -769,56 +771,56 @@ function flow(slide, x, y, w, h, f) {
     const s = page("제외·보류한 실험", "특징 수를 늘리는 대신, 비교 결과를 확인해 필요한 정보를 선별했습니다.");
     table(s, [
       ["실험 방향", "확인한 결과", "판단"],
-      ["Duration", "초기 비교에서 정확도 변화가 거의 없음", "제외"],
-      ["Energy · Spectral Flux", "각각 당시 42D 기준보다 정확도가 낮음", "제외"],
-      ["Delta-MFCC", "재검토의 전체 순이득이 작고 역할별 Recall 변화가 반대", "보류"],
-      ["eGeMAPS로 대체", "동일 clean 내부 비교: 59D 87.38% / eGeMAPS 86.40%", "기존 입력 유지"],
+      ["발화 길이 (Duration)", "초기 비교에서 정확도 변화가 거의 없음", "제외"],
+      ["소리 크기·변화량 (Energy, Flux)", "각각 당시 42개 기준보다 정확도가 낮음", "제외"],
+      ["음색 변화량 (Delta-MFCC)", "재검토에서도 전체 이득이 작고, 역할별 재현율 변화가 서로 반대", "보류"],
+      ["표준 음성 특징 세트(eGeMAPS)로 대체", "같은 조건 내부 비교: 기존 59개 87.38% / eGeMAPS 86.40%", "기존 입력 유지"],
     ], M, 2.65, [2.7, 7.0, CW - 9.7], { rowH: 0.66, fontSize: 13.5 });
-    insight(s, M, 6.05, CW, 0.65, "효과가 작거나 균형이 나빠진 방향은 제외·보류하고, 확인된 특징을 후속 비교에 사용했습니다.", C.light, 14);
+    insight(s, M, 6.05, CW, 0.65, "효과가 작거나 균형이 나빠진 방향은 제외·보류하고, 확인된 특징을 이후 비교에 사용했습니다.", C.light, 14);
     s.addNotes("Duration는 초기 Official 비교. Energy/Flux는 당시 42D M04-100 내부 비교. Delta-MFCC 재검토는 old-cache 59→61D +0.018%p, net +32, Recall0 +1.47%p / Recall1 −1.32%p로 HOLD. eGeMAPS는 같은 clean 계약에서 0.8639897465, clean59D 0.8737597742. 서로 다른 실험의 결과를 한 순위나 합산 효과로 읽지 않는다. Formants는 미실행, Stage12 pretrained는 성능 미평가이므로 실패 성능 사례로 넣지 않는다.");
   }
 
   // 8. 별도 stage의 clean 59D 저장 비교 기준: 모든 후보의 탐색표는 제거.
   {
-    const s = page("모델 비교와 후보 선정", "TabM·ResNet을 비교 기준으로 유지하고, 신규 계열 중 가장 높은 GANDALF를 결합 후보에 포함했습니다.");
+    const s = page("모델 비교와 후보 선정", "기준 모델 TabM·ResNet을 유지하고, 새로 시도한 모델 중 가장 높은 GANDALF를 합치는 후보에 포함했습니다.");
     const gap = 0.3, bw = (CW - 2 * gap) / 3;
-    const models = [["TabM", "88.40%", "59D 동결 비교 기준"], ["Tabular ResNet", "88.38%", "59D 동결 비교 기준"], ["GANDALF", "88.17%", "신규 계열 중 가장 높음"]];
+    const models = [["TabM", "88.40%", "비교 기준 (59개 숫자 입력)"], ["Tabular ResNet", "88.38%", "비교 기준 (59개 숫자 입력)"], ["GANDALF", "88.17%", "새로 시도한 모델 중 가장 높음"]];
     models.forEach(([name, accuracy, role], i) => {
       const x = M + i * (bw + gap);
       card(s, x, 2.8, bw, 2.7);
       title(s, name, x + 0.2, 3.05, bw - 0.4, 18);
       stat(s, x + 0.1, 3.75, bw - 0.2, accuracy, role, i === 2 ? C.sky : C.blue, 32);
     });
-    txt(s, "clean 59D · 같은 고정 내부 분할 · Training에서만 전처리 fit", { x: M, y: 2.3, w: CW, h: 0.3, fontSize: 12, color: C.sub, align: "center" });
-    insight(s, M, 5.85, CW, 0.85, "GANDALF가 두 기준 모델을 넘지는 못했지만, 다른 모델 계열의 결합 후보로 포함해 검증했습니다.", C.light, 14);
+    txt(s, "입력 59개 숫자 · 같은 내부 검증 분할 · 전처리 기준은 Training 데이터만 사용", { x: M, y: 2.3, w: CW, h: 0.3, fontSize: 12, color: C.sub, align: "center" });
+    insight(s, M, 5.85, CW, 0.85, "GANDALF가 두 기준 모델을 넘지는 못했지만, 서로 다른 종류의 모델을 합치는 후보로 포함해 검증했습니다.", C.light, 14);
     s.addNotes("TabM 0.8839795155460366, Tabular ResNet 0.8837546587517076는 Stage10 dual frozen references. GANDALF 약 0.8817은 Stage13 신규 6-family first-screen 중 최고. 동일 clean59D와 고정 내부 split을 사용했으나 다른 stage의 학습 모델이다. 세 모델만 같은 run에서 학습했다고 하지 않는다. 실제 오류 상보성은 이후 Stage14 149D 결과로 평가했으며 family가 다르다는 사실만으로 상보성을 보장하지 않는다.");
   }
 
   // 9. 앙상블 구성 + 고정 후보 최종 평가 통합. 초기 Official 사용 문장은 화면에서 제거.
   {
-    const s = page("149D E_TRG 구성과 최종 평가", "세 모델을 동일 가중치로 결합하고, 고정한 연우 최종 모델에서 정확도 88.49%를 확인했습니다.");
+    const s = page("149개 입력 모델 합치기와 최종 평가", "세 모델을 같은 비중으로 합치고, 미리 고정한 연우 최종 모델의 정확도 88.49%를 확인했습니다.");
     panels(s);
-    title(s, "■ E_TRG · 세 모델 확률 평균", M + 0.25, 2.65, leftW - 0.5, 17);
+    title(s, "■ 세 모델의 예측 확률 평균", M + 0.25, 2.65, leftW - 0.5, 17);
     flow(s, M + 0.2, 3.3, leftW - 0.4, 2.2, {
-      pre: [["149D", "음향 특징"]], preW: 1.1,
+      pre: [["149개", "음향 특징 숫자"]], preW: 1.1,
       branches: [["TabM", "", "1/3"], ["ResNet", "", "1/3"], ["GANDALF", "", "1/3"]], brW: 1.75, brGap: 0.14,
       post: [["확률 평균", "≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 1.65,
     });
-    txt(s, "추가 튜닝 없이 전체 Training으로 재학습\n149D 입력·동일 가중치·threshold 0.5 고정", { x: M + 0.3, y: 5.95, w: leftW - 0.6, h: 0.6, fontSize: 13, color: C.sub, align: "center" });
-    stat(s, rightX + 0.2, 2.85, rightW - 0.4, "88.49%", "최종 평가 · Official Validation", C.blue, 42);
+    txt(s, "추가 튜닝 없이 전체 Training 데이터로 재학습\n입력 149개·같은 비중·판정 기준(threshold) 0.5 고정", { x: M + 0.3, y: 5.95, w: leftW - 0.6, h: 0.6, fontSize: 13, color: C.sub, align: "center" });
+    stat(s, rightX + 0.2, 2.85, rightW - 0.4, "88.49%", "최종 평가 · 공식 Validation", C.blue, 42);
     const half = (rightW - 0.4) / 2;
-    stat(s, rightX + 0.1, 4.5, half, "84.2%", "119대원 Recall", C.blue, 26);
-    stat(s, rightX + 0.3 + half, 4.5, half, "92.5%", "신고자 Recall", C.sky, 26);
+    stat(s, rightX + 0.1, 4.5, half, "84.2%", "119대원 재현율", C.blue, 26);
+    stat(s, rightX + 0.3 + half, 4.5, half, "92.5%", "신고자 재현율", C.sky, 26);
     txt(s, "내부 검증: 88.85%\n평가 집합이 달라 두 수치의 차이를 개선량으로 계산하지 않음", { x: rightX + 0.3, y: 6.0, w: rightW - 0.6, h: 0.6, fontSize: 12, color: C.sub, align: "center" });
     s.addNotes("E_TRG는 연우 개인 최종 실험 모델이며 팀 제출 모델 개발자로 오해시키지 않는다. Stage14 Internal 177,891행 Accuracy 0.8884822729; Stage15 full-Training refit의 Official Validation 111,947행/3,640통화 Accuracy 0.884918756, Recall0 0.84178661, Recall1 0.92489071. FINAL_VERIFIED, 세 reload EXACT_PASS, alignment/metric recomputation PASS. 이 refit에서는 Official을 scaler fit, gradient/loss, early stopping, checkpoint 선택에 쓰지 않았고 가중치/threshold 튜닝도 없다. 과거 E-series에서 같은 Official을 사용한 이력이 있어 독립된 최초 1회 holdout이라고 주장하지 않는다. 과거 사용 문장은 화면에서 생략하고 근거 기록에 보존한다. 학습 artifact는 Drive run mission2_final_fulltrain_official_validation_20261012T151108Z_a1606771에 있다.");
   }
 
   // 10. 실제 marginal slice만 시각화하며 잔여 오류를 원인으로 단정하지 않음.
   {
-    const s = page("잔여 오류와 실험 결론", "음향 특징의 보완 효과를 비교하고, 짧은 발화와 겹침 구간의 잔여 오류를 확인했습니다.");
+    const s = page("남은 오류와 실험 결론", "음향 특징의 보완 효과를 비교하고, 짧은 발화와 겹침 구간에 남은 오류를 확인했습니다.");
     panels(s);
     title(s, "■ 최종 평가의 구간별 오류율", M + 0.25, 2.65, leftW - 0.5, 17);
-    barChart(s, ["전체", "0.5–1초", "Overlap"], [11.5, 15.7, 15.3], {
+    barChart(s, ["전체", "0.5–1초", "겹침"], [11.5, 15.7, 15.3], {
       x: M + 0.2, y: 3.2, w: leftW - 0.4, h: 2.9, name: "오류율", title: "오류율 (%)",
       chartColors: [C.line, C.sky, C.blue], valAxisMinVal: 0, valAxisMaxVal: 20, valAxisMajorUnit: 5, dataLabelFormatCode: "0.0",
     });
