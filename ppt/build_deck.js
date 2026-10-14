@@ -1248,7 +1248,7 @@ yw1(); yw2(); yw3(); yw4();
     txt(s, m, { x: x + 0.25, y: 3.95, w: tw - 0.5, h: 0.3, fontSize: 11.5, color: C.sub });
     txt(s, i === 2 ? "Macro F1 · 공식 Validation" : "Accuracy · 공식 Validation", { x: x + 0.25, y: 4.25, w: tw - 0.5, h: 0.3, fontSize: 10.5, color: C.sub });
   });
-  txt(s, "▲ = 기준선 대비 개선폭 · 기준선: M1 95.11%(음향 특징만) · M2 86.44%(통계 모델) · M3 56.89%(TF-IDF)", { x: M, y: 4.7, w: CW, h: 0.25, fontSize: 11, color: C.sub, align: "right" });
+  txt(s, "▲ = baseline 대비 개선폭 · baseline: M1 95.11%(음향 특징만) · M2 86.44%(통계 모델) · M3 56.89%(TF-IDF)", { x: M, y: 4.7, w: CW, h: 0.25, fontSize: 11, color: C.sub, align: "right" });
   const lessons = [
     ["기준은 결과를 보기 전에\n고정한다","결과를 본 뒤 기준을 낮추면 Validation에 과적합된다"],
     ["기각도 기록한다", "효과 없던 실험과 그 이유를 결정 기록에 남겨 같은 시도를 반복하지 않음"],
