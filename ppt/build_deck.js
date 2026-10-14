@@ -468,7 +468,7 @@ function m2Appendix3() {
     ["01", "준비 과정", ["사전 학습 로드맵", "팀 구성과 협업 체계"]],
     ["02", "데이터 분석", ["EDA 핵심 발견"]],
     ["03", "미션별 수행", ["Mission 1  신고자 성별 분류", "Mission 2  신고자/대원 분류\n   (+ 실험 흐름·공식 검증·오류 분석)", "Mission 3  환자 증상 인식"]],
-    ["04", "종합 및 시사점", ["성능 요약과 교훈", "사회안전 시사점", "추후 활동 계획", "별첨 · Mission 3 상세 근거"]],
+    ["04", "종합 및 시사점", ["성능 요약과 교훈", "활용 흐름과 기대효과", "사회안전 시사점과\n   향후 계획", "별첨 · Mission 3 상세 근거"]],
   ];
   const cw = (CW - 3 * 0.3) / 4;
   secs.forEach(([n, name, items], i) => {
@@ -1233,7 +1233,7 @@ yw1(); yw2(); yw3(); yw4();
   coreMsg(s, "공식 Validation은 튜닝에 쓰지 않고, 결과를 보기 전에 고정한 기준만 확인했다.");
   const v = t => strong(t);
   const tiles = [
-    ["M1 신고자 성별", "음향 특징 + x-vector + LR", "98.10%", "+2.99%p"],
+    ["M1 신고자 성별", "음향 특징 + 화자 임베딩 + 로지스틱 회귀", "98.10%", "+2.99%p"],
     [M2.summary.task, M2.summary.model, M2.summary.val, M2.summary.gain],
     ["M3 증상 9종", "RoBERTa-large × 3 + TF-IDF", "65.34%", "+8.45%p"],
   ];
@@ -1248,10 +1248,10 @@ yw1(); yw2(); yw3(); yw4();
     txt(s, m, { x: x + 0.25, y: 3.95, w: tw - 0.5, h: 0.3, fontSize: 11.5, color: C.sub });
     txt(s, i === 2 ? "Macro F1 · 공식 Validation" : "Accuracy · 공식 Validation", { x: x + 0.25, y: 4.25, w: tw - 0.5, h: 0.3, fontSize: 10.5, color: C.sub });
   });
-  txt(s, "baseline: M1 95.11%, M2 86.44%, M3 56.89%", { x: M, y: 4.7, w: CW, h: 0.25, fontSize: 11, color: C.sub, align: "right" });
+  txt(s, "▲ = 기준선 대비 개선폭 · 기준선: M1 95.11%(음향 특징만) · M2 86.44%(통계 모델) · M3 56.89%(TF-IDF)", { x: M, y: 4.7, w: CW, h: 0.25, fontSize: 11, color: C.sub, align: "right" });
   const lessons = [
     ["기준은 결과를 보기 전에\n고정한다","결과를 본 뒤 기준을 낮추면 Validation에 과적합된다"],
-    ["기각도 기록한다", "효과 없던 실험과 그 이유를 decisions.md에 남겨 같은 시도를 반복하지 않음"],
+    ["기각도 기록한다", "효과 없던 실험과 그 이유를 결정 기록에 남겨 같은 시도를 반복하지 않음"],
     ["규칙은 설계 단계에서 지킨다", "규칙 위반 소지가 있는 특징은 성능이 좋아도 제거 (M2 통화 단위 정보)"],
   ];
   const cw = (CW - 2 * 0.3) / 3;
