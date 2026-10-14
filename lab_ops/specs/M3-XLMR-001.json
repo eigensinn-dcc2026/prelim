@@ -1,0 +1,24 @@
+{
+  "exp_id": "M3-XLMR-001",
+  "mission": 3,
+  "title": "xlm-roberta-large 앞 256 + 강화 가중 BCE + soft-F1 (ROBERTA-003 설정, 모델만 교체)",
+  "hypothesis": "다국어 large 인코더의 성능 및 앙상블 후보 오류 다양성 확인",
+  "change_vs_baseline": "M3-ROBERTA-003 인코더만 XLM-R-large로 교체. lr 1e-5, BCE pos_weight clip(0.5*sqrt(neg/max(pos,1)),1,6), fp32 미니배치 soft-F1 가중치 1.0, 앞 256토큰, warmup 10%, weight decay 0.01, fp16, 실효 batch 16 (microbatch 8), 3 epochs 최종 epoch, P0 80:20 split seed 42, threshold >=0.5 고정, 첫 토큰 + dropout 0.1 + Linear 9, seed 42만. 탐색·후처리 없음.",
+  "baseline": {
+    "exp_id": "M3-ROBERTA-003",
+    "metric": "macro_f1 seed 42 (80:20 split, thr 0.5)",
+    "value": 0.6441
+  },
+  "branch": "",
+  "commit": "",
+  "command": "python scripts/lab/m3-xlmr-001.py --out \"$LAB_OUT\"",
+  "uses_official_val": false,
+  "success_criteria": "seed42 holdout Macro F1 >=0.6541. holdout_probs.npy (5792,9), holdout_ids.json은 분할 holdout 순서. metrics.json에 증상별 F1, Macro/Micro F1, 빈 예측 수, ECE/Brier, epoch별 Macro F1, 학습 시간, 모델 revision, split_sha256 기록. seed43/44는 후속 판단 대상이며 이 실험에서는 실행하지 않음.",
+  "gpu": "T4",
+  "budget_hours": 3,
+  "priority": 2,
+  "notes": "Training/TL_서울_구급.zip을 LAB_WORK에 복사. 모델은 데이터 준비 전에 DCC_RUN_ROOT/models/xlm-roberta-large에 1회 다운로드 후 local_files_only 로드. epoch별 원자적 ckpt_last.pt 및 RNG/optimizer/scheduler/scaler 재개. 공식 Validation 미사용.",
+  "model_id": "FacebookAI/xlm-roberta-large",
+  "model_revision": "c23d21b0620b635a76227c604d44e43a9f0ee389",
+  "model_revision_source": "https://huggingface.co/FacebookAI/xlm-roberta-large/commit/c23d21b0620b635a76227c604d44e43a9f0ee389"
+}

@@ -1,0 +1,16 @@
+# Mission 3 최종 학습용 패키지(도서관 PC, RTX 5060 Ti). torch를 먼저 CUDA 12.8 인덱스에서 설치한다:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128
+# (RTX 50 시리즈/Blackwell은 cu128 이상 빌드가 필요하다. 설치 후 노트북의 환경 점검 셀을 실행한다.)
+# transformers 4.57.6 묶음은 보안 경고 대상이다. 5.19.0이 요구하는 범위로 같이 올린다.
+transformers==5.19.0
+tokenizers==0.23.3
+huggingface_hub==2.2.0
+safetensors==0.8.0
+scikit-learn==1.8.0
+numpy==2.4.4
+pandas==3.0.2
+# Jupyter 화면 없이 노트북을 실행할 때 필요하다
+nbconvert==7.17.1
+nbclient==0.11.0
+nbformat==5.10.4
+ipykernel==7.3.0

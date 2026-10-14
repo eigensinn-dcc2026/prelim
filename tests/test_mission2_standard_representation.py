@@ -552,6 +552,104 @@ def test_clean_mfcc40_matches_baseline_frontend_and_order(tmp_path):
     assert bundle["stem"].tolist() == ["call_0"]
 
 
+@pytest.fixture
+def transferred_clean(tmp_path, monkeypatch):
+    import shutil
+    from dcc_data import mission2_egemaps_colab as colab
+
+    manifest, manifest_path, meta_path, raw = _small_clean_source(tmp_path)
+    _fake_clean_extractors(monkeypatch)
+    root = clean.build_clean_stage4_chain(
+        manifest_path, meta_path, raw, tmp_path / "clean",
+        expected_rows=4, expected_calls=4,
+    )
+    chain = json.loads((root / "chain.json").read_text())
+    monkeypatch.setattr(colab, "EXPECTED_ROWS", 4)
+    monkeypatch.setattr(colab, "EXPECTED_FINGERPRINT", chain["provenance_fingerprint"])
+    identity_path = tmp_path / "transfer.json"
+    colab.write_local_transfer_identity(manifest, manifest_path, meta_path, raw,
+                                        root / "chain.json", identity_path)
+    staged = tmp_path / "staged"
+    staged.mkdir()
+    for path in raw.iterdir():
+        target = staged / path.name
+        shutil.copyfile(path, target)
+        info = path.stat()
+        os.utime(target, ns=(info.st_atime_ns, info.st_mtime_ns + 5_000_000_000))
+    return root, manifest_path, meta_path, staged, identity_path
+
+
+def test_shared_clean_load_requires_bytes_and_preserves_frozen_cache(transferred_clean):
+    root, manifest_path, meta_path, staged, identity_path = transferred_clean
+    before = {path.name: path.read_bytes() for path in root.iterdir()}
+    with pytest.raises(ValueError, match="source_inventory_signature"):
+        clean.load_clean_stage4_59d(root, manifest_path, meta_path, staged,
+                                   expected_rows=4, expected_calls=4)
+    loaded = clean.load_clean_stage4_59d(
+        root, manifest_path, meta_path, staged, expected_rows=4, expected_calls=4,
+        transfer_identity_path=identity_path,
+    )
+    assert loaded.X.shape == (4, 59)
+    assert loaded.X.dtype == np.float32
+    assert loaded.raw_source_verification["mode"] == "shared_training_transfer_sha256"
+    assert loaded.raw_source_verification["build_time_content_proof"] == "not_collected"
+    assert {path.name: path.read_bytes() for path in root.iterdir()} == before
+
+
+@pytest.mark.parametrize("damage", ["raw", "proof", "manifest", "artifact", "metadata", "missing_proof"])
+def test_shared_clean_rejects_tampering(transferred_clean, damage):
+    root, manifest_path, meta_path, staged, identity_path = transferred_clean
+    if damage == "raw":
+        (staged / "call_0.json").write_text("[]")  # Same size, different bytes.
+    elif damage == "proof":
+        proof = json.loads(identity_path.read_text())
+        proof["clean_reference_fingerprint"] = "wrong"
+        identity_path.write_text(json.dumps(proof))
+    elif damage == "manifest":
+        manifest = pd.read_parquet(manifest_path)
+        manifest.loc[0, "speaker"] = 1
+        manifest.to_parquet(manifest_path)
+    elif damage == "artifact":
+        with (root / "mfcc40.npz").open("ab") as stream:
+            stream.write(b"changed")
+    elif damage == "metadata":
+        path = root / "af10.json"
+        metadata = json.loads(path.read_text())
+        metadata["feature_names"] = metadata["feature_names"][::-1]
+        path.write_text(json.dumps(metadata))
+    else:
+        identity_path = identity_path.with_name("missing.json")
+    with pytest.raises((ValueError, FileNotFoundError)):
+        clean.load_clean_stage4_59d(
+            root, manifest_path, meta_path, staged, expected_rows=4, expected_calls=4,
+            transfer_identity_path=identity_path,
+        )
+
+
+def test_shared_clean_keeps_builder_versions_separate_from_reader(transferred_clean):
+    root, manifest_path, meta_path, staged, identity_path = transferred_clean
+    versions = {"librosa": "builder-librosa", "numpy": "builder-numpy", "pandas": "builder-pandas"}
+    for name in clean.ARTIFACT_SUFFIX:
+        path = root / f"{name}.json"
+        metadata = json.loads(path.read_text())
+        metadata["dependency_versions"] = versions
+        path.write_text(json.dumps(metadata))
+    loaded = clean.load_clean_stage4_59d(
+        root, manifest_path, meta_path, staged, expected_rows=4, expected_calls=4,
+        transfer_identity_path=identity_path,
+    )
+    assert loaded.raw_source_verification["cache_dependency_versions"] == versions
+    metadata_path = root / "af11.json"
+    metadata = json.loads(metadata_path.read_text())
+    metadata["dependency_versions"]["numpy"] = "inconsistent"
+    metadata_path.write_text(json.dumps(metadata))
+    with pytest.raises(ValueError, match="artifact metadata"):
+        clean.load_clean_stage4_59d(
+            root, manifest_path, meta_path, staged, expected_rows=4, expected_calls=4,
+            transfer_identity_path=identity_path,
+        )
+
+
 def test_clean_module_import_does_not_extract(monkeypatch):
     from dcc_data import audio
     def forbidden(*_args, **_kwargs):

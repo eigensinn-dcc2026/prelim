@@ -16,26 +16,28 @@ M1·M2는 음성 처리 구조를 가능한 범위에서 공유하고, M3는 텍
 
 ## 현재 진행 상황
 
-아래 내용은 **2026-10-05 기준 `main`에 병합된 결과**입니다. 아직 병합되지 않은 작업은 다음 절의 PR 목록에서 별도로 구분합니다.
+아래 내용은 **2026-10-12 기준 `main`에 병합된 결과**입니다. 제출물 동결은 **2026-10-14 09:00 KST**입니다. 수치의 원본은 [`docs/experiment_log.md`](./docs/experiment_log.md)이며, 공식 Validation은 모델 선택이 아니라 채점에만 사용합니다.
 
-| Mission | 현재 상태 | 확인된 결과 | 다음 확인 사항 |
+| Mission | 제출 모델 | 공식 Validation | 제출 폴더 |
 |---|---|---|---|
-| **M1** | baseline, 공식 Validation, 오류 분석 완료 | LR Accuracy **95.11%**로 1차 제출 후보 선정 | 필요 시 GBM과 paired 비교 검정 |
-| **M2** | L1(LightGBM)·L2(CNN) 학습과 공식 Validation 평가, feature·모델·표준 표현(`opensmile`) 비교 실험과 raw data EDA가 병합됨 | 공식 Validation: L1 **86.44%**(제공된 라벨 재학습), L2 seed 앙상블 **91.55%**(이전 모델·참고용), 원본부터 재학습한 L2 앙상블 **91.49%**(`docs/experiment_log.md` 기준) | 연우 님 모델과 비교한 뒤 최종 제출 후보 결정 |
-| **M3** | KcBERT baseline, 청크·가중치 실험 기록 병합. 현재 baseline 분할·전처리 기준은 **JSON 샘플 단위 80:20 multilabel stratified split, seed=42, threshold=0.5**로 확정(2026-09-30). 이 기준의 P0(TF-IDF+LR) 재현 완료 | P0 Macro F1 **0.5676**(참조값과 일치, `reports/mission3/p0_rerun/`). 이전 분할(`recordId` grouping, 90:10 random split)의 점수는 과거 기록이며 최신 기준과 직접 비교하지 않음 | P1~P3(KcBERT 등)을 같은 기준으로 재평가 |
-| **공통** | 데이터 감사, WAV↔JSON 매칭 검증, 통합 EDA와 Mission별 심화 분석(`reports/eda/eda_report.md`의 7장: 분포 이동·겹침·효과크기), Mission별 실험·결정 기록 체계가 반영됨(2026-10-05 M2 feature·모델 실험 등 누락분 소급 기록) | — | — |
+| **M1** | 52D 음향 특징 + WavLM x-vector(다중 창 평균) 결합 로지스틱 회귀. Training 29,200통화 전체로 재학습(refit) | Accuracy **98.10%** (이전 52D LR 95.11%) | [`submission/mission1/`](./submission/mission1/) |
+| **M2** | log-mel 스펙트로그램 + `SpeakerCNNLarge` 3 seed 소프트보팅 앙상블. 사전학습 모델·외부 데이터 없음. 발화 하나의 `startAt`~`endAt` 구간만 사용 | Accuracy **91.49%** | [`submission/mission2/`](./submission/mission2/) |
+| **M3** | RoBERTa-large(`klue/roberta-large`) 3 seed + TF-IDF 로지스틱 회귀의 고정 가중치 앙상블(0.55 : 0.45), threshold 0.5 고정·후처리 없음 | Macro F1 **0.6534** (P0 TF-IDF+LR 0.5689) | [`submission/mission3/`](./submission/mission3/) |
+
+- 각 제출 폴더의 `README.md`에 실행 명령, 학습 재현 방법, 제출 전 검증이 있습니다.
+- 모델 가중치(M1 `m1_model.pt` 약 386MB, M3 `m3_ensemble_full.pt` 약 4.05GB, M2 앙상블 `.pt`)는 git에 포함하지 않고 패키징 때 폴더에 넣습니다.
+- M2 가중치는 팀원 보유본을 전달받아 SHA256을 대조한 뒤 넣습니다.
+
+### Mission별 요약
+
+- **M1**: baseline(52D LR 95.11%) → WavLM x-vector 결합(97.47%) → 다중 창 평균(98.13%) → 전체 학습 재학습(98.10%, 사실상 동등)으로 진행했습니다. ECAPA 점수 결합은 사전 고정 기준에 미달해 채택하지 않았습니다.
+- **M2**: L1(LightGBM) 86.44%, L2 CNN 앙상블 91.49%(원본부터 재학습)가 현재 제출 모델입니다. 주최 측 답변(2026-10-05)에 따라 **분류 대상 발화 구간 정보만** 사용하며 같은 통화의 다른 발화 정보는 쓰지 않습니다. 사전학습 SSL 임베딩·미세조정 비교 실험(M2-SSL 계열)은 같은 규정 안에서 진행 중입니다.
+- **M3**: 분할·전처리 기준은 JSON 샘플 단위 80:20 multilabel stratified split, seed=42, threshold=0.5입니다. KcBERT(0.6246) → RoBERTa-large(0.6433) → 3 seed + TF-IDF 앙상블(0.6534)로 개선했습니다. threshold 튜닝과 빈 예측 보정 후처리는 규정상 사용하지 않으며, 경계 이동·재정규화·규칙 기반 부정 마킹은 측정상 이득이 거의 없어 중단했습니다.
+- **공통**: 데이터 감사, WAV↔JSON 매칭 검증, 통합 EDA(`reports/eda/eda_report.md`), Mission별 실험·결정 기록 체계를 갖추고 있습니다.
 
 ### 진행 중 PR
 
-다음 목록은 **2026-10-05 확인 기준**이며, 병합 전 결과는 확정 현황에 포함하지 않습니다. 최신 상태는 [GitHub Pull Requests](https://github.com/eigensinn-dcc2026/prelim/pulls)에서 확인합니다.
-
-- **Mission 2**:
-  [#31 실험·결정 기록 최신화](https://github.com/eigensinn-dcc2026/prelim/pull/31),
-  [#32 L2 CNN 파이프라인 반영](https://github.com/eigensinn-dcc2026/prelim/pull/32)
-- **Mission 3**:
-  [#34 baseline notebook 데이터 경로·실행 설정 수정](https://github.com/eigensinn-dcc2026/prelim/pull/34)
-
-이전 README에 진행 중으로 적혀 있던 #6, #8, #10, #16, #19, #22, #23, #25는 모두 `main`에 병합되었고, #18은 병합 없이 닫혔습니다. EDA 심화 분석 [#36](https://github.com/eigensinn-dcc2026/prelim/pull/36)도 병합되었습니다.
+진행 중인 실험과 문서 PR은 병합 전까지 확정 현황에 포함하지 않습니다. 최신 목록은 [GitHub Pull Requests](https://github.com/eigensinn-dcc2026/prelim/pulls)에서 확인합니다.
 
 ## 팀 역할
 
@@ -54,13 +56,16 @@ M1·M2는 음성 처리 구조를 가능한 범위에서 공유하고, M3는 텍
 ```text
 dcc2026-prelim/
 ├── .github/               # PR 템플릿, CI 및 병합 판정 설정
+├── submission/            # 제출 폴더(mission1·2·3): 추론 코드, 학습 재현 노트북, 폴더별 README
 ├── notebooks/             # Colab/Jupyter 실험 노트북
 ├── src/dcc_data/          # 데이터 로딩·검증·Mission별 공통 처리 모듈
 ├── scripts/               # 데이터 감사, 학습, 평가, 추론 실행 스크립트
 ├── tests/                 # 공통 모듈과 파이프라인 테스트
 ├── reports/               # 데이터 감사, EDA, Mission별 결과와 오류 분석
+├── ppt/                   # 결과 정리 발표 자료
 ├── docs/
 │   ├── experiment_log.md  # Mission별 실험 결과 인덱스
+│   ├── mission2_experiment_log.md  # Mission 2 상세 실험 기록
 │   └── decisions.md       # 채택·기각·보류 결정과 근거
 ├── data/                  # 대회 원본·중간 데이터 (Git 추적 제외)
 ├── checkpoints/           # 모델 가중치 (Git 추적 제외)
@@ -102,6 +107,8 @@ python scripts/train_mission2_baseline.py --help
 python scripts/mission2_inference.py --help
 python scripts/mission3_baseline.py --help
 ```
+
+제출용 추론은 각 `submission/missionN/inference.py`가 진입점이며, 실행 명령은 폴더별 README를 따릅니다.
 
 실데이터 파이프라인의 공통 순서는 다음과 같습니다.
 

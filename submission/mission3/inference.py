@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""DCC 2026 Mission 3 (team eigensinn): predict patient symptoms from call transcripts.
+"""DCC 2026 Mission 3 (팀 eigensinn): 통화 전사문으로 환자의 증상을 예측한다.
 
     python inference.py --audio_dir {wav folder} --label_dir {json folder} \
         --ckpt_path {checkpoint file} --output ./outputs/mission3.csv
 
-Only the label JSON transcripts are read (``--audio_dir`` is accepted for the
-common command and ignored). Each symptom gets ``probability >= 0.5 -> 1``; no
-other post-processing. Output columns: ``label file name,symptom``.
+라벨 JSON의 전사문만 읽는다(``--audio_dir``는 공통 명령 형식을 맞추려고 받기만 하고 쓰지 않는다).
+모든 증상에 ``확률 >= 0.5 -> 1``만 적용하고 다른 후처리는 하지 않는다.
+출력 열은 ``label file name,symptom``이다.
 """
 
 from __future__ import annotations
@@ -43,8 +43,7 @@ def main(argv: list[str] | None = None) -> int:
 
     started = time.time()
     texts = [model_code.read_text(path) for path in json_paths]
-    model, tokenizer, _, max_length = model_code.load_checkpoint(args.ckpt_path)
-    probs = model_code.probabilities(model, tokenizer, texts, max_length, BATCH_SIZE)
+    probs = model_code.predict_probabilities(args.ckpt_path, texts, BATCH_SIZE)
     binary = (probs >= model_code.THRESHOLD).astype(int)
 
     frame = pd.DataFrame(

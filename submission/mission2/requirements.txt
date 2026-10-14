@@ -1,0 +1,11 @@
+# Python 3.12 / 3.13 에서 확인 (공식 Validation 전체 검증: Colab Python 3.13.15).
+# numpy~tqdm은 학습·추론 노트북(Colab)과 같은 버전이다. torch는 보안 패치 버전이다.
+numpy==2.1.3
+pandas==2.2.3
+pyarrow==23.0.1       # pandas 의 parquet 읽기·쓰기 (CNN 학습용 스펙트로그램 목록)
+librosa==0.11.0
+scikit-learn==1.6.1   # 통화 단위 분할(GroupShuffleSplit), CNN 학습의 recall/혼동행렬
+tqdm==4.67.3          # 스펙트로그램 만들기 진행 표시
+torch==2.14.1          # GHSA-rrmf-rvhw-rf47. 학습 노트북은 torch 2.11.0
+# WavLM-large 모델 구조 (가중치는 checkpoints/ 안에 있고, 실행 중 아무것도 내려받지 않는다)
+transformers==5.19.0

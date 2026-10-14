@@ -15,6 +15,140 @@
 > `main`에 들어오면 상대경로 링크로 바꿔주세요.
 ---
 
+## 2026-10-13 — [M2] SSL-003 이어 학습 대조군 기각 (M2-SSL-008)
+
+- **결정**: SSL-003을 같은 레시피로 더 학습하는 방향을 접는다. SSL-003·004·CNN 조합(base+large+CNN)을 유지한다.
+- **이유**: 3 epoch 이어 학습 H accuracy 0.9256으로 SSL-003 단독 0.9260과 차이가 없고(p=0.46), 앙상블 교체·추가 모두 기준 0.9334를 넘지 못함(0.9331, 0.9319).
+- **후속 조치**: 동결 전이라 재시도 없음. 코드 PR은 닫음. 근거 `docs/experiment_log.md` M2-SSL-008 행.
+
+---
+
+## 2026-10-13 — [M2] 깨끗한 교사→겹친 학생 일관성 이어 학습 기각 (M2-SSL-007)
+
+- **결정**: SSL-003 이어 학습에 교사 일관성(KD+임베딩 cos) 겹침 증강을 넣는 방향을 접는다.
+- **이유**: 1 epoch 뒤 D 겹침 accuracy가 0.9104 → 0.9044로 떨어져(기준 step0 +0.005 미달) 사전 고정 중단 규칙에 걸렸고, 비겹침·0.5~1초 구간도 모두 하락함(전체 0.9244 → 0.9144).
+- **후속 조치**: 동결 전이라 재시도 없음. SSL-008은 별도 판정. 근거 `docs/experiment_log.md` M2-SSL-007 행.
+
+---
+
+## 2026-10-13 — [M2] ASP(어텐션 통계 풀링) 이어 학습 기각 (M2-SSL-006)
+
+- **결정**: SSL-003 풀링을 ASP로 바꾸는 방향을 접는다.
+- **이유**: 1 epoch 뒤 D accuracy가 0.9244 → 0.9182로 떨어져 사전 고정 중단 규칙(−0.002)에 걸렸고, 0.5~1초·겹침 구간도 모두 하락함.
+- **후속 조치**: 같은 PR의 SSL-007/008은 각자 판정. 동결 전이라 ASP 재시도 없음. 근거 `docs/experiment_log.md` M2-SSL-006 행.
+
+## 2026-10-13 — [M2] 최종 제출 = CNN 3개 앙상블 + WavLM-large 2개 (공식 Validation 92.90%)
+
+- **결정**: 미션 2 제출물을 `p = 0.4 × P_CNN + 0.3 × P_WavLM(seed 1) + 0.3 × P_WavLM(seed 2)`, `p ≥ 0.5`이면 신고자로 정함
+  (M2-WLML-001/002, M2-BLEND-001). 제출 폴더 `submission/mission2`를 이 구성으로 바꾸고(PR #216), 같은 폴더에 들어 있던
+  M2-SSL-003/004 기반 앙상블 경로(commit d103622)는 대체함.
+- **이유**: 제출 폴더 코드 그대로 공식 Validation 전체를 실행해 92.8957%(CNN 단독 91.49% 대비 +1.41%p)를 확인했고,
+  압축 파일 그대로·`requirements.txt`만·인터넷 차단 조건의 GPU 실행 검증을 두 번(코드 정리 전후) 통과함. 비율은 Training 내부
+  데이터로만 골랐음. M2-SSL 계열은 내부 holdout이 달라 내부 점수로는 비교할 수 없고, 비교 기준인 공식 Validation 점수가 아직 없었음.
+- **상태/후속**: 가중치(`m2_final_ensemble.pt`, 1.27GB, sha256 `35e5e586…`)는 git에서 빠지므로 제출 zip에만 넣음. 채점은 GPU 환경
+  (공식 Validation 20.2분/A100, CPU는 발화당 1.3~6.6초라 며칠). HuBERT-large(M2-HUBERT-001)는 섞는 이득이 없어 기각.
+- **관련**: [`submission/mission2/README.md`](../submission/mission2/README.md), PR #216.
+
+## 2026-10-13 — [M2] 앙상블 후보 분석(M2-ENS-CAND-001) — base·large·CNN 3모델 유지, 추가 이득 없음
+
+- **결정**: 현재 후보인 WavLM-base + WavLM-large + CNN(3 seed) 확률 평균을 유지한다. SSL-005(w2v2) 반영 전의 중간 결론이다.
+- **이유**: 같은 H 45,504발화에서 base+large+CNN 0.9334가 1위이고 large+CNN 0.9332는 p=0.72로 차이가 없으며 base+large 0.9321은 유의하게 낮다(p=0.0007). 사전 고정한 개선 기준(+0.2%p, p<0.05, 5묶음 중 4개 이상)을 넘은 조합은 없다. 모델 쌍의 오류 상관이 0.71~0.78로 높아 조합 이득이 작다. 임계값 0.5 고정, 1:1 평균만 사용, 공식 Validation 미사용.
+- **후속**: M2-SSL-005 완료 후 같은 스크립트로 w2v2 조합을 추가해 M2-OFFVAL-ENS 멤버를 정한다. 통화 5묶음은 소속 목록이 없어 call_id 정렬 5등분이라 SSL-004 진단의 묶음과 다르다. 근거: `docs/experiment_log.md` M2-ENS-CAND-001 행, [`reports/mission2/ensemble_candidates/`](../reports/mission2/ensemble_candidates/ensemble_candidates.md)
+
+## 2026-10-13 — [M2] 통화 구성 앙상블(M2-CALLENS-001) 기각 — seed 앙상블 대비 이득 없음
+
+- **결정**: 서로 다른 1,200통화를 뺀 4,800통화 SpeakerCNNLarge 2모델 앙상블(B)을 같은 6,000통화 2-seed 앙상블(A)보다 낫다고 보지 않고, 통화 구성을 바꾼 3-fold 확장은 하지 않는다.
+- **이유**: 내부 holdout 45,823발화에서 A 90.29% vs B 90.29%(+0.002%p, 기준 ≥ +0.3%p). McNemar 정확검정 p=1.0(801 vs 802). 오류 방향(recall)만 이동했다.
+- **후속**: 91.49% 제출 모델 유지. M2는 WavLM 계열(M2-SSL-004 등)과 M2-OFFVAL-ENS에서 앙상블 구성을 정한다. 근거: `docs/experiment_log.md` M2-CALLENS-001 행, `dcc-lab` `results/M2-CALLENS-001/metrics.json`
+
+
+## 2026-10-12 — [M2] WavLM-large 미세조정(M2-SSL-004) 채택 — 최종 앙상블 후보 멤버
+
+- **결정**: M2-SSL-003 레시피에서 백본만 WavLM-large로 바꾼 M2-SSL-004를 채택하고 최종 앙상블 후보 멤버로 둔다.
+- **이유**: 내부 holdout(1,500통화) accuracy 0.9315로 사전 기준 0.918을 넘었고 base(0.9260)보다 +0.55%p 높다(McNemar p=1.0e-11, 5개 묶음 모두 우위). ECE 0.0072, Brier 0.0450. base+large+CNN 확률 평균은 0.9334지만 large 단독 대비 이득은 +0.2%p로 작다.
+- **후속**: 공식 Validation 평가·앙상블 구성은 M2-OFFVAL-ENS에서 정한다. CPU 추론은 공식 Val 환산 약 2,073분이라 제출 환경이 GPU인지 확인하고, large의 추론 시간 대비 이득을 앙상블 구성에서 따진다. 근거: `docs/experiment_log.md` M2-SSL-004 행, `dcc-lab` `results/M2-SSL-004/metrics.json`
+
+
+## 2026-10-12 — [M2] WavLM-base-plus 미세조정(M2-SSL-003) 채택 — 최종 앙상블 첫 멤버
+
+- **결정**: 3초 고정 창 + 슬라이딩 추론, 겹침 흉내 증강, SupCon을 쓴 WavLM-base-plus 미세조정 레시피(M2-SSL-003)를 채택하고 최종 앙상블의 첫 멤버로 둔다.
+- **이유**: 내부 holdout(1,500통화) accuracy 0.9260으로 사전 기준 0.918을 넘었고 CNN 3-seed 평균(0.9200)보다 높다(McNemar p=2.3e-10, 5개 묶음 모두 우위). WavLM+CNN 확률 평균은 0.9286으로 추가 상승했다. ECE 0.0182, Brier 0.0511.
+- **후속**: 공식 Validation 평가·앙상블은 별도 실험(M2-OFFVAL-ENS)에서 한다. CPU 추론이 공식 Val 환산 약 876분이라 제출 환경(GPU 여부)에서의 추론 시간을 확인한다. 근거: `docs/experiment_log.md` M2-SSL-003 행, `dcc-lab` `results/M2-SSL-003/metrics.json`
+
+## 2026-10-12 — [M3] soft-F1 전역 집계(M3-SOFTF1-001) 기각 — 3-seed 확장하지 않음
+
+- **결정**: ROBERTA-003의 soft macro-F1을 micro-batch별로 계산하는 방식을 유지한다. 실효 배치 전체 logits로 F1을 한 번에 계산하는 전역 집계는 채택하지 않고 3-seed로 확장하지 않는다.
+- **이유**: ROBERTA-003 seed 42 체크포인트에서 1 epoch 이어 학습한 pilot에서 실효 16은 B−A +0.0008, 실효 64는 +0.0013으로 사전 고정 기준 +0.005에 못 미쳤고 seed 편차(±0.002~0.004) 이내다. ECE·Brier 악화는 10% 이내였으나 이득이 없다. 빈 예측은 전역 집계 팔에서 오히려 늘었다(132→157, 151→189).
+- **후속**: 손실의 F1 집계 범위는 더 시도하지 않는다. 근거: `docs/experiment_log.md` M3-SOFTF1-001 행, `dcc-lab` `results/M3-SOFTF1-001/metrics.json`
+
+## 2026-10-12 — [M1] 제출 모델을 Training 100% 재학습본으로 정함(M1-REFIT-OFFVAL-001) — 공식 Validation 98.10%, 기존 (c)와 동등
+
+- **결정**: M1 제출 모델로 M1-XVEC-002 (c)와 같은 구성(StandardScaler + LogisticRegression, 52D + 다중 창 평균 x-vector 564차원, seed 42)을 Training 29,200통화 전체로 다시 학습한 헤드를 쓴다. 제출 체크포인트는 `submission/mission1/m1_model.pt`(헤드와 WavLM 가중치를 `.pt` 한 파일로 묶음)이다. 성능 향상을 확인한 교체가 아니라 **동등함을 확인한 선택**이다.
+- **이유**: 기존 (c)는 Training의 80%(23,360통화)만으로 학습했다. 같은 구성으로 전체 데이터를 쓰되 새 특징 추출, 하이퍼파라미터 탐색, threshold 조정은 하지 않았고, 학습 때 쓴 특징 캐시를 재사용했다. 공식 Val 특징 캐시(M1-XVEC-002-OFFVAL 산출물)에 적용해 한 번 채점했다. 공식 Val 3,640건 정확도 98.10%(3,571건), 성별 recall 여성 98.26% / 남성 97.92%로, (c) 98.13%(3,572건)와 예측이 99.48% 같다. 갈린 19통화는 (c)만 맞음 10 / 재학습본만 맞음 9(McNemar 정확검정 p=1)이다. 사전 고정 성공 기준은 두지 않았고, 동등하면 데이터를 더 쓴 쪽을 낸다는 총괄 결정(2026-10-12)을 따랐다.
+- **주의**: 이 모델은 holdout을 학습에 썼으므로 holdout 점수를 낼 수 없다. 공식 Val 98.10%가 유일한 독립 점수이고, Val은 채점에만 썼다(학습 편입·Backpropagation 없음). 단일 seed이다.
+- **후속**: 공식 Val 예산(미션당 6)은 이 채점을 넣어 4회 사용, 2회 남음(M1-XVEC-001-OFFVAL, M1-XVEC-002-OFFVAL, M1-FUSE-001-OFFVAL, 이번 채점). 바로 아래 FUSE 항목의 "3회 사용, 3회 남음"은 이 채점이 기록되기 전의 값이다. 일부 통화(203건 등)를 `inference.py`로 돌려 본 점검은 점수 근거로 쓰지 않아 횟수에 넣지 않았다. 근거: `docs/experiment_log.md` M1-REFIT-OFFVAL-001 행, [`submission/mission1/README.md`](../submission/mission1/README.md)
+
+## 2026-10-12 — [M1] 고정 FUSE(M1-FUSE-001-OFFVAL) 공식 Validation 평가 기각
+
+- **결정**: 기각. M1 제출 후보는 M1-XVEC-002 (c) 다중 창 평균 x-vector 결합 LR을 유지한다. 앞서 채택한 M1-FUSE-001 항목의 "제출 후보로 올린다"는 공식 Val 결과로 철회한다.
+- **이유**: 공식 Val 3,640건에서 (k) 98.30%(3,578건)로 (c) 98.13%(3,572건) 대비 +0.16%p(+6통화)였다. 사전 고정 기준 98.434%(3,583건)에 5통화 미달이고 McNemar p=0.345로 유의하지 않다. Training OOF의 +0.41%p는 공식 Val에서 재현되지 않았다.
+- **후속**: 공식 Val 예산(미션당 6) 중 3회 사용, 3회 남음. 추론 비용이 늘어나는 결합은 쓰지 않는다. 근거: `docs/experiment_log.md` M1-FUSE-001-OFFVAL 행
+
+## 2026-10-12 — [M3] 라벨 쌍 상호작용 결합분포 헤드(M3-STRUCT-001) 기각
+
+- **결정**: 기각. 9개 증상 결합분포 헤드(쌍 상호작용 W)를 M3 최종 학습에 쓰지 않는다. ROBERTA-003 설정의 독립 sigmoid 헤드를 유지한다.
+- **이유**: 3-seed 평균 Macro F1 0.6431로 ROBERTA-003 0.6427 대비 +0.0004였다(기준 +0.01). 같은 seed 비교에서 높은 seed는 1개뿐이었고 차이는 seed 편차(0.003) 이내였다. 오심·두통·전신쇠약 등 약한 증상도 개선되지 않았고 ECE 0.0530, Brier 0.0829로 보정 변화도 없었다.
+- **후속**: 출력 구조 변경 계열은 재제안하지 않는다. 근거: `docs/experiment_log.md` M3-STRUCT-001 행
+
+## 2026-10-12 — [M1] x-vector LR + ECAPA LR 확률 평균(M1-FUSE-001) 채택
+
+- **결정**: 채택. (c) x-vector 결합 LR과 (h) ECAPA 결합 LR의 확률을 0.5/0.5로 평균하는 점수 수준 결합 (k)를 M1 제출 후보로 올린다. 코드 PR #173은 `lab-adopted`로 표시한다.
+- **이유**: Training 5-fold OOF에서 (k) 98.38%로 (c) 97.97% 대비 +0.41%p(기준 ≥ +0.3%p), 5개 fold 모두 앞섰고 McNemar p=1.7e-15였다. 재현 검사 통과, 공식 Val 미사용. 다만 추론 비용이 통화당 약 0.45초(x-vector 0.394초 + ECAPA 0.058초)다.
+- **후속**: 공식 Val 평가는 별도 OFFVAL 실험으로 진행(예산 6 중 2회 사용). 근거: `docs/experiment_log.md` M1-FUSE-001 행
+
+
+## 2026-10-12 — [M2] SpeakerCNNLarge Mixup(M2-MIX-001) 기각
+
+- **결정**: 기각. 학습 손실에 Mixup(Beta(0.2,0.2))을 더하는 방식은 채택하지 않고, 코드 PR #168은 병합 없이 닫는다.
+- **이유**: 같은 분할·설정에서 seed 평균 (B)−(A) = −0.42%p로 기준(≥ +0.3%p)에 못 미쳤고, 두 seed 모두·5개 묶음 모두 (A)가 앞섰다. ECE·Brier도 나빠졌다(ECE 0.004~0.021 → 0.029~0.037). 학습 붕괴·공식 Val 사용은 없다.
+- **후속**: M2 단일 모델 개선은 입력 해상도·구조·SpecAugment/SWA·Mixup 모두 기준 미달이므로, 개선은 seed 앙상블(M2-ENS-003)에 의존한다. Mixup 재제안 금지. 근거: `docs/experiment_log.md` M2-MIX-001 행
+
+## 2026-10-11 — [M3] 5-fold OOF seed 44(M3-ROB5F-003) 채택
+
+- **결정**: 채택. ROBERTA-003 설정 5-fold(seed 44)의 fold 모델 5개와 OOF 확률을 앙상블·분석용 재료로 확보한다. ROB5F-001~003으로 seed 3개 × fold 5개가 갖춰졌다.
+- **이유**: OOF Macro F1 0.6414로 성공 기준(≥ 0.635)을 충족했고 ROB5F-001(0.6412)·002(0.6420)·ROBERTA-003(0.6427)과 seed 편차 이내다. 학습 붕괴 없음, 공식 Val 미사용.
+- **후속**: fold·seed 확률을 재학습 없이 재사용해 앙상블·분석. 근거: `docs/experiment_log.md` M3-ROB5F-003 행
+
+## 2026-10-11 — [M3] 5-fold OOF seed 43(M3-ROB5F-002) 채택
+
+- **결정**: 채택. ROBERTA-003 설정 5-fold(seed 43)의 fold 모델 5개와 OOF 확률을 앙상블·분석용 재료로 확보한다.
+- **이유**: OOF Macro F1 0.6420으로 성공 기준(≥ 0.635)을 충족했고 ROB5F-001(0.6412)·ROBERTA-003(0.6427)과 seed 편차 이내다. 학습 붕괴 없음, 공식 Val 미사용.
+- **후속**: seed 44(ROB5F-003) 완료 후 fold·seed 확률을 재학습 없이 재사용. 근거: `docs/experiment_log.md` M3-ROB5F-002 행
+
+## 2026-10-11 — [M2] WavLM-base-plus 미세조정(M2-SSL-002) 기각
+
+- **결정**: 기각. WavLM-base-plus 미세조정 발화 분류는 SpeakerCNNLarge 대신 쓰지 않는다. M2 SSL 계열(고정 임베딩·미세조정) 후속 탐색은 중단한다.
+- **이유**: 같은 6,000통화 학습·1,500통화 holdout에서 CNN 90.03% vs WavLM 85.65%(−4.38%p), 5개 묶음 모두 열세, McNemar p≈7e-167. 대원 recall 73.4%로 쏠리고 1초 미만 발화가 특히 약했다(74.2% vs 86.2%). 추론도 공식 Val CPU 약 415분으로 L2 앙상블(85.3분)의 약 5배다.
+- **후속**: 코드 PR #159는 닫는다. 근거: `docs/experiment_log.md` M2-SSL-002 행
+
+## 2026-10-11 — [M3] DeBERTa-v3 xlarge 인코더 교체(M3-DEBERTA-001) 기각
+
+- **결정**: 기각. ROBERTA-003 설정에서 인코더를 team-lucid/deberta-v3-xlarge-korean으로 바꾼 구성은 채택하지 않는다.
+- **이유**: seed 42 Macro F1 0.0490으로 ROBERTA-003(0.6441)에 크게 못 미치고 3 epoch 모두 학습 붕괴(빈 예측 5,065/5,792)했다. 학습 손실이 거의 줄지 않았다. 원인은 확인하지 못했다(bf16·lr 1e-5 불안정 또는 폴백 토크나이저 불일치 가능). 같은 설정 재실행은 가치가 낮다.
+- **후속**: 코드 PR #161은 닫는다. 근거: `docs/experiment_log.md` M3-DEBERTA-001 (2차) 행
+
+## 2026-10-11 — [M3] KcBERT 9개 외 증상 보조 출력(M3-KCBERT-017) 기각
+
+- **결정**: 기각. KCBERT-012 설정에 보조 출력을 더해도 채택하지 않는다.
+- **이유**: 3-seed 평균 Macro F1 0.6310으로 KCBERT-012(0.6265) 대비 +0.0045이며 성공 기준 +0.01에 못 미친다. 3 seed 모두 기준 초과지만 개선폭이 seed 편차 수준이다. 보조 헤드는 학습됐으나(holdout macro F1 0.303) 오심·두통·전신쇠약 등 약한 증상은 그대로다. ECE·Brier도 012와 비슷하다.
+- **후속**: 코드 PR #160은 닫는다. 근거: `docs/experiment_log.md` M3-KCBERT-017 행
+
+## 2026-10-11 — [M3] 최종 학습(M3-FINAL-002) 채택
+
+- **결정**: 채택. ROBERTA-003 설정 3 seed(Training 100%) + TF-IDF 앙상블(0.55/0.45)을 M3 제출 모델로 확정한다. 공식 Val 채점 Macro F1 0.6534로 80% 모델 앙상블(0.6529)과 동일 수준이다.
+- **이유**: 앙상블 가중치는 80:20 홀드아웃에서 사전 고정했고 공식 Val은 채점에만 썼다. 성공 기준(3 seed 완료, 산출물 확보, 붕괴 없음)을 충족했다. FINAL-001은 FINAL-002(재개 가능판)와 중복이라 취소했다.
+- **후속**: 코드 PR #140 병합과 제출 추론 경로는 freeze(2026-10-14 09:00 KST) 전에 팀이 확인. 근거: `docs/experiment_log.md` M3-FINAL-002 행
+
 ## 2026-10-11 — [M1] ECAPA 다중 창 평균 교체(M1-ECAPA-002) 기각
 
 - **결정**: 기각. 52D + 다중 창 평균 ECAPA 결합 LR은 5-fold OOF 정확도 98.25%로 x-vector 결합 LR(97.97%)보다 +0.28%p 높았지만, 사전 고정 기준 +0.3%p에 0.02%p 못 미쳤다(fold 5/5 우세, McNemar p=5.8e-5는 충족). M1 제출 후보는 M1-XVEC-002 (c)를 유지한다.
@@ -313,6 +447,16 @@
 
 ---
 
+## 2026-10-07 — [M3] 역할 토큰 비교 실행은 규정 부적합·재현 불가로 기각
+
+- **결정**: 화자 역할 토큰을 비교한 과거 실행은 모델 선택이나 최종 성능의 근거로 사용하지 않는다.
+- **이유**: Mission 3은 전사 텍스트 외 annotation 사용을 금지하므로 `speaker`를 이용한 발화 묶기와 역할 토큰은 허용되지 않는다. 또한 원본 `experiment_summary.json`, `FINAL_VERIFICATION.json`, `official_validation_metrics.json`이 없어 선택 입력과 실행 조건을 독립 확인할 수 없고, 당시 코드에는 증상별 임계값 튜닝 경로가 있어 공식 기준인 모든 증상 `prediction >= 0.5` 적용 여부도 확인할 수 없다.
+- **참고 결과**: 화면에서 전사한 공식 Validation 3,640건의 Macro F1은 0.6263, Micro F1은 0.6086이다. 오심 recall 0.8182, precision 0.1965, FP 1,435건이지만 규정 적합 결과로 해석하지 않는다.
+- **상태/후속**: **기각**. 문제의 노트북과 실행 스크립트는 재현 가능한 규정 적합 코드로 오인되지 않도록 저장소에서 제외하고, 집계 JSON만 과거 참고 기록으로 보존한다. 후속 실험은 `text`와 원래 배열 순서만 사용하고 모든 증상에 0.5를 고정한다.
+- **관련**: [`m3_role_official_validation_metrics.json`](../reports/mission3/m3_role_official_validation_metrics.json).
+
+---
+
 ## 2026-10-05 — [M2] 멘토 답변: L2 앙상블을 원본 데이터부터 다시 학습하고 에폭별 로그를 남긴다 — 학습 속도 개선을 함께 넣음
 
 - **결정**: 91.55% 앙상블(ts1/2/3)을 그대로 제출하지 않고, Colab 노트북 하나로 원본 zip → 스펙트로그램 생성 →
@@ -455,6 +599,14 @@
 - **후속**: 마감(2026-10-14) 전까지 할 일은 끝남. 앙상블용 추가 seed(2, 3) 학습은 Colab 할당량이 남을 때
   선택적으로 진행 — 필수 아님. L1/L2 모델 쪽 실험(델타 채널, SpecAugment 조합 등)을 계속할지, 제출 패키징
   준비(PPT, inference.py 정리 등)로 넘어갈지는 다음에 정함.
+
+## 2026-10-03 — [M3] 과다 양성 예측을 줄이기 위해 hard-negative 학습 적용
+
+- **결정**: Training 데이터에서 오심·전신쇠약·호흡곤란의 FP를 채굴해 2배 가중 샘플링함.
+- **이유**: 해당 증상에서 근거 없는 양성 예측과 낮은 precision이 확인됨.
+- **결과**: 공식 Validation에서 Macro F1 0.6185, Micro F1 0.6378을 기록함. FP는 감소했지만 FN과 오심 누락이 증가함.
+- **상태/후속**: 오심 hard-negative를 제외하고 화자 역할 토큰을 비교하는 후속 실험으로 변경함.
+- **관련**: [`m3_hardnegative_validation_summary.json`](../reports/mission3/m3_hardnegative_validation_summary.json).
 
 ## 2026-10-02 — [M2] 운영진 답변: `text` 근거의 라벨 교정은 학습에 쓸 수 없다 — 교정본으로 학습한 두 제출 후보는 제공된 라벨로 다시 학습한다
 
@@ -822,6 +974,14 @@
 - **후속 조치**: 제출 전 확인 목록(팀 규정 정리 문서)에 "threshold 0.5 고정" 항목이 이미 있다.
   Calibration(확률값 자체를 더 정확하게 만드는 것)은 허용되지만, 그 뒤에도 기준선은 0.5다.
 - **관련**: M2-EXP-002, M2-EXP-009(`docs/experiment_log.md`).
+
+## 2026-09-28 — [M3] 오답 분석 결과를 라벨 재검수와 학습 대상 분리에 사용
+
+- **결정**: 전사 단서를 기준으로 라벨 재검수 대상과 hard-negative 학습 대상을 분리함.
+- **이유**: 일부 FP가 모델 오류가 아니라 원본 라벨 누락일 가능성이 확인됨.
+- **결과**: 5,867개 오류 중 명확한 단서 444건, 단서 부족·모호 5,423건으로 분류됨.
+- **상태/후속**: 자동 분석은 검토 우선순위로만 사용하고 라벨 변경 전 수동 확인을 수행함.
+- **관련**: [`m3_error_analysis_summary.json`](../reports/mission3/m3_error_analysis_summary.json).
 
 ## 2026-09-27 — [M2] L2(CNN) 제출 차단 문제 해결 시도 — 별도 브랜치의 CNN 경로 (main 미병합, 공식 검증은 아직)
 
