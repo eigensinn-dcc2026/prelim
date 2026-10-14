@@ -494,10 +494,10 @@ function flow(slide, x, y, w, h, f) {
   s.addNotes("근거: LightGBM vs LR — docs/decisions.md 2026-10-05 / RBF-SVM — M1-HEAD-001 / ECAPA — M1-ECAPA-001(3차)·M1-ECAPA-002 / 확률 평균 — M1-FUSE-001, M1-FUSE-001-OFFVAL(98.30%, 사전 고정 기준 98.434% 미달, McNemar p=0.345).");
 }
 
-// 11. 최종 결과와 후속 과제
+// 11. 최종 결과
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 최종 결과와 후속 과제", 11);
+  header(s, "03", "미션별 수행", "Mission 1  신고자 성별 분류 — 최종 결과", 11);
   coreMsg(s, "공식 Validation 98.10%. 남녀 recall이 고르다.");
   const lw = 5.6;
   card(s, M, 2.45, lw, 4.35);
@@ -508,14 +508,34 @@ function flow(slide, x, y, w, h, f) {
   stat(s, M + hw, 4.55, hw, "97.92%", "남성 recall", C.sky, 30);
   const rx = M + lw + 0.3, rw = W - M - rx;
   card(s, rx, 2.45, rw, 4.35, C.bgGray);
-  title(s, "■ 후속 과제", rx + 0.25, 2.62, rw - 0.5, 18);
-  bullets(s, [
-    "여러 seed로 결과 재현 확인",
-    "오분류 통화의 화자 단위 정성 분석",
-    "피치(F0) 특징 검증 (미검증 가설)",
-  ], rx + 0.25, 3.25, rw - 0.5, 3.3, 17);
+  title(s, "■ 오분류는 어느 한쪽으로 쏠리지 않았다", rx + 0.25, 2.62, rw - 0.5, 18);
+  // 혼동행렬. 값은 공식 Validation 3,640건(여성 1,959 / 남성 1,681)에 recall을 곱해 복원한 건수.
+  const mx = rx + 0.25, lblW = 1.2, cw2 = 2.25, cg = 0.1, ch = 1.1;
+  const cellX = [mx + lblW + cg, mx + lblW + cg + cw2 + cg];
+  ["예측: 여성", "예측: 남성"].forEach((t, j) => txt(s, t, { x: cellX[j], y: 3.2, w: cw2, h: 0.3, fontSize: 12.5, bold: true, color: C.sub, align: "center", valign: "middle" }));
+  const rows2 = [
+    ["실제 여성", [["1,925", "정답", true], ["34", "오분류", false]]],
+    ["실제 남성", [["35", "오분류", false], ["1,646", "정답", true]]],
+  ];
+  rows2.forEach(([lab, cells], i) => {
+    const y = 3.55 + i * (ch + cg);
+    txt(s, lab, { x: mx, y, w: lblW, h: ch, fontSize: 12.5, bold: true, color: C.sub, align: "center", valign: "middle" });
+    cells.forEach(([n, note, ok], j) => {
+      const fill = ok ? C.light : C.pink, edge = ok ? C.sky : C.pink;
+      s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: cellX[j], y, w: cw2, h: ch, fill: { color: fill }, rectRadius: 0.08, line: { color: edge, width: 1 } });
+      txt(s, [
+        { text: n, options: { fontSize: 30, bold: true, color: ok ? C.blue : C.red, breakLine: true } },
+        { text: note, options: { fontSize: 11.5, color: C.sub } },
+      ], { x: cellX[j], y, w: cw2, h: ch, align: "center", valign: "middle" });
+    });
+  });
+  s.addShape(pres.shapes.LINE, { x: mx, y: 6.0, w: rw - 0.5, h: 0, line: { color: C.line, width: 1 } });
+  txt(s, [
+    { text: "3,640건 중 69건 오류 ", options: { bold: true, color: C.blue } },
+    { text: "· 여성→남성 34건, 남성→여성 35건으로 거의 같다" },
+  ], { x: mx, y: 6.12, w: rw - 0.5, h: 0.5, fontSize: 12.5, valign: "middle" });
   caption(s, "근거: submission/mission1/README.md 상태(2026-10-12), docs/experiment_log.md M1-REFIT-OFFVAL-001");
-  s.addNotes("근거: submission/mission1/README.md — 공식 Validation 3,640건 98.10%, 여성 recall 98.26%, 남성 recall 97.92%. docs/experiment_log.md M1-REFIT-OFFVAL-001(단일 seed).");
+  s.addNotes("근거: submission/mission1/README.md — 공식 Validation 3,640건 98.10%(3,571건), 여성 recall 98.26%, 남성 recall 97.92%. docs/experiment_log.md M1-REFIT-OFFVAL-001(단일 seed). 혼동행렬 건수는 공식 Validation 클래스 수(여성 1,959 / 남성 1,681, reports/mission1/m1_val_eval.json)에 recall을 곱해 복원: 여성 정답 1,925·오분류 34, 남성 정답 1,646·오분류 35 (합 3,571 = 정답 수와 일치).");
 }
 
 // ======================================================================
@@ -1135,8 +1155,8 @@ function flow(slide, x, y, w, h, f) {
   title(s, "■ 향후 활동 계획", rightX + 0.22, y + 0.12, rightW - 0.44, 17);
   // 미션별로 실제 명시된 후속 계획만 반영한 3단계 구성.
   const plans = [
-    ["오류 원인 분석", ["M1  오분류 통화 정성 분석", "M2  짧은 응답 발화의 오류 사례 확인", "M3  근거 없는 라벨 구간 오류 분석"]],
-    ["미션별 모델 보완", ["M1  피치(F0) 특징 검증", "M2  짧은 응답 발화 보강", "M3  오심·두통 성능 개선"]],
+    ["오류 원인 분석", ["M2  짧은 응답 발화의 오류 사례 확인", "M3  근거 없는 라벨 구간 오류 분석"]],
+    ["미션별 모델 보완", ["M2  짧은 응답 발화 보강", "M3  오심·두통 성능 개선"]],
     ["실시간 활용 시나리오 검토", ["통화 도중 세 미션의 처리 순서 검토", "세 미션 결과를 접수 화면에 제공하는 방식 검토", "사람이 최종 확인하는 활용 범위 명시"]]
   ];
   plans.forEach(([heading, lines], i) => {
