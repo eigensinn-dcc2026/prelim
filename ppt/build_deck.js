@@ -1,4 +1,4 @@
-// DCC 2026 대학부 예선 결과 정리 PPT — 장별 원고 v2(팀장 검토본)를 옮김. main의 Mission 2 상세 14장 + Mission 3 별첨 3장 통합, 총 37장
+// DCC 2026 대학부 예선 결과 정리 PPT — 장별 원고 v2(팀장 검토본)를 옮김. Mission 2 지연우 담당 10장 + Mission 3 별첨 3장 통합, 총 33장
 // 디자인 규칙은 ppt/design_guide.md, 공식 템플릿 이미지는 ppt/figures/tpl_*.png
 const pptxgen = require("pptxgenjs");
 const fs = require("fs");
@@ -30,45 +30,45 @@ const IC = "figures/icons/"; // ppt/tools/make_icons.py 로 생성
 
 // ---------- Mission 2 교체 지점 (원고의 ⟪M2 교체⟫) ----------
 // M2 제출 모델을 바꾸면 이 블록만 고친다. 11·12·13·14·18·19장이 모두 여기서 읽는다.
-// 현재 값: CNN 3-seed 앙상블 (submission/mission2/README.md, experiment_log.md M2-RERUN-001)
+// 현재 값: CNN 3-seed 앙상블 + WavLM-large 2개 확률 가중 평균 (submission/mission2/README.md, experiment_log.md M2-BLEND-001)
 const M2 = {
   // 11장 문제·제약·최종 모델
-  core12: "발화 하나만 보고 신고자/대원을 가린다. log-mel + CNN 3개 평균, 공식 Validation 91.49%.",
+  core12: "발화 하나만 보고 신고자/대원을 가린다. CNN 3개 + WavLM-large 2개 확률 가중 평균, 공식 Validation 92.90%.",
   // 구조도 (flow 함수 입력): 앞 단계 → 앙상블 멤버 → 판정
   flow: {
-    pre: [["발화 구간", "startAt~endAt만"], ["log-mel", "40 mel · 8 kHz"], ["길이 맞춤", "300프레임\n그 발화만 사용"]], preW: 1.95,
-    branches: [["SpeakerCNNLarge · seed 1"], ["SpeakerCNNLarge · seed 2"], ["SpeakerCNNLarge · seed 3"]], brW: 2.35, brGap: 0.1,
-    post: [["확률 평균", "≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 2.0,
+    pre: [["발화 구간", "startAt~endAt만"], ["그 발화만 사용", "text·순서·다른 발화 X"]], preW: 1.95,
+    branches: [["CNN 3개 평균", "log-mel · 300프레임", "× 0.4"], ["WavLM-large 2개", "16 kHz · 3초 창", "× 0.3 + 0.3"]], brW: 2.6, brGap: 0.1,
+    post: [["가중 평균", "≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 2.0,
   },
   why: [
     ["음향 차이", "대원 헤드셋·정해진 말투\n신고자 휴대전화·잡음"],
-    ["단계적 검증", "통계 특징(L1) → CNN(L2)"],
-    ["처음부터 학습", "사전학습·외부 데이터 없음"],
+    ["단계적 검증", "통계 특징(L1) → CNN(L2)\n→ WavLM 결합"],
+    ["두 종류 결합", "CNN 처음부터 학습 +\n공개 사전학습 WavLM 미세조정"],
   ],
   // 12장 성능 개선 과정 (막대 차트: 공식 Validation Accuracy)
-  core13: "86.44% → 90.98% → 91.49%. CNN의 이득은 목소리가 겹친 구간에 몰려 있었다.",
-  chart: { labels: ["L1 LightGBM", "L2 CNN 단일", "L2 CNN\n3-seed 앙상블"], values: [86.44, 90.98, 91.49] },
+  core13: "86.44% → 91.49% → 92.90%. CNN의 이득은 겹친 구간에 몰렸고, 사전학습 WavLM을 더해 +1.41%p를 더 얻었다.",
+  chart: { labels: ["L1 LightGBM", "L2 CNN\n3-seed 앙상블", "CNN 3개\n+ WavLM 2개"], values: [86.44, 91.49, 92.90] },
   gainTitle: "■ CNN의 이득이 몰린 곳",
   gains: [["약 +7%p", "겹친 구간"], ["약 +2%p", "겹치지 않은 구간"]],
   gainNote: "통계 특징(L1) 대비 CNN 단일 모델의 개선 폭 (공식 Validation)",
   finding: "제출 방식(한 발화씩 추론)으로 바꾸자 정확도가 떨어졌다. 원인은 학습 때의 배치 패딩과 추론 방식 차이였고, 모든 발화를 자기 자신만으로 같은 길이까지 채우도록 맞춰 회복했다.",
-  // 13장 다른 접근 — 마지막 행이 보류 중인 WavLM 미세조정
+  // 13장 다른 접근 — 마지막 행이 최종 채택한 WavLM-large 미세조정 + CNN 결합
   core14: "CNN 하나로 끝내지 않고 여러 방향을 검증했다. 효과가 없거나 규칙에 어긋난 것은 이유와 함께 기록했다.",
-  lastRow: ["WavLM 미세조정 (3초 창·겹침 증강)", "보류", "공식 평가 진행 중"],
+  lastRow: ["WavLM-large 미세조정 2개 + CNN 결합", "채택", "내부 +1.27%p (공식 Val 92.90%)"],
   // 14장 최종 결과와 보완할 점
-  core15: "공식 Validation 91.49%. 원본 데이터부터 다시 학습해도 같은 수준이 재현됐다.",
-  acc: "91.49%",
-  recalls: [["87.15%", "대원 recall"], ["95.51%", "신고자 recall"]],
-  repro: "원본부터 다시 학습해도 같은 수준(91.49%)",
+  core15: "공식 Validation 92.90%. 제출 폴더 그대로 GPU에서 검증했고, 코드 정리·속도 개선 전후 판정이 모두 같았다.",
+  acc: "92.90%",
+  recalls: [["88.36%", "대원 recall"], ["97.10%", "신고자 recall"]],
+  repro: "제출 폴더 그대로 다시 실행해도 같은 결과\n(92.90%, 111,947발화 판정 차이 0건)",
   improve: "대원 recall이 더 낮다.\n\"네\", \"여보세요\" 같은 짧은 응답은 두 화자가 비슷하게 들리고, 규칙상 통화 맥락을 쓸 수 없다.",
   // 18장 성능 요약 표, 19장 향후 계획
-  summary: { task: "M2 신고자/대원", model: "log-mel + CNN × 3", val: "91.49%", gain: "+5.05%p" },
-  future: "사전학습 음성 모델(WavLM) 앙상블의 공식 검증, 짧은 응답 발화 보강",
-  evidence: "submission/mission2/README.md, docs/experiment_log.md M2-RERUN-001·M2-ENS-003·M2-RETRAIN-001",
+  summary: { task: "M2 신고자/대원", model: "CNN × 3 + WavLM-large × 2", val: "92.90%", gain: "+6.46%p" },
+  future: "짧은 응답(\"네\"·\"예\") 보강 — 오답의 약 78%가 모든 모델 공통",
+  evidence: "submission/mission2/README.md, docs/experiment_log.md M2-BLEND-001·M2-WLML-001·002·M2-RERUN-001·M2-RETRAIN-001",
   // 슬라이드 노트·캡션의 근거 (12·14장)
-  evidence13: "근거: docs/experiment_log.md M2-RETRAIN-001, M2-ENS-003, M2-RERUN-001, M2-COMPARE-002, M2-PAD-001·002",
-  notes13: "근거: L1 86.44%(M2-RETRAIN-001, 제공 라벨 재학습 L1) / CNN 단일 90.98%(M2-ENS-003 ts1) / 3-seed 앙상블 91.49%(M2-RERUN-001, submission/mission2/README.md). 겹침 구간: M2-COMPARE-002 — 겹침 L1 81.83%→L2 88.88%(+7.05%p), 안 겹침 90.01%→92.44%(+2.43%p), L2 단일 모델 기준. 패딩: M2-PAD-001(발화별 300프레임 채우기), M2-VAL-005, M2-PAD-002.",
-  notes15: "근거: submission/mission2/README.md '결과와 계산 효율성' 표(91.49%, 대원 recall 87.15%, 신고자 recall 95.51%). 재현성: M2-RERUN-001(원본부터 재학습 91.49%) vs M2-ENS-003(이전 앙상블 91.55%).",
+  evidence13: "근거: docs/experiment_log.md M2-RETRAIN-001, M2-RERUN-001, M2-BLEND-001, M2-COMPARE-002, M2-PAD-001·002",
+  notes13: "근거: L1 86.44%(M2-RETRAIN-001, 제공 라벨 재학습 L1) / CNN 단일 90.98%(M2-ENS-003 ts1) / 3-seed 앙상블 91.49%(M2-RERUN-001) / CNN 3개 + WavLM-large 2개 92.90%(M2-BLEND-001, submission/mission2/README.md). 겹침 구간: M2-COMPARE-002 — 겹침 L1 81.83%→L2 88.88%(+7.05%p), 안 겹침 90.01%→92.44%(+2.43%p), L2 단일 모델 기준. 패딩: M2-PAD-001(발화별 300프레임 채우기), M2-VAL-005, M2-PAD-002.",
+  notes15: "근거: submission/mission2/README.md '결과와 계산 효율성' 표(92.90% = 103,994/111,947, 대원 recall 88.36%, 신고자 recall 97.10%). 검증: submission/mission2/verify_mission2_final_on_gpu.ipynb(제출 폴더 그대로 Colab A100, requirements만·인터넷 차단, 코드 정리·속도 개선 전후 판정 동일), PR #216·#222. 비율(CNN 0.4 / WavLM 0.3·0.3)은 Training 내부 20,000발화로 고름(공식 Val로 고르지 않음).",
 };
 
 const shadow = () => ({ type: "outer", blur: 5, offset: 1, angle: 90, color: "000000", opacity: 0.1 });
@@ -82,7 +82,7 @@ function txt(slide, text, o) {
 function header(slide, sec, secName, sub, page) {
   slide.addImage({ path: TPL.header, x: 0, y: 0, w: W, h: HB, sizing: { type: "cover", w: W, h: HB } });
   txt(slide, `${sec}  ${secName}`, { x: M, y: HB + 0.04, w: 8, h: 0.26, fontSize: 12.5, bold: true, color: C.blue });
-  txt(slide, `${TEAM}  |  ${page}`, { x: W - M - 3, y: HB + 0.04, w: 3, h: 0.26, fontSize: 10, color: C.sub, align: "right" });
+  txt(slide, `${TEAM}  |  ${pres._slides.length}`, { x: W - M - 3, y: HB + 0.04, w: 3, h: 0.26, fontSize: 10, color: C.sub, align: "right" });
   slide.addShape(pres.shapes.LINE, { x: M, y: HB + 0.32, w: CW, h: 0, line: { color: C.line, width: 1 } });
   txt(slide, sub, { x: M, y: HB + 0.37, w: 11, h: 0.36, fontSize: 19, bold: true });
 }
@@ -277,7 +277,7 @@ function flow(slide, x, y, w, h, f) {
     txt(s, items.map((t, k) => ({ text: `${k + 1}. ${t}`, options: { breakLine: k < items.length - 1 } })),
       { x: x + 0.1, y: 4.05, w: cw - 0.1, h: 2.2, fontSize: 14, color: C.sub, paraSpaceAfter: 10 });
   });
-  s.addNotes("main의 M2 상세 14장과 M3 별첨 3장을 통합한 총 37장 구성.");
+  s.addNotes("M2 지연우 담당 10장 및 M3 별첨 5장을 포함한 총 37장 구성.");
 }
 
 // =====================================================================
@@ -529,7 +529,7 @@ function flow(slide, x, y, w, h, f) {
   card(s, M, 2.45, lw, 4.35);
   barChart(s, M2.chart.labels, M2.chart.values, {
     x: M + 0.15, y: 2.55, w: lw - 0.3, h: 4.15, chartColors: [C.line, C.sky, C.blue],
-    title: "공식 Validation Accuracy (%)", valAxisMinVal: 84, valAxisMaxVal: 93,
+    title: "공식 Validation Accuracy (%)", valAxisMinVal: 84, valAxisMaxVal: 94,
   });
   const rx = M + lw + 0.3, rw = W - M - rx;
   card(s, rx, 2.45, rw, 2.15);
@@ -567,7 +567,7 @@ function flow(slide, x, y, w, h, f) {
     [strong(lastTry, C.text), strong(lastVerdict, C.sub), lastWhy],
   ], M, 2.45, [5.2, 2.4, 4.73], { rowH: 0.6, fontSize: 13 });
   caption(s, "비교는 Training 내부 통화 단위 홀드아웃 기준 (공식 Val 아님).", 6.75);
-  s.addNotes("근거: 통화 단위 특징 M2-EXP-008 / 제공 라벨 재학습 M2-RETRAIN-001 / 확률 평균 M2-ENS-001 / 더 큰 CNN M2-CNN-008, 패딩 제외 풀링 M2-CNN-009, 길이 입력 M2-CNN-004·006, Mixup M2-MIX-001 / WavLM 고정 임베딩 M2-SSL-001, 기본 미세조정 M2-SSL-002 / WavLM 미세조정(3초 창·겹침 증강) M2-SSL-003. 모두 docs/experiment_log.md·docs/decisions.md.");
+  s.addNotes("근거: 통화 단위 특징 M2-EXP-008 / 제공 라벨 재학습 M2-RETRAIN-001 / 확률 평균 M2-ENS-001 / 더 큰 CNN M2-CNN-008, 패딩 제외 풀링 M2-CNN-009, 길이 입력 M2-CNN-004·006, Mixup M2-MIX-001 / WavLM 고정 임베딩 M2-SSL-001, 기본 미세조정 M2-SSL-002 / WavLM-large 미세조정 2개 + CNN 결합 M2-WLML-001·002, M2-BLEND-001(내부 20,000발화 CNN 단독 91.94% → 93.21%). 모두 docs/experiment_log.md·docs/decisions.md.");
 }
 
 // 14. 최종 결과와 보완할 점
@@ -598,333 +598,203 @@ function flow(slide, x, y, w, h, f) {
 }
 
 // ======================================================================
-// ---------- Mission 2 추가: 지연우 전체 실험 흐름 ----------
-// These inserted pages summarize the log from the first baseline through the adopted ensemble.
+// ---------- Mission 2 추가: 지연우 음향 특징 실험 (10장) ----------
+// 초기 비교 / 내부 비교 / 고정 후보의 최종 평가는 각 평가 조건 안에서만 설명한다.
 {
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 처음 기준선: MFCC로 발화 요약", 15);
-  coreMsg(s, "먼저 발화 하나에서 목소리 특징을 뽑고, 신고자와 119대원을 구분하는 기준을 만들었습니다");
+  const leftW = 6.0, rightX = M + leftW + 0.3, rightW = W - M - rightX;
+  const page = (name, message) => {
+    const s = pres.addSlide();
+    header(s, "03", "미션별 수행", "Mission 2  신고자/119대원 분류 — " + name, pres._slides.length);
+    coreMsg(s, message);
+    return s;
+  };
+  const panels = s => {
+    card(s, M, 2.45, leftW, 4.35);
+    card(s, rightX, 2.45, rightW, 4.35);
+  };
+  const comparison = (s, a, b, aName, bName, gain, label = "Accuracy (%)") => {
+    title(s, "■ " + label, rightX + 0.25, 2.65, rightW - 0.5, 17);
+    const half = (rightW - 0.5) / 2;
+    stat(s, rightX + 0.15, 3.35, half, a, aName, C.sky, 33);
+    stat(s, rightX + 0.35 + half, 3.35, half, b, bName, C.blue, 33);
+    txt(s, gain, { x: rightX + 0.3, y: 4.9, w: rightW - 0.6, h: 0.55, fontSize: 29, bold: true, color: C.blue, align: "center" });
+  };
 
-  const gap = 0.35, cardW = (CW - gap) / 2;
-  const leftX = M, rightX = M + cardW + gap;
-  card(s, leftX, 2.5, cardW, 3.9);
-  card(s, rightX, 2.5, cardW, 3.9);
-  txt(s, "무엇을 숫자로 바꿨나", { x: leftX + 0.25, y: 2.75, w: cardW - 0.5, h: 0.38, fontSize: 18, bold: true, color: C.blue });
-  txt(s, [
-    { text: "전화 음성 한 발화를 입력으로 사용", options: { bold: true, breakLine: true } },
-    { text: "MFCC는 소리의 음색·주파수 모양을 간단한 숫자로 요약합니다.", options: { breakLine: true } },
-    { text: "20개 계수의 평균과 표준편차를 붙여 발화마다 40개 숫자를 만들었습니다." },
-  ], { x: leftX + 0.28, y: 3.35, w: cardW - 0.56, h: 2.5, fontSize: 15, paraSpaceAfter: 7 });
+  // 1. Baseline: 초기 수치는 화면에서 평가 집합 명칭을 생략하고 실제 출처는 노트에 보존.
+  {
+    const s = page("MFCC Baseline과 오류 관찰", "MFCC로 첫 기준선을 만들고, 짧은 발화와 겹침 구간에서 보완할 정보를 찾았습니다.");
+    panels(s);
+    title(s, "■ 한 발화를 40개 숫자로 요약", M + 0.25, 2.65, leftW - 0.5, 17);
+    const items = [["발화 음성", "현재 발화만"], ["MFCC 40D", "20계수의 평균·표준편차"], ["역할 분류", "Logistic Regression"]];
+    items.forEach(([t, b], i) => {
+      stepBox(s, M + 0.2 + i * 1.9, 3.3, 1.75, 1.75, t, b, i === 2 ? C.sky : C.blue, 12);
+      if (i < 2) arrow(s, M + 1.96 + i * 1.9, 4.0, 0.13, 0.3);
+    });
+    txt(s, "음색과 주파수 모양을 요약한 간단한 기준선\ntext·발화 순서·다른 발화 정보는 사용하지 않음", { x: M + 0.3, y: 5.5, w: leftW - 0.6, h: 0.9, fontSize: 14, paraSpaceAfter: 6 });
+    stat(s, rightX + 0.2, 2.95, rightW - 0.4, "80.9%", "Baseline Accuracy", C.blue, 44);
+    title(s, "■ 오류에서 발견한 점", rightX + 0.3, 4.6, rightW - 0.6, 17);
+    bullets(s, ["짧은 발화에서 정확도가 낮음", "목소리가 겹친 구간에서도 정확도가 낮음"], rightX + 0.3, 5.15, rightW - 0.6, 1.1, 15);
+    s.addNotes("초기 E00: Official Validation 111,947행, Accuracy 0.809106147, CM [[41190,12655],[8715,49387]]. short는 Training 분위수로 정의한 구간이며 이후 0.5–1초 구간과 같지 않다. 짧은 발화와 overlap의 낮은 정확도는 관찰이며 원인 확정이 아니다. 화면에서 평가 집합 이름만 생략했으며 Internal Validation으로 재분류하지 않는다.");
+  }
 
-  txt(s, "첫 기준선 결과", { x: rightX + 0.25, y: 2.75, w: cardW - 0.5, h: 0.38, fontSize: 18, bold: true, color: C.blue });
-  stat(s, rightX + 0.2, 3.25, cardW - 0.4, "80.91%", "초기 공식 검증 정확도", C.blue, 36);
-  txt(s, "이 점수를 이후의 간단한 음향 특징이 얼마나 보완하는지 확인하는 출발점으로 삼았습니다.", { x: rightX + 0.3, y: 4.75, w: cardW - 0.6, h: 0.9, fontSize: 14, color: C.text, align: "center", valign: "middle" });
-  caption(s, "근거: docs/mission2_experiment_log.md §1, §2 (초기 Official Validation 결과)");
-  s.addNotes("처음부터 복잡한 모델을 쓰기보다, MFCC라는 음성의 주파수 요약값 40개와 로지스틱 회귀로 기준선을 만들었습니다. 초기 정확도는 공식 검증에서 약 80.91%였습니다. 후속 실험은 Training 내부 검증으로 평가해 조건이 다릅니다.");
-}
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 간단한 음향 정보도 보탬이 될까?", 16);
-  coreMsg(s, "발화 길이와 주파수 특징을 하나씩 더해 보고, 함께 쓸 만한 조합을 골랐습니다");
-  table(s, [
-    ["추가한 정보", "왜 확인했나", "공식 검증 정확도와 판단"],
-    ["발화 길이", "짧고 긴 발화의 차이를 보완", "80.91% → 80.91%, 사실상 변화 없음 · 제외"],
-    ["고주파 경계(rolloff)", "에너지가 어느 주파수까지 퍼지는지 확인", "81.15% (+0.24%p vs E00) · 단일 추가 중 최대 개선"],
-    ["영교차율(ZCR)", "마찰음·무성음 단서를 보완", "81.01% (+0.10%p) · 단독 이득은 작아 조합 확인"],
-    ["스펙트럼 중심(centroid)", "소리의 무게중심 주파수 확인", "81.05% (+0.14%p); 두 Recall은 상승했지만 HCE 2,086→2,102 · 미승격"],
-    [{ text: "rolloff + ZCR", options: { bold: true, color: C.blue } }, "두 정보가 서로 보완되는지 확인", { text: "81.31% (+0.40%p vs E00) · 둘 다 든 E05 42D를 다음 모델 비교에 사용", options: { bold: true, color: C.blue } }],
-  ], M + 0.08, 2.42, [2.65, 4.1, 5.15], { rowH: 0.58, fontSize: 10.7 });
-  txt(s, "E05는 두 특징이 함께 든 후속 모델 비교용 표현입니다. 최종 모델 채택을 뜻하지 않습니다. E02–E04는 저장 Notebook 출력 없이 Markdown 기록만 남아 있습니다.", { x: M + 0.1, y: 6.0, w: CW - 0.2, h: 0.55, fontSize: 10.8, color: C.sub, align: "center" });
-  caption(s, "근거: docs/mission2_experiment_log.md §2, §9.3", 7.02);
-  s.addNotes("평균적인 음색 정보 외에 발화 길이, 고주파 경계, 영교차율, 스펙트럼 중심을 시험했습니다. 발화 길이는 거의 도움이 되지 않았고, rolloff와 ZCR를 함께 넣었을 때 초기 기준선보다 높은 81.31%가 나와 다음 분류기 비교에 사용했습니다. 이 초기 표는 공식 검증 결과입니다. 일부 개별 수치는 Markdown에만 남아 있다는 기록 한계도 같이 밝혀 둡니다.");
-}
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 같은 특징도 모델에 따라 달라질까?", 17);
-  coreMsg(s, "42개 입력은 고정하고 분류 방법을 바꾸자, 작은 모델보다 MLP가 높은 정확도를 보였습니다");
-  table(s, [
-    ["분류 방법", "내부 검증 정확도", "관찰"],
-    ["로지스틱 회귀", "81.73%", "비교 기준"],
-    ["HistGradientBoosting", "84.19%", "나무 기반 후보 중 가장 높음"],
-    ["ExtraTrees", "82.00%", "로지스틱보다 +0.27%p, HistGradientBoosting보다 −2.19%p"],
-    ["QDA", "79.73%", "정확도와 화자 균형이 낮아 제외"],
-    [{ text: "MLP 신경망", options: { bold: true, color: C.blue } }, { text: "85.95%", options: { bold: true, color: C.blue } }, { text: "가장 높은 후보로 유지; 수렴 경고는 남음", options: { bold: true, color: C.blue } }],
-  ], M + 0.2, 2.5, [3.7, 2.4, 5.8], { rowH: 0.57, fontSize: 11.5 });
-  txt(s, "이 단계부터 Training 내부의 통화 단위 고정 분할로 평가했습니다.", { x: M + 0.25, y: 6.12, w: CW - 0.5, h: 0.4, fontSize: 12, color: C.sub, align: "center" });
-  caption(s, "근거: docs/mission2_experiment_log.md §3 (42D 입력, 내부 검증)", 7.02);
-  s.addNotes("입력 특징을 42개로 고정한 채 로지스틱 회귀, 나무 모델, QDA, MLP를 비교했습니다. 같은 내부 검증 조건에서 MLP가 약 85.95%로 가장 높았습니다. 다만 MLP는 정해 둔 반복 횟수 안에 완전히 수렴하지 않았다는 경고가 있었으므로, 이 점수만 보고 모델이 충분히 학습됐다고 단정하지 않습니다.");
-}
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 어떤 음향 단서가 유용했나?", 18);
-  coreMsg(s, "목소리 높낮이·유성성 요약은 도움을 줬지만, 모든 음향 특징이 성능을 높이지는 않았습니다");
-  table(s, [
-    ["살펴본 소리 단서", "왜 더했나", "내부 검증 결과"],
-    ["에너지 변화", "발화 안에서 소리 크기 변화 확인", "85.71% (42D 기준 −0.24%p) · 제외"],
-    [{ text: "Pitch / Voicing (음높이·유성성)", options: { bold: true, color: C.blue } }, "높낮이와 주기적 발성 단서 반영", { text: "86.63% (+0.67%p); Recall 0 +0.71%p, Recall 1 +0.64%p · 47D 기준에 포함", options: { bold: true, color: C.blue } }],
-    ["Spectral Flux (프레임 간 변화)", "연속 프레임 사이의 소리 변화 확인", "85.38% (42D 기준 −0.57%p) · 제외"],
-    ["CPP (조화성 단서)", "목소리 주기성이 뚜렷한 정도 확인", "AF02+CPP 누적 49D에서 86.86%; 47D 직접 비교 output이 없어 CPP 단독 증분은 미확인"],
-    ["Delta-MFCC (시간 변화)", "프레임 순서에 따른 음색 변화 확인", "최초 단독 점수·혼동행렬 미보존; 뒤의 old-cache 재검토는 17-F에 표시"],
-    ["Formants (성도 공명)", "성도 공명 위치 단서 검토", "실험 전에 위험·중복 우려로 보류, 성능 결과 없음"],
-  ], M + 0.06, 2.35, [2.7, 4.5, 4.85], { rowH: 0.55, fontSize: 10.9 });
-  caption(s, "근거: docs/mission2_experiment_log.md §4.1–4.3", 7.02);
-  s.addNotes("각 특징군은 서로 다른 질문을 확인했습니다. 에너지 변화와 프레임 간 flux는 이 비교에서 기준보다 낮았습니다. 반면 F0 높낮이와 유성성 요약은 정확도를 약 0.67%포인트 높여 다음 기준에 포함했습니다. CPP 결과는 기록에 남아 있지만 당시 단독 승격 비교 일부가 없어 근거가 완전하지 않습니다. Delta-MFCC의 초기 단독 점수는 남아 있지 않고, 포먼트는 실제 학습 전에 보류됐습니다.");
-}
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 특징 사이의 관계와 재현성", 19);
-  coreMsg(s, "주파수끼리의 관계도 시험했지만, 과거 점수 하나만으로 특징을 채택하지 않았습니다");
-  const gap = 0.35, cardW = (CW - gap) / 2;
-  const leftX = M, rightX = M + cardW + gap;
-  card(s, leftX, 2.48, cardW, 3.95);
-  card(s, rightX, 2.48, cardW, 3.95);
-  txt(s, "관계 특징 비교", { x: leftX + 0.25, y: 2.73, w: cardW - 0.5, h: 0.38, fontSize: 18, bold: true, color: C.blue });
-  table(s, [
-    ["무엇을 확인했나", "결과"],
-    ["MFCC cross-correlation (계수 간 상관)", "86.91% · 소폭 상승, 이후 추가 시 제외"],
-    ["Pitch candidates (복수 음높이 후보)", "86.84% · 기준보다 낮음"],
-    ["Band-envelope coherence (대역 동조)", "초기 86.90%; 재학습 86.95%"],
-    ["MFCC reduction (계수 축소)", "세 조합 모두 86.32–86.87%로 기존 표현을 대체하지 못함"],
-  ], leftX + 0.15, 3.2, [2.55, 2.85], { rowH: 0.5, fontSize: 10.3 });
+  // 2. 초기 feature 비교: E00/E05의 같은 평가 집합 결과만 연결.
+  {
+    const s = page("Rolloff·ZCR 특징 보완", "Rolloff와 ZCR을 추가한 E05에서 정확도 상승을 확인해 후속 모델 비교에 사용했습니다.");
+    panels(s);
+    title(s, "■ 가설: MFCC에 없는 주파수 단서 보완", M + 0.25, 2.65, leftW - 0.5, 17);
+    txt(s, "에너지의 주파수 분포와 파형 변화 정보를 더하면\n역할 구분에 도움이 될까?", { x: M + 0.3, y: 3.2, w: leftW - 0.6, h: 0.85, fontSize: 16 });
+    stepBox(s, M + 0.3, 4.3, 2.5, 1.35, "Rolloff", "에너지가 퍼지는 주파수 경계", C.blue, 13);
+    stepBox(s, M + 3.15, 4.3, 2.5, 1.35, "ZCR · 영교차율", "파형의 부호 변화 빈도", C.sky, 13);
+    txt(s, "MFCC 40D + Rolloff·ZCR 2D = E05 42D", { x: M + 0.3, y: 6.0, w: leftW - 0.6, h: 0.35, fontSize: 15, bold: true, color: C.blue, align: "center" });
+    comparison(s, "80.9%", "81.3%", "E00 · MFCC40", "E05 · 42D", "+0.4%p");
+    txt(s, "같은 평가 조건에서 확인한 초기 특징 조합", { x: rightX + 0.3, y: 5.95, w: rightW - 0.6, h: 0.4, fontSize: 13, color: C.sub, align: "center" });
+    s.addNotes("E00/E05는 초기 Official Validation 결과: 0.809106147 / 0.8131169214, 차이 약 +0.4011%p. 개별 E02–E04는 Markdown 기록만 남아 있어 본문 비교에서 제외. 두 정보를 추가한 조합의 관측 결과이며 각 특징의 인과 효과나 통계적 유의성을 주장하지 않는다. 이후 내부 검증 MLP 결과와 Delta를 계산하지 않는다.");
+  }
 
-  txt(s, "과거 점수 재현 여부", { x: rightX + 0.25, y: 2.73, w: cardW - 0.5, h: 0.38, fontSize: 18, bold: true, color: C.blue });
-  txt(s, [
-    { text: "대역 간 포락선 특징의 최초 86.90%는 같은 과거 캐시로 재현되지 않았습니다.", options: { breakLine: true } },
-    { text: "검증된 과거 캐시 재학습은 86.95%였고, 이후 clean chain은 86.96%였습니다.", options: { breakLine: true } },
-    { text: "실행 조건이 달라 점수 차이는 직접 비교하지 않았습니다.", options: { bold: true } },
-  ], { x: rightX + 0.28, y: 3.35, w: cardW - 0.56, h: 2.3, fontSize: 14, paraSpaceAfter: 8 });
-  caption(s, "근거: docs/mission2_experiment_log.md §4.4, §9.1", 7.02);
-  s.addNotes("MFCC 계수끼리의 상관, 여러 음높이 후보의 경쟁, 주파수 대역 간 포락선 결합을 확인했습니다. 과거 결과가 재현되는지도 살펴봤습니다. 포락선의 첫 기록 86.90%는 재현되지 않았고, 과거 캐시 재학습과 clean 결과는 별도로 기록했습니다.");
-}
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 발화 안의 시간 변화도 더해 보기", 20);
-  coreMsg(s, "경계·엔트로피·시간대별 음색 변화는 일부 점수를 높였지만, 조합별 이득은 균형을 따져 보류했습니다");
-  table(s, [
-    ["검토한 정보", "확인하려던 점", "요약 결과와 결정"],
-    ["발화 경계·활동 패턴", "짧거나 잘린 발화의 시작·끝 단서", "52D 대비 +630 정답, 가장 높은 단일 추가 결과지만 자동 승격 보류"],
-    ["스펙트럼 엔트로피 변화", "소리의 퍼짐·변동성", "+216 정답; 화자별 균형 차이로 보류"],
-    ["시간대별 MFCC 대비", "발화 앞·중간·뒤의 차이", "+103 정답; 보류"],
-    ["특징 조합", "단일 특징의 상보성 확인", "과거 캐시에서 3개 조합은 87.21–87.60%; 가장 높은 조합도 화자·취약 구간 저하로 자동 채택 안 함"],
-    ["Delta-MFCC 재검토", "짧은 겹침 발화의 오류 보완", "old-cache 59→61D +0.018%p (+32건); Recall 0 +1.47%p / 1 −1.32%p. 취약 구간 개선에도 순이득이 작고 균형 교환이 있어 HOLD"],
-  ], M + 0.04, 2.38, [2.45, 4.1, 5.05], { rowH: 0.59, fontSize: 9.8 });
-  txt(s, "과거 캐시의 59D 점수(87.46%)와 clean chain의 59D(87.38%)는 같은 결과가 아닙니다.", { x: M + 0.2, y: 6.28, w: CW - 0.4, h: 0.28, fontSize: 11.5, bold: true, color: C.sub, align: "center" });
-  caption(s, "근거: docs/mission2_experiment_log.md §4.5–4.7", 7.02);
-  s.addNotes("에너지 경계, 스펙트럼 엔트로피, 발화 위치별 MFCC 차이를 추가로 확인했습니다. 단일 특징과 여러 조합 모두 일부 정확도 향상이 있었지만, 가장 높은 조합에서도 특정 화자나 취약 구간이 나빠졌습니다. AF05도 취약 구간에서는 나아졌지만 전체 정답 순증이 32건에 그치고 화자별 Recall이 반대 방향으로 움직여 채택하지 않았습니다. 이 수치는 과거 캐시 기준이며 이후 clean 기준과 섞지 않습니다.");
-}
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — clean 기준에서 표준 음향 특징 비교", 21);
-  coreMsg(s, "더 많은 표준 음향 통계를 써도 clean 59개 특징보다 정확도가 높아지지는 않았습니다");
-  const gap = 0.35, cardW = (CW - gap) / 2;
-  const leftX = M, rightX = M + cardW + gap;
-  card(s, leftX, 2.52, cardW, 3.55);
-  card(s, rightX, 2.52, cardW, 3.55);
-  stat(s, leftX + 0.2, 2.85, cardW - 0.4, "87.38%", "clean handcrafted 59D", C.blue, 34);
-  txt(s, "현재 비교 기준\nMFCC + 음높이·유성성 + CPP + 대역·시간 변화 특징", { x: leftX + 0.3, y: 4.28, w: cardW - 0.6, h: 1.0, fontSize: 14, color: C.text, align: "center", valign: "middle" });
-  stat(s, rightX + 0.2, 2.85, cardW - 0.4, "86.40%", "eGeMAPSv02 표준 88D", C.red, 34);
-  txt(s, "같은 내부 분할과 학습 조건\n오류 1,738건 증가 · 화자 0 재현율 약 2.30%p 하락", { x: rightX + 0.3, y: 4.28, w: cardW - 0.6, h: 1.0, fontSize: 14, color: C.text, align: "center", valign: "middle" });
-  insight(s, M, 6.25, CW, 0.5, [
-    { text: "판단  ", options: { bold: true, color: C.blue } },
-    { text: "eGeMAPS를 단독 입력으로 바꾸는 방향은 채택하지 않았습니다. 일부 구간의 장점은 별도 가설로 남겼습니다." },
-  ]);
-  caption(s, "근거: docs/mission2_experiment_log.md §4.8–4.9 (같은 clean 내부 검증 비교)", 7.02);
-  s.addNotes("여기서는 이전 실험과 평가 조건을 섞지 않기 위해, 같은 clean Training 내부 분할에서 handcrafted 59D와 표준 eGeMAPS 88D를 비교했습니다. eGeMAPS는 더 많은 숫자를 제공했지만 정확도가 87.38%에서 86.40%로 내려갔고 오류가 1,738건 늘었습니다. 그래서 단독 대체 표현으로는 채택하지 않았습니다. 특정 짧은 발화 구간의 결과가 나았던 점은 전체 우위와 다르므로 별도 가능성으로만 기록했습니다.");
-}
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — clean 59개 입력에서 더 강한 모델 탐색", 22);
-  coreMsg(s, "모델 계열을 바꾸자 TabM과 ResNet이 약 88.4%로 가장 높은 내부 기준이 됐습니다");
-  table(s, [
-    ["비교 단계", "무엇을 시험했나", "내부 검증 결과와 결정"],
-    ["기본 분류기 비교", "부스팅 모델과 더 큰 MLP", "LightGBM·XGBoost·CatBoost는 85.36–85.97%; 강한 MLP는 87.60%"],
-    ["수치 임베딩 MLP", "각 숫자를 학습 표현으로 변환", "87.49%; 학습-검증 간격과 높은 확신 오류가 커 기준으로 채택 안 함"],
-    [{ text: "TabM", options: { bold: true, color: C.blue } }, "여러 MLP 예측을 함께 학습", { text: "88.40% · 비교 기준 A", options: { bold: true, color: C.blue } }],
-    ["FT-Transformer", "특징 간 관계를 attention으로 학습", "88.22% · 결과는 보존, 기준 두 모델에는 미포함"],
-    [{ text: "Tabular ResNet", options: { bold: true, color: C.blue } }, "층 사이 정보를 연결해 학습", { text: "88.38% · 비교 기준 B, 화자 0 재현율이 상대적으로 높음", options: { bold: true, color: C.blue } }],
-  ], M + 0.05, 2.35, [2.3, 4.4, 4.9], { rowH: 0.57, fontSize: 10.7 });
-  txt(s, "TabM과 ResNet 모두 최종 모델로 정한 것은 아니며, 이후 표현 비교에 쓰는 두 기준으로 보존했습니다.", { x: M + 0.2, y: 6.2, w: CW - 0.4, h: 0.33, fontSize: 11.5, bold: true, color: C.sub, align: "center" });
-  caption(s, "근거: docs/mission2_experiment_log.md §4.10–4.12", 7.02);
-  s.addNotes("먼저 clean 59D를 유지하고 여러 분류기를 비교했습니다. 부스팅 계열은 강한 MLP보다 낮았고, 더 복잡한 숫자 임베딩 MLP는 검증 간격과 높은 확신 오류가 커 채택하지 않았습니다. 이어서 TabM, FT-Transformer, Tabular ResNet을 비교했고 TabM과 ResNet의 정확도가 약 88.4%로 가장 높고 서로 다른 화자 강점도 보여 후속 비교 기준으로 남겼습니다. 학습 recipe도 함께 달라졌으므로 차이를 모델 구조 하나의 효과라고 단정하지 않습니다.");
-}
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 점수 대신 실행 가능성을 본 경로", 23);
-  coreMsg(s, "일부 표현 실험은 성능을 겨룬 것이 아니라 중복과 계산 시간을 따져 멈췄습니다");
-  const gap = 0.35, cardW = (CW - gap) / 2;
-  const leftX = M, rightX = M + cardW + gap;
-  card(s, leftX, 2.48, cardW, 3.88);
-  card(s, rightX, 2.48, cardW, 3.88);
-  txt(s, "Time-Frequency Models (시간·주파수)", { x: leftX + 0.25, y: 2.75, w: cardW - 0.5, h: 0.38, fontSize: 16, bold: true, color: C.blue });
-  txt(s, [
-    { text: "목적  ", options: { bold: true, color: C.blue } },
-    { text: "음성의 시간 변화와 주파수 패턴을 직접 보는 계열 검토", options: { breakLine: true } },
-    { text: "결정  ", options: { bold: true, color: C.blue } },
-    { text: "팀원이 같은 계열을 탐색 중이라 중복을 피하려고 개인 실험은 건너뜀", options: { breakLine: true } },
-    { text: "상태  ", options: { bold: true, color: C.blue } },
-    { text: "성능 실패가 아니라 팀 역할 분담에 따른 미실행" },
-  ], { x: leftX + 0.3, y: 3.38, w: cardW - 0.6, h: 2.35, fontSize: 14, paraSpaceAfter: 8 });
+  // 3. 동일 42D 조건의 모델 비교: 초기 E05 Official 수치와 연결하지 않는다.
+  {
+    const s = page("선형 모델에서 MLP로 확장", "같은 42D 입력에서 MLP가 4.22%p 높아, 후속 음향 특징 비교의 기준 모델로 고정했습니다.");
+    panels(s);
+    title(s, "■ 가설: 특징 사이의 비선형 관계 학습", M + 0.25, 2.65, leftW - 0.5, 17);
+    node(s, M + 1.1, 3.2, 3.8, 0.85, "동일한 E05 42D 입력", "같은 통화 단위 내부 분할·전처리");
+    node(s, M + 0.3, 4.55, 2.5, 0.9, "Logistic Regression", "선형 비교 기준");
+    node(s, M + 3.2, 4.55, 2.5, 0.9, "MLP", "비선형 관계 학습", true);
+    s.addShape(pres.shapes.LINE, { x: M + 3.0, y: 4.05, w: 0, h: 0.2, line: { color: C.sky, width: 1.5 } });
+    s.addShape(pres.shapes.LINE, { x: M + 1.55, y: 4.25, w: 2.9, h: 0, line: { color: C.sky, width: 1.5 } });
+    link(s, M + 1.55, 4.25, M + 1.55, 4.55);
+    link(s, M + 4.45, 4.25, M + 4.45, 4.55);
+    txt(s, "입력 특징은 유지하고 분류 방법을 비교", { x: M + 0.3, y: 6.05, w: leftW - 0.6, h: 0.35, fontSize: 15, color: C.blue, bold: true, align: "center" });
+    comparison(s, "81.73%", "85.95%", "Logistic Regression", "MLP", "+4.22%p", "내부 검증 Accuracy");
+    txt(s, "이 MLP를 고정한 뒤 음향 특징을 추가 비교", { x: rightX + 0.3, y: 5.95, w: rightW - 0.6, h: 0.45, fontSize: 14, color: C.sub, align: "center" });
+    s.addNotes("M00 LR 0.8173319625, M04-100 MLP 0.8595319610: 같은 E05 42D, fixed GroupSplit, seed 42, internal-train-only scaler. 차이 4.21999985%p. MLP (64,)의 ReLU 비선형 상호작용은 실험 가설이며 개선 원인을 증명한 것은 아니다. max_iter=100에서도 convergence warning이 있어 수렴 완료를 주장하지 않는다. 81.31% 초기 Official 결과와 직접 비교하지 않는다.");
+  }
 
-  txt(s, "Pretrained Speech Models (사전학습 음성)", { x: rightX + 0.25, y: 2.75, w: cardW - 0.5, h: 0.38, fontSize: 16, bold: true, color: C.blue });
-  txt(s, [
-    { text: "목적  ", options: { bold: true, color: C.blue } },
-    { text: "대규모 음성으로 미리 학습된 표현이 도움되는지 검토", options: { breakLine: true } },
-    { text: "시간 확인  ", options: { bold: true, color: C.blue } },
-    { text: "WavLM 약 45.37시간, DPWavLM 약 63.87시간 추정", options: { breakLine: true } },
-    { text: "결론  ", options: { bold: true, color: C.blue } },
-    { text: "전체 추출·분류기 평가까지 진행하지 않아 성능은 미평가" },
-  ], { x: rightX + 0.3, y: 3.38, w: cardW - 0.6, h: 2.35, fontSize: 14, paraSpaceAfter: 8 });
-  insight(s, M, 6.52, CW, 0.42, [
-    { text: "구분  ", options: { bold: true, color: C.blue } },
-    { text: "실행하지 않은 경로의 점수는 없으며, 이를 낮은 성능으로 해석하지 않습니다." },
-  ]);
-  caption(s, "근거: docs/mission2_experiment_log.md §4.12, Stage 11·12 기록", 7.02);
-  s.addNotes("모든 검토가 정확도 실험으로 끝난 것은 아닙니다. 시간×주파수 모델은 팀원이 같은 방향을 맡아 중복을 피하기 위해 개인 실험을 건너뛰었습니다. 사전학습 음성 모델은 전체 Training을 처리하는 데 약 45시간 또는 64시간이 걸릴 것으로 예상돼 실행 가능성 문제로 종료했습니다. 실제 전체 모델 평가를 하지 않았기 때문에 두 경로 모두 성능 미평가이며, 성능 실패로 볼 수 없습니다.");
-}
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 아직 보지 않은 분류 방식도 확인", 24);
-  coreMsg(s, "새로운 여섯 방식 중 GANDALF가 가장 높았지만, 기존 TabM·ResNet 기준은 넘지 못했습니다");
-  table(s, [
-    ["방식", "무엇을 다르게 하나", "내부 검증 정확도"],
-    ["EBM", "특징별 효과를 더하는 해석형 부스팅", "83.96%"],
-    ["Spline-GAM", "부드러운 곡선으로 특징 효과 학습", "85.18%"],
-    ["RFF + Logistic SGD", "비선형 관계를 빠르게 근사", "83.15%"],
-    ["DCNv2", "특징 간 조합을 직접 학습", "87.78%"],
-    ["TabNet", "단계별로 중요한 입력에 집중", "87.75%"],
-    [{ text: "GANDALF", options: { bold: true, color: C.blue } }, "Feature gating (특징별 정보 선택)", { text: "88.17% · 신규 계열 중 최고", options: { bold: true, color: C.blue } }],
-  ], M + 0.2, 2.37, [2.45, 6.2, 2.95], { rowH: 0.53, fontSize: 11.2 });
-  txt(s, "같은 clean 59D 비교에서 GANDALF가 신규 계열 중 가장 높아 F01·F02 결합 후보로 포함했습니다. TabM·ResNet 기준은 넘지 못했습니다.", { x: M + 0.2, y: 6.18, w: CW - 0.4, h: 0.4, fontSize: 11.4, color: C.sub, align: "center" });
-  caption(s, "근거: docs/mission2_experiment_log.md §4.13 (고정 설정 6개 모델 비교)", 7.02);
-  s.addNotes("이 단계의 목적은 clean 59개 특징에서 이전에 시험하지 않은 분류 방식을 넓게 확인하는 것이었습니다. 여섯 설정을 결과를 보기 전에 고정해 비교했고, 새 후보 중 GANDALF가 88.17%로 가장 높았습니다. 그래도 앞서 보존한 TabM 88.40%와 ResNet 88.38%에는 미치지 못했습니다. 첫 비교 결과이므로 모든 모델 계열의 우열을 확정하는 것은 아닙니다.");
-}
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 두 음향 특징을 함께 넣은 모델", 25);
-  coreMsg(s, "세 모델에서 각각 개선된 두 특징을 함께 넣어, 결합해도 효과가 이어지는지 확인했습니다");
-  const gap = 0.32, cardW = (CW - gap) / 2;
-  const leftX = M, rightX = M + cardW + gap;
-  card(s, leftX, 2.48, cardW, 3.92);
-  card(s, rightX, 2.48, cardW, 3.92);
-  txt(s, "새로 더한 두 소리 요약", { x: leftX + 0.25, y: 2.72, w: cardW - 0.5, h: 0.38, fontSize: 18, bold: true, color: C.blue });
-  txt(s, [
-    { text: "F01 · MFCC Robust Statistics (분포 요약) · 80D", options: { bold: true, color: C.blue, breakLine: true } },
-    { text: "Quantiles (분포 위치)와 IQR (가운데 50% 폭)로 20개 계수의 퍼짐을 요약합니다.", options: { breakLine: true } },
-    { text: "F02 · Spectral Contrast (대역 대비) · 10D", options: { bold: true, color: C.blue, breakLine: true } },
-    { text: "0–4,000Hz 다섯 구간에서 뚜렷한 소리와 조용한 소리의 차이를 요약합니다." },
-  ], { x: leftX + 0.28, y: 3.3, w: cardW - 0.56, h: 2.55, fontSize: 14, paraSpaceAfter: 8 });
-  txt(s, "결합 입력으로 학습한 세 모델", { x: rightX + 0.25, y: 2.72, w: cardW - 0.5, h: 0.38, fontSize: 18, bold: true, color: C.blue });
-  table(s, [
-    ["모델", "내부 검증 정확도"],
-    ["TabM", "88.64%"],
-    ["Tabular ResNet", "88.55%"],
-    ["GANDALF", "88.58%"],
-  ], rightX + 0.45, 3.3, [2.8, 2.5], { w: 5.3, rowH: 0.55, fontSize: 13 });
-  txt(s, "같은 고정 내부 split·seed 42·threshold 0.5 사용; 공식 Validation은 사용하지 않음", { x: rightX + 0.3, y: 5.65, w: cardW - 0.6, h: 0.45, fontSize: 11.5, color: C.sub, align: "center" });
-  caption(s, "근거: docs/mission2_experiment_log.md §4.14 (특징 정의·멤버 결과)", 7.02);
-  s.addNotes("MFCC 분포 요약은 평균·표준편차만으로 놓치는 값들의 퍼짐을 더 세밀하게 담으려는 특징입니다. 대역별 대비는 낮은 주파수부터 4,000Hz까지 다섯 구간에서 두드러진 소리와 조용한 소리의 차이를 요약합니다. 두 특징을 clean 59개에 추가해 총 149개 입력으로 만들고 세 모델을 학습했습니다. 세 모델의 점수는 모두 같은 고정 내부 분할에서 나온 것이며 공식 검증 점수는 아닙니다.");
-}
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 같은 비중으로 평균한 앙상블", 26);
-  coreMsg(s, "세 모델의 확률을 똑같이 평균한 후보가 내부 정확도는 가장 높았지만, 모든 위험이 해결된 것은 아닙니다");
-  table(s, [
-    ["평균한 모델", "내부 정확도", "간단한 해석"],
-    ["TabM + ResNet", "88.72%", "두 모델 평균"],
-    ["TabM + GANDALF", "88.82%", "두 모델 평균"],
-    ["ResNet + GANDALF", "88.82%", "가장 강한 2모델 조합"],
-    [{ text: "E_TRG (TabM + ResNet + GANDALF)", options: { bold: true, color: C.blue } }, { text: "88.85%", options: { bold: true, color: C.blue } }, { text: "세 모델 1/3씩 평균; 내부 검증 정확도가 가장 높아 후보로 선택", options: { bold: true, color: C.blue } }],
-  ], M + 0.3, 2.27, [4.0, 2.0, 5.8], { rowH: 0.45, fontSize: 10.8 });
-  const gap = 0.28, cardW = (CW - 2 * gap) / 3;
-  stat(s, M, 5.02, cardW, "84.34%", "119대원 Recall", C.blue, 25);
-  stat(s, M + cardW + gap, 5.02, cardW, "93.00%", "신고자 Recall", C.sky, 25);
-  stat(s, M + 2 * (cardW + gap), 5.02, cardW, "1,797", "높은 확신 오답(HCE)", C.red, 25);
-  txt(s, "같은 내부 검증에서 네 앙상블 후보를 비교해 점수가 낙관적일 수 있습니다. 짧은 119대원 발화 정확도는 76.71%, 같은 길이의 겹침 발화는 67.90%였습니다. Stage 14에서 Official Validation은 사용하지 않았고, Stage 15 튜닝도 하지 않았습니다.", { x: M + 0.12, y: 6.34, w: CW - 0.24, h: 0.55, fontSize: 10.2, color: C.sub, align: "center" });
-  caption(s, "근거: docs/mission2_experiment_log.md §4.14 (후보 비교·취약 구간·선택 경계)", 7.02);
-  s.addNotes("세 모델은 신고자일 확률을 각각 내고, 이를 같은 비중으로 평균했습니다. 세 모델 평균이 내부 정확도 88.85%로 가장 높았습니다. 가장 높은 2모델 조합과의 차이는 0.04%포인트보다도 작은 약 0.0315%포인트로, 177,891개 중 약 56개 차이입니다. 신고자 Recall은 높지만 119대원 Recall과 높은 확신 오답도 함께 살펴야 합니다. 같은 내부 검증 자료를 여러 단계와 여러 후보 선택에 재사용했으므로 점수가 낙관적일 수 있습니다. 이 결과는 내부에서 채택한 후보이며 공식 검증된 최종 성능은 아닙니다.");
-}
+  // 4. 당시 고정 MLP의 AF02 직접 비교.
+  {
+    const s = page("Pitch·Voicing의 효과", "음높이·유성성 특징은 정확도와 두 역할의 Recall을 함께 개선해 채택했습니다.");
+    panels(s);
+    title(s, "■ 가설: 음높이와 발성 정보를 보완", M + 0.25, 2.65, leftW - 0.5, 17);
+    txt(s, "기존 입력에 없는 F0 변화와 주기적 발성 정보가\n역할 분류를 보완할까?", { x: M + 0.3, y: 3.2, w: leftW - 0.6, h: 0.85, fontSize: 16 });
+    stepBox(s, M + 0.3, 4.3, 2.5, 1.4, "Pitch · 음높이", "F0 중앙값·변동폭·기울기", C.blue, 13);
+    stepBox(s, M + 3.15, 4.3, 2.5, 1.4, "Voicing · 유성성", "유성 비율·주기성", C.sky, 13);
+    txt(s, "E05 42D + AF02 5D = 47D", { x: M + 0.3, y: 6.05, w: leftW - 0.6, h: 0.35, fontSize: 15, bold: true, color: C.blue, align: "center" });
+    comparison(s, "85.95%", "86.63%", "42D · MLP", "+ Pitch/Voicing", "+0.67%p", "당시 내부 검증 Accuracy");
+    txt(s, "Recall 변화: 대원 +0.71%p / 신고자 +0.64%p", { x: rightX + 0.25, y: 5.95, w: rightW - 0.5, h: 0.5, fontSize: 14, bold: true, color: C.blue, align: "center" });
+    s.addNotes("historical cache 내부 비교: M04-100 42D 0.8595319610 → AF02 47D 0.8662664219, +0.67344609%p. Recall0 0.815608→0.822662, Recall1 0.900043→0.906484. clean chain의 별도 결과로 재해석하지 않는다. 짧거나 noisy/unvoiced한 구간의 pitch 추출 위험도 확인한 실험이다.");
+  }
 
-// ---------- Mission 2 추가: Official Validation 최종 평가 ----------
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 고정 후보의 Official Validation 결과", 27);
-  coreMsg(s, "Stage 14에서 정한 E_TRG를 추가 튜닝 없이 전체 Training으로 다시 학습해 88.49%를 기록했습니다");
-  card(s, M, 2.45, CW, 4.35);
+  // 5. 과거 조합 점수 대신 재현된 clean B4 52D/59D 비교 사용.
+  {
+    const s = page("활동성·엔트로피의 효과", "활동성과 엔트로피를 함께 추가해 전체 정확도를 높이고, 역할별 변화도 확인했습니다.");
+    panels(s);
+    title(s, "■ 가설: 평균이 놓치는 발화 변화 표현", M + 0.25, 2.65, leftW - 0.5, 17);
+    txt(s, "음성 활동 패턴과 스펙트럼 분포 변화가\n짧거나 잘린 발화의 정보를 보완할까?", { x: M + 0.3, y: 3.2, w: leftW - 0.6, h: 0.85, fontSize: 16 });
+    stepBox(s, M + 0.3, 4.3, 2.5, 1.4, "AF10 · 활동성", "음성 활동 비율·경계 패턴", C.blue, 13);
+    stepBox(s, M + 3.15, 4.3, 2.5, 1.4, "AF11 · 엔트로피", "스펙트럼의 퍼짐·변동성", C.sky, 13);
+    txt(s, "clean 52D + 활동성 4D + 엔트로피 3D = 59D", { x: M + 0.25, y: 6.05, w: leftW - 0.5, h: 0.35, fontSize: 14, bold: true, color: C.blue, align: "center" });
+    comparison(s, "86.96%", "87.38%", "clean 52D", "clean 59D", "+0.42%p", "clean 내부 검증 Accuracy");
+    txt(s, "Recall 변화: 대원 +1.23%p / 신고자 −0.33%p", { x: rightX + 0.25, y: 5.95, w: rightW - 0.5, h: 0.5, fontSize: 14, color: C.sub, align: "center" });
+    s.addNotes("clean B4 same-run: 52D 0.869594, CM [[71215,14136],[9062,83478]]; 59D 0.873760, CM [[72265,13086],[9371,83169]], 순 정답 +741. 대원 Recall 0.834378→0.846680, 신고자 0.902075→0.898736. 따라서 두 역할 모두 개선이라고 하지 않는다. 52D prefix는 MFCC40/E05/AF02/AF04/AF09이며 CPP 단독 증분은 partially verified. old-cache 59D 87.46% 및 과거 조합 점수와 연결하지 않는다.");
+  }
 
-  stat(s, M + 0.15, 2.78, 2.55, "88.49%", "Accuracy · Official Validation", C.blue, 36);
-  txt(s, "111,947개 발화 · 3,640통화\n오분류 12,883개 (11.51%)\n\n119대원 Recall 84.18%\n신고자 Recall 92.49%\n화자 Recall 차이 8.31%p", {
-    x: M + 0.2, y: 4.04, w: 2.45, h: 2.1, fontSize: 12, color: C.text, align: "center", valign: "middle",
-  });
+  // 6. F01/F02의 가설과 joint 149D 결과. 단독 개선량은 주장하지 않음.
+  {
+    const s = page("MFCC 분포·대역 대비와 149D 입력", "분포 요약과 대역 대비를 더한 149D 입력을 세 모델에 적용해 앙상블 후보로 검증했습니다.");
+    panels(s);
+    title(s, "■ 두 가지 보완 가설", M + 0.25, 2.65, leftW - 0.5, 17);
+    title(s, "F01 · MFCC Robust Stats · 80D", M + 0.3, 3.25, leftW - 0.6, 16);
+    txt(s, "평균·표준편차에 분포 정보를 더하면 도움이 될까?\n20계수의 q10·중앙값·q90·IQR을 추가", { x: M + 0.3, y: 3.8, w: leftW - 0.6, h: 0.9, fontSize: 14, paraSpaceAfter: 5 });
+    title(s, "F02 · Spectral Contrast · 10D", M + 0.3, 5.0, leftW - 0.6, 16);
+    txt(s, "대역 안의 강한 성분과 약한 성분의 대비가 보완할까?\n0–4 kHz 5대역의 contrast 평균·표준편차", { x: M + 0.3, y: 5.55, w: leftW - 0.6, h: 0.9, fontSize: 14, paraSpaceAfter: 5 });
+    title(s, "■ 결합 입력과 내부 검증 결과", rightX + 0.25, 2.65, rightW - 0.5, 17);
+    const bw = (rightW - 0.8) / 3;
+    [["clean 59D", "기존 음향 특징"], ["F01 80D", "MFCC 분포"], ["F02 10D", "대역 대비"]].forEach(([t, b], i) => {
+      node(s, rightX + 0.2 + i * (bw + 0.2), 3.25, bw, 0.95, t, b, i === 2);
+      if (i < 2) txt(s, "+", { x: rightX + 0.2 + bw + i * (bw + 0.2), y: 3.55, w: 0.2, h: 0.3, align: "center", fontSize: 14, bold: true });
+    });
+    txt(s, "총 149D", { x: rightX + 0.3, y: 4.35, w: rightW - 0.6, h: 0.35, fontSize: 18, bold: true, color: C.blue, align: "center" });
+    table(s, [["모델", "Accuracy"], ["TabM", "88.64%"], ["Tabular ResNet", "88.55%"], ["GANDALF", "88.58%"]], rightX + 0.3, 4.95, [(rightW - 0.6) * 0.6, (rightW - 0.6) * 0.4], { rowH: 0.36, fontSize: 12 });
+    s.addNotes("F01는 20 MFCC 계수별 q10/median/q90/IQR의 80D. F02는 8kHz 발화의 0–250, 250–500, 500–1000, 1000–2000, 2000–4000Hz 5대역 spectral contrast mean/std 10D. Stage14 TabM 0.8864304546, ResNet 0.8854916775, GANDALF 0.8858458269. 별도 학습의 59D 결과와 차이를 F01/F02 각각의 독립 개선량으로 귀속하지 않는다. 개념 Diagram은 실제 분포/파형 그래프가 아니다.");
+  }
 
-  s.addChart(pres.charts.BAR, [{ name: "Accuracy", labels: ["TabM", "ResNet", "GANDALF", "E_TRG"], values: [88.0560, 88.0854, 88.1864, 88.4919] }], {
-    x: M + 2.85, y: 2.62, w: 4.55, h: 3.35, barDir: "col", chartColors: [C.sky, C.sky, C.sky, C.blue],
-    showTitle: true, title: "모델별 Official Validation Accuracy (%)", titleFontSize: 11, titleColor: C.text, titleFontFace: F,
-    showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 10, dataLabelFontBold: true, dataLabelFormatCode: "0.00",
-    valAxisMinVal: 86, valAxisMaxVal: 90, valAxisLabelColor: C.sub, catAxisLabelColor: C.text, catAxisLabelFontFace: F, catAxisLabelFontSize: 10,
-    valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" }, showLegend: false, varyColors: true,
-  });
+  // 7. 성공한 특징 설명 바로 다음: 제외/보류 실험을 한 장으로 압축.
+  {
+    const s = page("제외·보류한 실험", "특징 수를 늘리는 대신, 비교 결과를 확인해 필요한 정보를 선별했습니다.");
+    table(s, [
+      ["실험 방향", "확인한 결과", "판단"],
+      ["Duration", "초기 비교에서 정확도 변화가 거의 없음", "제외"],
+      ["Energy · Spectral Flux", "각각 당시 42D 기준보다 정확도가 낮음", "제외"],
+      ["Delta-MFCC", "재검토의 전체 순이득이 작고 역할별 Recall 변화가 반대", "보류"],
+      ["eGeMAPS로 대체", "동일 clean 내부 비교: 59D 87.38% / eGeMAPS 86.40%", "기존 입력 유지"],
+    ], M, 2.65, [2.7, 7.0, CW - 9.7], { rowH: 0.66, fontSize: 13.5 });
+    insight(s, M, 6.05, CW, 0.65, "효과가 작거나 균형이 나빠진 방향은 제외·보류하고, 확인된 특징을 후속 비교에 사용했습니다.", C.light, 14);
+    s.addNotes("Duration는 초기 Official 비교. Energy/Flux는 당시 42D M04-100 내부 비교. Delta-MFCC 재검토는 old-cache 59→61D +0.018%p, net +32, Recall0 +1.47%p / Recall1 −1.32%p로 HOLD. eGeMAPS는 같은 clean 계약에서 0.8639897465, clean59D 0.8737597742. 서로 다른 실험의 결과를 한 순위나 합산 효과로 읽지 않는다. Formants는 미실행, Stage12 pretrained는 성능 미평가이므로 실패 성능 사례로 넣지 않는다.");
+  }
 
-  txt(s, "E_TRG 혼동행렬 (행=실제, 열=예측)", { x: M + 7.55, y: 2.66, w: 4.1, h: 0.3, fontSize: 12, color: C.sub, align: "center" });
-  table(s, [
-    ["", "예측 0\n119대원", "예측 1\n신고자"],
-    ["실제 0\n119대원", { text: "45,326", options: { bold: true, color: C.blue } }, "8,519"],
-    ["실제 1\n신고자", "4,364", { text: "53,738", options: { bold: true, color: C.blue } }],
-  ], M + 7.48, 3.08, [1.35, 1.65, 1.65], { w: 4.65, h: 1.86, rowH: 0.62, fontSize: 11, align: "center" });
-  txt(s, "고정: 149D · 세 모델 확률 1/3씩 평균 · threshold 0.5 · 학습/Scaler/체크포인트 선택에 Validation 미사용", {
-    x: M + 7.55, y: 5.45, w: 4.05, h: 0.65, fontSize: 10.5, color: C.sub, align: "center", valign: "middle",
-  });
-  txt(s, "해석 경계: Stage 15 자체는 고정 후보 평가지만, 과거 E-series 특징 선택에도 Official Validation을 사용해 독립 1회 holdout은 아닙니다.\n복구: GANDALF 18≠17 epoch 기록으로 첫 실행 중단; cache와 TabM/ResNet checkpoint를 재사용하고 GANDALF만 재학습했습니다.", {
-    x: M + 0.16, y: 6.23, w: CW - 0.32, h: 0.5, fontSize: 9.2, color: C.sub, align: "center",
-  });
-  caption(s, "근거: docs/mission2_experiment_log.md Stage 15 · run audit FINAL_VERIFIED · 고정 threshold 0.5", 7.02);
-  s.addNotes("Stage 15는 Stage 14에서 고른 세 모델을 추가 튜닝 없이 전체 Training으로 다시 학습한 뒤, 고정 threshold 0.5에서 저장된 Official Validation 예측을 평가했습니다. Accuracy는 88.4919%이며 혼동행렬 순서는 TN/FP/FN/TP입니다. E_TRG는 세 단독 모델 중 가장 높은 GANDALF보다 0.3055%p 높습니다. Official Validation은 이 refit의 scaler, loss, gradient, early stopping, checkpoint 선택에 사용하지 않았습니다. 다만 과거 E-series 특징 비교에도 같은 Official Validation이 사용됐으므로 독립된 1회 holdout이라고 표현하지 않습니다. 1차 실행의 고정 epoch 불일치는 audit에서 중단했고, 복구 때 feature cache와 두 checkpoint를 재사용해 GANDALF만 재학습했습니다.");
-}
+  // 8. 별도 stage의 clean 59D 저장 비교 기준: 모든 후보의 탐색표는 제거.
+  {
+    const s = page("모델 비교와 후보 선정", "TabM·ResNet을 비교 기준으로 유지하고, 신규 계열 중 가장 높은 GANDALF를 결합 후보에 포함했습니다.");
+    const gap = 0.3, bw = (CW - 2 * gap) / 3;
+    const models = [["TabM", "88.40%", "59D 동결 비교 기준"], ["Tabular ResNet", "88.38%", "59D 동결 비교 기준"], ["GANDALF", "88.17%", "신규 계열 중 가장 높음"]];
+    models.forEach(([name, accuracy, role], i) => {
+      const x = M + i * (bw + gap);
+      card(s, x, 2.8, bw, 2.7);
+      title(s, name, x + 0.2, 3.05, bw - 0.4, 18);
+      stat(s, x + 0.1, 3.75, bw - 0.2, accuracy, role, i === 2 ? C.sky : C.blue, 32);
+    });
+    txt(s, "clean 59D · 같은 고정 내부 분할 · Training에서만 전처리 fit", { x: M, y: 2.3, w: CW, h: 0.3, fontSize: 12, color: C.sub, align: "center" });
+    insight(s, M, 5.85, CW, 0.85, "GANDALF가 두 기준 모델을 넘지는 못했지만, 다른 모델 계열의 결합 후보로 포함해 검증했습니다.", C.light, 14);
+    s.addNotes("TabM 0.8839795155460366, Tabular ResNet 0.8837546587517076는 Stage10 dual frozen references. GANDALF 약 0.8817은 Stage13 신규 6-family first-screen 중 최고. 동일 clean59D와 고정 내부 split을 사용했으나 다른 stage의 학습 모델이다. 세 모델만 같은 run에서 학습했다고 하지 않는다. 실제 오류 상보성은 이후 Stage14 149D 결과로 평가했으며 family가 다르다는 사실만으로 상보성을 보장하지 않는다.");
+  }
 
-// ---------- Mission 2 추가: Official Validation 잔여 오류 ----------
-{
-  const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 2 — 남아 있는 오분류와 취약 구간", 28);
-  coreMsg(s, "119대원·짧은 발화·겹침 구간의 오류가 더 많고, 낮은 확신 구간은 오분류율이 44.94%입니다");
+  // 9. 앙상블 구성 + 고정 후보 최종 평가 통합. 초기 Official 사용 문장은 화면에서 제거.
+  {
+    const s = page("149D E_TRG 구성과 최종 평가", "세 모델을 동일 가중치로 결합하고, 고정한 연우 최종 모델에서 정확도 88.49%를 확인했습니다.");
+    panels(s);
+    title(s, "■ E_TRG · 세 모델 확률 평균", M + 0.25, 2.65, leftW - 0.5, 17);
+    flow(s, M + 0.2, 3.3, leftW - 0.4, 2.2, {
+      pre: [["149D", "음향 특징"]], preW: 1.1,
+      branches: [["TabM", "", "1/3"], ["ResNet", "", "1/3"], ["GANDALF", "", "1/3"]], brW: 1.75, brGap: 0.14,
+      post: [["확률 평균", "≥ 0.5 → 신고자\n< 0.5 → 대원"]], postW: 1.65,
+    });
+    txt(s, "추가 튜닝 없이 전체 Training으로 재학습\n149D 입력·동일 가중치·threshold 0.5 고정", { x: M + 0.3, y: 5.95, w: leftW - 0.6, h: 0.6, fontSize: 13, color: C.sub, align: "center" });
+    stat(s, rightX + 0.2, 2.85, rightW - 0.4, "88.49%", "최종 평가 · Official Validation", C.blue, 42);
+    const half = (rightW - 0.4) / 2;
+    stat(s, rightX + 0.1, 4.5, half, "84.2%", "119대원 Recall", C.blue, 26);
+    stat(s, rightX + 0.3 + half, 4.5, half, "92.5%", "신고자 Recall", C.sky, 26);
+    txt(s, "내부 검증: 88.85%\n평가 집합이 달라 두 수치의 차이를 개선량으로 계산하지 않음", { x: rightX + 0.3, y: 6.0, w: rightW - 0.6, h: 0.6, fontSize: 12, color: C.sub, align: "center" });
+    s.addNotes("E_TRG는 연우 개인 최종 실험 모델이며 팀 제출 모델 개발자로 오해시키지 않는다. Stage14 Internal 177,891행 Accuracy 0.8884822729; Stage15 full-Training refit의 Official Validation 111,947행/3,640통화 Accuracy 0.884918756, Recall0 0.84178661, Recall1 0.92489071. FINAL_VERIFIED, 세 reload EXACT_PASS, alignment/metric recomputation PASS. 이 refit에서는 Official을 scaler fit, gradient/loss, early stopping, checkpoint 선택에 쓰지 않았고 가중치/threshold 튜닝도 없다. 과거 E-series에서 같은 Official을 사용한 이력이 있어 독립된 최초 1회 holdout이라고 주장하지 않는다. 과거 사용 문장은 화면에서 생략하고 근거 기록에 보존한다. 학습 artifact는 Drive run mission2_final_fulltrain_official_validation_20261012T151108Z_a1606771에 있다.");
+  }
 
-  const gap = 0.3, cardW = (CW - gap) / 2;
-  const leftX = M, rightX = M + cardW + gap;
-  card(s, leftX, 2.45, cardW, 4.35);
-  txt(s, "■ 저장된 예측에서 확인된 취약 구간", { x: leftX + 0.2, y: 2.58, w: cardW - 0.4, h: 0.35, fontSize: 13.5, bold: true, color: C.blue });
-  table(s, [
-    ["구간", "표본 수", "오류", "오류율"],
-    ["전체", "111,947", "12,883", "11.51%"],
-    ["발화 0.5–1초", "27,392", "4,299", "15.69%"],
-    ["Overlap 포함", "48,863", "7,457", "15.26%"],
-    ["확신도 0.50–0.60", "12,253", "5,507", "44.94%"],
-    ["확신도 ≥0.90 (HCE)", "75,016", "1,301", "1.73%"],
-    ["실제 119대원 × 0.5–1초 × overlap", "5,003", "1,550", "31.0%"],
-  ], leftX + 0.15, 3.03, [2.55, 1.25, 1.0, 1.0], { w: 5.8, h: 3.01, rowH: 0.43, fontSize: 9.4, align: "center" });
-  txt(s, "마지막 행은 3조건 중 실제 화자 0까지 지정한 교차 결과(정확도 69.02%)입니다. 0.5–1초×overlap×낮은 확신의 동시 교차 성능은 저장 집계가 없어 미확정입니다.", {
-    x: leftX + 0.2, y: 6.15, w: cardW - 0.4, h: 0.5, fontSize: 9.8, color: C.sub, align: "center", valign: "middle",
-  });
-
-  card(s, rightX, 2.45, cardW, 4.35);
-  txt(s, "■ 오류에서 확인한 점과 남은 한계", { x: rightX + 0.2, y: 2.58, w: cardW - 0.4, h: 0.35, fontSize: 13.5, bold: true, color: C.blue });
-  txt(s, [
-    { text: "119대원 분류가 상대적으로 약함  ", options: { bold: true, color: C.red, breakLine: true } },
-    { text: "Recall 84.18%로 신고자 92.49%보다 8.31%p 낮습니다. 119대원을 신고자로 잘못 분류한 FP는 8,519건입니다.", options: { breakLine: true } },
-    { text: "짧고 겹치는 발화에서 오류가 큼  ", options: { bold: true, color: C.red, breakLine: true } },
-    { text: "0.5–1초와 overlap의 각 집계에서 오류율은 각각 15.69%, 15.26%입니다. 동시 조건의 저확신 성능은 추정하지 않습니다.", options: { breakLine: true } },
-    { text: "낮은 확신에서 판정이 불안정함  ", options: { bold: true, color: C.red, breakLine: true } },
-    { text: "확신도 0.50–0.60의 정확도는 55.06%입니다. 오류 원인 자체는 집계 결과만으로 확정할 수 없습니다." },
-  ], { x: rightX + 0.25, y: 3.02, w: cardW - 0.5, h: 3.5, fontSize: 11, paraSpaceAfter: 6, valign: "middle" });
-  caption(s, "근거: docs/mission2_experiment_log.md Stage 15 후속 오류 분석 · 음성 청취/원인 판정 없이 저장 예측만 분석", 7.02);
-  s.addNotes("이 장의 수치는 복구 run의 FINAL_VERIFIED Official Validation 저장 예측에서 계산된 기술통계입니다. 0.5–1초, overlap, 낮은 확신 수치는 각각의 marginal slice라서 이 세 조건이 동시에 있는 표본의 성능으로 읽으면 안 됩니다. 실제 speaker 0과 0.5–1초, overlap을 함께 본 별도 slice는 n=5,003, accuracy 69.0186%입니다. 낮은 확신까지 겹친 4중 조건 수치는 저장 집계에서 확인되지 않아 미확정으로 남깁니다. 정확도 저하의 원인을 음성으로 확인하거나 청취한 결과가 아니므로 원인을 단정하지 않습니다.");
+  // 10. 실제 marginal slice만 시각화하며 잔여 오류를 원인으로 단정하지 않음.
+  {
+    const s = page("잔여 오류와 실험 결론", "음향 특징의 보완 효과를 비교하고, 짧은 발화와 겹침 구간의 잔여 오류를 확인했습니다.");
+    panels(s);
+    title(s, "■ 최종 평가의 구간별 오류율", M + 0.25, 2.65, leftW - 0.5, 17);
+    barChart(s, ["전체", "0.5–1초", "Overlap"], [11.5, 15.7, 15.3], {
+      x: M + 0.2, y: 3.2, w: leftW - 0.4, h: 2.9, name: "오류율", title: "오류율 (%)",
+      chartColors: [C.line, C.sky, C.blue], valAxisMinVal: 0, valAxisMaxVal: 20, valAxisMajorUnit: 5, dataLabelFormatCode: "0.0",
+    });
+    txt(s, "각 구간은 서로 겹칠 수 있으며 오류율을 합산하지 않음", { x: M + 0.2, y: 6.3, w: leftW - 0.4, h: 0.28, fontSize: 11, color: C.sub, align: "center" });
+    title(s, "■ 음향 특징 실험에서 얻은 결론", rightX + 0.25, 2.65, rightW - 0.5, 17);
+    bullets(s, [
+      "가설에 따라 음향 정보를 추가하고 비교",
+      "효과를 확인한 특징으로 입력 구성",
+      "모델 결합 후 고정 후보를 최종 평가",
+    ], rightX + 0.3, 3.25, rightW - 0.6, 2.4, 16);
+    insight(s, rightX + 0.2, 5.8, rightW - 0.4, 0.8, "짧은 발화·겹침 구간은 추가 분석이 필요한 영역", C.light, 13);
+    s.addNotes("FINAL_VERIFIED Official 저장 예측: 전체 111,947행 중 12,883오류(11.5081%); 0.5–1초 27,392행 중 4,299오류(15.6944%); overlap 48,863행 중 7,457오류(15.2610%). 각 marginal slice는 겹칠 수 있어 동시에 짧고 겹친 구간의 결과로 해석하지 않는다. 저장 예측의 기술통계이며 음성 청취/원인 확정/새 학습을 수행한 결과가 아니다. 개인 분석의 의미를 설명하며 팀 제출 CNN에 특정 특징이 반영됐다는 기여 관계를 주장하지 않는다.");
+  }
 }
 
 
-// Mission 3 — 환자 증상 인식 (29~31장)
+// Mission 3 — 환자 증상 인식 (25~28장)
 // ======================================================================
 
-// 29. 문제와 최종 모델 (main 유지 + 수빈 님 PR #200의 파이프라인·근거 문구)
+// 25. 문제와 최종 모델 (main 유지 + 수빈 님 PR #200의 파이프라인·근거 문구)
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 문제 정의와 접근", 29);
+  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 문제 정의와 접근", 25);
   coreMsg(s, "TF-IDF 기준선부터 RoBERTa 문맥 모델을 검증하고, 최종 3-seed + TF-IDF 앙상블 채택");
   const prob = [["입력", "119 통화 전사문\n(utterances[].text만)"], ["출력", "증상 9종 중 0~9개\n(다중 레이블)"], ["평가", "Macro F1\n(증상별 F1 평균)"]];
   const symNames = ["고열", "구토", "두통", "복통", "어지러움", "열상", "오심", "전신쇠약", "호흡곤란"];
@@ -947,7 +817,7 @@ function flow(slide, x, y, w, h, f) {
   txt(s, "■ 모델 구성", { x: rx, y: 2.45, w: rw, h: 0.4, fontSize: 18, bold: true });
   flow(s, rx, 2.95, rw, 1.75, {
     pre: [["입력 정제", "발화 text만\n원본 순서 유지"]], preW: 1.55,
-    branches: [["RoBERTa-large", "seed 42·43·44 평균", "× 0.55"], ["TF-IDF + 로지스틱 회귀", "초기 기준선", "× 0.45"]], brW: 2.5, brGap: 0.15,
+    branches: [["RoBERTa-large", "seed 42·43·44 평균", "55%"], ["TF-IDF + 로지스틱 회귀", "초기 기준선", "45%"]], brW: 2.5, brGap: 0.15,
     post: [["가중 평균", "증상별 ≥ 0.5\n판정"]], postW: 1.75,
   });
   txt(s, "■ 왜 이 방법인가", { x: rx, y: 4.95, w: rw, h: 0.4, fontSize: 18, bold: true });
@@ -960,10 +830,11 @@ function flow(slide, x, y, w, h, f) {
   s.addNotes("근거: submission/mission3/README.md '모델' 절, docs/decisions.md M3-FINAL-002. 파이프라인·'왜' 문구는 이수빈 님 PR #200(subin/ppt-m3-storytelling-20261013)에서 가져옴.");
 }
 
-// 30. 최종 결과
+// =====================================================================
+// 26. 최종 결과
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 최종 결과", 30);
+  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 최종 결과", 26);
   coreMsg(s, "최종 3-seed RoBERTa + TF-IDF 앙상블: 공식 Validation Macro F1 65.34%");
   card(s, M, 2.45, 7.3, 4.35);
   txt(s, "65.34%", { x: M + 0.2, y: 2.65, w: 2.6, h: 0.75, fontSize: 38, color: C.blue, bold: true, align: "center", valign: "middle" });
@@ -971,14 +842,14 @@ function flow(slide, x, y, w, h, f) {
   insight(s, M + 0.2, 4.28, 2.6, 2.3, [
     { text: "Micro F1  66.90%", options: { bold: true, color: C.blue, breakLine: true } },
     { text: "빈 예측 149건", options: { breakLine: true } },
-    { text: "앙상블 가중치\nRoBERTa 평균 0.55\n+ TF-IDF 0.45", options: { fontSize: 10.5 } },
+    { text: "앙상블 가중치\nRoBERTa 평균 55%\n+ TF-IDF 45%", options: { fontSize: 10.5 } },
   ]);
   // 증상별 F1 (최종 앙상블, 공식 Val) — 낮은 3개만 빨강. 근거: dcc-lab results/M3-FINAL-002/metrics.json
-  const sym = [["열상", 0.8828], ["복통", 0.8271], ["고열", 0.7001], ["호흡곤란", 0.6795], ["어지러움", 0.657], ["구토", 0.6088], ["전신쇠약", 0.5939], ["두통", 0.5315], ["오심", 0.4]];
+  const sym = [["열상",88.28],["복통",82.71],["고열",70.01],["호흡곤란",67.95],["어지러움",65.70],["구토",60.88],["전신쇠약",59.39],["두통",53.15],["오심",40.00]];
   barChart(s, sym.map(r => r[0]), sym.map(r => r[1]), {
-    name: "F1", barDir: "bar", catAxisOrientation: "maxMin", dataLabelFormatCode: "0.0%", x: M + 2.95, y: 2.6, w: 4.2, h: 4.1,
-    chartColors: sym.map((r, i) => (i >= 6 ? C.red : C.sky)), showTitle: true, title: "증상별 F1 (최종 앙상블, 공식 Val)", titleFontSize: 11,
-    dataLabelFontSize: 11, dataLabelFontBold: false, valAxisMinVal: 0, valAxisMaxVal: 1, valAxisHidden: true, valGridLine: { style: "none" }, catAxisLabelFontSize: 12,
+    name: "F1 (%)", barDir: "bar", catAxisOrientation: "maxMin", dataLabelFormatCode: '0.00"%"', x: M + 2.95, y: 2.6, w: 4.2, h: 4.1,
+    chartColors: sym.map((r, i) => (i >= 6 ? C.red : C.sky)), showTitle: true, title: "증상별 F1 (%) · 최종 앙상블 공식 Val", titleFontSize: 11,
+    dataLabelFontSize: 11, dataLabelFontBold: false, valAxisMinVal: 0, valAxisMaxVal: 100, valAxisHidden: true, valGridLine: { style: "none" }, catAxisLabelFontSize: 12,
   });
   const rx = M + 7.6, rw = W - M - rx;
   card(s, rx, 2.45, rw, 2.75);
@@ -991,129 +862,92 @@ function flow(slide, x, y, w, h, f) {
   });
   card(s, rx, 5.35, rw, 1.45, C.bgGray);
   title(s, "■ 가장 약한 증상 (빨강)", rx + 0.2, 5.47, rw - 0.4);
-  txt(s, "오심 40.00% · 두통 53.15% · 전신쇠약 59.39%", { x: rx + 0.2, y: 5.92, w: rw - 0.4, h: 0.6, fontSize: 12.2, bold: true, color: C.red, align: "center", valign: "middle" });
+  txt(s, "오심 40.00% · 두통 53.15% · 전신쇠약 59.39%", { x: rx + 0.2, y: 5.92, w: rw - 0.4, h: 0.6, fontSize: 13.2, bold: true, color: C.red, align: "center", valign: "middle" });
   caption(s, "근거: submission/mission3/README.md, m3_final_train.executed.ipynb. 모델별 점수 차이가 특정 원인만의 효과임을 뜻하지 않음.");
-  s.addNotes("근거: submission/mission3/README.md 결과 표(seed 42·43·44 0.6479/0.6441/0.6445, 앙상블 0.6534, Micro 0.6690, 빈 예측 149). 개선 흐름: M3-OFFVAL-001(TF-IDF 0.5689, KcBERT 0.6246), M3-OFFVAL-002(RoBERTa-large 0.6433), M3-FINAL-002(앙상블 0.6534). 증상별 약점: M3-FINAL-002(오심·두통·전신쇠약 F1이 가장 낮음).");
+  s.addNotes("근거: submission/mission3/README.md 결과 표(seed 42·43·44 64.79%/64.41%/64.45%, 앙상블 65.34%, Micro 66.90%, 빈 예측 149). 개선 흐름: M3-OFFVAL-001(TF-IDF 56.89%, KcBERT 62.46%), M3-OFFVAL-002(RoBERTa-large 64.33%), M3-FINAL-002(앙상블 65.34%). 증상별 약점: M3-FINAL-002(오심·두통·전신쇠약 F1이 가장 낮음).");
 }
 
-// 31. 모델 선정과 오류 분석 (기존 17장, 페이지 번호 외 변경 없음)
+// 27. 환자 증상 인식 — 모델 선정 (네이티브 편집 가능 차트와 카드)
 {
   const s = pres.addSlide();
-  header(s, "03", "미션별 수행", "Mission 3  환자 증상 인식 — 모델 선정과 오류 분석", 31);
-  coreMsg(s, "낮은 F1을 단순 성능 문제로 보지 않고, 전사와 증상 라벨의 정보 차이를 점검했다.");
-  // 상단: 미션 3 데이터 진단의 핵심 발견을 3개 증상 가로 막대그래프로 요약.
-  // F1 차트는 30장에 이미 있어 중복 제거. 여기의 미검출률은 최종 모델 예측값이 아니라
-  // Training 내부 홀드아웃 5,792건의 라벨-전사 키워드 정규식 탐색 결과(M3-ERR-001).
-  const leftX = M, leftW = 6.65, topY = 2.35, topH = 1.73;
-  const rightX = M + leftW + 0.30, rightW = CW - leftW - 0.30;
-  card(s, leftX, topY, leftW, topH, C.bgGray);
-  title(s, "■ 저성능 3개 증상의 직접 표현 미검출률", leftX + 0.19, topY + 0.12, leftW - 0.38, 14);
-  txt(s, "Training 내부 홀드아웃 5,792건 · 증상별 정규식 탐색", {
-    x: leftX + 0.19, y: topY + 0.43, w: leftW - 0.38, h: 0.18,
-    fontSize: 9.1, color: C.sub,
-  });
-  const noDirectExpression = [
-    ["오심", 88.6, C.red],
-    ["전신쇠약", 75.7, "E78A47"],
-    ["두통", 63.7, C.sky],
-  ];
-  noDirectExpression.forEach(([symptom, percent, col], i) => {
-    const yy = topY + 0.70 + i * 0.33;
-    txt(s, symptom, { x: leftX + 0.22, y: yy - 0.045, w: 1.10, h: 0.26, fontSize: 11.8, bold: true, color: C.text, valign: "middle" });
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
-      x: leftX + 1.35, y: yy, w: 3.50, h: 0.20,
-      fill: { color: C.line }, rectRadius: 0.055, line: { color: C.line },
+  header(s, "03", "미션별 수행", "환자 증상 인식 - 모델 선정", 27);
+  coreMsg(s, "서로 다른 오류 특성을 지닌 문맥 모델과 어휘 모델을 결합해 최종 제출 모델 선정");
+  barChart(s, ["TF-IDF", "KcBERT", "RoBERTa-large", "최종 앙상블"],
+    [56.89, 62.46, 64.33, 65.34], {
+      name: "Macro F1 (%) · 공식 Validation", barDir: "bar", catAxisOrientation: "maxMin",
+      x: M + 0.18, y: 2.25, w: CW - 0.36, h: 1.83,
+      chartColors: [C.sky, C.blue, C.blue, C.mint], showTitle: true,
+      title: "모델별 공식 Validation Macro F1 (%)", titleFontSize: 11.5,
+      valAxisMinVal: 0, valAxisMaxVal: 100, valAxisHidden: true,
+      valGridLine: { style: "none" }, dataLabelFormatCode: '0.00"%"',
+      dataLabelFontSize: 12, catAxisLabelFontSize: 11.5,
     });
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
-      x: leftX + 1.35, y: yy, w: 3.50 * percent / 100, h: 0.20,
-      fill: { color: col }, rectRadius: 0.055, line: { color: col },
-    });
-    txt(s, percent.toFixed(1) + "%", {
-      x: leftX + 4.99, y: yy - 0.052, w: 0.73, h: 0.30,
-      fontSize: 13.2, bold: true, color: col, align: "right", valign: "middle",
-    });
-  });
+  const y = 4.18, h = 2.34, gap = 0.30, w = (CW-gap)/2, rx = M+w+gap;
+  card(s, M, y, w, h, C.light);
+  title(s, "REJECT · 유사한 문맥 모델 결합", M+0.18, y+0.13, w-0.36, 15);
+  txt(s, "KcBERT + RoBERTa", { x:M+0.18, y:y+0.53, w:w-0.36, h:0.27, fontSize:12.6, bold:true, color:C.blue });
+  bullets(s, [
+    "두 모델 모두 Transformer 기반 문맥 표현을 사용",
+    "전사 근거가 부족한 증상에서 오류가 반복",
+    "두 모델이 함께 틀리는 사례가 많아 결합 효과가 제한적",
+    "내부 Macro F1 개선폭 +0.28%p"
+  ], M+0.20, y+0.89, w-0.40, 1.34, 11.4);
+  card(s, rx, y, w, h, C.mintLight);
+  title(s, "ADOPT · 서로 다른 표현 방식 결합", rx+0.18, y+0.13, w-0.36, 15);
+  txt(s, "RoBERTa + TF-IDF", { x:rx+0.18, y:y+0.53, w:w-0.36, h:0.27, fontSize:12.6, bold:true, color:C.blue });
+  bullets(s, [
+    "RoBERTa: 문맥과 부정 표현을 반영",
+    "TF-IDF: 직접적인 증상 단어와 어휘 패턴을 포착",
+    "서로 다른 오류 특성을 확률 결합으로 보완",
+    "RoBERTa 55% + TF-IDF 45%",
+    "최종 공식 Validation Macro F1 65.34%"
+  ], rx+0.20, y+0.86, w-0.40, 1.43, 10.8);
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x:M, y:6.62, w:CW, h:0.39, fill:{ color:C.light }, rectRadius:0.06, line:{ color:C.sky, width:0.8 } });
+  txt(s, "비슷한 모델을 추가하기보다 서로 다른 정보를 학습하는 모델을 결합했다", { x:M+0.16, y:6.64, w:CW-0.32, h:0.33, fontSize:14, bold:true, color:C.blue, align:"center", valign:"middle" });
+  caption(s, "근거: docs/decisions.md M3-ENS-001·M3-FINAL-002. 내부 홀드아웃과 공식 Validation 차이를 직접 인과 효과로 해석하지 않음.", 7.14);
+  s.addNotes("근거: docs/decisions.md M3-ENS-001(Training 내부 80:20: 신경망 결합 64.55%, RoBERTa 64.27%, +0.28%p로 사전 기준 +1.00%p 미달), M3-FINAL-002(최종 RoBERTa 3-seed 55%와 TF-IDF 45% 확률 결합, 공식 Validation Macro F1 65.34%). 상단의 공식 Validation 비교는 서로 다른 학습 조건이므로 인과 효과가 아니며 Training 내부 홀드아웃과 직접 비교하지 않음.");
+}
 
-  // 실제 발화 카드: 전화 통화 GIF(가벼운 흔들림/파형) + PPT 편집 가능한 말풍선/라벨.
-  // 미션 2와 동일한 GIF 삽입 방식. 첫 프레임만 보여도 전체 메시지를 이해할 수 있다.
-  // 실제 모델 예측 장면이 아닌, 기존 보고서의 정규식 기반 전사-라벨 탐색 사례이다.
-  card(s, rightX, topY, rightW, topH, C.light);
-  title(s, "■ 오류 분석에서 읽은 실제 발화", rightX + 0.20, topY + 0.12, rightW - 0.40, 14);
-  s.addImage({
-    path: "figures/anim/m3_call_wave.gif",
-    x: rightX + 0.24, y: topY + 0.60, w: 1.38, h: 0.55,
+// 28. MISSION 3 환자 증상 인식 — 오류분석 (왼쪽만 사용, 오른쪽 비워 둠)
+{
+  const s = pres.addSlide();
+  header(s, "03", "미션별 수행", "MISSION 3 환자 증상 인식 - 오류분석", 28);
+  const lw = 6.18;
+  card(s, M, 1.60, lw, 2.52);
+  title(s, "오류 분석 - 전사에 직접 표현이 없는 양성 라벨", M+0.16, 1.72, lw-0.32, 13.7);
+  s.addChart(pres.charts.DOUGHNUT, [{ name:"양성 라벨", labels:["직접 표현 없음", "직접 표현 있음"], values:[52,48] }], {
+    x:M+0.14, y:2.12, w:2.55, h:1.73, holeSize:63, chartColors:[C.red,C.line],
+    showLegend:false, showPercent:false, showValue:false, showLabel:false,
+    dataBorder:{ pt:1, color:"FFFFFF" }
   });
-  txt(s, "119 신고 · 음성 전달", {
-    x: rightX + 0.20, y: topY + 1.21, w: 1.46, h: 0.22,
-    fontSize: 9.0, color: C.sub, align: "center",
+  txt(s, "약 52%", { x:M+0.14, y:2.68, w:2.55, h:0.42, fontSize:19, color:C.red, bold:true, align:"center", valign:"middle" });
+  txt(s, "직접 표현 없음 52% · 있음 48%", { x:M+0.18, y:3.76, w:2.6, h:0.24, fontSize:9.4, color:C.sub, align:"center" });
+  txt(s, "92%", { x:M+2.95, y:2.26, w:1.28, h:0.56, fontSize:27, bold:true, color:C.red, align:"center" });
+  txt(s, "두 모델이 놓친 양성 중\n직접 표현 없는 라벨", { x:M+2.81, y:2.87, w:1.56, h:0.53, fontSize:9.7, color:C.sub, align:"center" });
+  txt(s, "약 90%", { x:M+4.45, y:2.26, w:1.47, h:0.56, fontSize:24, bold:true, color:C.sky, align:"center" });
+  txt(s, "표현 있는 라벨 중\n맞힌 비율", { x:M+4.40, y:2.87, w:1.55, h:0.53, fontSize:9.7, color:C.sub, align:"center" });
+  txt(s, "※ 과거 TF-IDF·KcBERT 오류 분석이며 최종 RoBERTa 오류 통계가 아님", { x:M+2.86, y:3.57, w:3.02, h:0.4, fontSize:9.3, bold:true, color:C.blue, align:"center" });
+  card(s, M, 4.24, lw, 2.48);
+  title(s, "저성능 3개 증상의 직접 표현 미검출률", M+0.17, 4.36, lw-0.34, 14);
+  txt(s, "Training 내부 홀드아웃 5,792건", { x:M+0.17, y:4.77, w:lw-0.34, h:0.26, fontSize:10, color:C.sub });
+  [["오심",88.6],["전신쇠약",75.7],["두통",63.7]].forEach(([name,value],i)=>{
+    const y=5.16+i*0.45;
+    txt(s,name,{ x:M+0.22,y,w:1.03,h:0.27,fontSize:11.5,bold:true,color:C.text });
+    s.addShape(pres.shapes.RECTANGLE,{ x:M+1.42,y:y+0.03,w:3.6,h:0.20,fill:{color:C.bgGray},line:{color:C.line,width:0.5} });
+    s.addShape(pres.shapes.RECTANGLE,{ x:M+1.42,y:y+0.03,w:3.6*value/100,h:0.20,fill:{color:i===0?C.red:C.sky},line:{color:i===0?C.red:C.sky} });
+    txt(s,value.toFixed(1)+"%",{ x:M+5.07,y:y-0.01,w:0.75,h:0.31,fontSize:11.2,bold:true,color:C.blue,align:"right" });
   });
-
-  // 말풍선 안의 전사 원문·라벨 대비 문구는 편집 가능한 개별 PPT 도형/텍스트.
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
-    x: rightX + 1.75, y: topY + 0.47, w: rightW - 1.96, h: 0.69,
-    fill: { color: C.white }, line: { color: C.sky, width: 1.7 }, rectRadius: 0.13,
-  });
-  txt(s, "“어지러워서 정신을\n못 차리겠다”", {
-    x: rightX + 1.89, y: topY + 0.52, w: rightW - 2.25, h: 0.58,
-    fontSize: 15.0, bold: true, color: C.blue, align: "center", valign: "middle",
-  });
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
-    x: rightX + 1.76, y: topY + 1.24, w: 1.41, h: 0.29,
-    fill: { color: C.blue }, line: { color: C.blue }, rectRadius: 0.10,
-  });
-  txt(s, "오심 양성 라벨", {
-    x: rightX + 1.78, y: topY + 1.27, w: 1.37, h: 0.22,
-    fontSize: 10.1, bold: true, color: C.white, align: "center", valign: "middle",
-  });
-  txt(s, "vs", {
-    x: rightX + 3.19, y: topY + 1.29, w: 0.21, h: 0.18,
-    fontSize: 11.0, bold: true, color: C.sub, align: "center",
-  });
-  s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
-    x: rightX + 3.43, y: topY + 1.24, w: rightW - 3.65, h: 0.29,
-    fill: { color: C.white }, line: { color: C.red, width: 1.4 }, rectRadius: 0.10,
-  });
-  txt(s, "오심 직접 표현 미검출", {
-    x: rightX + 3.45, y: topY + 1.27, w: rightW - 3.69, h: 0.22,
-    fontSize: 9.5, bold: true, color: C.red, align: "center", valign: "middle",
-  });
-  txt(s, "발화와 증상 라벨 사이의 정보 차이 · 키워드 기준 · 최종 RoBERTa 예측 사례 아님", {
-    x: rightX + 0.17, y: topY + 1.57, w: rightW - 0.34, h: 0.18,
-    fontSize: 8.8, color: C.sub, align: "center", valign: "middle",
-  });
-  const lw = 5.0;
-  insight(s, M, 4.15, lw, 1.3, [
-    { text: "REJECT · 과거 결합 기각", options: { bold: true, color: C.blue, breakLine: true } },
-    { text: "KcBERT + RoBERTa: 동일 내부 분할에서 +0.28%p. 사전 채택 기준 +1.00%p에 미달하고 오류도 많이 겹침." },
-  ], C.light, 11.5);
-  insight(s, M, 5.55, lw, 1.3, [
-    { text: "ADOPT · 최종 가중 결합 채택", options: { bold: true, color: C.blue, breakLine: true } },
-    { text: "RoBERTa 3-seed 55% + TF-IDF 45%. 결합 비율은 Training 홀드아웃에서 사전 확정, 공식 Val은 채점만 수행." },
-  ], C.mintLight, 11.5);
-  const rx = M + lw + 0.3, rw = W - M - rx;
-  card(s, rx, 4.15, rw, 2.7);
-  title(s, "■ 오류 분석 — 전사에 직접 표현이 없는 양성 라벨", rx + 0.25, 4.27, rw - 0.5);
-  s.addChart(pres.charts.DOUGHNUT, [{ name: "양성 라벨", labels: ["직접 표현 없음", "직접 표현 있음"], values: [52, 48] }], {
-    x: rx + 0.1, y: 4.65, w: 2.7, h: 2.15, holeSize: 62, chartColors: [C.red, C.line], showLegend: false, showPercent: false, showValue: false, showLabel: false, dataBorder: { pt: 1, color: "FFFFFF" },
-  });
-  txt(s, "약 52%", { x: rx + 0.1, y: 5.35, w: 2.7, h: 0.5, fontSize: 19, bold: true, color: C.red, align: "center", valign: "middle" });
-  txt(s, "양성 라벨 중\n표현 없음", { x: rx + 0.1, y: 5.82, w: 2.7, h: 0.5, fontSize: 10.5, color: C.sub, align: "center" });
-  [["92%", "두 모델이 놓친 양성 중\n직접 표현 없는 라벨", C.red], ["약 90%", "표현 있는 라벨 중\n맞힌 비율", C.sky]].forEach(([n, l, col], i) => {
-    const x = rx + 3.0 + i * ((rw - 3.2) / 2);
-    stat(s, x, 4.75, (rw - 3.2) / 2 - 0.1, n, "", col, 30);
-    txt(s, l, { x, y: 5.5, w: (rw - 3.2) / 2 - 0.1, h: 0.6, fontSize: 11, color: C.sub, align: "center" });
-  });
-  txt(s, "→ TF-IDF·KcBERT의 오류 양상 차이 확인\n(과거 모델 분석·정규식 기준, 오라벨 단정 아님)", { x: rx + 3.0, y: 6.2, w: rw - 3.2, h: 0.55, fontSize: 10.5, bold: true, color: C.blue, align: "center", valign: "middle" });
-  caption(s, "근거: reports/mission3/error_analysis/README.md·M3-ERR-001. 상단은 Training 텍스트·라벨 탐색, 하단은 과거 TF-IDF·KcBERT 분석(최종 RoBERTa 오답 분석 아님).");
-  s.addNotes("상단은 공식 Validation 또는 최종 RoBERTa 예측 결과가 아니다. Training 80:20 내부 홀드아웃 5,792건의 증상별 라벨 양성 집합에 대해 정규식으로 직접 표현 탐색: 오심 592/668=88.6%, 전신쇠약 804/1,062=75.7%, 두통 370/581=63.7% 미검출. 인용 발화는 reports/mission3/error_analysis/README.md 1절의 오심 라벨 사례이다. 정규식은 구어체 변형을 모두 찾지 못하므로 직접 표현 미검출을 증상 부재나 오라벨이라고 단정하지 않는다. 하단 52%는 라벨-전사 탐색 비율, 92% 및 약 90%는 이전 TF-IDF·KcBERT 및 해당 앙상블의 오류 분석(공식 Val 3,640건)이며 최종 RoBERTa 모델의 오류 통계가 아님. 모델 결정을 위한 내부 실험 M3-ENS-001(KcBERT+RoBERTa +0.0028 < +0.01 기각)과 M3-FINAL-002(최종 RoBERTa×3+TF-IDF 가중치 0.55/0.45 Training 내부 결정)는 별도 조건으로 해석해야 한다. 출처: reports/mission3/error_analysis/README.md, docs/experiment_log.md M3-ERR-001, docs/decisions.md M3-ENS-001 및 M3-FINAL-002.");
+  txt(s, "※ 직접 표현 미검출은 증상 부재나 오라벨을 의미하지 않으며 정규식은 구어체 변형을 모두 포착하지 못함", { x:M+0.17, y:6.75, w:lw-0.34, h:0.34, fontSize:9.1, color:C.sub });
+  caption(s, "근거: docs/experiment_log.md M3-ERR-001; reports/mission3/error_analysis/m3_error_analysis.json · README.md",7.15);
+  s.addNotes("과거 TF-IDF·KcBERT 오류 분석: 전사에 직접 표현이 없는 양성 라벨 약 52%, 두 모델이 놓친 양성 중 직접 표현 없는 사례 92%, 직접 표현이 있는 라벨 중 맞힌 비율 약 90%. 이 수치는 최종 RoBERTa 오류 통계가 아님. Training 내부 홀드아웃 5,792건에서 직접 표현 미검출률: 오심 88.6%, 전신쇠약 75.7%, 두통 63.7%. 정규식 키워드 탐색은 구어체 변형을 모두 포착하지 못하므로 직접 표현 없음은 증상 부재 또는 오라벨의 증거가 아님. 근거: docs/experiment_log.md M3-ERR-001; reports/mission3/error_analysis/m3_error_analysis.json; reports/mission3/error_analysis/README.md.");
 }
 
 // =====================================================================
-// 32. 04-(1) 성능 요약과 교훈 (기존 18장)
+// 29. 04-(1) 성능 요약과 교훈 (기존 종합 성과 장)
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "04", "종합 및 시사점", "(1) 성능 요약과 교훈", 32);
+  header(s, "04", "종합 및 시사점", "(1) 성능 요약과 교훈", 29);
   coreMsg(s, "공식 Validation은 튜닝에 쓰지 않고, 결과를 보기 전에 고정한 기준만 확인했다.");
   const v = t => strong(t);
   const tiles = [
@@ -1147,47 +981,126 @@ function flow(slide, x, y, w, h, f) {
     txt(s, t, { x: x + 0.9, y: 5.07, w: cw - 1.05, h: 0.6, fontSize: 15, bold: true, color: C.blue, valign: "middle" });
     txt(s, d, { x: x + 0.25, y: 5.8, w: cw - 0.5, h: 0.95, fontSize: 12 });
   });
-  s.addNotes("근거: submission/mission1/README.md(98.10%), " + M2.evidence + ", submission/mission3/README.md(0.6534). baseline: M1 95.11%(52D LR, docs/decisions.md 2026-10-05), M2 86.44%(L1 LightGBM, M2-RETRAIN-001), M3 0.5689=56.89%(TF-IDF, M3-OFFVAL-001). M3 최종 Macro F1 0.6534=65.34%, 차이는 0.0845=8.45%p(공식 Val 결과 간 비교, 통제된 인과 효과를 뜻하지 않음).");
+  s.addNotes("근거: submission/mission1/README.md(98.10%), " + M2.evidence + ", submission/mission3/README.md(65.34%). baseline: M1 95.11%(52D LR, docs/decisions.md 2026-10-05), M2 86.44%(L1 LightGBM, M2-RETRAIN-001), M3 56.89%(TF-IDF, M3-OFFVAL-001).");
 }
 
 // =====================================================================
-// 33. 04-(2) 사회안전 시사점과 향후 계획 — 사회안전은 이 장 한 곳에만 (기존 19장)
+// 30. 04-(2) 활용 흐름과 기대효과 — 편집 가능한 연결 도형, 현장 적용 원칙 명시
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "04", "종합 및 시사점", "(2) 사회안전 시사점과 향후 계획", 33);
-  coreMsg(s, "세 미션을 이으면, 신고 전화가 들어오는 순간부터 출동 판단까지를 돕는 하나의 흐름이 된다.");
-  // 신고 전화 → M2 → M1 → M3 → 상황실: 순서대로 켜지는 GIF (ppt/tools/make_gif_flow.py), 첫 프레임은 전부 켜진 상태
-  { const gw = 12.0, gh = gw * 232 / 1920; s.addImage({ path: "figures/anim/flow_pipeline.gif", x: (W - gw) / 2, y: 2.4, w: gw, h: gh }); }
-  const lw = 5.0, rw = CW - lw - 0.4; // 향후 계획 문장이 길어 오른쪽을 넓게
-  card(s, M, 3.95, lw, 2.3);
-  title(s, "■ 기대효과", M + 0.25, 4.07, lw - 0.5, 18);
-  txt(s, [
-    strong("접수 시간 단축"), { text: " — 수기 기록 부담 감소", options: { breakLine: true } },
-    strong("누락 방지"), { text: " — 긴박한 통화 속 증상 언급 표시", options: { breakLine: true } },
-    strong("판단 보조"), { text: " — 출동 우선순위 결정 지원" },
-  ], { x: M + 0.25, y: 4.6, w: lw - 0.5, h: 1.55, fontSize: 14, paraSpaceAfter: 8 });
-  const rx = M + lw + 0.4;
-  card(s, rx, 3.95, rw, 2.3);
-  title(s, "■ 본선까지 향후 계획", rx + 0.25, 4.07, rw - 0.5, 18);
-  txt(s, [
-    strong("M1  "), { text: "오분류 통화 정성 분석, 피치(F0) 특징 검증", options: { breakLine: true } },
-    strong("M2  "), { text: M2.future, options: { breakLine: true } },
-    strong("M3  "), { text: "근거 없는 라벨 구간 오류 분석, 오심·두통 개선", options: { breakLine: true } },
-    strong("공통  "), { text: "통화 도중 실시간 처리 시나리오 검토" },
-  ], { x: rx + 0.25, y: 4.6, w: rw - 0.5, h: 1.6, fontSize: 12.5, paraSpaceAfter: 6 });
-  insight(s, M, 6.4, CW, 0.5, [
-    strong("유의점  "), { text: "모든 출력은 요원의 판단을 돕는 정보이며, 오분류 가능성을 감안해 사람이 최종 확인한다." },
-  ], C.bgGray, 12.5);
-  s.addNotes("출제문제 12쪽 필수 항목 '사회안전 시사점'은 이 장 한 곳에만 둔다(미션별 장에는 넣지 않음). 향후 계획 근거: M1 — 10장 후속 과제, M2 — docs/experiment_log.md M2-SSL-003, M3 — M3-ERR-001·M3-FINAL-002.");
+  header(s, "04", "종합 및 시사점", "(2) 활용 흐름과 기대효과", 30);
+  coreMsg(s, "세 미션을 연결해 신고 전화의 화자와 증상 정보를 접수 화면에 구조화한다.");
+  // 연결 과정: GIF 대신 개별 도형·텍스트로 구성 (PowerPoint에서 직접 편집 가능).
+  // 다섯 박스를 동일 크기로 배치하며, 사이에는 하늘색 오른쪽 화살표를 둔다.
+  {
+    const labels = ["신고 전화", "M2\n화자 구분", "M1\n성별 분류", "M3\n증상 인식", "상황실"];
+    const bw = 2.15, bh = 0.77, gap = 0.38, fy = 2.58;
+    const fx = (W - (labels.length * bw + (labels.length - 1) * gap)) / 2;
+    labels.forEach((label, i) => {
+      const x = fx + i * (bw + gap);
+      const last = i === labels.length - 1;
+      s.addShape(pres.shapes.ROUNDED_RECTANGLE, {
+        x, y: fy, w: bw, h: bh, rectRadius: 0.09,
+        fill: { color: last ? C.blue : C.light },
+        line: { color: last ? C.blue : C.sky, width: 1.2 },
+      });
+      txt(s, label, {
+        x: x + 0.06, y: fy, w: bw - 0.12, h: bh,
+        fontFace: F, fontSize: 15, bold: true,
+        color: last ? C.white : C.blue,
+        align: "center", valign: "middle", breakLine: false,
+      });
+      if (!last) arrow(s, x + bw + (gap - 0.22) / 2, fy + (bh - 0.28) / 2, 0.22, 0.28, C.sky);
+    });
+  }
+  const gap = 0.34, cw = (CW - gap) / 2, y = 3.95, h = 2.30;
+  const blocks = [
+    { x: M, heading: "■ 기대효과", items: [
+      ["접수 과정 지원", "통화 정보를 자동으로 구조화해 수기 기록 부담 완화"],
+      ["정보 누락 완화", "통화 중 언급된 증상 후보를 화면에 표시"],
+      ["판단 보조", "접수요원이 확인할 정보를 한 화면에 정리"]
+    ] },
+    { x: M + cw + gap, heading: "■ 현장 적용 원칙", items: [
+      ["근거 확인", "모델 결과와 통화 원문을 함께 표시"],
+      ["불확실성 구분", "신뢰도가 낮은 결과는 별도로 표시"],
+      ["사람의 수정", "접수요원이 결과를 수정하거나 제외"],
+      ["정보 최소화", "개인정보는 필요한 범위에서만 처리"]
+    ] }
+  ];
+  blocks.forEach(({x, heading, items}) => {
+    card(s, x, y, cw, h);
+    title(s, heading, x + 0.22, y + 0.13, cw - 0.44, 17);
+    const itemY = y + 0.61, itemStep = items.length === 4 ? 0.40 : 0.52;
+    items.forEach(([label, body], i) => {
+      const yy = itemY + i * itemStep;
+      txt(s, [strong(label), { text: " — " + body }], {
+        x: x + 0.23, y: yy, w: cw - 0.46, h: items.length === 4 ? 0.38 : 0.46,
+        fontSize: items.length === 4 ? 11.1 : 11.7, breakLine: false, valign: "middle"
+      });
+    });
+  });
+  insight(s, M, 6.39, CW, 0.55, [
+    strong("활용 범위  "),
+    { text: "모든 출력은 접수요원의 판단을 돕는 보조 정보이며, 사람이 통화 원문을 확인한 뒤 최종 결정한다." },
+  ], C.bgGray, 12.2);
+  s.addNotes("기대효과는 실제로 검증된 성과가 아니라 제안된 활용 가능성이다. 실제 접수 시간 단축과 현장 효과는 별도의 모의 접수 시나리오로 검증해야 한다. 연결 과정은 GIF 대신 PowerPoint에서 편집 가능한 박스와 화살표 도형으로 구성했다.");
 }
 
 // =====================================================================
-// 34. 별첨 A1 — Mission 3 데이터 특성과 모델 설계 근거 (기존 p17 + p21 통합)
+// 31. 04-(3) 사회안전 시사점과 향후 계획 — 신규 삽입 (별첨은 32쪽부터)
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "별첨", "Mission 3", "Mission 3 데이터 특성과 모델 설계 근거", 34);
+  header(s, "04", "종합 및 시사점", "(3) 사회안전 시사점과 향후 계획", 31);
+  coreMsg(s, "통화 정보를 구조화해 접수와 현장 인계의 정보 누락을 줄이고, 향후 미션별 오류 분석과 모델 보완을 진행한다.");
+  const y = 2.38, h = 3.88, gap = 0.28, leftW = 4.88, rightX = M + leftW + gap, rightW = CW - leftW - gap;
+  card(s, M, y, leftW, h);
+  card(s, rightX, y, rightW, h);
+  title(s, "■ 사회안전 시사점", M + 0.22, y + 0.12, leftW - 0.44, 17);
+  const implications = [
+    ["초기 대응의 정보 공백 완화", "긴박하거나 소음이 있는 통화의 증상 정보 재확인\n짧거나 불완전한 표현도 증상 후보로 표시"],
+    ["현장 인계의 일관성 향상", "신고자·증상 정보를 같은 형식으로 기록\n확인된 정보를 출동팀 전달 자료로 활용"],
+    ["반복 오류를 활용한 개선", "비식별 사례에서 반복되는 실패 조건 확인\n교육과 모델 개선의 근거로 활용"]
+  ];
+  implications.forEach(([heading, detail], i) => {
+    const yy = y + 0.64 + i * 1.02;
+    s.addShape(pres.shapes.OVAL, { x: M + 0.24, y: yy + 0.02, w: 0.34, h: 0.34, fill: { color: C.blue }, line: { color: C.blue } });
+    txt(s, String(i + 1), { x: M + 0.24, y: yy + 0.02, w: 0.34, h: 0.34, fontSize: 12, bold: true, color: C.white, align: "center", valign: "middle" });
+    txt(s, heading, { x: M + 0.71, y: yy, w: leftW - 0.96, h: 0.39, fontSize: 13, bold: true, color: C.blue, valign: "middle" });
+    txt(s, detail, { x: M + 0.71, y: yy + 0.42, w: leftW - 0.97, h: 0.55, fontSize: 10.7, color: C.text, breakLine: false });
+  });
+  title(s, "■ 향후 활동 계획", rightX + 0.22, y + 0.12, rightW - 0.44, 17);
+  // 미션별로 실제 명시된 후속 계획만 반영한 3단계 구성.
+  const plans = [
+    ["오류 원인 분석", ["M1  오분류 통화 정성 분석", "M2  짧은 응답 발화의 오류 사례 확인", "M3  근거 없는 라벨 구간 오류 분석"]],
+    ["미션별 모델 보완", ["M1  피치(F0) 특징 검증", "M2  짧은 응답 발화 보강", "M3  오심·두통 성능 개선"]],
+    ["실시간 활용 시나리오 검토", ["통화 도중 세 미션의 처리 순서 검토", "세 미션 결과를 접수 화면에 제공하는 방식 검토", "사람이 최종 확인하는 활용 범위 명시"]]
+  ];
+  plans.forEach(([heading, lines], i) => {
+    const px = rightX + 0.21, py = y + 0.60 + i * 1.10, ph = 1.01;
+    const last = i === plans.length - 1;
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: px, y: py, w: rightW - 0.42, h: ph, fill: { color: last ? C.mintLight : C.bgGray }, rectRadius: 0.07, line: { color: last ? C.mint : C.line, width: 0.7 } });
+    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: px + 0.12, y: py + 0.25, w: 0.43, h: 0.50, fill: { color: last ? C.mint : C.blue }, rectRadius: 0.05, line: { color: last ? C.mint : C.blue } });
+    txt(s, String(i + 1), { x: px + 0.12, y: py + 0.25, w: 0.43, h: 0.50, fontSize: 15, bold: true, color: C.white, align: "center", valign: "middle" });
+    txt(s, heading, { x: px + 0.68, y: py + 0.19, w: 2.42, h: 0.60, fontSize: 12.5, bold: true, color: last ? "2E7D32" : C.blue, valign: "middle" });
+    txt(s, lines.join("\n"), { x: px + 3.18, y: py + 0.14, w: rightW - 3.48, h: 0.73, fontSize: 10.6, color: C.text, valign: "middle", breakLine: false });
+  });
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: M, y: 6.39, w: CW, h: 0.60, fill: { color: C.light }, rectRadius: 0.07, line: { color: C.light } });
+  txt(s, [strong("향후 정리 내용  "), { text: "미션별 오류 분석 결과 · 특성 및 모델 검증 결과 · 실시간 처리 시나리오" }],
+    { x: M + 0.23, y: 6.47, w: CW - 0.46, h: 0.22, fontSize: 12.0, valign: "middle" });
+  txt(s, "※ 실제 접수 시간과 현장 적용 효과는 현재 결과만으로 확인할 수 없으며, 별도의 평가가 필요하다.",
+    { x: M + 0.23, y: 6.72, w: CW - 0.46, h: 0.18, fontSize: 9.5, color: C.sub });
+  s.addNotes("사회안전 시사점과 향후 활동 계획. 미션별 오류 분석·모델 보완 및 통화 도중 실시간 처리 시나리오를 검토하는 계획이다. 현장 적용 효과는 별도 평가가 필요하다.");
+}
+
+// =====================================================================
+// =====================================================================
+// 32. 별첨 1 — Mission 3 데이터 특성과 모델 설계 근거 (기존 p17 + p21 통합)
+// =====================================================================
+{
+  const s = pres.addSlide();
+  header(s, "별첨", "Mission 3", "별첨 1. Mission 3 데이터 특성과 모델 설계 근거", 32);
   coreMsg(s, "데이터의 불균형과 입력 길이를 고려해 학습 손실과 최종 앙상블 방식을 설계했다.");
 
   // 상단: 데이터 관찰(좌)과 손실 설계(우) — 수식은 모두 편집 가능한 텍스트.
@@ -1198,7 +1111,7 @@ function flow(slide, x, y, w, h, f) {
   title(s, "■ 데이터 관찰 → 설계 결정", M + 0.2, topY + 0.11, leftW - 0.4, 15);
   const observations = [
     ["라벨 불균형", "9개 증상 양성 비율 9.9~23.2%", "pos_weight BCE + Soft macro-F1"],
-    ["입력 길이", "40.7%가 256토큰 초과 · 512토큰 +0.0074", "기준 +0.01 미달·약 4배 시간 → 256 유지"],
+    ["입력 길이", "40.7%가 256토큰 초과 · 512토큰 +0.74%p", "기준 +1.00%p 미달·약 4배 시간 → 256 유지"],
     ["입력 정보", "전사 text만 원본 시간순 연결", "화자 태그·허용되지 않은 라벨 제외"],
   ];
   observations.forEach(([name, observed, decision], i) => {
@@ -1239,37 +1152,37 @@ function flow(slide, x, y, w, h, f) {
   });
   txt(s, "모든 증상에 동일한 threshold 0.5 적용 · 증상별 threshold 조정 및 별도 후처리 없음", { x: M + 0.2, y: bottomY + 1.27, w: CW - 0.4, h: 0.2, fontSize: 10.1, bold: true, color: C.blue, align: "center" });
   caption(s, "※ 입력 길이와 512토큰 실험은 Training 내부 80:20 홀드아웃 기준이며, 공식 Validation은 모델 선택에 사용하지 않음.", 7.02);
-  s.addNotes("기존 p17 + p21 통합. 데이터: Training 29,200통화, 평가 전용 Validation 3,640통화, 9개 증상, Training 통화당 평균 증상 수 1.43. 라벨별 양성 비율(Training): 열상 23.2, 어지러움 21.7, 전신쇠약 18.2, 고열 17.8, 구토 15.3, 호흡곤란 13.4, 복통 11.9, 오심 11.4, 두통 9.9(%). 입력 길이와 512토큰 실험은 Training 내부 80:20 홀드아웃: 40.7% 256토큰 초과, Macro F1 +0.0074, 사전 기준 +0.01 미달, 학습시간 약 4배. 전사 utterances[].text만 원본 순서로 연결하며 화자 태그와 허용되지 않은 라벨은 사용하지 않음. Soft macro-F1 상세: pᵢⱼ = sigmoid(zᵢⱼ), SoftF1ⱼ = 2Σᵢ(pᵢⱼyᵢⱼ) / [Σᵢpᵢⱼ + Σᵢyᵢⱼ + 10⁻⁸]. 가중치 wⱼ = clip(0.5 × √((N − Pⱼ) / max(Pⱼ,1)),1,6). 실효 batch 16 = micro 8 × 2, soft-F1 micro batch별 계산. 최종 RoBERTa seeds 42·43·44 확률 평균 0.55와 TF-IDF 확률 0.45를 결합, 모든 증상 threshold 0.5 적용(별도 후처리 없음). 근거: reports/eda/eda_report.md; docs/experiment_log.md M3-ROBERTA-007; submission/mission3/README.md; submission/mission3/train/train_final.py; submission/mission3/train/build_ensemble.py; submission/mission3/mission3_model.py.");
+  s.addNotes("기존 p17 + p21 통합. 데이터: Training 29,200통화, 평가 전용 Validation 3,640통화, 9개 증상, Training 통화당 평균 증상 수 1.43. 라벨별 양성 비율(Training): 열상 23.2, 어지러움 21.7, 전신쇠약 18.2, 고열 17.8, 구토 15.3, 호흡곤란 13.4, 복통 11.9, 오심 11.4, 두통 9.9(%). 입력 길이와 512토큰 실험은 Training 내부 80:20 홀드아웃: 40.7% 256토큰 초과, Macro F1 +0.74%p, 사전 기준 +1.00%p 미달, 학습시간 약 4배. 전사 utterances[].text만 원본 순서로 연결하며 화자 태그와 허용되지 않은 라벨은 사용하지 않음. Soft macro-F1 상세: pᵢⱼ = sigmoid(zᵢⱼ), SoftF1ⱼ = 2Σᵢ(pᵢⱼyᵢⱼ) / [Σᵢpᵢⱼ + Σᵢyᵢⱼ + 10⁻⁸]. 가중치 wⱼ = clip(0.5 × √((N − Pⱼ) / max(Pⱼ,1)),1,6). 실효 batch 16 = micro 8 × 2, soft-F1 micro batch별 계산. 최종 RoBERTa seeds 42·43·44 확률 평균 가중치 55%와 TF-IDF 확률 가중치 45%를 결합, 모든 증상 threshold 0.5 적용(별도 후처리 없음). 근거: reports/eda/eda_report.md; docs/experiment_log.md M3-ROBERTA-007; submission/mission3/README.md; submission/mission3/train/train_final.py; submission/mission3/train/build_ensemble.py; submission/mission3/mission3_model.py.");
 }
 
 // =====================================================================
-// 35. 별첨 A2 — M3 입력 길이 확대 실험
+// 33. 별첨 2 — M3 입력 길이 확대 실험
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "별첨", "Mission 3", "M3 입력 길이 확대 실험", 35);
+  header(s, "별첨", "Mission 3", "별첨 2. M3 입력 길이 확대 실험", 33);
   coreMsg(s, "512토큰은 성능이 개선됐지만 사전 채택 기준과 계산비용 조건을 충족하지 못함");
 
   const epochs = ["Epoch 1", "Epoch 2", "Epoch 3"];
   s.addChart(pres.charts.LINE, [
-    { name: "512토큰 모델", labels: epochs, values: [0.6439, 0.6504, 0.6515] },
-    { name: "256토큰 기준 성능", labels: epochs, values: [0.6441, 0.6441, 0.6441] },
-    { name: "사전 채택 기준", labels: epochs, values: [0.6541, 0.6541, 0.6541] },
+    { name: "512토큰 모델", labels: epochs, values: [64.39, 65.04, 65.15] },
+    { name: "256토큰 기준 성능", labels: epochs, values: [64.41, 64.41, 64.41] },
+    { name: "사전 채택 기준", labels: epochs, values: [65.41, 65.41, 65.41] },
   ], {
     x: M, y: 2.45, w: 7.0, h: 3.75, showTitle: true,
-    title: "512토큰 모델의 epoch별 내부 홀드아웃 Macro F1", titleFontFace: F, titleFontSize: 11.5, titleColor: C.text,
+    title: "512토큰 모델의 epoch별 내부 홀드아웃 Macro F1 (%)", titleFontFace: F, titleFontSize: 11.5, titleColor: C.text,
     chartColors: [C.blue, "9E9E9E", C.red], showLegend: true, legendPos: "b", legendFontFace: F, legendFontSize: 9,
     showValue: false, lineSize: 2.2, lineDataSymbol: "circle", lineDataSymbolSize: 5,
     catAxisLabelFontFace: F, catAxisLabelFontSize: 10.5, catAxisLabelColor: C.text,
     valAxisLabelFontFace: F, valAxisLabelFontSize: 9.5, valAxisLabelColor: C.sub,
-    valAxisMinVal: 0.63, valAxisMaxVal: 0.66, valAxisMajorUnit: 0.005, valAxisLabelFormatCode: "0.0%",
+    valAxisMinVal: 63, valAxisMaxVal: 66, valAxisMajorUnit: 0.5, valLabelFormatCode: '0.0"%"',
     valGridLine: { color: C.line, size: 0.5 }, catGridLine: { style: "none" },
     chartArea: { border: { color: C.white, pt: 0 }, fill: { color: C.white, transparency: 100 } },
     plotArea: { border: { color: C.white, pt: 0 }, fill: { color: C.white, transparency: 100 } },
   });
   // 512토큰 계열만 필요한 값 레이블을 별도 편집 가능한 텍스트로 표시한다.
   [["64.39%", 1.38, 4.34], ["65.04%", 3.35, 3.75], ["65.15%", 5.34, 3.63]].forEach(([v, x, y]) => {
-    txt(s, v, { x, y, w: 0.78, h: 0.22, fontSize: 9.3, bold: true, color: C.blue, align: "center" });
+    txt(s, v, { x, y, w: 0.64, h: 0.22, fontSize: 9.5, bold: true, color: C.blue, align: "center" });
   });
 
   const expRows = [
@@ -1295,11 +1208,11 @@ function flow(slide, x, y, w, h, f) {
 }
 
 // =====================================================================
-// 36. 별첨 A3 — Mission 3 낮은 성능 3개 라벨의 오류 구조
+// 34. 별첨 3 — Mission 3 낮은 성능 3개 라벨의 오류 구조
 // =====================================================================
 {
   const s = pres.addSlide();
-  header(s, "별첨", "Mission 3", "Mission 3  낮은 성능 3개 라벨의 오류 구조", 36);
+  header(s, "별첨", "Mission 3", "별첨 3. Mission 3 낮은 성능 3개 라벨의 오류 구조", 34);
   coreMsg(s, "직접 표현이 없는 양성이 많았고, 두통과 오심은 표현 유무에 따라 recall 차이가 컸다");
 
   const labels = ["전신쇠약", "두통", "오심"];
@@ -1351,7 +1264,80 @@ function flow(slide, x, y, w, h, f) {
 }
 
 // =====================================================================
-// 37. 마무리 — 기존 20장 공식 템플릿 그대로 사용 + 팀 정보 유지
+// =====================================================================
+// 35. 별첨 4 — Mission 3 채택 실험 로그 — 네이티브 편집 가능 표
+// =====================================================================
+{
+  const s = pres.addSlide();
+  header(s, "별첨", "Mission 3", "별첨 4. Mission 3 채택 실험 로그", 35);
+  coreMsg(s, "가중 BCE와 soft macro-F1, RoBERTa 확장이 단계적인 성능 개선을 만들었다.");
+  const rows = [
+    ["실험 ID", "핵심 변경", "평가 기준", "Macro F1", "판단"],
+    ["M3-REEVAL-P0", "TF-IDF + One-vs-Rest LR", "내부 80:20", "56.76%", "기준선"],
+    ["M3-KCBERT-002", "KcBERT, 앞 256토큰, 비가중 BCE", "내부 80:20", "58.33%", "채택"],
+    ["M3-KCBERT-003", "완화 가중 BCE", "내부 80:20", "59.90%", "채택"],
+    ["M3-KCBERT-005", "강화 가중 BCE", "내부 80:20", "60.92%", "채택"],
+    ["M3-KCBERT-012", "강화 가중 BCE + soft macro-F1", "내부 80:20", "62.65%", "채택"],
+    ["M3-ROBERTA-003", "KLUE RoBERTa-large + 동일 손실", "내부 80:20", "64.27%", "최종 구조 채택"],
+    ["M3-FINAL-002", "RoBERTa 3-seed + TF-IDF", "공식 Validation", "65.34%", "최종 제출 모델"],
+  ];
+  const nativeRows = rows.map((r, i) => r.map((v, j) => {
+    const fill = i === 0 ? C.blue : i === 7 ? C.mintLight : i === 1 ? C.bgGray : i === 6 ? C.light : (i % 2 === 0 ? C.white : C.light);
+    return { text: v, options: { fill: { color: fill }, color: i === 0 ? C.white : C.text,
+      bold: i === 0 || (i === 7 && (j === 3 || j === 4)),
+      align: (j === 3 || j === 4) ? "center" : "left", valign: "middle" } };
+  }));
+  s.addTable(nativeRows, { x: M, y: 2.43, w: CW, colW: [2.05, 4.18, 2.0, 1.3, 2.8],
+    rowH: [0.53, 0.51, 0.51, 0.51, 0.51, 0.51, 0.51, 0.55], fontFace: F,
+    fontSize: 11, color: C.text, margin: 0.065, valign: "middle",
+    border: { type: "solid", pt: 0.65, color: C.line } });
+  card(s, M, 6.66, 6.06, 0.38, C.light);
+  txt(s, [{ text: "내부 검증  ", options: { bold: true, color: C.blue } },
+    { text: "56.76% → 64.27%  (+7.51%p)", options: { bold: true } }],
+    { x: M + 0.1, y: 6.68, w: 5.85, h: 0.3, fontSize: 12.5, valign: "middle", align: "center" });
+  card(s, 6.77, 6.66, 6.06, 0.38, C.mintLight);
+  txt(s, [{ text: "공식 Validation  ", options: { bold: true, color: C.blue } },
+    { text: "Macro F1  65.34%", options: { bold: true } }],
+    { x: 6.87, y: 6.68, w: 5.85, h: 0.3, fontSize: 12.5, valign: "middle", align: "center" });
+  caption(s, "※ 56.76%~64.27%는 Training 내부 80:20 홀드아웃, 65.34%는 전체 Training 학습 후 공식 Validation 결과.", 7.12);
+  s.addNotes("근거: docs/experiment_log.md, docs/decisions.md — M3-REEVAL-P0, M3-KCBERT-002·003·005·012, M3-ROBERTA-003, M3-FINAL-002. 내부 홀드아웃과 공식 Validation 수치를 직접 비교하지 않음.");
+}
+
+// 36. 별첨 5 — Mission 3 주요 기각 실험 (네이티브 편집 가능 표)
+// =====================================================================
+{
+  const s = pres.addSlide();
+  header(s, "별첨", "Mission 3", "별첨 5. Mission 3 주요 기각 실험", 36);
+  coreMsg(s, "사전에 정한 개선 기준 +1.00%p를 넘지 못한 변형은 최종 모델에 사용하지 않았다.");
+  const rows = [
+    ["실험 방향", "대표 실험", "대표 결과", "비교 기준", "기각 이유"],
+    ["긴 입력 처리", "M3-ROBERTA-007", "65.15%", "RoBERTa seed 42 64.41%", "+0.74%p, 계산 비용 약 4배"],
+    ["학습 기간 확대", "M3-KCBERT-006", "58.83%", "KcBERT-005 60.92%", "3 epochs보다 성능 하락"],
+    ["정규화·도메인 적응", "M3-KCBERT-011·013", "61.32% / 61.18%", "KcBERT-005 60.92%", "개선폭이 seed 편차 수준"],
+    ["손실 함수 변형", "M3-KCBERT-014·015", "62.53% / 62.49%", "KcBERT-012 62.65%", "soft-F1 기준선보다 낮음"],
+    ["다른 인코더", "M3-E5-001·KCELECTRA-001·QWEN-001", "최고 63.84%", "RoBERTa seed 42 64.41%", "RoBERTa-large를 넘지 못함"],
+    ["보조 증상·출력 구조", "M3-ROBERTA-004·STRUCT-001", "64.74% / 64.31%", "각 기준선", "최대 개선폭 +0.33%p"],
+    ["신경망 앙상블", "M3-ENS-001", "64.55%", "RoBERTa 64.27%", "+0.28%p, 모델 간 오류 중복"],
+  ];
+  const nativeRows = rows.map((r, i) => r.map((v, j) => ({ text: v, options: {
+    fill: { color: i === 0 ? C.blue : (i % 2 ? C.white : C.bgGray) },
+    color: i === 0 ? C.white : C.text, bold: i === 0 || (i > 0 && j === 0),
+    align: j === 2 ? "center" : "left", valign: "middle"
+  } })));
+  s.addTable(nativeRows, { x: M, y: 2.48, w: CW,
+    colW: [2.05, 3.12, 1.43, 2.35, 3.38],
+    rowH: [0.46, 0.48, 0.48, 0.50, 0.48, 0.62, 0.54, 0.48],
+    fontFace: F, fontSize: 10.1, color: C.text, margin: 0.055, valign: "middle",
+    border: { type: "solid", pt: 0.65, color: C.line } });
+  card(s, M, 6.82, CW, 0.34, C.light);
+  txt(s, "모델 복잡화보다 클래스 불균형과 Macro F1을 반영한 손실 설계가 더 효과적이었다.",
+    { x: M + 0.16, y: 6.84, w: CW - 0.32, h: 0.28, fontSize: 12.2, bold: true,
+      color: C.blue, align: "center", valign: "middle" });
+  caption(s, "근거: docs/experiment_log.md, docs/decisions.md — M3-ROBERTA-007 등 주요 기각 실험", 7.17);
+  s.addNotes("근거: docs/experiment_log.md, docs/decisions.md — M3-ROBERTA-007, M3-KCBERT-006·011·013·014·015, M3-E5-001, M3-KCELECTRA-001, M3-QWEN-001, M3-ROBERTA-004, M3-STRUCT-001, M3-ENS-001. 미리 정한 +1.00%p 개선 기준에 못 미치거나 비교 모델보다 낮은 주요 변형만 정리함.");
+}
+
+// 37. 마무리 — 기존 마무리 장 공식 템플릿 그대로 사용 + 팀 정보 유지
 // =====================================================================
 {
   const s = pres.addSlide();
@@ -1391,6 +1377,32 @@ async function styleLengthExperimentLines(fileName) {
   zip.file(contentTypesName, contentTypes);
   await fs.promises.writeFile(fileName, await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
 }
+
+// 빌드 이전 자동 검증: 표지·타이틀·목차(1~3), 본문 및 별첨(4~36), 마무리(37).
+const EXPECTED_SLIDE_COUNT = 37;
+if (pres._slides.length !== EXPECTED_SLIDE_COUNT) {
+  throw new Error(`슬라이드 수 오류: ${pres._slides.length}장 (예상 ${EXPECTED_SLIDE_COUNT}장)`);
+}
+const headerPageNumbers = [];
+for (const slide of pres._slides) {
+  // header()가 생성한 우측 상단 'eigensinn | N' 텍스트만 검사.
+  const textShapes = (slide._slideObjects || []).filter(o => o._type === 'text');
+  for (const obj of textShapes) {
+    const t = obj.text;
+    if (typeof t === 'string') {
+      const match = t.match(/^eigensinn\s*\|\s*(\d+)$/);
+      if (match) headerPageNumbers.push(Number(match[1]));
+    }
+  }
+}
+// 내부 객체 구조가 버전에 따라 달라질 수 있으므로 비어 있으면 출력하지 않는다.
+if (headerPageNumbers.length && (
+  headerPageNumbers.length !== 33 ||
+  headerPageNumbers.some((n, i) => n !== i + 4)
+)) {
+  throw new Error(`헤더 페이지 번호 중복/누락: ${headerPageNumbers.join(', ')}`);
+}
+console.log(`슬라이드 수 확인: ${pres._slides.length}장`);
 
 const outputFile = process.argv[2] || "DCC2026_예선_결과정리.pptx";
 pres.writeFile({ fileName: outputFile }).then(async f => {
