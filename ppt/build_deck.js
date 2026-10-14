@@ -938,7 +938,7 @@ function flow(slide, x, y, w, h, f) {
   s.addNotes("근거: docs/decisions.md M3-ENS-001(Training 내부 80:20: 신경망 결합 64.55%, RoBERTa 64.27%, +0.28%p로 사전 기준 +1.00%p 미달), M3-FINAL-002(최종 RoBERTa 3-seed 55%와 TF-IDF 45% 확률 결합, 공식 Validation Macro F1 65.34%). 상단의 공식 Validation 비교는 서로 다른 학습 조건이므로 인과 효과가 아니며 Training 내부 홀드아웃과 직접 비교하지 않음.");
 }
 
-// 29. MISSION 3 환자 증상 인식 — 오류분석 (왼쪽만 사용, 오른쪽 비워 둠)
+// 29. MISSION 3 환자 증상 인식 — 오류분석 (팀원 수정본에 발화 카드 복원)
 {
   const s = pres.addSlide();
   header(s, "03", "미션별 수행", "MISSION 3 환자 증상 인식 - 오류분석", 29);
@@ -970,6 +970,38 @@ function flow(slide, x, y, w, h, f) {
   txt(s, "※ 직접 표현 미검출은 증상 부재나 오라벨을 의미하지 않으며 정규식은 구어체 변형을 모두 포착하지 못함", { x:M+0.17, y:6.75, w:lw-0.34, h:0.34, fontSize:9.1, color:C.sub });
   caption(s, "근거: docs/experiment_log.md M3-ERR-001; reports/mission3/error_analysis/m3_error_analysis.json · README.md",7.15);
   s.addNotes("과거 TF-IDF·KcBERT 오류 분석: 전사에 직접 표현이 없는 양성 라벨 약 52%, 두 모델이 놓친 양성 중 직접 표현 없는 사례 92%, 직접 표현이 있는 라벨 중 맞힌 비율 약 90%. 이 수치는 최종 RoBERTa 오류 통계가 아님. Training 내부 홀드아웃 5,792건에서 직접 표현 미검출률: 오심 88.6%, 전신쇠약 75.7%, 두통 63.7%. 정규식 키워드 탐색은 구어체 변형을 모두 포착하지 못하므로 직접 표현 없음은 증상 부재 또는 오라벨의 증거가 아님. 근거: docs/experiment_log.md M3-ERR-001; reports/mission3/error_analysis/m3_error_analysis.json; reports/mission3/error_analysis/README.md.");
+
+  // Reviewed Mission 3 case card restored; illustrative GIF, not real model inference.
+  card(s,6.82,1.60,6.01,5.12);
+  title(s,"■ 오류 분석에서 읽은 실제 발화",7.04,1.73,5.55,14);
+  s.addShape(pres.shapes.LINE,{x:7.04,y:2.18,w:5.55,h:0,line:{color:C.line,width:1}});
+  s.addImage({path:"figures/anim/speakers_separation.gif",x:7.10,y:2.59,w:2.73,h:1.12});
+  txt(s,"119 신고 통화 · 상황 삽화",{x:7.10,y:3.77,w:2.73,h:0.23,fontSize:9,color:C.sub,align:"center"});
+  arrow(s,9.91,2.93,0.35,0.28);
+  txt(s,"전사",{x:9.80,y:3.32,w:0.60,h:0.21,fontSize:9,bold:true,color:C.blue,align:"center"});
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:10.34,y:2.50,w:2.24,h:1.22,
+    fill:{color:C.white},line:{color:C.sky,width:1.6},rectRadius:0.1});
+  txt(s,"보고서의 발화 인용",{x:10.43,y:2.56,w:2.06,h:0.21,fontSize:9.5,bold:true,color:C.sky,align:"center"});
+  txt(s,"“어지러워서\n정신을 못 차리겠다”",{x:10.42,y:2.78,w:2.10,h:0.87,fontSize:14.6,bold:true,
+    color:C.blue,align:"center",valign:"middle"});
+  txt(s,"분석 입력: 전사 text",{x:10.28,y:3.78,w:2.39,h:0.20,fontSize:9.4,color:C.sub,align:"center"});
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:7.12,y:4.09,w:2.25,h:0.49,
+    fill:{color:C.blue},line:{color:C.blue},rectRadius:0.06});
+  txt(s,"오심 양성 라벨",{x:7.20,y:4.15,w:2.08,h:0.37,fontSize:12.0,bold:true,color:C.white,align:"center",valign:"middle"});
+  txt(s,"vs",{x:9.48,y:4.15,w:0.42,h:0.37,fontSize:12,bold:true,color:C.sub,align:"center",valign:"middle"});
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:10.01,y:4.09,w:2.54,h:0.49,
+    fill:{color:C.white},line:{color:C.red,width:1.4},rectRadius:0.06});
+  txt(s,"오심 직접 표현 미검출",{x:10.05,y:4.15,w:2.47,h:0.37,fontSize:10.5,bold:true,color:C.red,align:"center",valign:"middle"});
+  s.addShape(pres.shapes.LINE,{x:7.06,y:4.83,w:5.50,h:0,line:{color:C.line,width:1}});
+  title(s,"이 사례에서 확인한 문제",7.09,4.97,5.40,12.5);
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:7.08,y:5.33,w:5.47,h:0.73,
+    fill:{color:C.bgGray},line:{color:C.bgGray,width:0.6},rectRadius:0.1});
+  txt(s,"전사에 오심 표현이 없어도 오심 양성 라벨이 부여될 수 있음\n→ 직접 표현 미검출은 증상 부재·오라벨 확정이 아님",{
+    x:7.23,y:5.41,w:5.18,h:0.59,fontSize:10.4,color:C.text,valign:"middle"});
+  s.addShape(pres.shapes.LINE,{x:7.08,y:6.18,w:5.47,h:0,line:{color:C.line,width:1}});
+  txt(s,"출처: M3 오류분석 보고서 1절 · 정규식 기준 · 최종 RoBERTa 오답 아님",{
+    x:7.10,y:6.23,w:5.42,h:0.28,fontSize:9,color:C.sub,align:"center"});
+
 }
 
 // =====================================================================
