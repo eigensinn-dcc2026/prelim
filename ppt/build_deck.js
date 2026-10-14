@@ -628,7 +628,7 @@ function m2Appendix3() {
     { text: "설계  ", options: { bold: true, color: C.blue, breakLine: true } },
     { text: design },
   ], { x: textX + 0.25, y: 5.15, w: textW - 0.5, h: 1.2, fontSize: 16, paraSpaceAfter: 6 });
-  caption(symptomSlide, evidence);
+  caption(symptomSlide, "근거: reports/eda/eda_report.md, reports/eda/figures/");
   symptomSlide.addNotes(notes);
 }
 
@@ -696,7 +696,7 @@ function m2Appendix3() {
   coreMsg(s, "점수가 조금 올라도 미리 정해 둔 목표를 넘지 못하면 채택하지 않았다.");
   table(s, [
     ["시도", "판정", "이유"],
-    ["트리 기반 모델 (LightGBM)", strong("✓ 유지"), "점수 차이가 거의 없고, 로지스틱 회귀가 더 단순해서 설명하기 쉬움"],
+    ["트리 기반 모델 (LightGBM)", strong("✗ 미채택", C.red), "점수 차이가 거의 없고, 로지스틱 회귀가 더 단순해서 설명하기 쉬움"],
     ["비선형 분류기 (RBF-SVM)", strong("✗ 기각", C.red), "정확도 향상 +0.33%p로 목표(+0.4%p)에 못 미치고, 예측이 훨씬 느림"],
     ["다른 음성 특징 모델 (ECAPA) 추가·교체", strong("✗ 기각", C.red), "향상 폭이 목표에 못 미침 (교체 비교 +0.28%p, 목표 +0.3%p)"],
     ["두 모델의 예측 확률 평균 (x-vector 모델 + ECAPA 모델)", strong("✗ 기각", C.red), "공식 Validation 98.30%로 조금 높았지만(+6통화) 목표에 못 미치고, 우연과 구분되지 않음"],
@@ -1122,7 +1122,7 @@ yw1(); yw2(); yw3(); yw4();
     txt(s, f1, { x: rx + 0.25, y: y + 0.3, w: 1.35, h: 0.5, fontSize: 21, bold: true, color: C.blue, valign: "middle" });
     txt(s, why, { x: rx + 1.75, y, w: rw - 1.95, h: 0.85, fontSize: 12, valign: "middle" });
   });
-  txt(s, "※ 이유는 Training 내부 홀드아웃 5,792건의 TF-IDF 진단 기준 (24장)", { x: rx + 0.2, y: 6.2, w: rw - 0.4, h: 0.45, fontSize: 10, color: C.sub, align: "center", valign: "middle" });
+  txt(s, "※ 이유는 Training 내부 홀드아웃 5,792건 TF-IDF 진단 기준 (24·33장)", { x: rx + 0.2, y: 6.2, w: rw - 0.4, h: 0.45, fontSize: 10, color: C.sub, align: "center", valign: "middle" });
   caption(s, "근거: submission/mission3/README.md, m3_final_train.executed.ipynb. 모델별 점수 차이가 특정 원인만의 효과임을 뜻하지 않음.");
   s.addNotes("근거: submission/mission3/README.md 결과 표(seed 42·43·44 64.79%/64.41%/64.45%, 앙상블 65.34%, Micro 66.90%, 빈 예측 149). 모델별 점수 흐름(M3-OFFVAL-001 TF-IDF 56.89%·KcBERT 62.46%, M3-OFFVAL-002 RoBERTa-large 64.33%, M3-FINAL-002 앙상블 65.34%)은 28장 차트에 있음. 증상별 약점: M3-FINAL-002(오심·두통·전신쇠약 F1이 가장 낮음). 약한 증상의 이유(직접 표현 없는 양성 비율 오심 88.6%·전신쇠약 75.7%, 두통의 표현 없을 때 재현율 19.5%)는 Training 내부 홀드아웃 5,792건의 TF-IDF 진단(29장·35장, M3-ERR-001)이며 최종 앙상블의 공식 Validation 오류 분석이 아니다.");
 }
@@ -1508,7 +1508,7 @@ m2Appendix1(); m2Appendix2(); m2Appendix3();
 {
   const s = pres.addSlide();
   header(s, "별첨", "Mission 3", "별첨 3. Mission 3 낮은 성능 3개 증상의 오류 구조", 35);
-  coreMsg(s, "직접 표현이 없는 양성이 많았고, 두통과 오심은 표현 유무에 따라 재현율 차이가 컸다");
+  coreMsg(s, "직접 표현이 없는 양성이 많았고, 표현이 없으면 세 증상 모두 재현율이 낮았다 (두통 62.5%p 차이)");
 
   const labels = ["오심", "두통", "전신쇠약"];
   s.addChart(pres.charts.BAR, [
