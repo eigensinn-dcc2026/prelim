@@ -40,7 +40,7 @@
 | 파일 | 내용 |
 |---|---|
 | `mission3_p0_rerun_colab_draft.ipynb` | Colab 초안 (미실행, zip 압축 해제 단계 없음) |
-| `mission3_p0_rerun_local.ipynb` | 로컬 실행용 노트북 템플릿 (출력 없음) |
+| [`notebooks/mission3/mission3_p0_rerun.ipynb`](../../../notebooks/mission3/mission3_p0_rerun.ipynb) | 로컬 실행용 노트북 템플릿 (출력 없음). 기존 `mission3_p0_rerun_local.ipynb`를 이곳으로 옮김 |
 | `mission3_p0_rerun_executed.ipynb` | 재현 실행 노트북 (셀 출력 포함) |
 | `metrics.json` | 스크립트 출력 지표 |
 | `per_label_metrics.csv` | 증상별 P/R/F1 |
